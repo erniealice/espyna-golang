@@ -23,10 +23,12 @@ import (
 )
 
 // jobActivitySortableSQLCols is the A2 whitelist for GetJobActivityListPageData.
+// Qualified with the OUTER alias `e` (SELECT e.* FROM enriched e), not the inner
+// `ja`: the ORDER BY runs against the enriched subquery, which exposes e.<col>.
 var jobActivitySortableSQLCols = []string{
-	"ja.date_created",
-	"ja.entry_date",
-	"ja.total_cost",
+	"e.date_created",
+	"e.entry_date",
+	"e.total_cost",
 }
 
 // PostgresJobActivityRepository implements job_activity CRUD operations using PostgreSQL
@@ -243,7 +245,7 @@ func (r *PostgresJobActivityRepository) GetJobActivityListPageData(ctx context.C
 	if req != nil {
 		sortReq = req.GetSort()
 	}
-	orderByClause, err := postgresCore.BuildOrderBy(jobActivitySortableSQLCols, sortReq, "ja.date_created DESC")
+	orderByClause, err := postgresCore.BuildOrderBy(jobActivitySortableSQLCols, sortReq, "e.date_created DESC")
 	if err != nil {
 		return nil, err
 	}

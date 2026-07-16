@@ -27,11 +27,14 @@ import (
 // jobSortableSQLCols lists the SQL column names that are safe to sort by in
 // GetJobListPageData. Routed through core.BuildOrderBy (A2 guard) — an
 // unrecognised column is rejected loudly before query execution.
+// Qualified with the OUTER alias `e` (SELECT e.* FROM enriched e), not the inner
+// `j`: the ORDER BY is applied to the enriched subquery, which exposes these as
+// e.<col>. A `j.<col>` reference is out of scope in the outer SELECT.
 var jobSortableSQLCols = []string{
-	"j.date_created",
-	"j.date_modified",
-	"j.name",
-	"j.status",
+	"e.date_created",
+	"e.date_modified",
+	"e.name",
+	"e.status",
 }
 
 func init() {
@@ -321,7 +324,7 @@ func (r *PostgresJobRepository) GetJobListPageData(
 	}
 
 	// A2: Sort guard — fail-closed via core.BuildOrderBy whitelist.
-	orderByClause, err := postgresCore.BuildOrderBy(jobSortableSQLCols, req.GetSort(), "j.date_created DESC")
+	orderByClause, err := postgresCore.BuildOrderBy(jobSortableSQLCols, req.GetSort(), "e.date_created DESC")
 	if err != nil {
 		return nil, err
 	}

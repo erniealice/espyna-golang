@@ -265,8 +265,11 @@ func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
 		}
 	}
 
-	// A2: Sort guard — fail-closed via core.BuildOrderBy whitelist.
-	orderByClause, err := postgresCore.BuildOrderBy(payrollRemittanceSortableSQLCols, req.GetSort(), "rem.date_created DESC")
+	// A2: Sort guard — fail-closed via core.BuildOrderBy whitelist. The list
+	// query's ORDER BY sits on a JOINED outer (payroll_remittance rem LEFT JOIN
+	// payroll_run pr), so the deterministic-pagination tiebreaker qualifies the
+	// primary table's id ("rem.id") — a bare `id` is ambiguous across rem/pr.
+	orderByClause, err := postgresCore.BuildOrderBy(payrollRemittanceSortableSQLCols, req.GetSort(), "rem.date_created DESC", "rem.id")
 	if err != nil {
 		return nil, err
 	}

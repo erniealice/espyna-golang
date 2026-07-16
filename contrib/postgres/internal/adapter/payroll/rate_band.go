@@ -213,8 +213,11 @@ func (r *PostgresRateBandRepository) GetRateBandListPageData(
 		}
 	}
 
-	// A2: sort guard — fail-closed via core.BuildOrderBy whitelist.
-	orderByClause, err := postgresCore.BuildOrderBy(rateBandSortableSQLCols, req.GetSort(), "rb.ordinal ASC")
+	// A2: sort guard — fail-closed via core.BuildOrderBy whitelist. The list
+	// query's ORDER BY sits on a JOINED outer (rate_band rb LEFT JOIN rate_table
+	// rt), so the deterministic-pagination tiebreaker qualifies the primary
+	// table's id ("rb.id") — a bare `id` is ambiguous across rb/rt.
+	orderByClause, err := postgresCore.BuildOrderBy(rateBandSortableSQLCols, req.GetSort(), "rb.ordinal ASC", "rb.id")
 	if err != nil {
 		return nil, err
 	}

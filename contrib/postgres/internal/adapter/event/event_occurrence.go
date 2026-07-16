@@ -20,22 +20,24 @@ import (
 // eventOccurrenceSortableSQLCols lists the SQL column names that are safe to
 // sort by in GetEventOccurrenceListPageData. The query uses direct ORDER BY
 // interpolation so this guard is critical.
+// Qualified with the OUTER alias `e` (SELECT e.* FROM enriched e), not the inner
+// `eo`: the ORDER BY runs against the enriched subquery, which exposes e.<col>.
 var eventOccurrenceSortableSQLCols = []string{
-	"eo.date_created",
-	"eo.date_modified",
-	"eo.start_date_time_utc",
-	"eo.end_date_time_utc",
-	"eo.event_id",
+	"e.date_created",
+	"e.date_modified",
+	"e.start_date_time_utc",
+	"e.end_date_time_utc",
+	"e.event_id",
 }
 
 // eventOccurrenceViewToSQLColMap translates view-facing sort column keys to SQL
-// column names. Columns absent from the map pass through unchanged.
+// column names (outer alias `e`). Columns absent from the map pass through unchanged.
 var eventOccurrenceViewToSQLColMap = map[string]string{
-	"date_created":        "eo.date_created",
-	"date_modified":       "eo.date_modified",
-	"start_date_time_utc": "eo.start_date_time_utc",
-	"end_date_time_utc":   "eo.end_date_time_utc",
-	"event_id":            "eo.event_id",
+	"date_created":        "e.date_created",
+	"date_modified":       "e.date_modified",
+	"start_date_time_utc": "e.start_date_time_utc",
+	"end_date_time_utc":   "e.end_date_time_utc",
+	"event_id":            "e.event_id",
 }
 
 // PostgresEventOccurrenceRepository implements read-only event occurrence operations using PostgreSQL.
@@ -149,7 +151,7 @@ func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceListPageData(
 
 	// Default sort — start_date_time_utc ASC is natural for calendar rendering.
 	// Translate view-facing column key to SQL column name via ColMap.
-	sortColKey := "eo.start_date_time_utc"
+	sortColKey := "e.start_date_time_utc"
 	if req.Sort != nil && len(req.Sort.Fields) > 0 && req.Sort.Fields[0].Field != "" {
 		sortColKey = req.Sort.Fields[0].Field
 	}
@@ -166,7 +168,7 @@ func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceListPageData(
 			}
 			return commonpb.SortDirection_ASC
 		}()}}},
-		"eo.start_date_time_utc ASC",
+		"e.start_date_time_utc ASC",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("invalid sort column for event_occurrence: %w", err)

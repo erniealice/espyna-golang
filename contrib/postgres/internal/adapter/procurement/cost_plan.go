@@ -198,7 +198,10 @@ func (r *PostgresCostPlanRepository) GetCostPlanListPageData(ctx context.Context
 	// column name, so the emitted ORDER BY "<col>" resolves unambiguously. The
 	// joined sp.name AS supplier_plan_name alias is intentionally excluded
 	// (not cp.-qualifiable). An unknown column errors instead of being interpolated.
-	orderByClause, err := postgresCore.BuildOrderBy(costPlanSortableSQLCols, req.GetSort(), "date_created DESC")
+	// The list query's ORDER BY sits on a JOINED outer (cost_plan cp LEFT JOIN
+	// supplier_plan sp), so the deterministic-pagination tiebreaker must qualify
+	// the primary table's id ("cp.id") — a bare `id` is ambiguous across cp/sp.
+	orderByClause, err := postgresCore.BuildOrderBy(costPlanSortableSQLCols, req.GetSort(), "date_created DESC", "cp.id")
 	if err != nil {
 		return nil, err
 	}

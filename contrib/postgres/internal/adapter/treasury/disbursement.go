@@ -26,26 +26,29 @@ import (
 // by in GetDisbursementListPageData. The query uses direct ORDER BY interpolation
 // so this guard is critical — an unrecognised column is a potential SQL-injection
 // vector and must be rejected loudly before query execution.
+// Qualified with the OUTER alias `e` (SELECT e.* FROM enriched e), not the inner
+// `d`: the ORDER BY runs against the enriched subquery, which exposes e.<col>.
 var disbursementSortableSQLCols = []string{
-	"d.date_created",
-	"d.date_modified",
-	"d.name",
-	"d.amount",
-	"d.status",
-	"d.payment_date",
-	"d.reference_number",
+	"e.date_created",
+	"e.date_modified",
+	"e.name",
+	"e.amount",
+	"e.status",
+	"e.payment_date",
+	"e.reference_number",
 }
 
 // disbursementViewToSQLColMap translates view-facing sort column keys to the SQL
-// column names used in the query. Columns absent from the map pass through unchanged.
+// column names used in the query (outer alias `e`). Columns absent from the map
+// pass through unchanged.
 var disbursementViewToSQLColMap = map[string]string{
-	"date_created":     "d.date_created",
-	"date_modified":    "d.date_modified",
-	"name":             "d.name",
-	"amount":           "d.amount",
-	"status":           "d.status",
-	"payment_date":     "d.payment_date",
-	"reference_number": "d.reference_number",
+	"date_created":     "e.date_created",
+	"date_modified":    "e.date_modified",
+	"name":             "e.name",
+	"amount":           "e.amount",
+	"status":           "e.status",
+	"payment_date":     "e.payment_date",
+	"reference_number": "e.reference_number",
 }
 
 func init() {
@@ -291,7 +294,7 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 	}
 
 	// Translate view-facing column key to SQL column name via ColMap.
-	sortColKey := "d.date_created"
+	sortColKey := "e.date_created"
 	if req.Sort != nil && len(req.Sort.Fields) > 0 && req.Sort.Fields[0].Field != "" {
 		sortColKey = req.Sort.Fields[0].Field
 	}
@@ -310,7 +313,7 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 			}
 			return commonpb.SortDirection_DESC
 		}()}}},
-		"d.date_created DESC",
+		"e.date_created DESC",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("invalid sort column for disbursement: %w", err)

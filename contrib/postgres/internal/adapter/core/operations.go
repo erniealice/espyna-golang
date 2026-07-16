@@ -518,6 +518,69 @@ func (p *PostgresOperations) HardDelete(ctx context.Context, tableName string, i
 	return nil
 }
 
+// buildListOrderByClause builds the ORDER BY clause for the generic List, always
+// terminating in the primary-key column `id` as a deterministic tiebreaker.
+//
+// List paginates with LIMIT/OFFSET. Postgres gives no stable row order for rows
+// that tie on the leading sort key(s) — e.g. many rows bulk-created under a single
+// date_created — so without a unique final key those tied rows come back in an
+// arbitrary order that can differ between page fetches, silently dropping some
+// rows from every page and duplicating others. Appending the primary key makes the
+// total order strict, so LIMIT/OFFSET pages are stable, disjoint, and complete.
+//
+// The tiebreaker is appended unless the caller already sorts by `id` (avoid a
+// redundant duplicate key). Its direction is always ASC: stability only needs a
+// unique final key, not a particular orientation.
+func buildListOrderByClause(params *interfaces.ListParams) (string, error) {
+	if params == nil || params.Sort == nil || len(params.Sort.Fields) == 0 {
+		// Default ordering + PK tiebreaker.
+		return "ORDER BY date_created DESC, id ASC", nil
+	}
+
+	orderByParts := make([]string, 0, len(params.Sort.Fields)+1)
+	hasIDSort := false
+	for _, sortField := range params.Sort.Fields {
+		// Sort field names are request-supplied and interpolated as identifiers.
+		if err := ValidateSQLIdent(sortField.Field); err != nil {
+			return "", model.NewDatabaseError(
+				fmt.Sprintf("invalid sort field: %v", err),
+				"INVALID_SORT_FIELD",
+				400,
+			)
+		}
+		// Postgres folds unquoted identifiers to lowercase and callers may
+		// qualify the column ("job_template.id") — normalize both before the
+		// redundancy check so `ID`/`t.id` don't get a second `, id ASC`.
+		normField := strings.ToLower(sortField.Field)
+		if normField == "id" || strings.HasSuffix(normField, ".id") {
+			hasIDSort = true
+		}
+
+		direction := "ASC"
+		if sortField.Direction == commonpb.SortDirection_DESC {
+			direction = "DESC"
+		}
+
+		// Handle NULL ordering
+		nullOrder := ""
+		if sortField.NullOrder == commonpb.NullOrder_NULLS_FIRST {
+			nullOrder = " NULLS FIRST"
+		} else if sortField.NullOrder == commonpb.NullOrder_NULLS_LAST {
+			nullOrder = " NULLS LAST"
+		}
+
+		orderByParts = append(orderByParts, fmt.Sprintf("%s %s%s", sortField.Field, direction, nullOrder))
+	}
+
+	// Append the primary key as a final tiebreaker unless the caller already
+	// ordered by it (don't emit a redundant `id` key).
+	if !hasIDSort {
+		orderByParts = append(orderByParts, "id ASC")
+	}
+
+	return "ORDER BY " + strings.Join(orderByParts, ", "), nil
+}
+
 // List retrieves records from the specified table with standardized params
 func (p *PostgresOperations) List(ctx context.Context, tableName string, params *interfaces.ListParams) (*interfaces.ListResult, error) {
 	if tableName == "" {
@@ -590,35 +653,12 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 		whereConditions = append(whereConditions, "("+strings.Join(likeClauses, " OR ")+")")
 	}
 
-	// Build ORDER BY clause
-	orderByClause := "ORDER BY date_created DESC" // Default ordering
-	if params != nil && params.Sort != nil && len(params.Sort.Fields) > 0 {
-		orderByParts := make([]string, 0, len(params.Sort.Fields))
-		for _, sortField := range params.Sort.Fields {
-			// Sort field names are request-supplied and interpolated as identifiers.
-			if err := ValidateSQLIdent(sortField.Field); err != nil {
-				return nil, model.NewDatabaseError(
-					fmt.Sprintf("invalid sort field: %v", err),
-					"INVALID_SORT_FIELD",
-					400,
-				)
-			}
-			direction := "ASC"
-			if sortField.Direction == commonpb.SortDirection_DESC {
-				direction = "DESC"
-			}
-
-			// Handle NULL ordering
-			nullOrder := ""
-			if sortField.NullOrder == commonpb.NullOrder_NULLS_FIRST {
-				nullOrder = " NULLS FIRST"
-			} else if sortField.NullOrder == commonpb.NullOrder_NULLS_LAST {
-				nullOrder = " NULLS LAST"
-			}
-
-			orderByParts = append(orderByParts, fmt.Sprintf("%s %s%s", sortField.Field, direction, nullOrder))
-		}
-		orderByClause = "ORDER BY " + strings.Join(orderByParts, ", ")
+	// Build ORDER BY clause — always terminated by the `id` primary-key tiebreaker
+	// so LIMIT/OFFSET pagination below is deterministic across page fetches (see
+	// buildListOrderByClause for why).
+	orderByClause, err := buildListOrderByClause(params)
+	if err != nil {
+		return nil, err
 	}
 
 	// Get total count before pagination
@@ -629,7 +669,7 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 	)
 
 	var totalItems int32
-	err := p.getExecutor(ctx).QueryRowContext(ctx, countQuery, values...).Scan(&totalItems)
+	err = p.getExecutor(ctx).QueryRowContext(ctx, countQuery, values...).Scan(&totalItems)
 	if err != nil {
 		return nil, model.NewDatabaseError(
 			fmt.Sprintf("failed to count records: %v", err),

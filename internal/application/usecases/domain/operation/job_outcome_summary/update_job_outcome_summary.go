@@ -7,8 +7,8 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
 )
 
@@ -17,9 +17,9 @@ type UpdateJobOutcomeSummaryRepositories struct {
 }
 
 type UpdateJobOutcomeSummaryServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -93,11 +93,20 @@ func (uc *UpdateJobOutcomeSummaryUseCase) executeWithTransaction(ctx context.Con
 
 // executeCore contains the core business logic for updating a job outcome summary
 func (uc *UpdateJobOutcomeSummaryUseCase) executeCore(ctx context.Context, req *pb.UpdateJobOutcomeSummaryRequest, enrichedData *pb.JobOutcomeSummary) (*pb.UpdateJobOutcomeSummaryResponse, error) {
-	_, err := uc.repositories.JobOutcomeSummary.ReadJobOutcomeSummary(ctx, &pb.ReadJobOutcomeSummaryRequest{
+	readResp, err := uc.repositories.JobOutcomeSummary.ReadJobOutcomeSummary(ctx, &pb.ReadJobOutcomeSummaryRequest{
 		Data: &pb.JobOutcomeSummary{Id: req.Data.Id},
 	})
 	if err != nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_outcome_summary.errors.not_found", "[ERR-DEFAULT] Job outcome summary not found"))
+	}
+
+	// WRITE-BOUNDARY FREEZE GUARD (B2, codex re-gate HIGH): the generic Update
+	// path must not overwrite an authoritative (frozen) year-final summary. The
+	// ComputeJobOutcome recompute path already fails closed on is_authoritative;
+	// mirror it here so the freeze holds for EVERY writer, not just recompute.
+	// Fail-closed: a frozen row is immutable to Update.
+	if readResp != nil && len(readResp.Data) > 0 && readResp.Data[0].GetIsAuthoritative() {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_outcome_summary.errors.summary_frozen", "[ERR-DEFAULT] refusing to overwrite authoritative (frozen) job outcome summary"))
 	}
 
 	resp, err := uc.repositories.JobOutcomeSummary.UpdateJobOutcomeSummary(ctx, &pb.UpdateJobOutcomeSummaryRequest{

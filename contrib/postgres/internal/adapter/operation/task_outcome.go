@@ -230,8 +230,10 @@ func (r *PostgresTaskOutcomeRepository) DeleteTaskOutcome(ctx context.Context, r
 // Filters and Pagination keep the prior nil-params behavior byte-for-byte.
 func (r *PostgresTaskOutcomeRepository) ListTaskOutcomes(ctx context.Context, req *pb.ListTaskOutcomesRequest) (*pb.ListTaskOutcomesResponse, error) {
 	var params *interfaces.ListParams
-	if req != nil && (req.Filters != nil || req.Pagination != nil) {
-		params = &interfaces.ListParams{Filters: req.Filters, Pagination: req.Pagination}
+	// Forward Sort alongside Filters/Pagination (M8). A paged caller over tied
+	// date_created timestamps needs a unique id-sort so OFFSET paging is stable.
+	if req != nil && (req.Filters != nil || req.Pagination != nil || req.Sort != nil) {
+		params = &interfaces.ListParams{Filters: req.Filters, Pagination: req.Pagination, Sort: req.Sort}
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {

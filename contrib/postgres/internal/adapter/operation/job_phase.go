@@ -183,8 +183,15 @@ func (r *PostgresJobPhaseRepository) DeleteJobPhase(ctx context.Context, req *pb
 // ListJobPhases lists job phase records with optional filters
 func (r *PostgresJobPhaseRepository) ListJobPhases(ctx context.Context, req *pb.ListJobPhasesRequest) (*pb.ListJobPhasesResponse, error) {
 	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	// Forward Filters, Pagination AND Sort. The M8 row-cap fix forwarded
+	// Pagination in ListJobTasks/ListTaskOutcomes but MISSED this method (it only
+	// forwarded Filters): a paged caller then silently re-received the same
+	// default-capped first 100 rows every page. Bulk callers (the report-card
+	// enrollment-evidence walk) page an entity set far larger than the 100-row
+	// cap; they also pass a unique id-sort so OFFSET paging over a tied
+	// date_created is deterministic and never drops/duplicates a row.
+	if req != nil && (req.Filters != nil || req.Pagination != nil || req.Sort != nil) {
+		params = &interfaces.ListParams{Filters: req.Filters, Pagination: req.Pagination, Sort: req.Sort}
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {

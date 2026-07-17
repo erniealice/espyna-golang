@@ -449,6 +449,48 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseItemPageData(
 	}, nil
 }
 
+// jobTemplatePhaseListByTemplateSQL returns the SELECT that ListByJobTemplate
+// runs. It is a package-level builder (not an inline literal) purely so the
+// SQL projection is unit-testable via a shape test — mirroring the
+// jobTemplateSummarySelectFrom() / jobOutcomeSummaryListPageDataSQL() precedent
+// in this package. The emitted SQL is byte-identical to the former inline literal.
+//
+// Root-cause note (why the shape test that reads this is load-bearing): commit
+// f2c80100 shipped a silent production bug because this SELECT and its
+// positional rows.Scan(...) were SYMMETRICALLY missing scoring_scheme_id — a
+// dropped column, not a reorder, so database/sql never raised a column-count
+// mismatch; the field just came back nil forever. Item #3 restored
+// predecessor_template_phase_id the same way. Every column named here MUST have
+// a matching Scan destination in ListByJobTemplate, in the SAME order.
+//
+// Scope note (item #3, Q3-A/Q3-B): the billing_* columns (triggers_billing,
+// billing_percent_bps, billing_amount, billing_currency) are DELIBERATELY NOT
+// projected here. Projecting them activates the milestone-billing event
+// materializer (materialize_billing_events_for_job.go:258 gates on
+// GetTriggersBilling()), a revenue surface that is (a) out of this grading
+// PR's scope and (b) not yet safe end-to-end (JobPhase.ListByJob does not
+// populate TemplatePhaseId, so spawned milestone events would have no
+// job_phase_id and never release; and phase create/update do not enforce the
+// billing_percent_bps vs billing_amount mutual-exclusion contract). Restoring
+// them belongs to the separate billing follow-up ticket (plan Q3-B).
+func jobTemplatePhaseListByTemplateSQL() string {
+	return `
+		SELECT
+			jtp.id,
+			jtp.date_created,
+			jtp.date_modified,
+			jtp.active,
+			jtp.job_template_id,
+			jtp.name,
+			jtp.phase_order,
+			jtp.scoring_scheme_id,
+			jtp.predecessor_template_phase_id
+		FROM ` + entityid.JobTemplatePhase + ` jtp
+		WHERE jtp.job_template_id = $1 AND jtp.active = true
+		ORDER BY jtp.phase_order ASC
+	`
+}
+
 // ListByJobTemplate retrieves all phases for a given job template, ordered by phase_order
 func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 	ctx context.Context,
@@ -458,20 +500,7 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 		return nil, fmt.Errorf("job template ID is required")
 	}
 
-	query := `
-		SELECT
-			jtp.id,
-			jtp.date_created,
-			jtp.date_modified,
-			jtp.active,
-			jtp.job_template_id,
-			jtp.name,
-			jtp.phase_order,
-			jtp.scoring_scheme_id
-		FROM ` + entityid.JobTemplatePhase + ` jtp
-		WHERE jtp.job_template_id = $1 AND jtp.active = true
-		ORDER BY jtp.phase_order ASC
-	`
+	query := jobTemplatePhaseListByTemplateSQL()
 
 	rows, err := r.db.QueryContext(ctx, query, req.JobTemplateId)
 	if err != nil {
@@ -490,6 +519,7 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 			name          string
 			phaseOrder    int32
 			scoringScheme sql.NullString
+			predecessorID sql.NullString
 		)
 
 		err := rows.Scan(
@@ -501,6 +531,7 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 			&name,
 			&phaseOrder,
 			&scoringScheme,
+			&predecessorID,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan job template phase row: %w", err)
@@ -516,6 +547,10 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 		if scoringScheme.Valid {
 			v := scoringScheme.String
 			phase.ScoringSchemeId = &v
+		}
+		if predecessorID.Valid {
+			v := predecessorID.String
+			phase.PredecessorTemplatePhaseId = &v
 		}
 
 		if !dateCreated.IsZero() {

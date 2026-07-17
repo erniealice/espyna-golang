@@ -13,6 +13,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	staffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/staff"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
@@ -263,6 +264,44 @@ func (r *PostgresStaffRepository) GetStaffListPageData(
 		return nil, err
 	}
 
+	// Workspace scope (H2, 2026-07-17): staff.workspace_id is the multi-tenant
+	// scope field — the read was previously unscoped. Same pass-through contract
+	// as ListWorkspaceUsers: an empty identity workspace ('' — e.g. a system
+	// principal) applies no scope.
+	wsID := identity.Must(ctx).WorkspaceID
+
+	// Honor the `id` filter (H2): callers resolving specific staff (e.g. the
+	// report-card teacher-name enrichment) pass a LIST_IN or STRING_EQUALS
+	// TypedFilter on "id"; previously req.Filters was ignored entirely and the
+	// response was the first page of ALL staff.
+	idFilter := []string{}
+	if req.Filters != nil {
+		for _, f := range req.Filters.GetFilters() {
+			if f.GetField() != "id" {
+				continue
+			}
+			if lf := f.GetListFilter(); lf != nil && lf.GetOperator() == commonpb.ListOperator_LIST_IN {
+				idFilter = append(idFilter, lf.GetValues()...)
+			}
+			if sf := f.GetStringFilter(); sf != nil && sf.GetOperator() == commonpb.StringOperator_STRING_EQUALS && sf.GetValue() != "" {
+				idFilter = append(idFilter, sf.GetValue())
+			}
+		}
+	}
+	idClause := ""
+	args := []any{searchPattern, limit, offset, wsID}
+	if len(idFilter) > 0 {
+		placeholders := ""
+		for i, id := range idFilter {
+			if i > 0 {
+				placeholders += ", "
+			}
+			args = append(args, id)
+			placeholders += fmt.Sprintf("$%d", len(args))
+		}
+		idClause = "AND s.id IN (" + placeholders + ")"
+	}
+
 	// CTE Query - Single round-trip with enriched user data
 	query := `
 		WITH enriched AS (
@@ -283,6 +322,8 @@ func (r *PostgresStaffRepository) GetStaffListPageData(
 			FROM ` + entityid.Staff + ` s
 			LEFT JOIN "` + entityid.User + `" u ON s.user_id = u.id AND u.active = true
 			WHERE s.active = true
+			  AND ($4::text = '' OR s.workspace_id = $4::text)
+			  ` + idClause + `
 			  AND ($1::text IS NULL OR $1::text = '' OR
 				   u.first_name ILIKE $1 OR
 				   u.last_name ILIKE $1 OR
@@ -299,7 +340,7 @@ func (r *PostgresStaffRepository) GetStaffListPageData(
 	`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := exec.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query staff list page data: %w", err)
 	}

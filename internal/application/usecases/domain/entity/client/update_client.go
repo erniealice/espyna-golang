@@ -15,6 +15,9 @@ import (
 // UpdateClientRepositories groups all repository dependencies
 type UpdateClientRepositories struct {
 	Client clientpb.ClientDomainServiceServer // Primary entity repository
+	// Attribute overlay repos (Q-GSE-10): sync client_attribute rows in the same
+	// transaction as the client update. Optional (nil-safe).
+	Attributes AttributeRepositories
 }
 
 // UpdateClientServices groups all business service dependencies
@@ -23,6 +26,7 @@ type UpdateClientServices struct {
 	Transactor ports.Transactor
 	Translator ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
+	IDGenerator      ports.IDGenerator
 }
 
 // UpdateClientUseCase handles the business logic for updating a client
@@ -108,7 +112,53 @@ func (uc *UpdateClientUseCase) Execute(ctx context.Context, req *clientpb.Update
 		}
 	}
 
-	// Call repository
+	// Attribute overlay (Q-GSE-10). Sync the client_attribute rows ONLY when the
+	// drawer marked the section present — an update whose payload omits the section
+	// (attributes_present=false) must NEVER wipe a client's existing attributes.
+	// A blank optional value inside a present section clears (deletes) that row.
+	syncAttrs := req.GetAttributesPresent()
+	if syncAttrs && !uc.repositories.Attributes.enabled() {
+		// Reject fail-closed: the section was submitted but the server cannot validate it.
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.attributes_unavailable", "Client attributes cannot be validated [DEFAULT]"))
+	}
+
+	if syncAttrs {
+		// Resolve + validate before any write; roll the whole update back on failure.
+		resolvedAttrs, verr := resolveAndValidateAttributes(ctx, uc.repositories.Attributes, req.GetAttributes())
+		if verr != nil {
+			return nil, verr
+		}
+		clientID := req.Data.Id
+		run := func(txCtx context.Context) (*clientpb.UpdateClientResponse, error) {
+			resp, err := uc.repositories.Client.UpdateClient(txCtx, req)
+			if err != nil {
+				translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "client.errors.update_failed", "Client update failed [DEFAULT]")
+				return nil, fmt.Errorf("%s: %w", translatedError, err)
+			}
+			if serr := syncClientAttributes(txCtx, uc.repositories.Attributes, uc.services.IDGenerator, clientID, resolvedAttrs); serr != nil {
+				return nil, serr
+			}
+			return resp, nil
+		}
+
+		if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
+			var result *clientpb.UpdateClientResponse
+			if err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+				r, err := run(txCtx)
+				if err != nil {
+					return err
+				}
+				result = r
+				return nil
+			}); err != nil {
+				return nil, err
+			}
+			return result, nil
+		}
+		return run(ctx)
+	}
+
+	// Call repository (no attribute section present — unchanged path).
 	resp, err := uc.repositories.Client.UpdateClient(ctx, req)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.errors.update_failed", "Client update failed [DEFAULT]")

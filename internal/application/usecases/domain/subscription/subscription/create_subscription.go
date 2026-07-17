@@ -92,7 +92,74 @@ func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, req *subscript
 	// Business enrichment
 	enrichedSubscription := uc.applyBusinessLogic(req.Data)
 
-	// Use transaction service if available
+	// 2026-04-29 auto-spawn-jobs-from-subscription plan §5.1 — the operator's
+	// "Spawn Jobs on Create" toggle is propagated from the centymo view layer
+	// via context (see espyna shared/context/spawn_jobs.go). When unset, fall
+	// back to true to preserve the legacy default-on behavior for any callers
+	// that did not adopt the toggle yet.
+	wsID := contextutil.ExtractWorkspaceIDFromContext(ctx)
+	spawnJobs := true
+	if override, set := contextutil.ExtractSpawnJobsOverride(ctx); set {
+		spawnJobs = override
+	}
+
+	// Q-GSE-8 (require_spawn_success + owner nuance): the spawn is only REQUIRED
+	// when the plan graph declares a root template (plan.job_template_id set) AND
+	// the operator did not opt out. NOT all verticals/subscriptions materialize
+	// jobs — a plan with no root template is a CLEAN SKIP, never an error, even
+	// under require_spawn_success.
+	//
+	// STRICT path is FAIL-CLOSED: when require_spawn_success is set we may only
+	// clean-skip on a SUCCESSFUL plan read that proves job_template_id is empty.
+	// A nil instantiator, a missing Plan repository, or a plan read error cannot
+	// silently downgrade to the legacy best-effort path (which returns SUCCESS
+	// with zero jobs); each fails closed with a translated error. When
+	// require_spawn_success is unset, none of this runs and the legacy path below
+	// executes byte-for-byte.
+	requireSpawn := req.GetRequireSpawnSuccess()
+	if requireSpawn && spawnJobs {
+		// Fail closed: a required spawn with no instantiator wired cannot be
+		// verified or performed.
+		if uc.services.JobTemplateInstantiator == nil {
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+				ctx, uc.services.Translator,
+				"subscription.errors.spawn_required_no_instantiator",
+				"[ERR-DEFAULT] Job spawn was required but no instantiator is configured",
+			))
+		}
+		declared, err := uc.planDeclaresRootTemplate(ctx, pricePlan)
+		if err != nil {
+			// Could not verify whether the plan declares a root template (nil
+			// price plan / missing Plan repo / read error / plan not found) ->
+			// fail closed, never downgrade to best-effort.
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+				ctx, uc.services.Translator,
+				"subscription.errors.spawn_required_unverifiable",
+				"[ERR-DEFAULT] Job spawn was required but the plan's spawn requirement could not be verified",
+			))
+		}
+		if declared {
+			// A root template is declared: the spawn is REQUIRED and must be
+			// atomic with the insert. Without a usable Transactor the strict path
+			// would INSERT the subscription and only then detect an empty/failed
+			// spawn (non-atomic, unsafe to retry). Reject BEFORE creating anything.
+			if uc.services.Transactor == nil || !uc.services.Transactor.SupportsTransactions() {
+				return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+					ctx, uc.services.Translator,
+					"subscription.errors.spawn_required_no_transaction",
+					"[ERR-DEFAULT] Job spawn was required but no transaction is available to create the subscription atomically",
+				))
+			}
+			// Strict path: create + spawn are bound so an empty/failed spawn rolls
+			// the subscription back. Every other caller keeps the legacy
+			// best-effort post-commit behavior below, byte-for-byte.
+			return uc.executeWithRequiredSpawn(ctx, req, enrichedSubscription, pricePlan, wsID, spawnJobs)
+		}
+		// declared == false with no error: the read succeeded and proved the plan
+		// declares no root template -> CLEAN SKIP. Fall through to the legacy path.
+	}
+
+	// Legacy path — byte-unchanged behavior. Use transaction service if available.
 	var resp *subscriptionpb.CreateSubscriptionResponse
 	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		resp, err = uc.executeWithTransaction(ctx, req, enrichedSubscription)
@@ -104,28 +171,199 @@ func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, req *subscript
 		return nil, err
 	}
 
-	// After successful creation, instantiate jobs from the plan (best-effort, non-blocking).
-	//
-	// 2026-04-29 auto-spawn-jobs-from-subscription plan §5.1 — the operator's
-	// "Spawn Jobs on Create" toggle is propagated from the centymo view layer
-	// via context (see espyna shared/context/spawn_jobs.go). When unset, fall
-	// back to true to preserve the legacy default-on behavior for any callers
-	// that did not adopt the toggle yet.
+	// After successful creation, instantiate jobs from the plan (best-effort,
+	// non-blocking). A spawn failure is logged, never fatal, exactly as before.
+	// spawned_job_ids / spawn_skip_reason are populated additively from the
+	// materialize result on success (Q-GSE-8); callers that ignore the fields are
+	// unaffected.
 	if uc.services.JobTemplateInstantiator != nil && pricePlan != nil {
-		wsID := contextutil.ExtractWorkspaceIDFromContext(ctx)
-		spawnJobs := true
-		if override, set := contextutil.ExtractSpawnJobsOverride(ctx); set {
-			spawnJobs = override
-		}
-		if jiErr := uc.services.JobTemplateInstantiator.InstantiateJobsFromPlan(
+		outcome, jiErr := uc.instantiateJobs(
 			ctx, pricePlan.PlanId, enrichedSubscription.ClientId, enrichedSubscription.Id, wsID, spawnJobs,
-		); jiErr != nil {
+		)
+		if jiErr != nil {
 			log.Printf("Warning: job instantiation failed for subscription %s: %v", enrichedSubscription.Id, jiErr)
 			// Do not fail subscription creation — log and continue.
+		} else if resp != nil {
+			applySpawnOutcome(resp, outcome)
 		}
 	}
 
 	return resp, nil
+}
+
+// executeWithRequiredSpawn is the Q-GSE-8 strict path: the plan declares a root
+// template and the caller set require_spawn_success, so an empty (no jobs
+// spawned) or failed materialize is a hard failure. The caller GUARANTEES a
+// usable Transactor before invoking this (see Execute), so create + spawn always
+// run in ONE transaction and an empty/failed spawn rolls the subscription back.
+// There is no non-atomic fallback: a strict spawn without a usable Transactor is
+// rejected before any insert.
+func (uc *CreateSubscriptionUseCase) executeWithRequiredSpawn(
+	ctx context.Context,
+	req *subscriptionpb.CreateSubscriptionRequest,
+	enrichedSubscription *subscriptionpb.Subscription,
+	pricePlan *priceplanpb.PricePlan,
+	wsID string,
+	spawnJobs bool,
+) (*subscriptionpb.CreateSubscriptionResponse, error) {
+	createAndSpawn := func(txCtx context.Context) (*subscriptionpb.CreateSubscriptionResponse, error) {
+		resp, err := uc.executeCore(txCtx, req, enrichedSubscription)
+		if err != nil {
+			return nil, err
+		}
+		outcome, spawnErr := uc.instantiateJobs(
+			txCtx, pricePlan.PlanId, enrichedSubscription.ClientId, enrichedSubscription.Id, wsID, spawnJobs,
+		)
+		if spawnErr != nil {
+			return nil, spawnErr
+		}
+		if len(outcome.SpawnedJobIDs) == 0 {
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
+				txCtx, uc.services.Translator,
+				"subscription.errors.spawn_required_but_empty",
+				"[ERR-DEFAULT] Job spawn was required but produced no jobs",
+			))
+		}
+		if resp != nil {
+			applySpawnOutcome(resp, outcome)
+		}
+		return resp, nil
+	}
+
+	// A usable Transactor is guaranteed by the caller — create + spawn commit or
+	// roll back together.
+	var result *subscriptionpb.CreateSubscriptionResponse
+	if err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		res, err := createAndSpawn(txCtx)
+		if err != nil {
+			return err
+		}
+		result = res
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// planDeclaresRootTemplate reports whether the subscription's resolved Plan
+// declares a root job template (plan.job_template_id set) — the Q-GSE-8 nuance
+// that distinguishes a materialize-bearing plan from a clean-skip plan.
+//
+// TRI-STATE (fail-closed contract for the strict require_spawn_success path):
+//   - (true, nil):  a SUCCESSFUL read proved the plan declares a root template
+//     -> spawn is required.
+//   - (false, nil): a SUCCESSFUL read proved the plan declares NO root template
+//     (job_template_id empty), or the price plan carries no plan_id at all ->
+//     clean skip.
+//   - (_, err):     the requirement could NOT be verified — a nil price plan, a
+//     missing Plan repository, a read error, or a plan that could not be found.
+//     Strict-mode callers MUST fail closed and never downgrade to best-effort.
+func (uc *CreateSubscriptionUseCase) planDeclaresRootTemplate(ctx context.Context, pricePlan *priceplanpb.PricePlan) (bool, error) {
+	if pricePlan == nil {
+		return false, errors.New("planDeclaresRootTemplate: nil price plan")
+	}
+	if uc.repositories.Plan == nil {
+		return false, errors.New("planDeclaresRootTemplate: nil Plan repository")
+	}
+	planID := pricePlan.GetPlanId()
+	if planID == "" {
+		// No plan reference -> no root template can be declared. This is a genuine
+		// determination (not a lookup failure), so it is a clean skip.
+		return false, nil
+	}
+	resp, err := uc.repositories.Plan.ReadPlan(ctx, &planpb.ReadPlanRequest{
+		Data: &planpb.Plan{Id: &planID},
+	})
+	if err != nil {
+		return false, err
+	}
+	if resp == nil || len(resp.GetData()) == 0 {
+		// The plan was referenced but could not be read/found — this does NOT
+		// prove job_template_id is empty, so it must not clean-skip.
+		return false, errors.New("planDeclaresRootTemplate: plan not found")
+	}
+	return resp.GetData()[0].GetJobTemplateId() != "", nil
+}
+
+// jobSpawnOutcome is the richer materialize result that Q-GSE-8 needs: the
+// spawned Job IDs and the clean-skip reason (if any). The base
+// JobTemplateInstantiator port returns only error; detailedJobTemplateInstantiator
+// (implemented by the canonical adapter, see InstantiateJobsFromPlanDetailed
+// below) surfaces the full result.
+type jobSpawnOutcome struct {
+	SpawnedJobIDs []string
+	SkipReason    string
+}
+
+// detailedJobTemplateInstantiator is the optional richer extension of
+// JobTemplateInstantiator. When the injected instantiator implements it, the
+// create path can read the spawned Job IDs + skip reason; otherwise it falls
+// back to the error-only base port (spawned_job_ids simply stays empty).
+type detailedJobTemplateInstantiator interface {
+	InstantiateJobsFromPlanDetailed(ctx context.Context, planID, clientID, subscriptionID, workspaceID string, spawnJobs bool) (jobSpawnOutcome, error)
+}
+
+// instantiateJobs invokes the configured instantiator, preferring the detailed
+// variant so spawned_job_ids / spawn_skip_reason can be populated. Falls back to
+// the error-only base port when the detailed extension is unavailable.
+func (uc *CreateSubscriptionUseCase) instantiateJobs(
+	ctx context.Context, planID, clientID, subscriptionID, workspaceID string, spawnJobs bool,
+) (jobSpawnOutcome, error) {
+	inst := uc.services.JobTemplateInstantiator
+	if inst == nil {
+		return jobSpawnOutcome{}, nil
+	}
+	if detailed, ok := inst.(detailedJobTemplateInstantiator); ok {
+		return detailed.InstantiateJobsFromPlanDetailed(ctx, planID, clientID, subscriptionID, workspaceID, spawnJobs)
+	}
+	return jobSpawnOutcome{}, inst.InstantiateJobsFromPlan(ctx, planID, clientID, subscriptionID, workspaceID, spawnJobs)
+}
+
+// applySpawnOutcome copies the materialize result onto the create response
+// (additive — Q-GSE-8).
+func applySpawnOutcome(resp *subscriptionpb.CreateSubscriptionResponse, outcome jobSpawnOutcome) {
+	if resp == nil {
+		return
+	}
+	resp.SpawnedJobIds = outcome.SpawnedJobIDs
+	if outcome.SkipReason != "" {
+		sr := outcome.SkipReason
+		resp.SpawnSkipReason = &sr
+	}
+}
+
+// InstantiateJobsFromPlanDetailed is the Q-GSE-8 richer variant of the legacy
+// port on the canonical adapter. It delegates to the same
+// MaterializeJobsForSubscriptionUseCase.Execute as InstantiateJobsFromPlan (so
+// the spawn side effects are byte-identical) and additionally returns the
+// spawned Job IDs + clean-skip reason. Defined here (not in
+// job_instantiator_adapter.go) so this Q-GSE-8 wiring is self-contained; Go
+// permits methods on a same-package type across files.
+func (a *MaterializeJobsForSubscriptionInstantiator) InstantiateJobsFromPlanDetailed(
+	ctx context.Context, _, _, subscriptionID, _ string, spawnJobs bool,
+) (jobSpawnOutcome, error) {
+	if a == nil || a.UseCase == nil {
+		return jobSpawnOutcome{}, nil
+	}
+	if subscriptionID == "" {
+		return jobSpawnOutcome{}, errors.New("instantiate_jobs: subscription_id required")
+	}
+	resp, err := a.UseCase.Execute(ctx, &subscriptionpb.MaterializeJobsForSubscriptionRequest{
+		SubscriptionId: subscriptionID,
+		SpawnJobs:      spawnJobs,
+	})
+	if err != nil {
+		return jobSpawnOutcome{}, err
+	}
+	out := jobSpawnOutcome{}
+	if resp != nil {
+		for _, j := range resp.GetSpawnedJobs() {
+			out.SpawnedJobIDs = append(out.SpawnedJobIDs, j.GetId())
+		}
+		out.SkipReason = resp.GetSkippedReason()
+	}
+	return out, nil
 }
 
 // executeWithTransaction executes subscription creation within a transaction

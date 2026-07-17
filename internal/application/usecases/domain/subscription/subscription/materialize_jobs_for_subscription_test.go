@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
@@ -269,6 +270,7 @@ func newFixture(t *testing.T, opts fixtureOpts) *fixture {
 		},
 		MaterializeJobsForSubscriptionServices{
 			Authorizer:                     ports.NewNoOpAuthorizer(),
+			ActionGatekeeper:               actiongate.NewActionGatekeeper(ports.NewNoOpAuthorizer(), ports.NewNoOpTranslator()),
 			Transactor:                     stubTxService{},
 			Translator:                     ports.NewNoOpTranslator(),
 			IDGenerator:                    ports.NewNoOpIDGenerator(),
@@ -574,6 +576,86 @@ func TestMaterializeJobs_Case13_PredecessorPhaseRemap(t *testing.T) {
 	// Sanity: the predecessor must NOT still equal the template-phase id.
 	if *second.PredecessorPhaseId == "tpl-p1" {
 		t.Errorf("predecessor was not remapped (still equals template_phase_id)")
+	}
+}
+
+// Q-GSE-9: a template whose initial_status=JOB_STATUS_ACTIVE spawns ACTIVE jobs
+// (root + child both honor the template's initial_status).
+func TestMaterializeJobs_InitialStatusActive(t *testing.T) {
+	rootID, childID := "tpl-root", "tpl-child"
+	active := "JOB_STATUS_ACTIVE"
+	rootTpl := makeTemplate(rootID, "Root", true)
+	rootTpl.InitialStatus = &active
+	childTpl := makeTemplate(childID, "Child", true)
+	childTpl.InitialStatus = &active
+	f := newFixture(t, fixtureOpts{
+		planJobTemplateID: rootID,
+		templates: map[string]*jobtemplatepb.JobTemplate{
+			rootID:  rootTpl,
+			childID: childTpl,
+		},
+		relations: []*jobtemplaterelationpb.JobTemplateRelation{makeRelation(rootID, childID, 1)},
+	})
+	resp, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := len(resp.SpawnedJobs); got != 2 {
+		t.Fatalf("want 2 jobs, got %d", got)
+	}
+	for i, j := range resp.SpawnedJobs {
+		if j.Status != enumspb.JobStatus_JOB_STATUS_ACTIVE {
+			t.Errorf("job[%d] status want ACTIVE, got %v", i, j.Status)
+		}
+	}
+}
+
+// Q-GSE-9: a template with NULL initial_status falls back to PLANNED — the
+// historical default, so every existing plan is byte-unchanged.
+func TestMaterializeJobs_InitialStatusNullFallsBackToPlanned(t *testing.T) {
+	rootID := "tpl-root"
+	f := newFixture(t, fixtureOpts{
+		planJobTemplateID: rootID,
+		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "Root", true)}, // no initial_status
+	})
+	resp, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := len(resp.SpawnedJobs); got != 1 {
+		t.Fatalf("want 1 job, got %d", got)
+	}
+	if resp.SpawnedJobs[0].Status != enumspb.JobStatus_JOB_STATUS_PLANNED {
+		t.Errorf("NULL initial_status must fall back to PLANNED, got %v", resp.SpawnedJobs[0].Status)
+	}
+}
+
+// Q-GSE-9: resolveInitialJobStatus unit — bare suffix + unknown handling.
+func TestResolveInitialJobStatus(t *testing.T) {
+	fallback := enumspb.JobStatus_JOB_STATUS_PLANNED
+	cases := []struct {
+		raw  string
+		want enumspb.JobStatus
+	}{
+		{"", fallback},
+		{"JOB_STATUS_ACTIVE", enumspb.JobStatus_JOB_STATUS_ACTIVE},
+		{"ACTIVE", enumspb.JobStatus_JOB_STATUS_ACTIVE},
+		{"job_status_active", enumspb.JobStatus_JOB_STATUS_ACTIVE},
+		{"JOB_STATUS_UNSPECIFIED", fallback}, // UNSPECIFIED must not override the default
+		{"NOT_A_STATUS", fallback},
+	}
+	for _, c := range cases {
+		tpl := &jobtemplatepb.JobTemplate{}
+		if c.raw != "" {
+			v := c.raw
+			tpl.InitialStatus = &v
+		}
+		if got := resolveInitialJobStatus(tpl, fallback); got != c.want {
+			t.Errorf("resolveInitialJobStatus(%q) = %v, want %v", c.raw, got, c.want)
+		}
+	}
+	if got := resolveInitialJobStatus(nil, fallback); got != fallback {
+		t.Errorf("nil template must fall back, got %v", got)
 	}
 }
 

@@ -36,6 +36,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard"
 	jobtemplatesummary "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/job_template_summary"
 	outcomematrix "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/outcome_matrix"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/service/omnisearch"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/performance"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/reporting"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/security"
@@ -79,6 +80,14 @@ type ServiceUseCases struct {
 	// field. Nil-safe: when no postgres provider is registered the read degrades
 	// to empty.
 	JobTemplateSummary *jobtemplatesummary.UseCases
+
+	// OmniSearch (20260710) — service/omni_search. Generic cross-entity ⌘K
+	// command-palette search (client/subscription/subscription_group/plan/
+	// price_schedule/product), split by category, permission-gated per category
+	// (":list" reuse) and fail-closed. Direct typed field (single service/
+	// omni_search candidate). Nil-safe: when no postgres provider is registered
+	// the read degrades to empty.
+	OmniSearch *omnisearch.UseCases
 }
 
 // NewServiceUseCases wires every service-driven sub-aggregate. All typed
@@ -103,6 +112,7 @@ func NewServiceUseCases(
 	amort *amortization.UseCases,
 	operation *outcomematrix.UseCases,
 	jobTemplateSummary *jobtemplatesummary.UseCases,
+	omniSearch *omnisearch.UseCases,
 ) *ServiceUseCases {
 	return &ServiceUseCases{
 		Audit:              audit,
@@ -115,5 +125,6 @@ func NewServiceUseCases(
 		Amortization:       amort,
 		OutcomeMatrix:      operation,
 		JobTemplateSummary: jobTemplateSummary,
+		OmniSearch:         omniSearch,
 	}
 }

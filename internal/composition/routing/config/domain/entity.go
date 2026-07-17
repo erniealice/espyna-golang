@@ -165,18 +165,29 @@ func ConfigureEntityDomain(entityUseCases *entity.EntityUseCases) contracts.Doma
 		)
 	}
 
-	// ClientAttribute routes
+	// ClientAttribute routes.
+	//
+	// W3-HIGH-4 (cross-tenant IDOR): client_attribute has NO workspace_id column
+	// and is NOT reachable through the WorkspaceAwareOperations parent-JOIN probe
+	// (List explicitly "cannot express a parent-JOIN predicate" — see
+	// workspace_operations.go), so the generic read surface would return/expose
+	// rows across ALL workspaces given a forged caller-supplied client_id filter,
+	// behind only an entity-level permission check. A clean adapter-level JOIN is
+	// not available at the generic layer (documented W2 follow-up), so the READ
+	// surface is UNREGISTERED here rather than shipped with unscoped access.
+	//
+	// The drawer prefill (entydad loadClientAttributeData) and the espyna server
+	// validator (attribute_sync.go) both reach client_attribute via the use case
+	// IN-PROCESS through injected closures — NEITHER depends on these raw HTTP
+	// routes — so removing the read/list/page-data endpoints closes the IDOR with
+	// no product/view regression. create/update/delete remain (writes are not the
+	// cross-tenant disclosure surface this finding concerns).
 	if entityUseCases.ClientAttribute != nil {
 		routes = append(routes,
 			contracts.RouteConfiguration{
 				Method:  "POST",
 				Path:    "/api/entity/client-attribute/create",
 				Handler: contracts.NewGenericHandler(entityUseCases.ClientAttribute.CreateClientAttribute, &clientattributepb.CreateClientAttributeRequest{}),
-			},
-			contracts.RouteConfiguration{
-				Method:  "POST",
-				Path:    "/api/entity/client-attribute/read",
-				Handler: contracts.NewGenericHandler(entityUseCases.ClientAttribute.ReadClientAttribute, &clientattributepb.ReadClientAttributeRequest{}),
 			},
 			contracts.RouteConfiguration{
 				Method:  "POST",
@@ -187,21 +198,6 @@ func ConfigureEntityDomain(entityUseCases *entity.EntityUseCases) contracts.Doma
 				Method:  "POST",
 				Path:    "/api/entity/client-attribute/delete",
 				Handler: contracts.NewGenericHandler(entityUseCases.ClientAttribute.DeleteClientAttribute, &clientattributepb.DeleteClientAttributeRequest{}),
-			},
-			contracts.RouteConfiguration{
-				Method:  "POST",
-				Path:    "/api/entity/client-attribute/list",
-				Handler: contracts.NewGenericHandler(entityUseCases.ClientAttribute.ListClientAttributes, &clientattributepb.ListClientAttributesRequest{}),
-			},
-			contracts.RouteConfiguration{
-				Method:  "POST",
-				Path:    "/api/entity/client-attribute/get-list-page-data",
-				Handler: contracts.NewGenericHandler(entityUseCases.ClientAttribute.GetClientAttributeListPageData, &clientattributepb.GetClientAttributeListPageDataRequest{}),
-			},
-			contracts.RouteConfiguration{
-				Method:  "POST",
-				Path:    "/api/entity/client-attribute/get-item-page-data",
-				Handler: contracts.NewGenericHandler(entityUseCases.ClientAttribute.GetClientAttributeItemPageData, &clientattributepb.GetClientAttributeItemPageDataRequest{}),
 			},
 		)
 	}

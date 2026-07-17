@@ -121,6 +121,29 @@ type AppContext struct {
 	// GenerateDoc generates a document from a template + data.
 	GenerateDoc any
 
+	// GeneratePDF converts a rendered document to PDF (template + data → PDF
+	// bytes), via LibreOffice — a SECOND injected closure mirroring GenerateDoc
+	// exactly (fycha DocumentService.ProcessBytesToPDF, bound on the same
+	// docService). Nil-safe: absence means a "?format=pdf" download fails closed
+	// with a 503 (never a panic); the DOCX baseline is unaffected. Bound by the
+	// app container; the fayna EngineBlock type-asserts the bare
+	// func([]byte, map[string]any) ([]byte, error) signature (same as GenerateDoc),
+	// so no fayna→espyna dependency is introduced.
+	GeneratePDF any
+
+	// ComputePhaseOutcome / ComputeJobOutcome are the narrow inline-recompute
+	// closures the fayna outcome_matrix record action (grade-sheet edit mode)
+	// calls after a successful academic cell write (Q-GSE-5). Each is a bare
+	// closure typed by the consumer app (built via
+	// consumer.NewComputePhaseOutcomeAdapter / NewComputeJobOutcomeAdapter):
+	//   func(ctx context.Context, id string) (recomputed bool, err error)
+	// where id is the job_phase_id (phase) / job_id (job). The fayna EngineBlock
+	// type-asserts that exact bare signature (same pattern as GenerateDoc), so no
+	// fayna→espyna dependency is introduced. Nil on a non-postgres / unwired app
+	// → the record action degrades to ratingFresh:false, never a 500.
+	ComputePhaseOutcome any
+	ComputeJobOutcome   any
+
 	// ResolveTemplateBytes resolves the applicable published document-template
 	// binding for a given price_schedule (report-card render path) and returns the
 	// bound template's storage bytes. Signature:

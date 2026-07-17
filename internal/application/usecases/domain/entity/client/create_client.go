@@ -20,6 +20,10 @@ import (
 type CreateClientRepositories struct {
 	Client clientpb.ClientDomainServiceServer // Primary entity repository
 	User   userpb.UserDomainServiceServer     // User repository for embedded user data
+	// Attribute overlay repos (Q-GSE-10): resolve/validate/persist client_attribute
+	// rows in the SAME transaction as the client. Optional (nil-safe): unset =>
+	// submitted attributes are rejected fail-closed.
+	Attributes AttributeRepositories
 }
 
 // CreateClientServices groups all business service dependencies
@@ -89,21 +93,36 @@ func (uc *CreateClientUseCase) Execute(ctx context.Context, req *clientpb.Create
 	// Business enrichment
 	enrichedClient := uc.applyBusinessLogic(req.Data)
 
-	// Use transaction service if available
+	// The Attributes section is "present" when the drawer rendered it (marker) OR
+	// any attribute value was submitted. Presence — not just a non-empty slice —
+	// drives validation so a REQUIRED attribute omitted from an otherwise-empty
+	// submission is still rejected (W3-MED-5); the required-coverage sweep lives in
+	// resolveAndValidateAttributes and must run even for a zero-length submission.
+	attrsPresent := req.GetAttributesPresent() || len(req.GetAttributes()) > 0
+
+	// Reject a present Attributes section when the overlay pipeline is not wired —
+	// a value the server cannot validate is never written (fail-closed, Q-GSE-10
+	// rider #1); a required attribute that cannot be enforced is likewise refused.
+	if attrsPresent && !uc.repositories.Attributes.enabled() {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "client.validation.attributes_unavailable", "Client attributes cannot be validated [DEFAULT]"))
+	}
+
+	// Use transaction service if available. Attributes are synced inside the SAME
+	// transaction as the client so a validation/sync failure rolls the client back.
 	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
-		return uc.executeWithTransaction(ctx, enrichedClient)
+		return uc.executeWithTransaction(ctx, enrichedClient, req.GetAttributes(), attrsPresent)
 	}
 
 	// Fallback to direct repository call
-	return uc.executeCore(ctx, enrichedClient)
+	return uc.executeCore(ctx, enrichedClient, req.GetAttributes(), attrsPresent)
 }
 
 // executeWithTransaction executes client creation within a transaction
-func (uc *CreateClientUseCase) executeWithTransaction(ctx context.Context, enrichedClient *clientpb.Client) (*clientpb.CreateClientResponse, error) {
+func (uc *CreateClientUseCase) executeWithTransaction(ctx context.Context, enrichedClient *clientpb.Client, attrs []*commonpb.AttributeCodeValue, attrsPresent bool) (*clientpb.CreateClientResponse, error) {
 	var result *clientpb.CreateClientResponse
 
 	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
-		res, err := uc.executeCore(txCtx, enrichedClient)
+		res, err := uc.executeCore(txCtx, enrichedClient, attrs, attrsPresent)
 		if err != nil {
 			translatedError := contextutil.GetTranslatedMessageWithContext(txCtx, uc.services.Translator, "client.errors.creation_failed", "Client creation failed [DEFAULT]")
 			return fmt.Errorf("%s: %w", translatedError, err)
@@ -119,7 +138,19 @@ func (uc *CreateClientUseCase) executeWithTransaction(ctx context.Context, enric
 }
 
 // executeCore contains the core business logic for creating a client
-func (uc *CreateClientUseCase) executeCore(ctx context.Context, enrichedClient *clientpb.Client) (*clientpb.CreateClientResponse, error) {
+func (uc *CreateClientUseCase) executeCore(ctx context.Context, enrichedClient *clientpb.Client, attrs []*commonpb.AttributeCodeValue, attrsPresent bool) (*clientpb.CreateClientResponse, error) {
+	// Validate attributes BEFORE any write so a bad value never even creates the
+	// user/client (the transaction would roll it back, but failing early is cleaner).
+	// Resolution runs whenever the section is present — even with zero submitted
+	// values — so an omitted REQUIRED attribute is rejected (W3-MED-5).
+	var resolvedAttrs []resolvedAttribute
+	if attrsPresent && uc.repositories.Attributes.enabled() {
+		var err error
+		resolvedAttrs, err = resolveAndValidateAttributes(ctx, uc.repositories.Attributes, attrs)
+		if err != nil {
+			return nil, err
+		}
+	}
 	// Step 1: Find or create User record (if User repository is available and user data exists)
 	if uc.repositories.User != nil && enrichedClient.User != nil {
 		user, err := uc.findOrCreateUser(ctx, enrichedClient.User)
@@ -133,9 +164,25 @@ func (uc *CreateClientUseCase) executeCore(ctx context.Context, enrichedClient *
 	}
 
 	// Step 2: Create Client record (with reference to the User)
-	return uc.repositories.Client.CreateClient(ctx, &clientpb.CreateClientRequest{
+	resp, err := uc.repositories.Client.CreateClient(ctx, &clientpb.CreateClientRequest{
 		Data: enrichedClient,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Step 3: Persist validated client_attribute rows in the same transaction.
+	if len(resolvedAttrs) > 0 {
+		clientID := enrichedClient.GetId()
+		if data := resp.GetData(); len(data) > 0 && data[0].GetId() != "" {
+			clientID = data[0].GetId()
+		}
+		if err := syncClientAttributes(ctx, uc.repositories.Attributes, uc.services.IDGenerator, clientID, resolvedAttrs); err != nil {
+			return nil, err
+		}
+	}
+
+	return resp, nil
 }
 
 // findOrCreateUser finds an existing user by email or creates a new one

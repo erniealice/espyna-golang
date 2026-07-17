@@ -2,6 +2,7 @@ package grade_compute
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
@@ -71,6 +72,12 @@ func TestUpsertJobSummary_RefusesToOverwriteAuthoritative(t *testing.T) {
 	_, err := uc.upsertJobSummary(context.Background(), &jobpb.Job{Id: "job-1"}, "scheme-1", 6.0, 7.0, "A")
 	if err == nil {
 		t.Fatal("expected an error refusing to overwrite an authoritative (frozen) summary, got nil")
+	}
+	// The freeze error must wrap ErrSummaryFrozen so callers (the fayna inline
+	// recompute adapter) can errors.Is it and classify the skip as "not stale"
+	// rather than a genuine failure.
+	if !errors.Is(err, ErrSummaryFrozen) {
+		t.Errorf("frozen error must wrap ErrSummaryFrozen for errors.Is classification, got %v", err)
 	}
 	if repo.updateCalled {
 		t.Error("guard breached: UpdateJobOutcomeSummary was called on a frozen authoritative row")

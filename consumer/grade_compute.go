@@ -14,6 +14,7 @@ package consumer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	core "github.com/erniealice/espyna-golang/internal/composition/core"
@@ -116,4 +117,62 @@ func ComputeJobOutcome(ctx context.Context, container *core.Container, jobID str
 		out.LineID = resp.Line.Id
 	}
 	return out, nil
+}
+
+// ── Narrow composition adapters (W2 inline recompute) ───────────────────────
+//
+// The fayna outcome_matrix record action (the grade-sheet edit-mode save path)
+// recomputes the affected phase then job roll-up inline after a successful
+// ACADEMIC cell write, so a report card is fresh the moment a grade is entered
+// (Q-GSE-5, inline recompute). These two factories wrap the ComputePhaseOutcome
+// / ComputeJobOutcome pass-throughs above into the narrow bare-func closures the
+// app composition stores on AppContext.ComputePhaseOutcome / .ComputeJobOutcome
+// (the GenerateDoc injection precedent) — the fayna EngineBlock type-asserts the
+// exact signature `func(context.Context, string) (bool, error)`, so no fayna
+// dependency on this package is created (identical to how GenerateDoc is
+// asserted as a bare `func([]byte, map[string]any) ([]byte, error)`).
+//
+// Return contract (mapped to ratingFresh by the record action):
+//   (true,  nil) → a recompute actually ran; the summary is fresh.
+//   (false, nil) → deliberately SKIPPED because the target is authoritative
+//                  (frozen imported finals — ErrSummaryFrozen). The existing
+//                  grade stands and is NOT stale, so the save reports the rating
+//                  as fresh (ratingNotRecomputed reason), never as failed.
+//   (false, err) → a genuine compute failure. The grade persisted but the
+//                  rating is now stale + retryable (ratingFresh:false). NEVER a
+//                  reason to fail the cell save.
+//
+// A nil container / unwired use-case surfaces as (false, err); the record action
+// degrades that to ratingFresh:false (fail-safe) exactly like a compute failure.
+
+// NewComputePhaseOutcomeAdapter returns the phase-level inline-recompute closure
+// bound to this container. Phase roll-up only ever writes
+// SUMMARY_TYPE_ACADEMIC_RECORD summaries (score_scale transmutation), so it
+// structurally never touches a frozen/non-scaled deportment summary — a
+// non-recomputable phase (no scoring scheme resolves) surfaces as (false, err)
+// and the save still succeeds with a stale rating.
+func NewComputePhaseOutcomeAdapter(container *core.Container) func(ctx context.Context, jobPhaseID string) (bool, error) {
+	return func(ctx context.Context, jobPhaseID string) (bool, error) {
+		if _, err := ComputePhaseOutcome(ctx, container, jobPhaseID, ""); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+}
+
+// NewComputeJobOutcomeAdapter returns the job-level (year-final) inline-recompute
+// closure bound to this container. It preserves the authoritative-summary freeze
+// guard: an is_authoritative job_outcome_summary yields ErrSummaryFrozen from the
+// use-case, which this adapter classifies as an expected skip (false, nil) — the
+// pinned grade is never clobbered and the save is never failed for it.
+func NewComputeJobOutcomeAdapter(container *core.Container) func(ctx context.Context, jobID string) (bool, error) {
+	return func(ctx context.Context, jobID string) (bool, error) {
+		if _, err := ComputeJobOutcome(ctx, container, jobID); err != nil {
+			if errors.Is(err, grade_compute.ErrSummaryFrozen) {
+				return false, nil // frozen/authoritative → not recomputed, not stale
+			}
+			return false, err
+		}
+		return true, nil
+	}
 }

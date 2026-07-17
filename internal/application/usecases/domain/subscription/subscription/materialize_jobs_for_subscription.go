@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -429,6 +430,35 @@ func (uc *MaterializeJobsForSubscriptionUseCase) listChildRelations(
 	return rels, nil
 }
 
+// resolveInitialJobStatus maps a JobTemplate's initial_status (Q-GSE-9,
+// job_template.proto field 50) to the lifecycle status a spawned Job takes.
+//
+// The field carries the canonical JobStatus enum name (e.g. "JOB_STATUS_ACTIVE").
+// An empty/NULL value, or any value that does not resolve to a concrete
+// (non-UNSPECIFIED) JobStatus, falls back to the caller-supplied default so
+// every existing plan with NULL initial_status is byte-unchanged. A bare enum
+// suffix ("ACTIVE") is accepted defensively.
+func resolveInitialJobStatus(tpl *jobtemplatepb.JobTemplate, fallback enumspb.JobStatus) enumspb.JobStatus {
+	if tpl == nil {
+		return fallback
+	}
+	raw := strings.TrimSpace(tpl.GetInitialStatus())
+	if raw == "" {
+		return fallback
+	}
+	if v, ok := enumspb.JobStatus_value[raw]; ok && v != int32(enumspb.JobStatus_JOB_STATUS_UNSPECIFIED) {
+		return enumspb.JobStatus(v)
+	}
+	up := strings.ToUpper(raw)
+	if !strings.HasPrefix(up, "JOB_STATUS_") {
+		up = "JOB_STATUS_" + up
+	}
+	if v, ok := enumspb.JobStatus_value[up]; ok && v != int32(enumspb.JobStatus_JOB_STATUS_UNSPECIFIED) {
+		return enumspb.JobStatus(v)
+	}
+	return fallback
+}
+
 func (uc *MaterializeJobsForSubscriptionUseCase) spawnJob(
 	ctx context.Context,
 	dc int64, dcs string,
@@ -462,7 +492,14 @@ func (uc *MaterializeJobsForSubscriptionUseCase) spawnJob(
 		OriginType:         enumspb.OriginType_ORIGIN_TYPE_SUBSCRIPTION,
 		OriginId:           &originID,
 		ClientId:           &clientID,
-		Status:             enumspb.JobStatus_JOB_STATUS_PLANNED,
+		// Q-GSE-9 (initial_status homed on job_template per the inversion rider):
+		// a spawned Job adopts its source template's initial_status. A NULL/empty
+		// or unrecognized value falls back to JOB_STATUS_PLANNED — the historical
+		// default — so every existing plan (NULL initial_status) is byte-unchanged.
+		// Grade-10 templates (initial_status=JOB_STATUS_ACTIVE) spawn ACTIVE jobs
+		// so new-class jobs are immediately visible in Classes > Active. Applies to
+		// root + child spawned jobs (both flow through this helper).
+		Status:             resolveInitialJobStatus(tpl, enumspb.JobStatus_JOB_STATUS_PLANNED),
 		BillingRuleType:    billingRule,
 		Active:             true,
 		DateCreated:        &dc,

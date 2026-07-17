@@ -61,28 +61,20 @@ func TestEntityDomainCRUDOperations(t *testing.T) {
 		})
 	})
 
-	// Test ClientAttribute create/read/list operations
+	// Test ClientAttribute create operations.
+	//
+	// W3-HIGH-4: the generic client-attribute READ surface (read / list /
+	// get-*-page-data) is intentionally UNREGISTERED — it is a cross-tenant IDOR
+	// (client_attribute has no workspace_id and cannot be parent-JOIN scoped at the
+	// generic layer). The drawer + server validator use the use case in-process, so
+	// only the write endpoints remain reachable over HTTP. The read/list flows are
+	// therefore removed from this suite (they would 404 by design).
 	t.Run("ClientAttributeOperations", func(t *testing.T) {
 		entityPath := "/api/entity/client-attribute"
 
 		t.Run("CreateClientAttribute", func(t *testing.T) {
 			createData := helper.GetTestDataForEntity("client-attribute")
 			helper.TestCreateOperation(t, env, entityPath, createData)
-		})
-
-		t.Run("CreateReadFlow", func(t *testing.T) {
-			createData := helper.GetTestDataForEntity("client-attribute")
-			helper.TestCreateReadFlow(t, env, entityPath, createData)
-		})
-
-		t.Run("CreateUpdateFlow", func(t *testing.T) {
-			createData := helper.GetTestDataForEntity("client-attribute")
-			updateData := helper.GetUpdateDataForEntity("client-attribute")
-			helper.TestCreateUpdateFlow(t, env, entityPath, createData, updateData)
-		})
-
-		t.Run("ListClientAttributes", func(t *testing.T) {
-			helper.TestListOperation(t, env, entityPath)
 		})
 	})
 

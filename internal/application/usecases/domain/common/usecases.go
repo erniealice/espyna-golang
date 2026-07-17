@@ -4,6 +4,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	attributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/common/attribute"
+	attributeValueUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/common/attribute_value"
 	categoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/common/category"
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	categorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -11,13 +12,15 @@ import (
 
 // CommonUseCases contains all common domain use cases
 type CommonUseCases struct {
-	Attribute *attributeUseCases.UseCases
-	Category  *categoryUseCases.UseCases
+	Attribute      *attributeUseCases.UseCases
+	AttributeValue *attributeValueUseCases.UseCases
+	Category       *categoryUseCases.UseCases
 }
 
 // NewCommonUseCases creates a new collection of common use cases
 func NewCommonUseCases(
 	attributeRepo attributepb.AttributeDomainServiceServer,
+	attributeValueRepo attributepb.AttributeValueDomainServiceServer,
 	categoryRepo categorypb.CategoryDomainServiceServer,
 	translationService ports.Translator,
 	idService ports.IDGenerator,
@@ -37,6 +40,22 @@ func NewCommonUseCases(
 			ActionGatekeeper: actionGate,
 		}
 		uc.Attribute = attributeUseCases.NewUseCases(attributeRepositories, attributeServices)
+	}
+
+	// Initialize attribute_value use cases only if repo is available.
+	// Surfaces uc.Common.AttributeValue.ListAttributeValues.Execute — the generic
+	// list path that preserves the av.label column for the client-attribute drawer.
+	if attributeValueRepo != nil {
+		attributeValueRepositories := attributeValueUseCases.AttributeValueRepositories{
+			AttributeValue: attributeValueRepo,
+		}
+		attributeValueServices := attributeValueUseCases.AttributeValueServices{
+			Transactor:       ports.NewNoOpTransactor(),
+			Translator:       translationService,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		}
+		uc.AttributeValue = attributeValueUseCases.NewUseCases(attributeValueRepositories, attributeValueServices)
 	}
 
 	// Initialize category use cases only if repo is available

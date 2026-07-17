@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -243,10 +244,11 @@ func newInstFixture(t *testing.T, opts instFixtureOpts) *instFixture {
 	uc := NewMaterializeInstanceJobsForSubscriptionUseCase(
 		repos,
 		MaterializeInstanceJobsForSubscriptionServices{
-			Authorizer:  ports.NewNoOpAuthorizer(),
-			Transactor:  stubTxService{},
-			Translator:  ports.NewNoOpTranslator(),
-			IDGenerator: ports.NewNoOpIDGenerator(),
+			Authorizer:       ports.NewNoOpAuthorizer(),
+			ActionGatekeeper: actiongate.NewActionGatekeeper(ports.NewNoOpAuthorizer(), ports.NewNoOpTranslator()),
+			Transactor:       stubTxService{},
+			Translator:       ports.NewNoOpTranslator(),
+			IDGenerator:      ports.NewNoOpIDGenerator(),
 		},
 	)
 	return &instFixture{uc: uc, jobs: jobRepo, phases: jobPhaseRepo, tasks: jobTaskRepo, events: eventRepo, subRepo: subRepo}
@@ -717,10 +719,11 @@ func TestMaterializeInstanceJobs_Case13_SubscriptionMustBeActive(t *testing.T) {
 			JobTask:             &stubJobTaskRepo{},
 		},
 		MaterializeInstanceJobsForSubscriptionServices{
-			Authorizer:  ports.NewNoOpAuthorizer(),
-			Transactor:  stubTxService{},
-			Translator:  ports.NewNoOpTranslator(),
-			IDGenerator: ports.NewNoOpIDGenerator(),
+			Authorizer:       ports.NewNoOpAuthorizer(),
+			ActionGatekeeper: actiongate.NewActionGatekeeper(ports.NewNoOpAuthorizer(), ports.NewNoOpTranslator()),
+			Transactor:       stubTxService{},
+			Translator:       ports.NewNoOpTranslator(),
+			IDGenerator:      ports.NewNoOpIDGenerator(),
 		},
 	)
 	_, err := uc.executeInternal(context.Background(), materializeInstanceJobsInternalRequest{

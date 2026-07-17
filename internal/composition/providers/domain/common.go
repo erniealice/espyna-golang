@@ -14,8 +14,9 @@ import (
 
 // CommonRepositories contains all common domain repositories
 type CommonRepositories struct {
-	Attribute attributepb.AttributeDomainServiceServer
-	Category  categorypb.CategoryDomainServiceServer
+	Attribute      attributepb.AttributeDomainServiceServer
+	AttributeValue attributepb.AttributeValueDomainServiceServer
+	Category       categorypb.CategoryDomainServiceServer
 }
 
 // NewCommonRepositories creates and returns a new set of CommonRepositories
@@ -41,6 +42,15 @@ func NewCommonRepositories(dbProvider contracts.Provider, tableConfig *registry.
 		repos.Attribute = attributeRepo.(attributepb.AttributeDomainServiceServer)
 	}
 
+	// Create attribute_value repository (optional — the enum option rows the
+	// client-attribute drawer resolves for select controls, preserving av.label).
+	attributeValueRepo, err := repoCreator.CreateRepository(entityid.AttributeValue, conn, tableConfig.TableName(entityid.AttributeValue))
+	if err != nil {
+		fmt.Printf("⚠️  AttributeValue repository not available: %v\n", err)
+	} else {
+		repos.AttributeValue = attributeValueRepo.(attributepb.AttributeValueDomainServiceServer)
+	}
+
 	// Create category repository using configured table name from tableConfig
 	categoryRepo, err := repoCreator.CreateRepository(entityid.Category, conn, tableConfig.TableName(entityid.Category))
 	if err != nil {
@@ -50,7 +60,7 @@ func NewCommonRepositories(dbProvider contracts.Provider, tableConfig *registry.
 	}
 
 	// Return error only if no repositories were created at all
-	if repos.Attribute == nil && repos.Category == nil {
+	if repos.Attribute == nil && repos.AttributeValue == nil && repos.Category == nil {
 		return nil, fmt.Errorf("no common repositories could be created")
 	}
 

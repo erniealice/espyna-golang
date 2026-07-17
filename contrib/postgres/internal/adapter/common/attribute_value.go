@@ -30,6 +30,14 @@ func init() {
 
 // PostgresAttributeValueRepository implements attribute_value CRUD operations using PostgreSQL
 //
+// Wave-1 (grade-sheet edit mode) added the `label` column (display form mirroring
+// ProductOptionValue; Q-GSE-10). Like the attribute constraint columns it needs
+// no bespoke scan/write: the whole message round-trips generically via
+// protojson ⇄ map ⇄ dbOps (core.normalizeKeys camel→snake). `label` is
+// `optional string` so a NULL DB value stays unset (falls back to `value` at
+// render time) rather than materialising as "". See
+// common/attribute_roundtrip_test.go.
+//
 // Performance Index Recommendations:
 //   - CREATE INDEX idx_attribute_value_active ON attribute_value(active) WHERE active = true - Filter active records
 //   - CREATE INDEX idx_attribute_value_attribute_id ON attribute_value(attribute_id) - FK lookup on attribute_id

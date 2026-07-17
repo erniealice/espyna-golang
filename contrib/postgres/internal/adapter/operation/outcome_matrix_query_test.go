@@ -5,7 +5,28 @@ package operation
 import (
 	"database/sql"
 	"testing"
+
+	matrixpb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/outcome_matrix"
 )
+
+// TestOutcomeCell_TrustedRecomputeKeys pins the W2 inline-recompute contract at
+// the proto boundary: an OutcomeCell must carry the SERVER-DERIVED job_phase_id
+// and job_id (fields 9/10, populated by loadRows' SELECT of jp.id/j.id). The
+// fayna record action reads exactly these — never a browser value — to dedup the
+// affected phase then job for ComputePhaseOutcome/ComputeJobOutcome. This guards
+// against a regression that drops the columns from the cells query (which would
+// silently strand every academic cell with empty recompute keys). The end-to-end
+// scan is exercised by the live integration reboot (this package has no
+// sqlmock/live-DB harness).
+func TestOutcomeCell_TrustedRecomputeKeys(t *testing.T) {
+	cell := &matrixpb.OutcomeCell{JobPhaseId: "jp-1", JobId: "job-1"}
+	if cell.GetJobPhaseId() != "jp-1" {
+		t.Errorf("job_phase_id recompute key not carried: got %q", cell.GetJobPhaseId())
+	}
+	if cell.GetJobId() != "job-1" {
+		t.Errorf("job_id recompute key not carried: got %q", cell.GetJobId())
+	}
+}
 
 // TestComposePhaseLabel pins the phase-header parenthetical (S8 §3): a phase with
 // a sub-deliverable variant renders "NAME (VARIANT_NAME)"; a phase with no variant

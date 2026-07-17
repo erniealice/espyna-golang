@@ -20,6 +20,7 @@ func InitializeCommon(
 	// Use the domain's constructor which properly handles all use case creation
 	return common.NewCommonUseCases(
 		repos.Attribute,
+		repos.AttributeValue,
 		repos.Category,
 		i18nSvc,
 		idSvc,

@@ -76,6 +76,9 @@ func InitializeAll(
 	// Job-Template Summary (20260711) — service/operation/job_template_summary
 	// generic resolver-scoped template-grain delivery summary (one GROUP-BY read).
 	jobTemplateSummaryUC := initServiceOperationJobTemplateSummary(db, i18nSvc, actionGate)
+	// Omni Search (20260710) — service/omni_search generic cross-entity ⌘K
+	// command-palette search; per-category ":list" gate, fail-closed.
+	omniSearchUC := initServiceOmniSearch(db, i18nSvc, actionGate)
 
-	return svcusecases.NewServiceUseCases(auditUC, securityUC, authUC, dashboardUC, reportingUC, performanceUC, taxUC, amortUC, operationUC, jobTemplateSummaryUC), nil
+	return svcusecases.NewServiceUseCases(auditUC, securityUC, authUC, dashboardUC, reportingUC, performanceUC, taxUC, amortUC, operationUC, jobTemplateSummaryUC, omniSearchUC), nil
 }

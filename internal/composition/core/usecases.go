@@ -825,6 +825,7 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 				Authorizer:                     authSvc,
 				Transactor:                     txSvc,
 				Translator:                     i18nSvc,
+				ActionGatekeeper:               actiongate.NewActionGatekeeper(authSvc, i18nSvc),
 				IDGenerator:                    idSvc,
 				MaterializeBillingEventsForJob: &materializeBillingEventsAdapter{uc: mbeFor},
 			},
@@ -857,10 +858,11 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 				BillingEvent: subscriptionRepos.BillingEvent,
 			},
 			subscriptionUseCase.MaterializeInstanceJobsForSubscriptionServices{
-				Authorizer:  authSvc,
-				Transactor:  txSvc,
-				Translator:  i18nSvc,
-				IDGenerator: idSvc,
+				Authorizer:       authSvc,
+				Transactor:       txSvc,
+				Translator:       i18nSvc,
+				ActionGatekeeper: actiongate.NewActionGatekeeper(authSvc, i18nSvc),
+				IDGenerator:      idSvc,
 			},
 		)
 		fmt.Printf("✅ MaterializeInstanceJobsForSubscription wired\n")

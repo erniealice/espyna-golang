@@ -11,6 +11,9 @@ import (
 type ClientRepositories struct {
 	Client clientpb.ClientDomainServiceServer // Primary entity repository
 	User   userpb.UserDomainServiceServer     // User repository for embedded user data
+	// Attribute overlay repos (Q-GSE-10) — flow into the Create/Update use cases
+	// so client_attribute rows are validated + persisted atomically with the client.
+	Attributes AttributeRepositories
 }
 
 // ClientServices groups all business service dependencies for client use cases
@@ -45,8 +48,9 @@ func NewUseCases(
 	// Note: Using explicit struct initialization instead of type conversion
 	// because CreateClientRepositories has additional fields (User)
 	createRepos := CreateClientRepositories{
-		Client: repositories.Client,
-		User:   repositories.User,
+		Client:     repositories.Client,
+		User:       repositories.User,
+		Attributes: repositories.Attributes,
 	}
 	createServices := CreateClientServices{
 		Authorizer:  services.Authorizer,
@@ -67,13 +71,15 @@ func NewUseCases(
 	}
 
 	updateRepos := UpdateClientRepositories{
-		Client: repositories.Client,
+		Client:     repositories.Client,
+		Attributes: repositories.Attributes,
 	}
 	updateServices := UpdateClientServices{
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
 		Translator: services.Translator,
 		ActionGatekeeper: services.ActionGatekeeper,
+		IDGenerator:      services.IDGenerator,
 	}
 
 	deleteRepos := DeleteClientRepositories{

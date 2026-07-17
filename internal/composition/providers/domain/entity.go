@@ -79,7 +79,8 @@ type EntityRepositories struct {
 	// Outsourcing-vertical client account-team membership
 	ClientWorkspaceUser clientworkspaceuserpb.ClientWorkspaceUserDomainServiceServer
 	// Cross-domain dependency from Common domain
-	Attribute attributepb.AttributeDomainServiceServer
+	Attribute      attributepb.AttributeDomainServiceServer
+	AttributeValue attributepb.AttributeValueDomainServiceServer
 }
 
 // NewEntityRepositories creates and returns a new set of EntityRepositories.
@@ -206,6 +207,11 @@ func NewEntityRepositories(dbProvider contracts.Provider, tableConfig *registry.
 	// Cross-domain dependency: Attribute repository from Common domain
 	if r := tryCreate(entityid.Attribute); r != nil {
 		repos.Attribute = r.(attributepb.AttributeDomainServiceServer)
+	}
+	// Cross-domain dependency: AttributeValue (enum options) from Common domain —
+	// the client attribute overlay validates select membership against active rows.
+	if r := tryCreate(entityid.AttributeValue); r != nil {
+		repos.AttributeValue = r.(attributepb.AttributeValueDomainServiceServer)
 	}
 
 	if len(skipped) > 0 {

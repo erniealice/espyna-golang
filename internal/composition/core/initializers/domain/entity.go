@@ -79,6 +79,13 @@ func InitializeEntity(
 			clientUseCases.ClientRepositories{
 				Client: repos.Client,
 				User:   repos.User,
+				// Attribute overlay (Q-GSE-10): validate + persist client_attribute
+				// rows atomically with the client. Nil-safe when any repo is absent.
+				Attributes: clientUseCases.AttributeRepositories{
+					Attribute:       repos.Attribute,
+					AttributeValue:  repos.AttributeValue,
+					ClientAttribute: repos.ClientAttribute,
+				},
 			},
 			clientUseCases.ClientServices(svc()),
 		)

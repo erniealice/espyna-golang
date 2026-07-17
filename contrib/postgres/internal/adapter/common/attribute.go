@@ -29,6 +29,19 @@ func init() {
 
 // PostgresAttributeRepository implements attribute CRUD operations using PostgreSQL
 //
+// Wave-1 (grade-sheet edit mode) added five typed constraint columns to
+// `attribute`: min_value, max_value, min_length, max_length, required (Q-GSE-10).
+// They need NO bespoke scan/write here: this repository round-trips the WHOLE
+// message generically — protojson.Marshal(data) → map → dbOps.Create/Update
+// (core.normalizeKeys camel→snake, operations.go), and back via
+// protojson.UnmarshalOptions{DiscardUnknown}. NULL-vs-zero is preserved by proto
+// field PRESENCE (each new column is `optional` → a *T in Go): an unset field is
+// omitted by protojson (column stays NULL), a zero value is emitted as 0 (column
+// stores 0). The DB CHECK constraints (see migration
+// 20260717000000_grade_sheet_edit_mode_contracts.sql) are the enforcement point;
+// the use-case validator that READS these columns ships in W2. See
+// common/attribute_roundtrip_test.go for the property-level round-trip proof.
+//
 // Performance Index Recommendations:
 //   - CREATE INDEX idx_attribute_active ON attribute(active) WHERE active = true - Filter active records
 //   - CREATE INDEX idx_attribute_code ON attribute(code) - Search on code field

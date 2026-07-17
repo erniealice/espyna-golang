@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
@@ -20,7 +21,8 @@ import (
 
 type mockSubRepo struct {
 	subscriptionpb.UnimplementedSubscriptionDomainServiceServer
-	existing *subscriptionpb.Subscription
+	existing    *subscriptionpb.Subscription
+	createCalls int
 }
 
 func (m *mockSubRepo) ReadSubscription(_ context.Context, req *subscriptionpb.ReadSubscriptionRequest) (*subscriptionpb.ReadSubscriptionResponse, error) {
@@ -34,6 +36,7 @@ func (m *mockSubRepo) ReadSubscription(_ context.Context, req *subscriptionpb.Re
 }
 
 func (m *mockSubRepo) CreateSubscription(_ context.Context, req *subscriptionpb.CreateSubscriptionRequest) (*subscriptionpb.CreateSubscriptionResponse, error) {
+	m.createCalls++
 	return &subscriptionpb.CreateSubscriptionResponse{Data: []*subscriptionpb.Subscription{req.GetData()}, Success: true}, nil
 }
 
@@ -101,6 +104,7 @@ func newCreateSubUC(t *testing.T, ppRepo *mockPricePlanRepoSub, clientRepo *mock
 		},
 		CreateSubscriptionServices{
 			Authorizer:              ports.NewNoOpAuthorizer(),
+			ActionGatekeeper:        actiongate.NewActionGatekeeper(ports.NewNoOpAuthorizer(), ports.NewNoOpTranslator()),
 			Transactor:              noTxnSub{},
 			Translator:              ports.NewNoOpTranslator(),
 			IDGenerator:             stubIDForSub{},
@@ -118,8 +122,9 @@ func newUpdateSubUC(t *testing.T, ppRepo *mockPricePlanRepoSub, clientRepo *mock
 			PricePlan:    ppRepo,
 		},
 		UpdateSubscriptionServices{
-			Authorizer: ports.NewNoOpAuthorizer(),
-			Transactor: noTxnSub{},
+			Authorizer:       ports.NewNoOpAuthorizer(),
+			ActionGatekeeper: actiongate.NewActionGatekeeper(ports.NewNoOpAuthorizer(), ports.NewNoOpTranslator()),
+			Transactor:       noTxnSub{},
 			Translator: ports.NewNoOpTranslator(),
 		},
 	)

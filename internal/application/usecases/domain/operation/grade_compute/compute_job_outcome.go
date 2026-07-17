@@ -24,6 +24,17 @@ import (
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
+// ErrSummaryFrozen is returned (wrapped) by ComputeJobOutcome.Execute when a
+// recompute would overwrite an is_authoritative (frozen) job_outcome_summary —
+// the imported prod finals are immutable to recompute (the B2 write-boundary
+// freeze). Callers use errors.Is(err, ErrSummaryFrozen) to distinguish an
+// EXPECTED freeze-skip (the existing authoritative grade stands; the rating is
+// NOT stale) from a genuine compute failure. The inline recompute in the fayna
+// outcome_matrix record action relies on this to report ratingFresh honestly:
+// a frozen job is ratingFresh (authoritative), a broken compute is ratingFresh
+// false (stale + retryable).
+var ErrSummaryFrozen = errors.New("job_outcome_summary is authoritative (frozen); recompute refused")
+
 // ComputeJobOutcomeRequest is the structured input for the JOB-level (year-final)
 // grade roll-up: the job whose phase grades roll up into one job_outcome_summary
 // (+ a per-subject job_outcome_line).
@@ -330,8 +341,13 @@ func (uc *ComputeJobOutcomeUseCase) upsertJobSummary(
 		// just cmd/year-final-compute's enumeration filter. A direct/API recompute
 		// of a frozen job aborts instead of clobbering the pinned grade.
 		if prev.IsAuthoritative {
-			return nil, fmt.Errorf(uc.msg(ctx, "grade_compute.errors.summary_frozen",
-				"[ERR-DEFAULT] refusing to overwrite authoritative (frozen) job_outcome_summary for job %s"), job.Id)
+			// Wrap the sentinel so callers can errors.Is it regardless of the
+			// (i18n-translated) human message. The message keeps its %s(job.Id)
+			// contract intact — the sentinel is prefixed via %w, not injected
+			// into the translated format string.
+			return nil, fmt.Errorf("%w: %s", ErrSummaryFrozen,
+				fmt.Sprintf(uc.msg(ctx, "grade_compute.errors.summary_frozen",
+					"[ERR-DEFAULT] refusing to overwrite authoritative (frozen) job_outcome_summary for job %s"), job.Id))
 		}
 		data.Id = prev.Id
 		data.DateCreated = prev.DateCreated

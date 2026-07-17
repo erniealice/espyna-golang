@@ -308,6 +308,8 @@ func (a *PostgresOutcomeMatrixQuery) loadRows(ctx context.Context, req *matrixpb
 SELECT DISTINCT ON (j.client_id, jt.id, ttc.id)
        j.client_id,
        jt.id                          AS job_task_id,
+       jp.id                          AS job_phase_id,
+       j.id                           AS job_id,
        ttc.job_template_task_id       AS job_template_task_id,
        ttc.outcome_criteria_id        AS criteria_id,
        t.id                           AS outcome_id,
@@ -350,6 +352,8 @@ ORDER BY j.client_id, jt.id, ttc.id, t.recorded_date DESC NULLS LAST, t.id DESC`
 		var (
 			clientID       string
 			jobTaskID      string
+			jobPhaseID     string
+			jobIDVal       string
 			jobTemplateTID string
 			criteriaID     string
 			outcomeID      sql.NullString
@@ -361,7 +365,7 @@ ORDER BY j.client_id, jt.id, ttc.id, t.recorded_date DESC NULLS LAST, t.id DESC`
 			assignedTo     string
 		)
 		if err := rows.Scan(
-			&clientID, &jobTaskID, &jobTemplateTID, &criteriaID,
+			&clientID, &jobTaskID, &jobPhaseID, &jobIDVal, &jobTemplateTID, &criteriaID,
 			&outcomeID, &numericValue, &textValue, &categorical, &passFail, &recordedBy, &assignedTo,
 		); err != nil {
 			return nil, fmt.Errorf("outcome_matrix: scan cells: %w", err)
@@ -384,6 +388,11 @@ ORDER BY j.client_id, jt.id, ttc.id, t.recorded_date DESC NULLS LAST, t.id DESC`
 		cell := &matrixpb.OutcomeCell{
 			OutcomeId:  nullStringVal(outcomeID),
 			JobTaskId:  jobTaskID,
+			// Server-derived recompute keys (W2 inline recompute, Q-GSE-5): the
+			// record action reads these — never a browser value — to dedup the
+			// affected phase then job for ComputePhaseOutcome/ComputeJobOutcome.
+			JobPhaseId: jobPhaseID,
+			JobId:      jobIDVal,
 			RecordedBy: recordedBy,
 			Editable:   editable,
 		}

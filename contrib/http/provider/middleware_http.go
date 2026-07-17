@@ -57,6 +57,7 @@ func BuildWorkspacePath(cfg consumermw.WorkspacePathConfig) func(http.Handler) h
 		SetCSRFCookie:           cfg.SetCSRFCookie,
 		SetSessionCookie:        cfg.SetSessionCookie,
 		WithWorkspaceID:         cfg.WithWorkspaceID,
+		WithSessionToken:        cfg.WithSessionToken,
 		IsReservedSlug:          cfg.IsReservedSlug,
 		AppOrigin:               cfg.AppOrigin,
 		SlugCacheTTL:            cfg.SlugCacheTTL,

@@ -22,6 +22,7 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -29,6 +30,54 @@ import (
 
 	consumermw "github.com/erniealice/espyna-golang/consumer/http/middleware"
 )
+
+// --- Single-issuer coordination with workspace_path (item #6) ---
+//
+// ws_csrf had two uncoordinated issuers on a single GET: workspace_path (on a
+// rotation, bound to the NEW session token) and this middleware's every-GET
+// refresh (bound to whatever GetSessionTokenFromContext returned — the STALE
+// token before rehydration). The chain runs CSRF *after* workspace_path, so the
+// GET-refresh was last-writer and clobbered the good cookie with a stale-claim
+// one → 403 csrf claim mismatch on the next POST /action/*.
+//
+// The fix is single-issue + repair-on-mismatch:
+//   - workspace_path sets wsCSRFIssuedCtxKey after it writes the authoritative
+//     cookie; this middleware then SKIPS its GET-refresh (exactly one Set-Cookie:
+//     ws_csrf per rotating response, bound to the post-rotation session).
+//   - on any other GET the refresh (re)issues ONLY when the incoming cookie is
+//     absent or fails the live (session, workspace) claim — not unconditionally —
+//     so a still-valid cookie is never clobbered by a churned/empty-claim rewrite.
+
+// wsCSRFIssuedCtxKey flags that workspace_path already issued the authoritative
+// ws_csrf cookie for THIS response.
+type wsCSRFIssuedCtxKey struct{}
+
+// markWorkspaceCSRFIssued records that the authoritative ws_csrf cookie has
+// already been written for this response. Called by workspace_path after a
+// rotation issues the cookie against the rotated (post-rotation) session token.
+func markWorkspaceCSRFIssued(ctx context.Context) context.Context {
+	return context.WithValue(ctx, wsCSRFIssuedCtxKey{}, true)
+}
+
+// workspaceCSRFAlreadyIssued reports whether workspace_path already issued the
+// authoritative ws_csrf cookie for this response.
+func workspaceCSRFAlreadyIssued(ctx context.Context) bool {
+	v, _ := ctx.Value(wsCSRFIssuedCtxKey{}).(bool)
+	return v
+}
+
+// needsWorkspaceCSRFRefresh reports whether the GET-refresh must (re)issue the
+// ws_csrf cookie: true when no cookie is present, or the incoming cookie fails
+// the live (session, workspace) claim. This replaces the unconditional every-GET
+// rewrite with a repair-on-mismatch write — strictly fewer, deterministic cookie
+// writes, and no clobber of a still-valid token by a stale-/empty-claim one.
+func needsWorkspaceCSRFRefresh(r *http.Request, secret []byte, wantSession, wantWorkspace string) bool {
+	c, err := r.Cookie(WorkspaceCSRFCookieName)
+	if err != nil || c.Value == "" {
+		return true
+	}
+	return verifyWorkspaceCSRFToken(secret, c.Value, wantSession, wantWorkspace) != nil
+}
 
 // --- Constants (the canonical values now live on the agnostic surface,
 //     consumer/http/middleware/csrf.go — ONE source of cookie-name truth, A.2.3).
@@ -86,11 +135,21 @@ func NewWorkspaceCSRFMiddleware(cfg WorkspaceCSRFConfig) func(http.Handler) http
 			// POST has a fresh token. HEAD/OPTIONS pass through silently.
 			if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
 				if r.Method == http.MethodGet {
-					// GET refresh (A.3.3 trigger #1): issue/refresh ws_csrf via
-					// the agnostic no-tag writer. secure = this package's
-					// process-wide policy (single source of truth).
-					consumermw.IssueWorkspaceCSRFCookie(w, cfg.Secret,
-						cfg.SessionToken(r), cfg.WorkspaceID(r), secureCookies)
+					// GET refresh (A.3.3 trigger #1), single-issuer + repair-on-
+					// mismatch (item #6). Skip entirely when workspace_path already
+					// wrote the authoritative post-rotation ws_csrf this response
+					// (so exactly ONE Set-Cookie: ws_csrf lands, bound to newToken).
+					// Otherwise (re)issue ONLY when the incoming cookie is absent or
+					// fails the LIVE (session, workspace) claim — read once, off the
+					// rehydrated context so a stale token never clobbers a good one.
+					if !workspaceCSRFAlreadyIssued(r.Context()) {
+						wantSession := cfg.SessionToken(r)
+						wantWorkspace := cfg.WorkspaceID(r)
+						if needsWorkspaceCSRFRefresh(r, cfg.Secret, wantSession, wantWorkspace) {
+							consumermw.IssueWorkspaceCSRFCookie(w, cfg.Secret,
+								wantSession, wantWorkspace, secureCookies)
+						}
+					}
 				}
 				next.ServeHTTP(w, r)
 				return

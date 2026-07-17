@@ -134,6 +134,15 @@ type WorkspacePathConfig struct {
 	// is NOT overridden — callers SHOULD wire this for correct guard behaviour.
 	WithWorkspaceID func(ctx context.Context, workspaceID string) context.Context
 
+	// WithSessionToken rehydrates the request context with the POST-ROTATION
+	// session token after a URL-driven rotation, so GetSessionTokenFromContext
+	// (and therefore the CSRF claim reader, the action guard, and the ws_csrf
+	// GET-refresh) sees the LIVE token rather than the stale one the session
+	// middleware injected upstream. Typically wired to consumer.WithSessionToken.
+	// When nil the context is not rehydrated (legacy behaviour); wiring it is
+	// required for the ws_csrf single-issuer / cookie↔session lock-step (item #6).
+	WithSessionToken func(ctx context.Context, token string) context.Context
+
 	// IsReservedSlug reports whether a slug is reserved (e.g. "auth", "me",
 	// "portal"). When nil no slugs are treated as reserved.
 	IsReservedSlug func(slug string) bool

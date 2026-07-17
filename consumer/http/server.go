@@ -752,7 +752,12 @@ func (s *Server) finalizePreset(p consumermw.Preset) consumermw.Preset {
 		// guards (CSRF claim, action guard, view adapter) read the URL value,
 		// not the stale session-injected one.
 		WithWorkspaceID: consumer.WithWorkspaceID,
-		SlugCacheTTL:    5 * time.Minute,
+		// Item #6: rehydrate the session-token ctx key with the POST-ROTATION
+		// token so the CSRF claim reader / action guard / ws_csrf GET-refresh
+		// read the LIVE session after rotation (kept in lock-step with the
+		// rotated session + ws_csrf cookies), not the stale session-injected one.
+		WithSessionToken: consumer.WithSessionToken,
+		SlugCacheTTL:     5 * time.Minute,
 		// Per-user URL-driven rotation cap (matches the pre-migration value).
 		RotationRateLimitPerMin: 10,
 	}

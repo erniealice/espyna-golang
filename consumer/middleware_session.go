@@ -189,6 +189,26 @@ func GetSessionTokenFromContext(ctx context.Context) string {
 	return ""
 }
 
+// WithSessionToken stamps the session token onto the request context under the
+// SAME key the session middleware writes (ContextKeySessionToken), so
+// GetSessionTokenFromContext returns it for every downstream reader.
+//
+// It exists to REHYDRATE the context after a URL-driven session rotation: the
+// session middleware runs FIRST and injects the pre-rotation (stale) token; the
+// workspace-path middleware then rotates the session and mints a new token, but
+// the ctx still carries the stale one. Calling WithSessionToken with the rotated
+// token keeps the CSRF claim reader, the action guard, and the ws_csrf GET-
+// refresh in lock-step with the freshly-issued session + ws_csrf cookies (item
+// #6). It mirrors the session middleware's own write path exactly — the ctx key
+// PLUS the RequestIdentity pointer — so both sources of session-token truth agree.
+func WithSessionToken(ctx context.Context, token string) context.Context {
+	ctx = context.WithValue(ctx, ContextKeySessionToken, token)
+	if rid, ok := sharedidentity.FromContext(ctx); ok {
+		rid.SessionToken = token
+	}
+	return ctx
+}
+
 // --- Internal helpers ---
 
 func (m *SessionMiddleware) isExcluded(path string) bool {

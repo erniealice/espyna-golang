@@ -237,6 +237,14 @@ type WorkspacePathConfig struct {
 	// middleware uses context.WithValue with CtxKeyURLWorkspaceID only.
 	WithWorkspaceID func(ctx context.Context, workspaceID string) context.Context
 
+	// WithSessionToken rehydrates the request context with the POST-ROTATION
+	// session token so GetSessionTokenFromContext (and thus the CSRF claim
+	// reader / action guard / ws_csrf GET-refresh) reads the LIVE token after a
+	// rotation, not the stale one the session middleware injected upstream.
+	// Typically wired to consumer.WithSessionToken. When nil the context is not
+	// rehydrated (item #6 lock-step guarantee requires it to be wired).
+	WithSessionToken func(ctx context.Context, token string) context.Context
+
 	// AppOrigin is the canonical origin (scheme://host[:port]) used as
 	// the Referer-fallback comparator when Sec-Fetch-* headers are absent.
 	AppOrigin string
@@ -451,15 +459,50 @@ func (m *WorkspacePathMiddleware) handle(next http.Handler) http.Handler {
 				return
 			}
 
-			// 8d. Cookie write.
-			if result != nil && result.NewToken != "" {
+			// KNOWN GAP — deferred acting-as identity rehydration (item #6 codex
+			// follow-up, tracked separately from this CSRF-cookie fix). This block
+			// rehydrates only the SESSION TOKEN (for ws_csrf lock-step) and only
+			// when a NEW token is minted. Same-workspace acting-as switches mutate
+			// the session in place and return no new token, so the current request
+			// is NOT re-bound to the switched principal (stale-privilege window);
+			// and ExecuteSwitch/rate-limit already ran above even on a no-op target.
+			// A full fix needs the switched principal_type/id + acting_as identity
+			// plumbed into this middleware and a mid-request RequestIdentity rebuild
+			// — new capability on the auth hot path, beyond this PR's CSRF-cookie
+			// charter (agnostic surfaces stay pass-through; HMAC claim unchanged).
+			// See docs/plan/20260717-grade-sheet-followups codex-item6-review.
+			//
+			// 8d. Cookie write — ONLY when the switch produced a genuinely NEW
+			// session token. When ExecuteSwitch is a no-op because the session
+			// already binds the resolved target, NewToken == token: writing a new
+			// session cookie + a second ws_csrf would be a redundant re-issue that
+			// re-opens the very desync this guards against. Skipping it makes the
+			// switch idempotent (item #6, (iii)) — the belt to the rotationNeeded
+			// gate's suspenders (which already skips when sessionWsID == workspaceID).
+			if result != nil && result.NewToken != "" && result.NewToken != token {
 				if m.cfg.SetSessionCookie != nil {
 					m.cfg.SetSessionCookie(w, result.NewToken)
 				} else {
 					writeStrictSessionCookie(w, m.cfg.CookieName, result.NewToken)
 				}
+				// ws_csrf issuer #1 (item #6, (i)) — the ONE authoritative ws_csrf
+				// write for this response, bound to the FINAL post-rotation session
+				// token. The downstream CSRF GET-refresh is told (via the ctx flag
+				// below) that the cookie is already issued, so it does NOT re-write
+				// a second, stale-token-bound ws_csrf and clobber this one.
 				if m.cfg.SetCSRFCookie != nil {
 					m.cfg.SetCSRFCookie(w, result.NewToken, workspaceID)
+					ctx = markWorkspaceCSRFIssued(ctx)
+				}
+				// Rehydrate the request context with the rotated token (item #6,
+				// (ii)) so GetSessionTokenFromContext returns newToken for every
+				// downstream reader — the CSRF claim check, the action guard, the
+				// GET-refresh — keeping cookie and session in lock-step. The session
+				// middleware ran first and wrote the STALE token; it never refreshes
+				// after rotation, so without this the claim readers see the wrong
+				// session and the next POST /action/* 403s on a claim mismatch.
+				if m.cfg.WithSessionToken != nil {
+					ctx = m.cfg.WithSessionToken(ctx, result.NewToken)
 				}
 
 				// 8e. Banner data. Written under pyeza render's canonical key so

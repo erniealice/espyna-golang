@@ -3,8 +3,6 @@ package subscription
 import (
 	"context"
 	"fmt"
-
-	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
 // MaterializeJobsForSubscriptionInstantiator adapts
@@ -29,6 +27,10 @@ type MaterializeJobsForSubscriptionInstantiator struct {
 // forwarded straight through. When false the underlying use case skips the
 // spawn with SkipReasonOperatorOptOut so the operator's toggle decision is
 // honored.
+//
+// Item #5 (option a): this is a CREATE side effect (CreateSubscriptionUseCase
+// is already authorized by subscription:create), so it delegates to the ungated
+// materializeCore rather than the subscription:update-gated Execute.
 func (a *MaterializeJobsForSubscriptionInstantiator) InstantiateJobsFromPlan(
 	ctx context.Context, _, _, subscriptionID, _ string, spawnJobs bool,
 ) error {
@@ -38,7 +40,7 @@ func (a *MaterializeJobsForSubscriptionInstantiator) InstantiateJobsFromPlan(
 	if subscriptionID == "" {
 		return fmt.Errorf("instantiate_jobs: subscription_id required")
 	}
-	_, err := a.UseCase.Execute(ctx, &subscriptionpb.MaterializeJobsForSubscriptionRequest{
+	_, err := a.UseCase.materializeCore(ctx, materializeJobsForSubscriptionInternalRequest{
 		SubscriptionId: subscriptionID,
 		SpawnJobs:      spawnJobs,
 	})

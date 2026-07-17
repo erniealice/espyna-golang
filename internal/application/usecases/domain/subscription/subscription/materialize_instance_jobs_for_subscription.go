@@ -213,6 +213,17 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) Execute(
 		req.Backfill = pbReq.GetBackfill()
 		req.UsageRequestDate = pbReq.GetUsageRequestDate()
 	}
+	// DIRECT/manual entrypoint gate (item #5, a). The public proto boundary —
+	// the recognize-revenue piggyback adapter, operator "Spawn this cycle" /
+	// "Backfill" CTAs, and any direct/API caller — reach the spawn ONLY through
+	// Execute, so the subscription:update gate lives here. executeInternal is the
+	// ungated core, symmetric with MaterializeJobsForSubscription.materializeCore.
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Subscription,
+		Action: entityid.ActionUpdate,
+	}); err != nil {
+		return nil, err
+	}
 	internal, err := uc.executeInternal(ctx, req)
 	if err != nil {
 		return nil, err
@@ -243,16 +254,14 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) Execute(
 // executeInternal drives the full cycle-spawn flow per plan §3. The whole §3.2 → §3.5
 // chain runs in a single transaction. Returns the rich internal response for callers
 // (composition adapter, tests) that need cycle-level detail.
+//
+// CHARTER — ungated internal core (item #5, option a). The subscription:update
+// gate is enforced by the public Execute wrapper; callers that reach
+// executeInternal directly MUST have an authorized ancestor. Do NOT wire this to
+// a route or the recognize-piggyback invoker without going through Execute.
 func (uc *MaterializeInstanceJobsForSubscriptionUseCase) executeInternal(
 	ctx context.Context, req materializeInstanceJobsInternalRequest,
 ) (*materializeInstanceJobsInternalResponse, error) {
-	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
-		Entity: entityid.Subscription,
-		Action: entityid.ActionUpdate,
-	}); err != nil {
-		return nil, err
-	}
-
 	if req.SubscriptionId == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx, uc.services.Translator,

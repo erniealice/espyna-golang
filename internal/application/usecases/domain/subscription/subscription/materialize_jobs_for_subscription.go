@@ -113,8 +113,15 @@ func NewMaterializeJobsForSubscriptionUseCase(
 	}
 }
 
-// Execute drives the full spawn flow per plan §3. The whole §3.3 → §3.7
-// chain runs in a single transaction.
+// Execute is the DIRECT/manual proto-boundary entrypoint. It gates on
+// subscription:update — the manual "Spawn Jobs" drawer and any direct/API
+// caller reach the spawn ONLY through here, so this gate is preserved.
+//
+// The create-on-enrollment side effect does NOT flow through Execute: the
+// CreateSubscriptionUseCase (already authorized by subscription:create) calls
+// materializeCore directly via MaterializeJobsForSubscriptionInstantiator, so a
+// least-privilege registrar role holding subscription:create — but not
+// subscription:update — still spawns jobs under AUTHZ_ENFORCE (item #5, a).
 func (uc *MaterializeJobsForSubscriptionUseCase) Execute(
 	ctx context.Context, pbReq *subscriptionpb.MaterializeJobsForSubscriptionRequest,
 ) (*subscriptionpb.MaterializeJobsForSubscriptionResponse, error) {
@@ -130,7 +137,26 @@ func (uc *MaterializeJobsForSubscriptionUseCase) Execute(
 	}); err != nil {
 		return nil, err
 	}
+	return uc.materializeCore(ctx, req)
+}
 
+// materializeCore drives the full spawn flow per plan §3 WITHOUT an
+// authorization gate. The whole §3.3 → §3.7 chain runs in a single transaction.
+//
+// CHARTER — ungated internal core (item #5, option a). Callers MUST have an
+// authorized ancestor operation that entitles this materialization, and the
+// core operates SOLELY on the subscription named in req. The only permitted
+// in-tree callers are:
+//   - Execute above, which runs the subscription:update gate, and
+//   - the create side effect (CreateSubscriptionUseCase, already authorized by
+//     subscription:create) via the MaterializeJobsForSubscriptionInstantiator
+//     adapter methods (InstantiateJobsFromPlan / InstantiateJobsFromPlanDetailed).
+//
+// NEVER wire this to a route, a proto handler, or the JobTemplateInstantiator
+// port without an authorizing gate on the ancestor.
+func (uc *MaterializeJobsForSubscriptionUseCase) materializeCore(
+	ctx context.Context, req materializeJobsForSubscriptionInternalRequest,
+) (*subscriptionpb.MaterializeJobsForSubscriptionResponse, error) {
 	if req.SubscriptionId == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
 			ctx, uc.services.Translator,

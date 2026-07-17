@@ -334,12 +334,14 @@ func applySpawnOutcome(resp *subscriptionpb.CreateSubscriptionResponse, outcome 
 }
 
 // InstantiateJobsFromPlanDetailed is the Q-GSE-8 richer variant of the legacy
-// port on the canonical adapter. It delegates to the same
-// MaterializeJobsForSubscriptionUseCase.Execute as InstantiateJobsFromPlan (so
-// the spawn side effects are byte-identical) and additionally returns the
-// spawned Job IDs + clean-skip reason. Defined here (not in
-// job_instantiator_adapter.go) so this Q-GSE-8 wiring is self-contained; Go
-// permits methods on a same-package type across files.
+// port on the canonical adapter. It delegates to the ungated
+// MaterializeJobsForSubscriptionUseCase.materializeCore (item #5, a) — the
+// create side effect is already authorized by subscription:create at the
+// CreateSubscriptionUseCase front door, so the intrinsic materialize must NOT
+// re-gate on subscription:update. It additionally returns the spawned Job IDs +
+// clean-skip reason. Defined here (not in job_instantiator_adapter.go) so this
+// Q-GSE-8 wiring is self-contained; Go permits methods on a same-package type
+// across files.
 func (a *MaterializeJobsForSubscriptionInstantiator) InstantiateJobsFromPlanDetailed(
 	ctx context.Context, _, _, subscriptionID, _ string, spawnJobs bool,
 ) (jobSpawnOutcome, error) {
@@ -349,7 +351,7 @@ func (a *MaterializeJobsForSubscriptionInstantiator) InstantiateJobsFromPlanDeta
 	if subscriptionID == "" {
 		return jobSpawnOutcome{}, errors.New("instantiate_jobs: subscription_id required")
 	}
-	resp, err := a.UseCase.Execute(ctx, &subscriptionpb.MaterializeJobsForSubscriptionRequest{
+	resp, err := a.UseCase.materializeCore(ctx, materializeJobsForSubscriptionInternalRequest{
 		SubscriptionId: subscriptionID,
 		SpawnJobs:      spawnJobs,
 	})

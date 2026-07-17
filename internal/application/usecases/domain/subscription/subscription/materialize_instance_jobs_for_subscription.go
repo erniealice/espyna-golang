@@ -968,6 +968,14 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnPhasesAndTasks(
 			phaseID = fmt.Sprintf("phase-%d", time.Now().UnixNano())
 		}
 		tplPhaseID := tp.GetId()
+		// Propagate the scoring scheme from the template phase (see the twin in
+		// materialize_jobs_for_subscription.go): a NULL scheme makes the spawned
+		// phase invisible to the education grading pipeline. Nil-safe.
+		var scoringSchemeID *string
+		if tp.ScoringSchemeId != nil {
+			v := tp.GetScoringSchemeId()
+			scoringSchemeID = &v
+		}
 		phase := &jobphasepb.JobPhase{
 			Id:                 phaseID,
 			JobId:              job.GetId(),
@@ -976,6 +984,7 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) spawnPhasesAndTasks(
 			Status:             jobphasepb.PhaseStatus_PHASE_STATUS_PENDING,
 			Active:             true,
 			TemplatePhaseId:    &tplPhaseID,
+			ScoringSchemeId:    scoringSchemeID,
 			DateCreated:        &dc,
 			DateCreatedString:  &dcs,
 			DateModified:       &dc,

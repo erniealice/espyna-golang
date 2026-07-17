@@ -466,7 +466,8 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 			jtp.active,
 			jtp.job_template_id,
 			jtp.name,
-			jtp.phase_order
+			jtp.phase_order,
+			jtp.scoring_scheme_id
 		FROM ` + entityid.JobTemplatePhase + ` jtp
 		WHERE jtp.job_template_id = $1 AND jtp.active = true
 		ORDER BY jtp.phase_order ASC
@@ -488,6 +489,7 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 			jobTemplateID string
 			name          string
 			phaseOrder    int32
+			scoringScheme sql.NullString
 		)
 
 		err := rows.Scan(
@@ -498,6 +500,7 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 			&jobTemplateID,
 			&name,
 			&phaseOrder,
+			&scoringScheme,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan job template phase row: %w", err)
@@ -509,6 +512,10 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 			JobTemplateId: jobTemplateID,
 			Name:          name,
 			PhaseOrder:    phaseOrder,
+		}
+		if scoringScheme.Valid {
+			v := scoringScheme.String
+			phase.ScoringSchemeId = &v
 		}
 
 		if !dateCreated.IsZero() {

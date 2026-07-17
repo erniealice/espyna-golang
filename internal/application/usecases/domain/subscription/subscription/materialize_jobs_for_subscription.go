@@ -721,6 +721,16 @@ func (uc *MaterializeJobsForSubscriptionUseCase) spawnPhasesAndTasks(
 			phaseID = fmt.Sprintf("phase-%d", time.Now().UnixNano())
 		}
 		tplPhaseID := tp.GetId()
+		// Propagate the scoring scheme from the template phase. grade-compute
+		// enumerates job_phase rows by scoring_scheme_id; a spawned phase with a
+		// NULL scheme is invisible to the whole education grading pipeline (grade
+		// sheet, phase/year-final compute, report card). Nil-safe copy so phases
+		// whose template declares no scheme stay NULL (unchanged for non-graded verticals).
+		var scoringSchemeID *string
+		if tp.ScoringSchemeId != nil {
+			v := tp.GetScoringSchemeId()
+			scoringSchemeID = &v
+		}
 		phase := &jobphasepb.JobPhase{
 			Id:                 phaseID,
 			JobId:              job.GetId(),
@@ -729,6 +739,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) spawnPhasesAndTasks(
 			Status:             jobphasepb.PhaseStatus_PHASE_STATUS_PENDING,
 			Active:             true,
 			TemplatePhaseId:    &tplPhaseID,
+			ScoringSchemeId:    scoringSchemeID,
 			DateCreated:        &dc,
 			DateCreatedString:  &dcs,
 			DateModified:       &dc,

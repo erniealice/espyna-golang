@@ -678,3 +678,41 @@ func TestMaterializeJobs_OriginFieldsSet(t *testing.T) {
 		t.Errorf("origin_id want sub-1, got %v", j.OriginId)
 	}
 }
+
+// The spawned job_phase must inherit scoring_scheme_id from its template phase
+// (education grading pipeline enumerates job_phase by scoring_scheme_id; a NULL
+// scheme makes the phase invisible to grade-compute / report cards). A template
+// phase with no scheme stays NULL (unchanged for non-graded verticals).
+func TestMaterializeJobs_ScoringSchemePropagated(t *testing.T) {
+	rootID := "tpl-root"
+	scheme := "seed-ibmyp-scheme"
+	graded := makePhase("p1", rootID, "Semester 1", 1, "")
+	graded.ScoringSchemeId = &scheme
+	ungraded := makePhase("p2", rootID, "Semester 2", 2, "")
+	f := newFixture(t, fixtureOpts{
+		planJobTemplateID: rootID,
+		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "Root", true)},
+		phasesByTpl:       map[string][]*jobtemplatephasepb.JobTemplatePhase{rootID: {graded, ungraded}},
+	})
+	if _, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var gotGraded, gotUngraded *jobphasepb.JobPhase
+	for _, ph := range f.phs.created {
+		switch ph.GetName() {
+		case "Semester 1":
+			gotGraded = ph
+		case "Semester 2":
+			gotUngraded = ph
+		}
+	}
+	if gotGraded == nil || gotUngraded == nil {
+		t.Fatalf("expected both spawned phases; graded=%v ungraded=%v", gotGraded, gotUngraded)
+	}
+	if gotGraded.GetScoringSchemeId() != scheme {
+		t.Errorf("graded phase: want scoring_scheme_id %q, got %q", scheme, gotGraded.GetScoringSchemeId())
+	}
+	if gotUngraded.ScoringSchemeId != nil {
+		t.Errorf("ungraded phase: want nil scoring_scheme_id, got %q", gotUngraded.GetScoringSchemeId())
+	}
+}

@@ -42,6 +42,7 @@ func TestJobTemplatePhaseListByTemplate_ColumnsProjected(t *testing.T) {
 		"jtp.phase_order",
 		"jtp.scoring_scheme_id",             // the f2c80100 regression
 		"jtp.predecessor_template_phase_id", // item #3 restore
+		"jtp.code",                          // stable path key for the document read path
 	}
 	for _, col := range mustProject {
 		if !strings.Contains(sql, col) {
@@ -71,6 +72,7 @@ func TestJobTemplatePhaseListByTemplate_ColumnOrderMatchesScan(t *testing.T) {
 		"jtp.phase_order",
 		"jtp.scoring_scheme_id",
 		"jtp.predecessor_template_phase_id",
+		"jtp.code",
 	}
 	prev := -1
 	prevCol := ""
@@ -95,5 +97,55 @@ func TestJobTemplatePhaseListByTemplate_TableFromEntityID(t *testing.T) {
 	sql := jobTemplatePhaseListByTemplateSQL()
 	if !strings.Contains(sql, " "+entityid.JobTemplatePhase+" jtp") {
 		t.Errorf("SELECT/FROM missing %q aliased jtp (table must come from entityid):\n%s", entityid.JobTemplatePhase, sql)
+	}
+}
+
+// TestJobTemplatePhase_RawReadsWorkspaceScoped is the cross-tenant regression.
+// job_template_phase has no workspace_id column, so these raw-SQL reads bypass
+// the workspace-aware decorator. Without a parent JOIN to job_template and a
+// workspace predicate, a workspace-A caller could enumerate workspace-B phases.
+// Each scoped read MUST derive tenancy through jt.workspace_id at the documented
+// positional parameter.
+func TestJobTemplatePhase_RawReadsWorkspaceScoped(t *testing.T) {
+	joinParent := "JOIN " + entityid.JobTemplate + " jt ON jt.id = jtp.job_template_id"
+
+	cases := []struct {
+		name string
+		sql  string
+		pred string
+	}{
+		{"ListByJobTemplate", jobTemplatePhaseListByTemplateSQL(), "$2::text = '' OR jt.workspace_id = $2::text"},
+		{"ItemPageData", jobTemplatePhaseItemPageDataSQL(), "$2::text = '' OR jt.workspace_id = $2::text"},
+		{"ListPageData", jobTemplatePhaseListPageDataSQL("ORDER BY e.phase_order ASC"), "$4::text = '' OR jt.workspace_id = $4::text"},
+	}
+	for _, c := range cases {
+		if !strings.Contains(c.sql, joinParent) {
+			t.Errorf("%s: missing parent JOIN %q — unscoped cross-tenant read:\n%s", c.name, joinParent, c.sql)
+		}
+		if !strings.Contains(c.sql, c.pred) {
+			t.Errorf("%s: missing workspace predicate %q — unscoped cross-tenant read:\n%s", c.name, c.pred, c.sql)
+		}
+	}
+}
+
+// TestJobTemplatePhase_GenericGuardsWorkspaceScoped locks the by-id / create /
+// generic-list tenant guards used by the generic (decorator-routed) ops, which
+// otherwise pass through unscoped for this column-less child table.
+func TestJobTemplatePhase_GenericGuardsWorkspaceScoped(t *testing.T) {
+	owned := jobTemplatePhaseWorkspaceOwnedSQL()
+	if !strings.Contains(owned, "JOIN "+entityid.JobTemplate+" jt ON jt.id = jtp.job_template_id") ||
+		!strings.Contains(owned, "jtp.id = $1") ||
+		!strings.Contains(owned, "jt.workspace_id = $2::text") {
+		t.Errorf("read/update/delete ownership guard not scoped through parent workspace:\n%s", owned)
+	}
+
+	parent := jobTemplateInWorkspaceSQL()
+	if !strings.Contains(parent, "jt.id = $1") || !strings.Contains(parent, "jt.workspace_id = $2::text") {
+		t.Errorf("create parent-FK validation not scoped to workspace:\n%s", parent)
+	}
+
+	list := jobTemplatePhaseOwnedTemplateIDsSQL()
+	if !strings.Contains(list, "id = ANY($1)") || !strings.Contains(list, "workspace_id = $2::text") {
+		t.Errorf("generic-list owned-template filter not scoped to workspace:\n%s", list)
 	}
 }

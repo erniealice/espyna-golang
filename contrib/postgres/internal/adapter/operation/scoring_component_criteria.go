@@ -111,7 +111,10 @@ func (r *PostgresScoringComponentCriteriaRepository) DeleteScoringComponentCrite
 }
 
 func (r *PostgresScoringComponentCriteriaRepository) ListScoringComponentCriterias(ctx context.Context, req *pb.ListScoringComponentCriteriasRequest) (*pb.ListScoringComponentCriteriasResponse, error) {
-	items, err := r.listAll(ctx, req.GetFilters())
+	// Honour the request's pagination so callers that must read a scope COMPLETELY
+	// can page through it (the default underlying limit is 100). Callers passing no
+	// pagination keep the prior single-page-of-100 behaviour.
+	items, err := r.listAll(ctx, req.GetFilters(), req.GetPagination())
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +125,9 @@ func (r *PostgresScoringComponentCriteriaRepository) GetScoringComponentCriteria
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
-	all, err := r.listAll(ctx, req.GetFilters())
+	// This RPC paginates in-memory over the full (unpaginated) list, so it must
+	// fetch without a DB page window — pass nil pagination.
+	all, err := r.listAll(ctx, req.GetFilters(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -146,10 +151,10 @@ func (r *PostgresScoringComponentCriteriaRepository) GetScoringComponentCriteria
 	return &pb.GetScoringComponentCriteriaItemPageDataResponse{ScoringComponentCriteria: item, Success: true}, nil
 }
 
-func (r *PostgresScoringComponentCriteriaRepository) listAll(ctx context.Context, filters *commonpb.FilterRequest) ([]*pb.ScoringComponentCriteria, error) {
+func (r *PostgresScoringComponentCriteriaRepository) listAll(ctx context.Context, filters *commonpb.FilterRequest, pagination *commonpb.PaginationRequest) ([]*pb.ScoringComponentCriteria, error) {
 	var params *interfaces.ListParams
-	if filters != nil {
-		params = &interfaces.ListParams{Filters: filters}
+	if filters != nil || pagination != nil {
+		params = &interfaces.ListParams{Filters: filters, Pagination: pagination}
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
@@ -157,13 +162,16 @@ func (r *PostgresScoringComponentCriteriaRepository) listAll(ctx context.Context
 	}
 	var items []*pb.ScoringComponentCriteria
 	for _, row := range listResult.Data {
+		// A row that cannot be decoded is a data-integrity fault, not a row to
+		// silently drop: a completeness-sensitive reader (the scoring-scheme
+		// eligibility read) must see a failed read, not a short answer.
 		rj, err := json.Marshal(row)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("failed to marshal scoring component criteria row: %w", err)
 		}
 		item := &pb.ScoringComponentCriteria{}
 		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(rj, item); err != nil {
-			continue
+			return nil, fmt.Errorf("failed to unmarshal scoring component criteria row: %w", err)
 		}
 		items = append(items, item)
 	}

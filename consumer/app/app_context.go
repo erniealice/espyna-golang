@@ -144,6 +144,15 @@ type AppContext struct {
 	ComputePhaseOutcome any
 	ComputeJobOutcome   any
 
+	// RecomputeEligibility classifies whether a saved numeric cell on a given job
+	// phase drives a scaled-summary recompute (its scheme resolves a score scale
+	// and the cell's criterion is in the scheme's active component graph). Built
+	// via consumer.NewRecomputeEligibilityAdapter; the fayna record action
+	// type-asserts the bare signature
+	//   func(ctx context.Context, jobPhaseID string) (bool, map[string]bool, error)
+	// and, when this is nil or errors, falls back to numeric-type classification.
+	RecomputeEligibility any
+
 	// ResolveTemplateBytes resolves the applicable published document-template
 	// binding for a given price_schedule (report-card render path) and returns the
 	// bound template's storage bytes. Signature:

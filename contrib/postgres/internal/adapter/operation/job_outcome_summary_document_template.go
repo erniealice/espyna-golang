@@ -188,12 +188,37 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) UpdateJobOutcomeSu
 	return &pb.UpdateJobOutcomeSummaryDocumentTemplateResponse{Data: []*pb.JobOutcomeSummaryDocumentTemplate{item}, Success: true}, nil
 }
 
+// DeleteJobOutcomeSummaryDocumentTemplate soft-deletes a binding, but ONLY while
+// it is a DRAFT. A PUBLISHED (or DEPRECATED) binding is part of the immutable
+// version history — historical as_of renders must keep resolving it — so its
+// removal is refused. This is the persistence-layer belt to the use-case
+// suspenders: the guard is a status- and workspace-scoped soft-delete with an
+// affected-row check, so a bypassed use case (or a concurrent publish) can never
+// remove a non-draft lineage. Idempotent on a draft (re-stamps active=false).
 func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) DeleteJobOutcomeSummaryDocumentTemplate(ctx context.Context, req *pb.DeleteJobOutcomeSummaryDocumentTemplateRequest) (*pb.DeleteJobOutcomeSummaryDocumentTemplateResponse, error) {
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("binding ID is required")
 	}
-	if err := r.dbOps.Delete(ctx, r.tableName, req.Data.Id); err != nil {
+	id, ok := identity.FromContext(ctx)
+	if !ok || id.WorkspaceID == "" {
+		return nil, fmt.Errorf("workspace identity required to delete")
+	}
+	nowMillis := time.Now().UTC().UnixMilli()
+	res, err := r.db.ExecContext(ctx,
+		fmt.Sprintf(`UPDATE %s
+			    SET active = false, date_modified = $1
+			  WHERE id = $2 AND workspace_id = $3 AND version_status = $4`,
+			entityid.JobOutcomeSummaryDocumentTemplate),
+		nowMillis, req.Data.Id, id.WorkspaceID, versionStatusDraft)
+	if err != nil {
 		return nil, fmt.Errorf("failed to delete binding: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("delete affected-row check: %w", err)
+	}
+	if affected != 1 {
+		return nil, fmt.Errorf("only a draft binding can be deleted")
 	}
 	return &pb.DeleteJobOutcomeSummaryDocumentTemplateResponse{Success: true}, nil
 }

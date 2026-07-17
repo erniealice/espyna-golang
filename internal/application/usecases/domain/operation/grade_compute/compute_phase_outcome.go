@@ -11,12 +11,14 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/gradecompute"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	phaseoutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
 	scorescalepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale"
 	scorescalebandpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale_band"
+	scoringcomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_component"
 	scoringcomponentcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_component_criteria"
 	scoringschemepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_scheme"
 	taskoutcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
@@ -292,30 +294,154 @@ func (uc *ComputePhaseOutcomeUseCase) readScoreScale(ctx context.Context, id str
 	return resp.Data[0], nil
 }
 
-// inScopeCriteria returns the set of outcome_criteria ids the scheme grades on,
-// drawn from the scoring_component_criteria junction filtered to this scheme.
+// scopeReadPageSize is the per-page window used to read the scheme's component
+// graph completely. scopeReadMaxPages bounds the loop so a runaway/misconfigured
+// scheme cannot spin forever; hitting it is treated as an incomplete read (an
+// error), never as a short-but-authoritative answer.
+const (
+	scopeReadPageSize = 100
+	scopeReadMaxPages = 1000
+)
+
+// inScopeCriteria returns the set of outcome_criteria ids the scheme grades on:
+// the outcome_criteria of every ACTIVE scoring_component_criteria junction for
+// this scheme WHOSE parent scoring_component is ACTIVE and belongs to the same
+// scheme (the active component graph the contract requires).
+//
+// Both the junction and the component rows are read COMPLETELY (scheme-scoped at
+// the DB, then paged to exhaustion) — a scheme whose graph spilled past the
+// underlying default page limit would otherwise return an arbitrary first page
+// and classify a real academic scheme as ungraded. Any read failure, decode
+// failure, or an incomplete read (page bound hit) propagates as an error so the
+// caller fails closed on grading freshness rather than silently acking a cell as
+// not-applicable. An empty set after a COMPLETE read is a legitimate "nothing to
+// grade" outcome.
 func (uc *ComputePhaseOutcomeUseCase) inScopeCriteria(ctx context.Context, schemeID string) (map[string]bool, error) {
-	resp, err := uc.repositories.ScoringComponentCriteria.ListScoringComponentCriterias(ctx,
-		&scoringcomponentcriteriapb.ListScoringComponentCriteriasRequest{})
+	// Active components of this scheme, keyed by id (the parent-graph filter).
+	components, err := uc.listSchemeComponents(ctx, schemeID)
 	if err != nil {
-		return nil, fmt.Errorf(uc.msg(ctx, "grade_compute.errors.list_scoped_criteria_failed",
-			"[ERR-DEFAULT] failed to list scoring_component_criteria for scheme %s: %w"), schemeID, err)
+		return nil, err
+	}
+	activeComponent := make(map[string]bool, len(components))
+	for _, c := range components {
+		if c == nil || !c.Active {
+			continue
+		}
+		// The component must belong to the resolved scheme, not merely be
+		// referenced by a junction that claims the scheme.
+		if c.ScoringSchemeId != schemeID {
+			continue
+		}
+		if c.Id != "" {
+			activeComponent[c.Id] = true
+		}
+	}
+
+	junctions, err := uc.listSchemeComponentCriteria(ctx, schemeID)
+	if err != nil {
+		return nil, err
 	}
 	set := make(map[string]bool)
-	if resp != nil {
-		for _, scc := range resp.Data {
-			if scc == nil || !scc.Active {
-				continue
-			}
-			if scc.ScoringSchemeId != schemeID {
-				continue
-			}
-			if scc.OutcomeCriteriaId != "" {
-				set[scc.OutcomeCriteriaId] = true
-			}
+	for _, scc := range junctions {
+		if scc == nil || !scc.Active {
+			continue
+		}
+		if scc.ScoringSchemeId != schemeID {
+			continue
+		}
+		if !activeComponent[scc.ScoringComponentId] {
+			continue
+		}
+		if scc.OutcomeCriteriaId != "" {
+			set[scc.OutcomeCriteriaId] = true
 		}
 	}
 	return set, nil
+}
+
+// listSchemeComponentCriteria reads every ACTIVE scoring_component_criteria for
+// the scheme, paging to exhaustion. Scheme scoping happens at the DB via an
+// equality filter; only active rows come back (the list default). The loop stops
+// on the first short page and errors if it hits the page bound (truncation).
+func (uc *ComputePhaseOutcomeUseCase) listSchemeComponentCriteria(ctx context.Context, schemeID string) ([]*scoringcomponentcriteriapb.ScoringComponentCriteria, error) {
+	var out []*scoringcomponentcriteriapb.ScoringComponentCriteria
+	for page := int32(1); ; page++ {
+		if page > scopeReadMaxPages {
+			return nil, fmt.Errorf(uc.msg(ctx, "grade_compute.errors.scope_read_incomplete",
+				"[ERR-DEFAULT] scoring_component_criteria read for scheme %s exceeded the page bound (possible truncation)"), schemeID)
+		}
+		resp, err := uc.repositories.ScoringComponentCriteria.ListScoringComponentCriterias(ctx,
+			&scoringcomponentcriteriapb.ListScoringComponentCriteriasRequest{
+				Filters:    equalsFilter("scoring_scheme_id", schemeID),
+				Pagination: offsetPage(page, scopeReadPageSize),
+			})
+		if err != nil {
+			return nil, fmt.Errorf(uc.msg(ctx, "grade_compute.errors.list_scoped_criteria_failed",
+				"[ERR-DEFAULT] failed to list scoring_component_criteria for scheme %s: %w"), schemeID, err)
+		}
+		if resp == nil {
+			break
+		}
+		out = append(out, resp.Data...)
+		if len(resp.Data) < int(scopeReadPageSize) {
+			break
+		}
+	}
+	return out, nil
+}
+
+// listSchemeComponents reads every ACTIVE scoring_component for the scheme, paging
+// to exhaustion with the same completeness contract as the junction read.
+func (uc *ComputePhaseOutcomeUseCase) listSchemeComponents(ctx context.Context, schemeID string) ([]*scoringcomponentpb.ScoringComponent, error) {
+	var out []*scoringcomponentpb.ScoringComponent
+	for page := int32(1); ; page++ {
+		if page > scopeReadMaxPages {
+			return nil, fmt.Errorf(uc.msg(ctx, "grade_compute.errors.scope_read_incomplete",
+				"[ERR-DEFAULT] scoring_component read for scheme %s exceeded the page bound (possible truncation)"), schemeID)
+		}
+		resp, err := uc.repositories.ScoringComponent.ListScoringComponents(ctx,
+			&scoringcomponentpb.ListScoringComponentsRequest{
+				Filters:    equalsFilter("scoring_scheme_id", schemeID),
+				Pagination: offsetPage(page, scopeReadPageSize),
+			})
+		if err != nil {
+			return nil, fmt.Errorf(uc.msg(ctx, "grade_compute.errors.list_scheme_components_failed",
+				"[ERR-DEFAULT] failed to list scoring_component for scheme %s: %w"), schemeID, err)
+		}
+		if resp == nil {
+			break
+		}
+		out = append(out, resp.Data...)
+		if len(resp.Data) < int(scopeReadPageSize) {
+			break
+		}
+	}
+	return out, nil
+}
+
+// equalsFilter builds a single-field exact-match FilterRequest (case-sensitive so
+// opaque ids match verbatim).
+func equalsFilter(field, value string) *commonpb.FilterRequest {
+	return &commonpb.FilterRequest{
+		Filters: []*commonpb.TypedFilter{{
+			Field: field,
+			FilterType: &commonpb.TypedFilter_StringFilter{
+				StringFilter: &commonpb.StringFilter{
+					Value:         value,
+					Operator:      commonpb.StringOperator_STRING_EQUALS,
+					CaseSensitive: true,
+				},
+			},
+		}},
+	}
+}
+
+// offsetPage builds a 1-based offset pagination request of the given size.
+func offsetPage(page, size int32) *commonpb.PaginationRequest {
+	return &commonpb.PaginationRequest{
+		Limit:  size,
+		Method: &commonpb.PaginationRequest_Offset{Offset: &commonpb.OffsetPagination{Page: page}},
+	}
 }
 
 func (uc *ComputePhaseOutcomeUseCase) listOutcomes(ctx context.Context, jobPhaseID string) ([]*taskoutcomepb.TaskOutcome, error) {

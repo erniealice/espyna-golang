@@ -23,6 +23,7 @@ import (
 	phaseoutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
 	scorescalepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale"
 	scorescalebandpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale_band"
+	scoringcomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_component"
 	scoringcomponentcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_component_criteria"
 	scoringschemepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_scheme"
 	taskoutcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
@@ -36,6 +37,11 @@ type Repositories struct {
 	JobPhase                 jobphasepb.JobPhaseDomainServiceServer
 	JobTemplatePhase         jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
 	ScoringScheme            scoringschemepb.ScoringSchemeDomainServiceServer
+	// ScoringComponent is the parent of the component<->criteria junction. The
+	// eligibility/roll-up scope read requires the parent component to be ACTIVE
+	// and to belong to the resolved scheme, so the component graph is read here
+	// alongside the junction.
+	ScoringComponent         scoringcomponentpb.ScoringComponentDomainServiceServer
 	ScoringComponentCriteria scoringcomponentcriteriapb.ScoringComponentCriteriaDomainServiceServer
 	ScoreScale               scorescalepb.ScoreScaleDomainServiceServer
 	ScoreScaleBand           scorescalebandpb.ScoreScaleBandDomainServiceServer

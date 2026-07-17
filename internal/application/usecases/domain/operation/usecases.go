@@ -511,6 +511,7 @@ func NewUseCases(
 			JobPhase:                 repos.JobPhase,
 			JobTemplatePhase:         repos.JobTemplatePhase,
 			ScoringScheme:            repos.ScoringScheme,
+			ScoringComponent:         repos.ScoringComponent,
 			ScoringComponentCriteria: repos.ScoringComponentCriteria,
 			ScoreScale:               repos.ScoreScale,
 			ScoreScaleBand:           repos.ScoreScaleBand,

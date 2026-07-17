@@ -32,6 +32,7 @@ type UseCases struct {
 	ListByJobTask              *ListByJobTaskUseCase
 	ListByJobPhase             *ListByJobPhaseUseCase
 	ListByJob                  *ListByJobUseCase
+	ListCodedTaskOutcomeValuesByJob *ListCodedTaskOutcomeValuesByJobUseCase
 }
 
 // NewUseCases creates a new collection of task_outcome use cases
@@ -140,6 +141,16 @@ func NewUseCases(
 		Translator: services.Translator,
 	}
 
+	listCodedByJobRepos := ListCodedTaskOutcomeValuesByJobRepositories{
+		TaskOutcome: repositories.TaskOutcome,
+	}
+	listCodedByJobServices := ListCodedTaskOutcomeValuesByJobServices{
+		ActionGatekeeper: services.ActionGatekeeper,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
+	}
+
 	return &UseCases{
 		CreateTaskOutcome:          NewCreateTaskOutcomeUseCase(createRepos, createServices),
 		ReadTaskOutcome:            NewReadTaskOutcomeUseCase(readRepos, readServices),
@@ -151,5 +162,6 @@ func NewUseCases(
 		ListByJobTask:              NewListByJobTaskUseCase(listByJobTaskRepos, listByJobTaskServices),
 		ListByJobPhase:             NewListByJobPhaseUseCase(listByJobPhaseRepos, listByJobPhaseServices),
 		ListByJob:                  NewListByJobUseCase(listByJobRepos, listByJobServices),
+		ListCodedTaskOutcomeValuesByJob: NewListCodedTaskOutcomeValuesByJobUseCase(listCodedByJobRepos, listCodedByJobServices),
 	}
 }

@@ -92,6 +92,13 @@ func (uc *CreateOutcomeCriteriaUseCase) executeWithTransaction(ctx context.Conte
 
 // executeCore contains the core business logic for creating an outcome criteria
 func (uc *CreateOutcomeCriteriaUseCase) executeCore(ctx context.Context, req *pb.CreateOutcomeCriteriaRequest, enrichedData *pb.OutcomeCriteria) (*pb.CreateOutcomeCriteriaResponse, error) {
+	// Enforce code-lineage/collision invariants inside the (transactional) core so
+	// the read+write see a consistent snapshot. The DB partial unique index is the
+	// authoritative race backstop; this is a friendlier, stricter pre-check.
+	if err := uc.checkCodeInvariants(ctx, enrichedData); err != nil {
+		return nil, err
+	}
+
 	resp, err := uc.repositories.OutcomeCriteria.CreateOutcomeCriteria(ctx, &pb.CreateOutcomeCriteriaRequest{
 		Data: enrichedData,
 	})
@@ -134,5 +141,31 @@ func (uc *CreateOutcomeCriteriaUseCase) validateBusinessRules(ctx context.Contex
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.name_too_long", "[ERR-DEFAULT] Outcome criteria name is too long"))
 	}
 
+	// Normalize + shape-validate the code when supplied (mirror of the DB CHECK).
+	if data.Code != nil && *data.Code != "" {
+		norm, ok := normalizeCriteriaCode(*data.Code)
+		if !ok {
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.code_invalid", "[ERR-DEFAULT] Outcome criteria code must be a normalized path segment (lowercase letter, then letters/digits/underscores)"))
+		}
+		data.Code = &norm
+	}
+
+	return nil
+}
+
+// checkCodeInvariants rejects a create whose (normalized) code is already held by
+// a different criteria_group in the same (scope, workspace_id, industry_code)
+// domain. No-op when no code is supplied.
+func (uc *CreateOutcomeCriteriaUseCase) checkCodeInvariants(ctx context.Context, data *pb.OutcomeCriteria) error {
+	if data.Code == nil || *data.Code == "" {
+		return nil
+	}
+	taken, err := codeTakenByAnotherGroup(ctx, uc.repositories.OutcomeCriteria, *data.Code, data)
+	if err != nil {
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.errors.code_check_failed", "[ERR-DEFAULT] Failed to validate outcome criteria code uniqueness"))
+	}
+	if taken {
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.errors.code_collision", "[ERR-DEFAULT] Outcome criteria code is already in use by another criterion in this domain"))
+	}
 	return nil
 }

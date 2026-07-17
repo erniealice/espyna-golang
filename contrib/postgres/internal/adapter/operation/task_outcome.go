@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
 	"log"
+	"strings"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -17,6 +18,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
@@ -569,6 +571,127 @@ func (r *PostgresTaskOutcomeRepository) ListByJob(
 	return &pb.ListTaskOutcomesByJobResponse{
 		TaskOutcomes: outcomes,
 		Success:      true,
+	}, nil
+}
+
+// codedTaskOutcomeValuesByJobSQL builds the ownership-joined latest-cell SELECT
+// for ListCodedTaskOutcomeValuesByJob. n is the count of job-id placeholders
+// ($1..$n); the workspace filter binds $(n+1). Each job walks its instance graph
+// (job → job_phase → job_task) back to its template ancestry (job_template_phase
+// / job_template_task / template_task_criteria / outcome_criteria). The outcome
+// is LEFT-joined, so a (job_task, criterion) pair with no recorded value still
+// yields a row (numeric_value NULL). DISTINCT ON keeps the latest active outcome
+// per (job_task, criterion): recorded_date DESC (NULLS LAST), then id DESC. Every
+// template-side join is ancestry-anchored (child template tables carry no tenant
+// column) so nothing crosses the workspace boundary the job filter establishes.
+func codedTaskOutcomeValuesByJobSQL(n int) string {
+	ph := make([]string, n)
+	for i := 0; i < n; i++ {
+		ph[i] = fmt.Sprintf("$%d", i+1)
+	}
+	return `
+		SELECT DISTINCT ON (jt.id, ttc.outcome_criteria_id)
+			j.id AS job_id,
+			jtp.code AS phase_code,
+			jtt.code AS task_code,
+			oc.code AS criteria_code,
+			o.numeric_value
+		FROM ` + entityid.Job + ` j
+		JOIN ` + entityid.JobPhase + ` jp
+			ON jp.job_id = j.id AND jp.active = true
+		JOIN ` + entityid.JobTemplatePhase + ` jtp
+			ON jtp.id = jp.template_phase_id AND jtp.job_template_id = j.job_template_id AND jtp.active = true
+		JOIN ` + entityid.JobTask + ` jt
+			ON jt.job_phase_id = jp.id AND jt.active = true
+		JOIN ` + entityid.JobTemplateTask + ` jtt
+			ON jtt.id = jt.template_task_id AND jtt.job_template_phase_id = jtp.id AND jtt.active = true
+		JOIN ` + entityid.TemplateTaskCriteria + ` ttc
+			ON ttc.job_template_task_id = jtt.id AND ttc.active = true
+		JOIN ` + entityid.OutcomeCriteria + ` oc
+			ON oc.id = ttc.outcome_criteria_id AND oc.active = true
+		LEFT JOIN ` + entityid.TaskOutcome + ` o
+			ON o.job_task_id = jt.id AND o.criteria_version_id = ttc.outcome_criteria_id AND o.active = true
+		WHERE j.id IN (` + strings.Join(ph, ", ") + `)
+		  AND j.workspace_id = $` + fmt.Sprintf("%d", n+1) + `
+		  AND j.active = true
+		ORDER BY jt.id, ttc.outcome_criteria_id, o.recorded_date DESC NULLS LAST, o.id DESC
+	`
+}
+
+// ListCodedTaskOutcomeValuesByJob returns the latest active outcome per
+// (job_task, criterion) for a caller-supplied allowlist of jobs, carrying the
+// template-side phase/task/criterion codes. Tenant isolation is enforced IN THE
+// SQL PREDICATE (j.workspace_id = trusted-context workspace) — never from the
+// request. An absent workspace or an empty job allowlist resolves nothing
+// (fail-closed; never an unscoped scan). numeric_value is left unset when no
+// active outcome row exists for the pair (LEFT JOIN miss), which the consumer
+// must treat as distinct from a recorded 0.
+func (r *PostgresTaskOutcomeRepository) ListCodedTaskOutcomeValuesByJob(
+	ctx context.Context,
+	req *pb.ListCodedTaskOutcomeValuesByJobRequest,
+) (*pb.ListCodedTaskOutcomeValuesByJobResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request is required")
+	}
+
+	id, ok := identity.FromContext(ctx)
+	if !ok || id.WorkspaceID == "" {
+		return &pb.ListCodedTaskOutcomeValuesByJobResponse{Success: true}, nil
+	}
+
+	jobIDs := req.GetJobIds()
+	if len(jobIDs) == 0 {
+		return &pb.ListCodedTaskOutcomeValuesByJobResponse{Success: true}, nil
+	}
+
+	exec := r.executor(ctx)
+	if exec == nil {
+		return nil, fmt.Errorf("task_outcome ListCodedTaskOutcomeValuesByJob: no SQL executor available")
+	}
+
+	args := make([]any, 0, len(jobIDs)+1)
+	for _, jid := range jobIDs {
+		args = append(args, jid)
+	}
+	args = append(args, id.WorkspaceID)
+
+	rows, err := exec.QueryContext(ctx, codedTaskOutcomeValuesByJobSQL(len(jobIDs)), args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list coded task outcome values by job: %w", err)
+	}
+	defer rows.Close()
+
+	var values []*pb.CodedTaskOutcomeValue
+	for rows.Next() {
+		var (
+			jobID        string
+			phaseCode    sql.NullString
+			taskCode     sql.NullString
+			criteriaCode sql.NullString
+			numericValue sql.NullFloat64
+		)
+		if err := rows.Scan(&jobID, &phaseCode, &taskCode, &criteriaCode, &numericValue); err != nil {
+			return nil, fmt.Errorf("failed to scan coded task outcome value row: %w", err)
+		}
+		v := &pb.CodedTaskOutcomeValue{
+			JobId:        jobID,
+			PhaseCode:    phaseCode.String,
+			TaskCode:     taskCode.String,
+			CriteriaCode: criteriaCode.String,
+		}
+		if numericValue.Valid {
+			nv := numericValue.Float64
+			v.NumericValue = &nv
+		}
+		values = append(values, v)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating coded task outcome value rows: %w", err)
+	}
+
+	return &pb.ListCodedTaskOutcomeValuesByJobResponse{
+		Values:  values,
+		Success: true,
 	}, nil
 }
 

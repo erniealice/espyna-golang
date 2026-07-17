@@ -176,3 +176,34 @@ func NewComputeJobOutcomeAdapter(container *core.Container) func(ctx context.Con
 		return true, nil
 	}
 }
+
+// CheckRecomputeEligibility reports whether a saved numeric cell on the given job
+// phase drives a scaled-summary recompute (its scheme resolves a score scale and
+// has scoped criteria) and, when it does, the outcome_criteria ids in that
+// scheme's active component graph. It delegates to the real use-case method,
+// which reuses the roll-up's own scheme-resolution ladder.
+func CheckRecomputeEligibility(ctx context.Context, container *core.Container, jobPhaseID string) (bool, map[string]bool, error) {
+	if container == nil {
+		return false, nil, fmt.Errorf("grade compute: nil container")
+	}
+	uc := container.GetUseCases()
+	if uc == nil || uc.Operation == nil || uc.Operation.GradeCompute == nil || uc.Operation.GradeCompute.ComputePhaseOutcome == nil {
+		return false, nil, fmt.Errorf("grade compute: ComputePhaseOutcome use-case not wired on the operation rollup")
+	}
+	return uc.Operation.GradeCompute.ComputePhaseOutcome.CheckRecomputeEligibility(ctx, jobPhaseID)
+}
+
+// NewRecomputeEligibilityAdapter returns the phase recompute-eligibility closure
+// bound to this container, matching the bare signature the fayna outcome_matrix
+// record action type-asserts:
+//
+//	func(ctx context.Context, jobPhaseID string) (eligible bool, inScope map[string]bool, err error)
+//
+// A nil container / unwired use-case surfaces as (false, nil, err); the record
+// action falls back to numeric-type classification on that error, so a save never
+// silently stops refreshing summaries.
+func NewRecomputeEligibilityAdapter(container *core.Container) func(ctx context.Context, jobPhaseID string) (bool, map[string]bool, error) {
+	return func(ctx context.Context, jobPhaseID string) (bool, map[string]bool, error) {
+		return CheckRecomputeEligibility(ctx, container, jobPhaseID)
+	}
+}

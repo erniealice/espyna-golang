@@ -16,9 +16,19 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 )
+
+// job_template_phase has NO workspace_id column of its own, so the generic
+// workspace-aware decorator cannot scope it and the raw-SQL paths below would
+// otherwise return or mutate any tenant's rows. Every read/write is confined to
+// the caller's workspace by deriving ownership through the parent job_template
+// (jt.workspace_id). The predicate spelling ($N::text = '' OR jt.workspace_id =
+// $N::text) mirrors the sibling job/job_template adapters: a bound workspace
+// scopes the rows; an empty workspace (a service context with no tenant bound)
+// is left unscoped.
 
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.JobTemplatePhase, func(conn any, tableName string) (any, error) {
@@ -77,6 +87,12 @@ func (r *PostgresJobTemplatePhaseRepository) CreateJobTemplatePhase(ctx context.
 	convertMillisToTime(data, "dateCreated")
 	convertMillisToTime(data, "dateModified")
 
+	// Cross-tenant guard: the parent job_template must belong to the caller's
+	// workspace, otherwise a phase could be attached to another tenant's template.
+	if err := r.ensureTemplateInWorkspace(ctx, req.Data.GetJobTemplateId()); err != nil {
+		return nil, err
+	}
+
 	result, err := r.dbOps.Create(ctx, r.tableName, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create job template phase: %w", err)
@@ -104,6 +120,11 @@ func (r *PostgresJobTemplatePhaseRepository) ReadJobTemplatePhase(ctx context.Co
 		return nil, fmt.Errorf("job template phase ID is required")
 	}
 
+	// Cross-tenant guard: reject a by-id read of a phase owned by another tenant.
+	if err := r.ensurePhaseInWorkspace(ctx, req.Data.Id); err != nil {
+		return nil, err
+	}
+
 	result, err := r.dbOps.Read(ctx, r.tableName, req.Data.Id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read job template phase: %w", err)
@@ -129,6 +150,11 @@ func (r *PostgresJobTemplatePhaseRepository) ReadJobTemplatePhase(ctx context.Co
 func (r *PostgresJobTemplatePhaseRepository) UpdateJobTemplatePhase(ctx context.Context, req *pb.UpdateJobTemplatePhaseRequest) (*pb.UpdateJobTemplatePhaseResponse, error) {
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("job template phase ID is required")
+	}
+
+	// Cross-tenant guard: reject an update to a phase owned by another tenant.
+	if err := r.ensurePhaseInWorkspace(ctx, req.Data.Id); err != nil {
+		return nil, err
 	}
 
 	jsonData, err := protojson.Marshal(req.Data)
@@ -172,6 +198,11 @@ func (r *PostgresJobTemplatePhaseRepository) DeleteJobTemplatePhase(ctx context.
 		return nil, fmt.Errorf("job template phase ID is required")
 	}
 
+	// Cross-tenant guard: reject a delete of a phase owned by another tenant.
+	if err := r.ensurePhaseInWorkspace(ctx, req.Data.Id); err != nil {
+		return nil, err
+	}
+
 	err := r.dbOps.Delete(ctx, r.tableName, req.Data.Id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete job template phase: %w", err)
@@ -207,6 +238,15 @@ func (r *PostgresJobTemplatePhaseRepository) ListJobTemplatePhases(ctx context.C
 			continue
 		}
 		phases = append(phases, phase)
+	}
+
+	// Cross-tenant scope: the generic list flows through the workspace-aware
+	// decorator, which cannot scope this column-less child table, so it returns
+	// rows across every tenant. Confine them to the caller's workspace via the
+	// parent job_template.
+	phases, err = r.filterPhasesByWorkspace(ctx, phases)
+	if err != nil {
+		return nil, err
 	}
 
 	return &pb.ListJobTemplatePhasesResponse{
@@ -258,32 +298,13 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseListPageData(
 		return nil, err
 	}
 
-	query := `
-		WITH enriched AS (
-			SELECT
-				jtp.id,
-				jtp.date_created,
-				jtp.date_modified,
-				jtp.active,
-				jtp.job_template_id,
-				jtp.name,
-				jtp.phase_order
-			FROM ` + entityid.JobTemplatePhase + ` jtp
-			WHERE jtp.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-			       jtp.name ILIKE $1)
-		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
-		SELECT
-			e.*,
-			COUNT(*) OVER () AS total
-		FROM enriched e
-		` + orderByClause + `
-		LIMIT $2 OFFSET $3;
-	`
+	// Cross-tenant scope: the drawer list is reached only through the session, so
+	// a missing identity is a middleware fault and fails closed (Must). $4 carries
+	// the workspace_id, derived through the parent job_template.
+	wsID := identity.Must(ctx).WorkspaceID
+	query := jobTemplatePhaseListPageDataSQL(orderByClause)
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query job template phase list page data: %w", err)
 	}
@@ -301,6 +322,7 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseListPageData(
 			jobTemplateID string
 			name          string
 			phaseOrder    int32
+			code          sql.NullString
 			total         int64
 		)
 
@@ -312,6 +334,7 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseListPageData(
 			&jobTemplateID,
 			&name,
 			&phaseOrder,
+			&code,
 			&total,
 		)
 		if err != nil {
@@ -326,6 +349,10 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseListPageData(
 			JobTemplateId: jobTemplateID,
 			Name:          name,
 			PhaseOrder:    phaseOrder,
+		}
+		if code.Valid {
+			v := code.String
+			phase.Code = &v
 		}
 
 		if !dateCreated.IsZero() {
@@ -381,20 +408,13 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseItemPageData(
 		return nil, fmt.Errorf("job template phase ID is required")
 	}
 
-	query := `
-		SELECT
-			jtp.id,
-			jtp.date_created,
-			jtp.date_modified,
-			jtp.active,
-			jtp.job_template_id,
-			jtp.name,
-			jtp.phase_order
-		FROM ` + entityid.JobTemplatePhase + ` jtp
-		WHERE jtp.id = $1 AND jtp.active = true
-	`
+	// Cross-tenant scope: drawer item reached only through the session; a missing
+	// identity fails closed (Must). $2 carries the workspace_id, derived through
+	// the parent job_template.
+	wsID := identity.Must(ctx).WorkspaceID
+	query := jobTemplatePhaseItemPageDataSQL()
 
-	row := r.db.QueryRowContext(ctx, query, req.JobTemplatePhaseId)
+	row := r.db.QueryRowContext(ctx, query, req.JobTemplatePhaseId, wsID)
 
 	var (
 		id            string
@@ -404,6 +424,7 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseItemPageData(
 		jobTemplateID string
 		name          string
 		phaseOrder    int32
+		code          sql.NullString
 	)
 
 	err := row.Scan(
@@ -414,6 +435,7 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseItemPageData(
 		&jobTemplateID,
 		&name,
 		&phaseOrder,
+		&code,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("job template phase with ID '%s' not found", req.JobTemplatePhaseId)
@@ -428,6 +450,10 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseItemPageData(
 		JobTemplateId: jobTemplateID,
 		Name:          name,
 		PhaseOrder:    phaseOrder,
+	}
+	if code.Valid {
+		v := code.String
+		phase.Code = &v
 	}
 
 	if !dateCreated.IsZero() {
@@ -484,11 +510,177 @@ func jobTemplatePhaseListByTemplateSQL() string {
 			jtp.name,
 			jtp.phase_order,
 			jtp.scoring_scheme_id,
-			jtp.predecessor_template_phase_id
+			jtp.predecessor_template_phase_id,
+			jtp.code
 		FROM ` + entityid.JobTemplatePhase + ` jtp
+		JOIN ` + entityid.JobTemplate + ` jt ON jt.id = jtp.job_template_id
 		WHERE jtp.job_template_id = $1 AND jtp.active = true
+		  AND ($2::text = '' OR jt.workspace_id = $2::text)
 		ORDER BY jtp.phase_order ASC
 	`
+}
+
+// jobTemplatePhaseItemPageDataSQL returns the enriched single-phase read, scoped
+// to the caller's workspace through the parent job_template ($2 = workspace_id).
+func jobTemplatePhaseItemPageDataSQL() string {
+	return `
+		SELECT
+			jtp.id,
+			jtp.date_created,
+			jtp.date_modified,
+			jtp.active,
+			jtp.job_template_id,
+			jtp.name,
+			jtp.phase_order,
+			jtp.code
+		FROM ` + entityid.JobTemplatePhase + ` jtp
+		JOIN ` + entityid.JobTemplate + ` jt ON jt.id = jtp.job_template_id
+		WHERE jtp.id = $1 AND jtp.active = true
+		  AND ($2::text = '' OR jt.workspace_id = $2::text)
+	`
+}
+
+// jobTemplatePhaseListPageDataSQL returns the paginated phase list, scoped to the
+// caller's workspace through the parent job_template ($4 = workspace_id).
+func jobTemplatePhaseListPageDataSQL(orderByClause string) string {
+	return `
+		WITH enriched AS (
+			SELECT
+				jtp.id,
+				jtp.date_created,
+				jtp.date_modified,
+				jtp.active,
+				jtp.job_template_id,
+				jtp.name,
+				jtp.phase_order,
+				jtp.code
+			FROM ` + entityid.JobTemplatePhase + ` jtp
+			JOIN ` + entityid.JobTemplate + ` jt ON jt.id = jtp.job_template_id
+			WHERE jtp.active = true
+			  AND ($4::text = '' OR jt.workspace_id = $4::text)
+			  AND ($1::text IS NULL OR $1::text = '' OR
+			       jtp.name ILIKE $1)
+		)
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
+		SELECT
+			e.*,
+			COUNT(*) OVER () AS total
+		FROM enriched e
+		` + orderByClause + `
+		LIMIT $2 OFFSET $3;
+	`
+}
+
+// jobTemplatePhaseWorkspaceOwnedSQL reports whether a phase (by id, $1) hangs off
+// a job_template owned by the workspace ($2). Backs the generic read/update/
+// delete tenant guards.
+func jobTemplatePhaseWorkspaceOwnedSQL() string {
+	return `SELECT EXISTS (
+		SELECT 1 FROM ` + entityid.JobTemplatePhase + ` jtp
+		JOIN ` + entityid.JobTemplate + ` jt ON jt.id = jtp.job_template_id
+		WHERE jtp.id = $1 AND ($2::text = '' OR jt.workspace_id = $2::text))`
+}
+
+// jobTemplateInWorkspaceSQL reports whether a job_template (by id, $1) belongs to
+// the workspace ($2). Backs the phase-create parent-FK validation.
+func jobTemplateInWorkspaceSQL() string {
+	return `SELECT EXISTS (
+		SELECT 1 FROM ` + entityid.JobTemplate + ` jt
+		WHERE jt.id = $1 AND ($2::text = '' OR jt.workspace_id = $2::text))`
+}
+
+// jobTemplatePhaseOwnedTemplateIDsSQL returns, from a candidate template-id set
+// ($1), those owned by the workspace ($2). Backs the generic-list tenant scope.
+func jobTemplatePhaseOwnedTemplateIDsSQL() string {
+	return `SELECT id FROM ` + entityid.JobTemplate + `
+		WHERE id = ANY($1) AND ($2::text = '' OR workspace_id = $2::text)`
+}
+
+// ensurePhaseInWorkspace fails a by-id generic op closed when the phase's parent
+// job_template is not owned by the caller's workspace. An empty workspace (a
+// service context with no tenant bound) skips the check, matching the raw reads'
+// ($N = '' OR ...) posture.
+func (r *PostgresJobTemplatePhaseRepository) ensurePhaseInWorkspace(ctx context.Context, phaseID string) error {
+	wsID := identity.Must(ctx).WorkspaceID
+	if wsID == "" {
+		return nil
+	}
+	var owned bool
+	if err := r.db.QueryRowContext(ctx, jobTemplatePhaseWorkspaceOwnedSQL(), phaseID, wsID).Scan(&owned); err != nil {
+		return fmt.Errorf("failed to verify job template phase workspace: %w", err)
+	}
+	if !owned {
+		return fmt.Errorf("job template phase with ID '%s' not found", phaseID)
+	}
+	return nil
+}
+
+// ensureTemplateInWorkspace rejects a phase create whose parent job_template FK
+// points at another tenant's template.
+func (r *PostgresJobTemplatePhaseRepository) ensureTemplateInWorkspace(ctx context.Context, templateID string) error {
+	wsID := identity.Must(ctx).WorkspaceID
+	if wsID == "" {
+		return nil
+	}
+	var owned bool
+	if err := r.db.QueryRowContext(ctx, jobTemplateInWorkspaceSQL(), templateID, wsID).Scan(&owned); err != nil {
+		return fmt.Errorf("failed to verify job template workspace: %w", err)
+	}
+	if !owned {
+		return fmt.Errorf("job template with ID '%s' not found", templateID)
+	}
+	return nil
+}
+
+// filterPhasesByWorkspace drops phases whose parent job_template is not owned by
+// the caller's workspace. An empty workspace leaves the set unscoped.
+func (r *PostgresJobTemplatePhaseRepository) filterPhasesByWorkspace(ctx context.Context, phases []*pb.JobTemplatePhase) ([]*pb.JobTemplatePhase, error) {
+	wsID := identity.Must(ctx).WorkspaceID
+	if wsID == "" || len(phases) == 0 {
+		return phases, nil
+	}
+
+	seen := make(map[string]struct{}, len(phases))
+	ids := make([]string, 0, len(phases))
+	for _, p := range phases {
+		tid := p.GetJobTemplateId()
+		if tid == "" {
+			continue
+		}
+		if _, ok := seen[tid]; ok {
+			continue
+		}
+		seen[tid] = struct{}{}
+		ids = append(ids, tid)
+	}
+
+	owned := make(map[string]struct{}, len(ids))
+	if len(ids) > 0 {
+		rows, err := r.db.QueryContext(ctx, jobTemplatePhaseOwnedTemplateIDsSQL(), sqlStringArray(ids), wsID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scope job template phases by workspace: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				return nil, fmt.Errorf("failed to scan owned job template id: %w", err)
+			}
+			owned[id] = struct{}{}
+		}
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("error iterating owned job template ids: %w", err)
+		}
+	}
+
+	out := make([]*pb.JobTemplatePhase, 0, len(phases))
+	for _, p := range phases {
+		if _, ok := owned[p.GetJobTemplateId()]; ok {
+			out = append(out, p)
+		}
+	}
+	return out, nil
 }
 
 // ListByJobTemplate retrieves all phases for a given job template, ordered by phase_order
@@ -502,7 +694,16 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 
 	query := jobTemplatePhaseListByTemplateSQL()
 
-	rows, err := r.db.QueryContext(ctx, query, req.JobTemplateId)
+	// Cross-tenant scope through the parent job_template ($2). This method is also
+	// consumed by template-materialization, which may run in a service context
+	// with no tenant bound; a soft identity read leaves that path unscoped (empty
+	// workspace) while an authenticated caller is confined to its own workspace.
+	wsID := ""
+	if id, ok := identity.FromContext(ctx); ok {
+		wsID = id.WorkspaceID
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, req.JobTemplateId, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list job template phases by template: %w", err)
 	}
@@ -520,6 +721,7 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 			phaseOrder    int32
 			scoringScheme sql.NullString
 			predecessorID sql.NullString
+			code          sql.NullString
 		)
 
 		err := rows.Scan(
@@ -532,6 +734,7 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 			&phaseOrder,
 			&scoringScheme,
 			&predecessorID,
+			&code,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan job template phase row: %w", err)
@@ -551,6 +754,10 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 		if predecessorID.Valid {
 			v := predecessorID.String
 			phase.PredecessorTemplatePhaseId = &v
+		}
+		if code.Valid {
+			v := code.String
+			phase.Code = &v
 		}
 
 		if !dateCreated.IsZero() {

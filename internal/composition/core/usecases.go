@@ -802,10 +802,11 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 				ProductPricePlan: subscriptionRepos.ProductPricePlan,
 			},
 			jobUseCase.MaterializeBillingEventsForJobServices{
-				Authorizer:  authSvc,
-				Transactor:  txSvc,
-				Translator:  i18nSvc,
-				IDGenerator: idSvc,
+				Authorizer:       authSvc,
+				Transactor:       txSvc,
+				Translator:       i18nSvc,
+				IDGenerator:      idSvc,
+				ActionGatekeeper: actiongate.NewActionGatekeeper(authSvc, i18nSvc),
 			},
 		)
 		mjfs := subscriptionUseCase.NewMaterializeJobsForSubscriptionUseCase(

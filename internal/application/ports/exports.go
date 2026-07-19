@@ -209,16 +209,26 @@ type (
 
 // Workflow types
 type (
-	WorkflowEngineService          = domain.WorkflowEngineService
-	WorkflowAssigneeQueryService   = domain.WorkflowAssigneeQueryService
-	ActivityExecutor               = domain.ActivityExecutor
-	ExecutorRegistry               = domain.ExecutorRegistry
+	WorkflowEngineService        = domain.WorkflowEngineService
+	WorkflowAssigneeQueryService = domain.WorkflowAssigneeQueryService
+	ActivityExecutor             = domain.ActivityExecutor
+	ExecutorRegistry             = domain.ExecutorRegistry
 )
 
 // Workflow request/response types
 type (
 	ListPendingActivitiesForAssigneeRequest  = domain.ListPendingActivitiesForAssigneeRequest
 	ListPendingActivitiesForAssigneeResponse = domain.ListPendingActivitiesForAssigneeResponse
+)
+
+// Operation query ports (proto-less internal service shape). The job-list
+// tabstrip support read (20260718 courses-list-perf Rank-1) collapses the
+// category + active-template reads into ONE UNION-ALL statement.
+type JobListTabSupportQueryService = domain.JobListTabSupportQueryService
+
+type (
+	JobListTabSupportRequest  = domain.JobListTabSupportRequest
+	JobListTabSupportResponse = domain.JobListTabSupportResponse
 )
 
 // Translation types
@@ -284,4 +294,3 @@ const (
 	AuthErrCodeServiceDisabled       = security.AuthErrCodeServiceDisabled
 	AuthErrCodeInternalError         = security.AuthErrCodeInternalError
 )
-

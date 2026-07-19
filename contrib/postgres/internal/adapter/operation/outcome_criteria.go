@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -16,6 +15,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
@@ -181,11 +181,120 @@ func (r *PostgresOutcomeCriteriaRepository) DeleteOutcomeCriteria(ctx context.Co
 	}, nil
 }
 
+// executor returns the transaction-aware SQL executor: the active *sql.Tx when
+// one is present on ctx (so the purpose-built anchor reads participate in the
+// use-case transaction and see its uncommitted writes), else the pooled *sql.DB.
+// Mirrors task_outcome.go's helper: the workspace-aware dbOps exposes
+// GetExecutor(ctx); we type-assert so this works regardless of the concrete
+// dbOps wrapping, falling back to the stored *sql.DB handle.
+func (r *PostgresOutcomeCriteriaRepository) executor(ctx context.Context) sqlexec.DBExecutor {
+	if ep, ok := r.dbOps.(interface {
+		GetExecutor(ctx context.Context) sqlexec.DBExecutor
+	}); ok {
+		if e := ep.GetExecutor(ctx); e != nil {
+			return e
+		}
+	}
+	if r.db != nil {
+		return r.db
+	}
+	return nil
+}
+
+// LineageEstablishedCode is the purpose-built lineage read: a single indexed
+// point lookup against the criteria_group anchor (PK id -> code). The anchor IS
+// the authoritative "established code across ALL versions" — the populate
+// trigger claims it on the first coded write and the composite FK pins every
+// coded version to it — so no outcome_criteria scan (let alone a paginated one)
+// is needed. Returns "" when the lineage has no coded version yet. Single
+// statement -> inherently snapshot-consistent; the caller supplies the context
+// deadline. Parameterized; not workspace-scoped because a lineage's established
+// code is a global fact the composite FK enforces regardless of tenant (only
+// the code string is disclosed).
+func (r *PostgresOutcomeCriteriaRepository) LineageEstablishedCode(ctx context.Context, criteriaGroupID string) (string, error) {
+	if criteriaGroupID == "" {
+		return "", nil
+	}
+	var code string
+	err := r.executor(ctx).QueryRowContext(ctx,
+		`SELECT "code" FROM "criteria_group" WHERE "id" = $1`, criteriaGroupID,
+	).Scan(&code)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to read criteria_group anchor for lineage %q: %w", criteriaGroupID, err)
+	}
+	return code, nil
+}
+
+// CodeOwnerGroup is the purpose-built collision read: a single indexed point
+// lookup against the criteria_group anchor's normalized domain claim
+// (uq_criteria_group_domain_code). Returns the criteria_group_id that owns
+// (scopeKey, workspaceKey, industryKey, code) across ALL version statuses and
+// both active states, or "" when unclaimed. Keys are the normalized ''-for-NULL
+// forms the anchor stores (the caller derives workspaceKey from the TRUSTED
+// request context, never from client input). Single statement -> inherently
+// snapshot-consistent; the unique index behind it remains the authoritative
+// race backstop.
+func (r *PostgresOutcomeCriteriaRepository) CodeOwnerGroup(ctx context.Context, scopeKey, workspaceKey, industryKey, code string) (string, error) {
+	if code == "" {
+		return "", nil
+	}
+	var id string
+	err := r.executor(ctx).QueryRowContext(ctx,
+		`SELECT "id" FROM "criteria_group"
+		 WHERE "scope" = $1 AND "workspace_key" = $2 AND "industry_key" = $3 AND "code" = $4`,
+		scopeKey, workspaceKey, industryKey, code,
+	).Scan(&id)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to read criteria_group domain claim for code %q: %w", code, err)
+	}
+	return id, nil
+}
+
+// LineageClaimedDomain is the purpose-built domain read backing the NEW-1
+// domain-consistency guard: a single indexed point lookup against the
+// criteria_group anchor (PK id -> scope/workspace_key/industry_key). Returns
+// claimed=false when the lineage has no anchor yet (no coded version). The
+// columns are NOT NULL, ''-normalized forms (the populate trigger COALESCEs
+// NULL domain parts to ''), so plain string scans are exact. Single statement
+// -> inherently snapshot-consistent; parameterized; the caller supplies the
+// context deadline. Not workspace-scoped for the same reason as
+// LineageEstablishedCode: the anchor's claim is the global fact the guard
+// compares against (only normalized domain keys are disclosed).
+func (r *PostgresOutcomeCriteriaRepository) LineageClaimedDomain(ctx context.Context, criteriaGroupID string) (string, string, string, bool, error) {
+	if criteriaGroupID == "" {
+		return "", "", "", false, nil
+	}
+	var scopeKey, workspaceKey, industryKey string
+	err := r.executor(ctx).QueryRowContext(ctx,
+		`SELECT "scope", "workspace_key", "industry_key" FROM "criteria_group" WHERE "id" = $1`, criteriaGroupID,
+	).Scan(&scopeKey, &workspaceKey, &industryKey)
+	if err == sql.ErrNoRows {
+		return "", "", "", false, nil
+	}
+	if err != nil {
+		return "", "", "", false, fmt.Errorf("failed to read criteria_group domain claim for lineage %q: %w", criteriaGroupID, err)
+	}
+	return scopeKey, workspaceKey, industryKey, true, nil
+}
+
 // ListOutcomeCriterias lists outcome_criteria records with optional filters
+//
+// Pagination pass-through (mirrors ListJobTasks, job_task.go): the caller's
+// req.Pagination/Sort/Search MUST be forwarded into ListParams. Dropping them
+// forced the generic core List onto its 100-row default at offset 0 on EVERY
+// call, so a paging caller (the code-validation fallback loop) re-read the same
+// first 100 rows for every page and never advanced. Callers that omit all four
+// keep the prior nil-params behavior byte-for-byte.
 func (r *PostgresOutcomeCriteriaRepository) ListOutcomeCriterias(ctx context.Context, req *pb.ListOutcomeCriteriasRequest) (*pb.ListOutcomeCriteriasResponse, error) {
 	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	if req != nil && (req.Filters != nil || req.Pagination != nil || req.Sort != nil || req.Search != nil) {
+		params = &interfaces.ListParams{Search: req.Search, Filters: req.Filters, Sort: req.Sort, Pagination: req.Pagination}
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
@@ -194,16 +303,19 @@ func (r *PostgresOutcomeCriteriaRepository) ListOutcomeCriterias(ctx context.Con
 
 	var items []*pb.OutcomeCriteria
 	for _, result := range listResult.Data {
+		// Decode failures propagate as errors (fail-closed) rather than being
+		// logged-and-dropped. A silently-skipped row would corrupt the code
+		// lineage/collision pre-checks (a dropped row could hide an established
+		// code or a collision), so a genuinely undecodable row must fail the whole
+		// read instead of returning a short, wrong answer.
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
-			log.Printf("WARN: json.Marshal outcome_criteria row: %v", err)
-			continue
+			return nil, fmt.Errorf("failed to marshal outcome_criteria row: %w", err)
 		}
 
 		item := &pb.OutcomeCriteria{}
 		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, item); err != nil {
-			log.Printf("WARN: protojson unmarshal outcome_criteria: %v", err)
-			continue
+			return nil, fmt.Errorf("failed to decode outcome_criteria row: %w", err)
 		}
 		items = append(items, item)
 	}

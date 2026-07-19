@@ -18,8 +18,8 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
@@ -618,6 +618,65 @@ func codedTaskOutcomeValuesByJobSQL(n int) string {
 	`
 }
 
+// codedTaskOutcomeValuesByJobHistoricalSQL is the HISTORICAL (past-academic-year)
+// sibling of codedTaskOutcomeValuesByJobSQL. Past-AY report cards are loaded with
+// their whole instance+template graph stamped active=false (job / job_phase /
+// job_task and their template ancestry job_template_phase / job_template_task /
+// template_task_criteria), while the recorded outcomes themselves stay active=true.
+// The live-card SELECT requires active=true at every ancestor, so it resolves
+// nothing for a past card and the attendance/coded cells manifest-seed blank.
+//
+// This variant DROPS the ancestry active predicates (jp/jtp/jt/jtt/ttc and the job
+// itself) so an inactive historical graph is admitted, WITHOUT weakening the
+// guarantees the live path establishes:
+//   - Tenant isolation is unchanged: j.workspace_id = $(n+1) from trusted context
+//     plus the id-anchored ancestry joins keep every row inside the caller's
+//     workspace (the child template tables carry no tenant column of their own).
+//   - Codes are NOT twin-shadowable: phase_code (jtp.code) and task_code (jtt.code)
+//     come from PRIMARY-KEY-equality joins to the SPECIFIC template row each
+//     instance references (jtp.id = jp.template_phase_id, jtt.id = jt.template_task_id),
+//     so exactly one template phase/task resolves per instance — a deactivated,
+//     uncoded "retired twin" sharing a (parent, code) slot with an active owner can
+//     neither shadow nor blank the referenced row (Q5 red-team constraint).
+//   - Criterion codes stay ACTIVE-only: oc.active = true is KEPT, so criteria_code
+//     always resolves via the active/published outcome_criteria, never an inactive
+//     criterion revision.
+//   - A single outcome revision per cell: o.active = true is KEPT and DISTINCT ON
+//     (jt.id, ttc.outcome_criteria_id) with the recorded_date/id ordering selects
+//     one latest active outcome per (job_task, criterion), identical to the live path.
+func codedTaskOutcomeValuesByJobHistoricalSQL(n int) string {
+	ph := make([]string, n)
+	for i := 0; i < n; i++ {
+		ph[i] = fmt.Sprintf("$%d", i+1)
+	}
+	return `
+		SELECT DISTINCT ON (jt.id, ttc.outcome_criteria_id)
+			j.id AS job_id,
+			jtp.code AS phase_code,
+			jtt.code AS task_code,
+			oc.code AS criteria_code,
+			o.numeric_value
+		FROM ` + entityid.Job + ` j
+		JOIN ` + entityid.JobPhase + ` jp
+			ON jp.job_id = j.id
+		JOIN ` + entityid.JobTemplatePhase + ` jtp
+			ON jtp.id = jp.template_phase_id AND jtp.job_template_id = j.job_template_id
+		JOIN ` + entityid.JobTask + ` jt
+			ON jt.job_phase_id = jp.id
+		JOIN ` + entityid.JobTemplateTask + ` jtt
+			ON jtt.id = jt.template_task_id AND jtt.job_template_phase_id = jtp.id
+		JOIN ` + entityid.TemplateTaskCriteria + ` ttc
+			ON ttc.job_template_task_id = jtt.id
+		JOIN ` + entityid.OutcomeCriteria + ` oc
+			ON oc.id = ttc.outcome_criteria_id AND oc.active = true
+		LEFT JOIN ` + entityid.TaskOutcome + ` o
+			ON o.job_task_id = jt.id AND o.criteria_version_id = ttc.outcome_criteria_id AND o.active = true
+		WHERE j.id IN (` + strings.Join(ph, ", ") + `)
+		  AND j.workspace_id = $` + fmt.Sprintf("%d", n+1) + `
+		ORDER BY jt.id, ttc.outcome_criteria_id, o.recorded_date DESC NULLS LAST, o.id DESC
+	`
+}
+
 // ListCodedTaskOutcomeValuesByJob returns the latest active outcome per
 // (job_task, criterion) for a caller-supplied allowlist of jobs, carrying the
 // template-side phase/task/criterion codes. Tenant isolation is enforced IN THE
@@ -644,18 +703,77 @@ func (r *PostgresTaskOutcomeRepository) ListCodedTaskOutcomeValuesByJob(
 		return &pb.ListCodedTaskOutcomeValuesByJobResponse{Success: true}, nil
 	}
 
+	values, err := r.runCodedTaskOutcomeValues(ctx, jobIDs, id.WorkspaceID, codedTaskOutcomeValuesByJobSQL)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.ListCodedTaskOutcomeValuesByJobResponse{
+		Values:  values,
+		Success: true,
+	}, nil
+}
+
+// ListCodedTaskOutcomeValuesByJobHistorical is the past-academic-year sibling of
+// ListCodedTaskOutcomeValuesByJob: identical tenant/allowlist/latest-cell contract,
+// but it runs codedTaskOutcomeValuesByJobHistoricalSQL, which admits the inactive
+// instance+template ancestry that a past-AY card carries (see that builder's doc for
+// why the live path returns nothing for such cards, and why dropping the ancestry
+// active predicates does NOT weaken tenant isolation, criterion-code activeness, or
+// the single-outcome-revision guarantee). This method is intentionally NOT part of
+// the pb.TaskOutcomeDomainServiceServer proto interface — it is reached by an
+// interface type-assertion from the use case (fail-closed when the bound adapter
+// does not implement it), so no proto/RPC surface changes.
+func (r *PostgresTaskOutcomeRepository) ListCodedTaskOutcomeValuesByJobHistorical(
+	ctx context.Context,
+	req *pb.ListCodedTaskOutcomeValuesByJobRequest,
+) (*pb.ListCodedTaskOutcomeValuesByJobResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request is required")
+	}
+
+	id, ok := identity.FromContext(ctx)
+	if !ok || id.WorkspaceID == "" {
+		return &pb.ListCodedTaskOutcomeValuesByJobResponse{Success: true}, nil
+	}
+
+	jobIDs := req.GetJobIds()
+	if len(jobIDs) == 0 {
+		return &pb.ListCodedTaskOutcomeValuesByJobResponse{Success: true}, nil
+	}
+
+	values, err := r.runCodedTaskOutcomeValues(ctx, jobIDs, id.WorkspaceID, codedTaskOutcomeValuesByJobHistoricalSQL)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.ListCodedTaskOutcomeValuesByJobResponse{
+		Values:  values,
+		Success: true,
+	}, nil
+}
+
+// runCodedTaskOutcomeValues executes a coded-cell SELECT (built by sqlFor from the
+// job-id count) with the job allowlist plus the trusted workspace as the trailing
+// bind, and scans the rows into CodedTaskOutcomeValues. Shared by the live and
+// historical readers so both share one scan contract; the ONLY difference between
+// them is which SQL builder is passed.
+func (r *PostgresTaskOutcomeRepository) runCodedTaskOutcomeValues(
+	ctx context.Context,
+	jobIDs []string,
+	workspaceID string,
+	sqlFor func(int) string,
+) ([]*pb.CodedTaskOutcomeValue, error) {
 	exec := r.executor(ctx)
 	if exec == nil {
-		return nil, fmt.Errorf("task_outcome ListCodedTaskOutcomeValuesByJob: no SQL executor available")
+		return nil, fmt.Errorf("task_outcome coded values: no SQL executor available")
 	}
 
 	args := make([]any, 0, len(jobIDs)+1)
 	for _, jid := range jobIDs {
 		args = append(args, jid)
 	}
-	args = append(args, id.WorkspaceID)
+	args = append(args, workspaceID)
 
-	rows, err := exec.QueryContext(ctx, codedTaskOutcomeValuesByJobSQL(len(jobIDs)), args...)
+	rows, err := exec.QueryContext(ctx, sqlFor(len(jobIDs)), args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list coded task outcome values by job: %w", err)
 	}
@@ -688,11 +806,7 @@ func (r *PostgresTaskOutcomeRepository) ListCodedTaskOutcomeValuesByJob(
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating coded task outcome value rows: %w", err)
 	}
-
-	return &pb.ListCodedTaskOutcomeValuesByJobResponse{
-		Values:  values,
-		Success: true,
-	}, nil
+	return values, nil
 }
 
 // scanTOFields is a shared scanner for all task_outcome SELECT columns

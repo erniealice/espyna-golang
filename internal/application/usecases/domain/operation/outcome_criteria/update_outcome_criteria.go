@@ -3,6 +3,7 @@ package outcome_criteria
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -170,34 +171,97 @@ func (uc *UpdateOutcomeCriteriaUseCase) validateBusinessRules(ctx context.Contex
 	return nil
 }
 
-// checkCodeInvariants enforces, when the update supplies a (normalized) code:
-//   - lineage stability: once a criteria_group has an established non-NULL code,
-//     the code cannot be mutated to a DIFFERENT one (filling NULL -> the
-//     established code is allowed);
-//   - domain uniqueness: a DIFFERENT criteria_group in the same (scope,
-//     workspace_id, industry_code) domain must not already hold the code.
+// checkCodeInvariants enforces the code contract against the MERGED post-update
+// row: a field omitted from a partial update keeps its stored value, so the
+// invariants must consider the row the UPDATE will actually produce, not just
+// the supplied fields. This closes the re-home route (codex wave1-q1 finding
+// 2B's non-concurrent leg) where moving a coded row to a fresh group WITHOUT
+// resupplying its code escaped checking entirely.
 //
-// Both checks read against the EXISTING row's authoritative lineage/domain. The
-// DB partial unique index remains the ultimate race/backstop (and covers the rare
-// re-home-plus-code edge this pre-check does not). No-op when no code is supplied.
+// With effectiveCode = supplied code (normalized) else the stored code, and
+// effectiveGroup = supplied criteria_group_id else the stored one:
+//   - lineage stability: effectiveGroup's established code (if any) must equal
+//     effectiveCode — mutating an established code, or re-homing a coded row
+//     under a group anchored to a different code, is rejected. Filling a NULL
+//     code with the established (or a fresh) code is allowed. Only CODED
+//     versions anchor a lineage; NULL-code siblings are exempt by design.
+//   - domain uniqueness: no OTHER criteria_group in the EXISTING row's (scope,
+//     workspace_id, industry_code) domain may hold effectiveCode — across ALL
+//     version statuses and both active states.
+//
+// The domain comes from the server-read existing row (trusted — never the
+// client payload). Reads are single-statement anchor point lookups (bounded
+// paginated fallback) and fail closed; the DB criteria_group anchor (composite
+// FK + domain unique index) remains the authoritative race backstop. No-op for
+// uncoded rows that stay uncoded.
 func (uc *UpdateOutcomeCriteriaUseCase) checkCodeInvariants(ctx context.Context, data, existing *pb.OutcomeCriteria) error {
-	if data.Code == nil || *data.Code == "" {
-		return nil
-	}
 	if existing == nil {
 		return nil
 	}
-	newCode := *data.Code
+	effectiveCode := existing.GetCode()
+	if data.Code != nil && *data.Code != "" {
+		effectiveCode = *data.Code
+	}
+	if effectiveCode == "" {
+		return nil
+	}
+	effectiveGroup := existing.GetCriteriaGroupId()
+	if data.GetCriteriaGroupId() != "" {
+		effectiveGroup = data.GetCriteriaGroupId()
+	}
+	if strings.TrimSpace(effectiveGroup) == "" {
+		// A coded row must belong to a real lineage (mirror of the CREATE-side
+		// finding-11 guard): nothing to anchor the code to.
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.code_requires_group", "[ERR-DEFAULT] Outcome criteria with a code requires a criteria group (criteria_group_id)"))
+	}
 
-	established, err := lineageEstablishedCode(ctx, uc.repositories.OutcomeCriteria, existing.CriteriaGroupId)
+	established, err := lineageEstablishedCode(ctx, uc.repositories.OutcomeCriteria, effectiveGroup)
 	if err != nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.errors.code_check_failed", "[ERR-DEFAULT] Failed to validate outcome criteria code uniqueness"))
 	}
-	if established != "" && established != newCode {
+	if established != "" && established != effectiveCode {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.code_immutable", "[ERR-DEFAULT] Outcome criteria code cannot be changed once established for its lineage"))
 	}
 
-	taken, err := codeTakenByAnotherGroup(ctx, uc.repositories.OutcomeCriteria, newCode, existing)
+	// NEW-1 (Q1 re-review): the MERGED post-update row's (scope, workspace,
+	// industry) domain must match the effective group's claimed domain. A
+	// partial update keeps the stored value for any omitted field, so the
+	// merged domain is: supplied scope (non-zero) else stored; supplied
+	// industry (non-nil) else stored; the workspace is ALWAYS the server-read
+	// existing row's (tenant immutable on update — the persistence decorator
+	// strips any client-supplied workspace). Without this, an update supplying
+	// a divergent scope/industry onto a coded row escapes both app checks and
+	// the DB (the trigger never re-stamps an existing anchor; the domain unique
+	// only fires on new anchors). NULL-code rows that stay uncoded are exempt
+	// (early return above); fail closed on read errors.
+	mergedDomain := &pb.OutcomeCriteria{
+		Scope:        existing.GetScope(),
+		WorkspaceId:  existing.WorkspaceId,
+		IndustryCode: existing.IndustryCode,
+	}
+	if data.GetScope() != 0 {
+		mergedDomain.Scope = data.GetScope()
+	}
+	if data.IndustryCode != nil {
+		mergedDomain.IndustryCode = data.IndustryCode
+	}
+	scopeKey, wsKey, indKey, claimed, err := lineageClaimedDomain(ctx, uc.repositories.OutcomeCriteria, effectiveGroup)
+	if err != nil {
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.errors.code_check_failed", "[ERR-DEFAULT] Failed to validate outcome criteria code uniqueness"))
+	}
+	if claimed && criteriaDomainDiverges(mergedDomain, scopeKey, wsKey, indKey) {
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.validation.code_domain_mismatch", "[ERR-DEFAULT] Outcome criteria scope/workspace/industry does not match the domain established for its criteria group"))
+	}
+
+	// Collision self-exclusion must use the EFFECTIVE lineage: on a re-home the
+	// OLD group's standing domain claim is a real collision, not "self".
+	merged := &pb.OutcomeCriteria{
+		CriteriaGroupId: effectiveGroup,
+		Scope:           existing.GetScope(),
+		WorkspaceId:     existing.WorkspaceId,
+		IndustryCode:    existing.IndustryCode,
+	}
+	taken, err := codeTakenByAnotherGroup(ctx, uc.repositories.OutcomeCriteria, effectiveCode, merged)
 	if err != nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "outcome_criteria.errors.code_check_failed", "[ERR-DEFAULT] Failed to validate outcome criteria code uniqueness"))
 	}

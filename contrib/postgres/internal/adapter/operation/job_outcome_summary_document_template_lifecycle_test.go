@@ -55,64 +55,94 @@ func TestCreateBinding_ForcesDraftUnversionedStripsPublishAudit(t *testing.T) {
 	}
 }
 
-// ── Update freezes a published lineage ───────────────────────────────────────
+// ── Update: unconditional scope/lifecycle strip (Q3) ─────────────────────────
 
-func TestUpdateBinding_FreezesImmutableFieldsOnPublishedRow(t *testing.T) {
-	// Current persisted row is PUBLISHED → immutable except active/date_modified.
-	fake := &recordingDBOps{result: map[string]any{
-		"id":             "b-1",
-		"version_status": versionStatusPublished,
-	}}
-	r := NewPostgresJobOutcomeSummaryDocumentTemplateRepository(fake, "job_outcome_summary_document_template")
-
-	_, err := r.UpdateJobOutcomeSummaryDocumentTemplate(context.Background(), &pb.UpdateJobOutcomeSummaryDocumentTemplateRequest{
-		Data: &pb.JobOutcomeSummaryDocumentTemplate{
-			Id:                 "b-1",
-			DocumentTemplateId: "dt-HOSTILE",   // immutable — must be dropped
-			PriceScheduleId:    strptr("ps-X"), // immutable — must be dropped
-			Version:            42,             // immutable — must be dropped
-			Active:             true,           // mutable — must survive (proto3 omits the false zero-value)
-		},
-	})
-	if err != nil {
-		t.Fatalf("UpdateJobOutcomeSummaryDocumentTemplate returned error: %v", err)
-	}
-	for _, frozen := range []string{"document_template_id", "price_schedule_id", "version", "version_status", "id"} {
-		if _, ok := fake.lastUpdate[frozen]; ok {
-			t.Errorf("published row: immutable field %q must not reach the write path (got %v)", frozen, fake.lastUpdate[frozen])
-		}
-	}
-	if _, ok := fake.lastUpdate["active"]; !ok {
-		t.Error("published row: mutable field active must survive the filter")
-	}
-}
-
-func TestUpdateBinding_DraftRowStaysFullyMutable(t *testing.T) {
-	// Current persisted row is a DRAFT → fully mutable.
+// TestUpdateBinding_ScopeFieldsNeverReachWrite_EvenWhenRowReadsDraft pins the
+// Q3 contract: the generic Update strips scope + lifecycle fields for ALL rows,
+// WITHOUT reading the current lifecycle state. The fake's Read reports DRAFT —
+// the exact snapshot a publish/Update TOCTOU would present — and the scope
+// fields still never reach the write path, so the race window is structurally
+// closed (no read-check-write to interleave with).
+func TestUpdateBinding_ScopeFieldsNeverReachWrite_EvenWhenRowReadsDraft(t *testing.T) {
 	fake := &recordingDBOps{result: map[string]any{
 		"id":             "b-1",
 		"version_status": versionStatusDraft,
 	}}
 	r := NewPostgresJobOutcomeSummaryDocumentTemplateRepository(fake, "job_outcome_summary_document_template")
 
+	ms := int64(1700000000000)
 	_, err := r.UpdateJobOutcomeSummaryDocumentTemplate(context.Background(), &pb.UpdateJobOutcomeSummaryDocumentTemplateRequest{
 		Data: &pb.JobOutcomeSummaryDocumentTemplate{
-			Id:                 "b-1",
-			DocumentTemplateId: "dt-2",
-			Version:            7, // server-owned — must be stripped even on a draft
+			Id:                  "b-1",
+			DocumentTemplateId:  "dt-HOSTILE",   // scope — must be dropped
+			PriceScheduleId:     strptr("ps-X"), // scope — must be dropped
+			SupersedesBindingId: strptr("b-0"),  // scope — must be dropped
+			Version:             42,             // server-owned — must be dropped
+			PublishedBy:         strptr("attacker"),
+			DateModified:        &ms, // audit stamp — must survive
 		},
 	})
 	if err != nil {
 		t.Fatalf("UpdateJobOutcomeSummaryDocumentTemplate returned error: %v", err)
 	}
-	if got := fake.lastUpdate["document_template_id"]; got != "dt-2" {
-		t.Errorf("draft row: document_template_id must remain mutable, got %v", got)
+	for _, frozen := range []string{
+		"document_template_id", "price_schedule_id", "supersedes_binding_id",
+		"validity_start", "validity_end", "version", "version_status",
+		"published_at", "published_by", "workspace_id", "id",
+	} {
+		if _, ok := fake.lastUpdate[frozen]; ok {
+			t.Errorf("scope/lifecycle field %q must not reach the write path even for a DRAFT row (got %v)", frozen, fake.lastUpdate[frozen])
+		}
 	}
-	// version is server-owned (only Publish allocates it): stripped unconditionally
-	// so a publish/Update TOCTOU can never clobber a published lineage's version
-	// (B4 codex finding #3).
-	if _, ok := fake.lastUpdate["version"]; ok {
-		t.Errorf("draft row: server-owned version must be stripped from Update (got %v)", fake.lastUpdate["version"])
+	if _, ok := fake.lastUpdate["date_modified"]; !ok {
+		t.Error("audit stamp date_modified must survive the unconditional filter")
+	}
+}
+
+// TestUpdateBinding_ActiveTrueCannotResurrect pins the resurrection guard:
+// protojson omits the false zero-value, so the generic route could only ever
+// SET active — i.e. restore a soft-deleted draft through the public update
+// surface. active=true is therefore dropped from the payload; deactivation
+// stays the draft-only Delete transaction's job.
+func TestUpdateBinding_ActiveTrueCannotResurrect(t *testing.T) {
+	fake := &recordingDBOps{result: map[string]any{"id": "b-1"}}
+	r := NewPostgresJobOutcomeSummaryDocumentTemplateRepository(fake, "job_outcome_summary_document_template")
+
+	ms := int64(1700000000000)
+	_, err := r.UpdateJobOutcomeSummaryDocumentTemplate(context.Background(), &pb.UpdateJobOutcomeSummaryDocumentTemplateRequest{
+		Data: &pb.JobOutcomeSummaryDocumentTemplate{
+			Id:           "b-1",
+			Active:       true, // resurrection attempt — must be dropped
+			DateModified: &ms,
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateJobOutcomeSummaryDocumentTemplate returned error: %v", err)
+	}
+	if got, ok := fake.lastUpdate["active"]; ok {
+		t.Errorf("active=true must not reach the write path (resurrection guard), got %v", got)
+	}
+}
+
+// TestUpdateBinding_ScopeOnlyPayloadFailsClosed: a payload carrying ONLY
+// immutable fields filters down to nothing — the adapter refuses it rather
+// than issuing a malformed empty UPDATE.
+func TestUpdateBinding_ScopeOnlyPayloadFailsClosed(t *testing.T) {
+	fake := &recordingDBOps{result: map[string]any{"id": "b-1"}}
+	r := NewPostgresJobOutcomeSummaryDocumentTemplateRepository(fake, "job_outcome_summary_document_template")
+
+	_, err := r.UpdateJobOutcomeSummaryDocumentTemplate(context.Background(), &pb.UpdateJobOutcomeSummaryDocumentTemplateRequest{
+		Data: &pb.JobOutcomeSummaryDocumentTemplate{
+			Id:                 "b-1",
+			DocumentTemplateId: "dt-HOSTILE",
+			Version:            9,
+		},
+	})
+	if err == nil {
+		t.Fatal("a scope-only update payload must fail closed (no generically mutable fields)")
+	}
+	if fake.lastUpdate != nil {
+		t.Errorf("no write must be issued for a scope-only payload, got %v", fake.lastUpdate)
 	}
 }
 

@@ -180,16 +180,25 @@ type (
 
 // Workflow types
 type (
-	WorkflowEngineService          = internal.WorkflowEngineService
-	WorkflowAssigneeQueryService   = internal.WorkflowAssigneeQueryService
-	ActivityExecutor               = internal.ActivityExecutor
-	ExecutorRegistry               = internal.ExecutorRegistry
+	WorkflowEngineService        = internal.WorkflowEngineService
+	WorkflowAssigneeQueryService = internal.WorkflowAssigneeQueryService
+	ActivityExecutor             = internal.ActivityExecutor
+	ExecutorRegistry             = internal.ExecutorRegistry
 )
 
 // Workflow request/response types
 type (
 	ListPendingActivitiesForAssigneeRequest  = internal.ListPendingActivitiesForAssigneeRequest
 	ListPendingActivitiesForAssigneeResponse = internal.ListPendingActivitiesForAssigneeResponse
+)
+
+// Operation query ports (proto-less internal service shape) — re-exported so the
+// contrib/postgres adapter (a separate Go module) can implement the job-list
+// tabstrip support read (20260718 courses-list-perf Rank-1).
+type (
+	JobListTabSupportQueryService = internal.JobListTabSupportQueryService
+	JobListTabSupportRequest      = internal.JobListTabSupportRequest
+	JobListTabSupportResponse     = internal.JobListTabSupportResponse
 )
 
 // Translation types

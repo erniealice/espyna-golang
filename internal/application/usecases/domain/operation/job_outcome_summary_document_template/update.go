@@ -35,6 +35,20 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, req *pb.UpdateJobOutcomeSu
 	// unlocked snapshot, so version must not depend on that read). The adapter
 	// also strips it. (B4 codex finding #3 — lifecycle/version immutable to Update.)
 	req.Data.Version = 0
+	// Q3 (attendance-v2 follow-up): scope fields are immutable on the generic
+	// Update route — the adapter unconditionally filters the write payload down
+	// to {active, date_modified}, closing the scope-field TOCTOU where a Publish
+	// interleaving with an Update could mutate a just-published row. Clear them
+	// here too (belt + suspenders) so no scope mutation ever leaves the use case.
+	// Scope changes go through delete-draft + re-create.
+	req.Data.DocumentTemplateId = ""
+	req.Data.PriceScheduleId = nil
+	req.Data.ValidityStart = nil
+	req.Data.ValidityEnd = nil
+	req.Data.SupersedesBindingId = nil
+	// Publish audit is server-owned (only the Publish transaction stamps it).
+	req.Data.PublishedAt = nil
+	req.Data.PublishedBy = nil
 	ms := time.Now().UnixMilli()
 	req.Data.DateModified = &ms
 	return uc.repo.UpdateJobOutcomeSummaryDocumentTemplate(ctx, req)

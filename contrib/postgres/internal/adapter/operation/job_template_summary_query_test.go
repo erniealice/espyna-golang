@@ -9,34 +9,63 @@ import (
 	"github.com/erniealice/espyna-golang/registry/entityid"
 )
 
+// fullSummarySQL is the whole two-CTE statement (jj + dd CTEs + outer SELECT),
+// the unit the structural assertions read now that the joins live across
+// jobTemplateSummaryCTEs() and jobTemplateSummarySelectFrom(). Built with no
+// status/group/scope/pagination so the base shape is exercised.
+func fullSummarySQL() string {
+	stmt, _ := buildListJobTemplateSummariesSQL("ws-1", "", "", 0, 0, nil)
+	return stmt
+}
+
 // TestJobTemplateSummarySQL_TableNamesFromEntityID locks the
 // infra-sql-table-name-source rule: EVERY table identifier in the aggregate
 // comes from a registry/entityid constant, never a hand-typed literal. If a
 // constant's value ever changes, this test still passes (it reads the same
 // constants), but a stray quoted literal or a wrong table (e.g. the
 // subscription_group_product_plan_staff over-count trap the S2 note warns
-// against) is caught.
+// against) is caught. Post-20260718-perf: the joins are split across the jj/dd
+// MATERIALIZED CTEs and the outer SELECT, so the whole statement is asserted.
 func TestJobTemplateSummarySQL_TableNamesFromEntityID(t *testing.T) {
-	sql := jobTemplateSummarySelectFrom()
+	sql := fullSummarySQL()
 
 	// Every joined table must be present, sourced from its entityid constant.
 	mustJoin := []struct {
 		alias string
 		table string
 	}{
-		{"j", entityid.Job},
-		{"jt", entityid.JobTemplate},
-		{"sgm", entityid.SubscriptionGroupMember},
-		{"sg", entityid.SubscriptionGroup},
-		{"ps", entityid.PriceSchedule},
-		{"ss", entityid.SubscriptionSeat},
-		{"pl", entityid.ProductPlan},
-		{"st", entityid.Staff},
-		{"op", entityid.Product},
+		{"j", entityid.Job},                       // jj CTE
+		{"jt", entityid.JobTemplate},              // jj CTE
+		{"sgm", entityid.SubscriptionGroupMember}, // dd CTE
+		{"sg", entityid.SubscriptionGroup},        // outer
+		{"ps", entityid.PriceSchedule},            // outer
+		{"ss", entityid.SubscriptionSeat},         // dd CTE
+		{"pl", entityid.ProductPlan},              // dd CTE
+		{"st", entityid.Staff},                    // dd CTE
+		{"op", entityid.Product},                  // outer
 	}
 	for _, m := range mustJoin {
 		if !strings.Contains(sql, " "+m.table+" "+m.alias) {
-			t.Errorf("SELECT/FROM missing %q aliased %q\nSQL:\n%s", m.table, m.alias, sql)
+			t.Errorf("statement missing %q aliased %q\nSQL:\n%s", m.table, m.alias, sql)
+		}
+	}
+
+	// Both CTEs must be MATERIALIZED (the structural hash-join pin — P1 win).
+	for _, cte := range []string{"jj AS MATERIALIZED", "dd AS MATERIALIZED"} {
+		if !strings.Contains(sql, cte) {
+			t.Errorf("missing %q — the MATERIALIZED plan pin is load-bearing\nSQL:\n%s", cte, sql)
+		}
+	}
+
+	// The jj×dd hash join must key on all three columns (restores the original
+	// seat/plan-product ↔ template-output inner-join semantics).
+	for _, key := range []string{
+		"dd.subscription_id = jj.subscription_id",
+		"dd.client_id = jj.client_id",
+		"dd.product_id = jj.output_product_id",
+	} {
+		if !strings.Contains(sql, key) {
+			t.Errorf("jj×dd join missing key %q\nSQL:\n%s", key, sql)
 		}
 	}
 
@@ -60,11 +89,12 @@ func TestJobTemplateSummarySQL_TableNamesFromEntityID(t *testing.T) {
 // (verified against the live schema) and MUST NOT be bound — they are scoped
 // transitively through the workspace-bound seat/template/staff.
 func TestJobTemplateSummarySQL_WorkspacePredicateOnEveryScopedTable(t *testing.T) {
-	sql := jobTemplateSummarySelectFrom()
+	sql := fullSummarySQL()
 
-	// The base job predicate binds workspace in the WHERE (built separately), so
-	// here we assert the JOINed workspace-bearing tables each carry $1.
-	boundAliases := []string{"jt", "sgm", "sg", "ps", "ss", "st", "op"}
+	// The base job predicate binds j.workspace_id in the jj CTE WHERE; every
+	// other workspace-bearing joined table also carries $1 (across both CTEs and
+	// the outer SELECT).
+	boundAliases := []string{"j", "jt", "sgm", "sg", "ps", "ss", "st", "op"}
 	for _, a := range boundAliases {
 		if !strings.Contains(sql, a+".workspace_id = $1") {
 			t.Errorf("table alias %q missing workspace_id = $1 bind\nSQL:\n%s", a, sql)
@@ -175,16 +205,17 @@ func TestJobTemplateSummarySQL_FiltersAndPagination(t *testing.T) {
 		if !strings.Contains(stmt, "j.origin_type = 'ORIGIN_TYPE_SUBSCRIPTION'") {
 			t.Errorf("subscription origin-type predicate missing:\n%s", stmt)
 		}
-		if !strings.Contains(stmt, "COUNT(DISTINCT j.id)") {
+		// COUNT(DISTINCT) now counts the jj CTE's job_id (was j.id pre-rewrite).
+		if !strings.Contains(stmt, "COUNT(DISTINCT jj.job_id)") {
 			t.Errorf("DISTINCT job count missing:\n%s", stmt)
 		}
-		if !strings.Contains(stmt, "ORDER BY sg.name, jt.name") {
+		if !strings.Contains(stmt, "ORDER BY sg.name, jj.template_name") {
 			t.Errorf("locked ORDER BY (group, template) prefix missing:\n%s", stmt)
 		}
 		// Deterministic DELIVERER order: the per-template staff rows must be
 		// ordered so collateDeliverySummaries folds them in a stable sequence.
-		if !strings.Contains(stmt, "ORDER BY sg.name, jt.name, staff_name, st.id") {
-			t.Errorf("deterministic deliverer ORDER BY tail (staff_name, st.id) missing:\n%s", stmt)
+		if !strings.Contains(stmt, "ORDER BY sg.name, jj.template_name, staff_name, dd.staff_id") {
+			t.Errorf("deterministic deliverer ORDER BY tail (staff_name, dd.staff_id) missing:\n%s", stmt)
 		}
 	})
 }

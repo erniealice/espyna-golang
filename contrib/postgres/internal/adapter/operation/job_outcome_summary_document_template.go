@@ -13,6 +13,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	documenttemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/template"
 	enums "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
@@ -143,39 +144,30 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) UpdateJobOutcomeSu
 	if err != nil {
 		return nil, err
 	}
-	// protoToMap canonicalizes keys to snake_case (gate H1).
-	delete(data, "document_template")
-	delete(data, "price_schedule")
-	// workspace_id is the immutable tenant anchor: strip both spellings so an
-	// Update payload can never reassign the row to another workspace (gate H1).
-	stripClientWorkspaceKeys(data)
-	// version_status is server-owned; the Publish transaction is the ONLY path
-	// that changes it. Strip it from every CRUD Update so an operator can never
-	// promote/demote a binding through plain Update (RA2 P1).
-	delete(data, "version_status")
-	// version is server-owned too — only the Publish transaction allocates it.
-	// Strip it from every CRUD Update (belt to the use case's suspenders) so a
-	// concurrent Update can never clobber a published lineage's version. This is
-	// unconditional (not gated on the frozen-check read below), so it holds even
-	// under a publish/Update TOCTOU where the frozen read still sees DRAFT
-	// (B4 codex finding #3 — Update can mutate neither lifecycle nor version).
-	delete(data, "version")
-	// RA2 P1 — a PUBLISHED (or DEPRECATED) binding is immutable except for the
-	// admin gate + audit stamp: its lineage/scope/template/version/validity are
-	// frozen. When the current row is not a DRAFT, filter the write payload down
-	// to the mutable safelist so an arbitrary CRUD Update can never mutate a
-	// published lineage (codex RA2 P1). Drafts stay fully mutable. Read is
-	// workspace-scoped by the decorator, so a cross-tenant id resolves nothing.
-	if current, rerr := r.dbOps.Read(ctx, r.tableName, req.Data.Id); rerr == nil {
-		if bindingLifecycleIsFrozen(current) {
-			filterToMutableBindingFields(data)
-		}
+	// RA2 P1 + Q3 (attendance-v2 follow-up) — the generic Update route is a
+	// narrow administrative surface: the ONLY generically mutable fields are the
+	// admin gate (active) + the audit stamp (date_modified). Everything else —
+	// scope fields (document_template_id, price_schedule_id, validity_start,
+	// validity_end, supersedes_binding_id), lifecycle (version, version_status),
+	// publish audit, tenant keys, hydrate-only nests — is stripped
+	// UNCONDITIONALLY, for DRAFT rows too. The previous draft-exempt filter
+	// depended on an UNLOCKED lifecycle read, so a Publish interleaving between
+	// that read and the write could let scope fields mutate a just-published row
+	// (codex wave-b MED, scope-field TOCTOU). Stripping without reading closes
+	// the race structurally; legitimate scope changes go through
+	// delete-draft + re-create (the settings-UI flow, which never wires Update)
+	// or a future dedicated administrative path.
+	filterToMutableBindingFields(data)
+	// active=true is refused as well: protojson omits the false zero-value, so
+	// the generic route could only ever SET active — i.e. resurrect a
+	// soft-deleted draft through the public update surface (codex wave-b MED).
+	// Deactivation stays the draft-only Delete transaction's job; reactivation
+	// has no generic route (fail-closed).
+	if v, ok := data["active"].(bool); ok && v {
+		delete(data, "active")
 	}
-	if v, ok := data["price_schedule_id"].(string); ok && v == "" {
-		data["price_schedule_id"] = nil
-	}
-	if v, ok := data["supersedes_binding_id"].(string); ok && v == "" {
-		data["supersedes_binding_id"] = nil
+	if len(data) == 0 {
+		return nil, fmt.Errorf("update payload contains no generically mutable binding fields")
 	}
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {
@@ -243,21 +235,11 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) ListJobOutcomeSumm
 	return &pb.ListJobOutcomeSummaryDocumentTemplatesResponse{Data: items, Success: true}, nil
 }
 
-// bindingLifecycleIsFrozen reports whether a persisted binding row is in a
-// terminal (PUBLISHED or DEPRECATED) lifecycle state whose immutable fields must
-// not change through a plain CRUD Update.
-func bindingLifecycleIsFrozen(row any) bool {
-	m, ok := row.(map[string]any)
-	if !ok {
-		return false
-	}
-	vs, _ := m["version_status"].(string)
-	return vs == versionStatusPublished || vs == versionStatusDeprecated
-}
-
 // filterToMutableBindingFields drops every key from a write payload except the
-// admin gate (active) + audit stamp (date_modified). Used to freeze the immutable
-// fields of a PUBLISHED/DEPRECATED binding on Update (RA2 P1).
+// admin gate (active) + audit stamp (date_modified). Applied UNCONDITIONALLY on
+// the generic Update route (Q3): scope + lifecycle fields never reach the write
+// regardless of the row's current lifecycle state, so no read-check-write race
+// window exists (RA2 P1 / codex wave-b scope-field TOCTOU).
 func filterToMutableBindingFields(data map[string]any) {
 	allowed := map[string]bool{
 		"active":               true,
@@ -287,6 +269,26 @@ func jobOutcomeSummaryDocumentTemplateFromResult(result any) (*pb.JobOutcomeSumm
 		return nil, fmt.Errorf("failed to unmarshal to proto: %w", err)
 	}
 	return item, nil
+}
+
+// executor returns the transaction-aware SQL executor: the active *sql.Tx when
+// one is present on ctx (so the resolver participates in an ambient use-case /
+// test transaction and sees its uncommitted writes), else the pooled *sql.DB.
+// Mirrors outcome_criteria.go's helper: the workspace-aware dbOps exposes
+// GetExecutor(ctx); we type-assert so this works regardless of the concrete
+// dbOps wrapping, falling back to the stored *sql.DB handle.
+func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) executor(ctx context.Context) sqlexec.DBExecutor {
+	if ep, ok := r.dbOps.(interface {
+		GetExecutor(ctx context.Context) sqlexec.DBExecutor
+	}); ok {
+		if e := ep.GetExecutor(ctx); e != nil {
+			return e
+		}
+	}
+	if r.db != nil {
+		return r.db
+	}
+	return nil
 }
 
 // --- Resolver -------------------------------------------------------------
@@ -349,8 +351,9 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) FindApplicableJobO
 	if req == nil {
 		return nil, fmt.Errorf("request is required")
 	}
-	if r.db == nil {
-		return nil, fmt.Errorf("binding resolver requires direct *sql.DB access")
+	ex := r.executor(ctx)
+	if ex == nil {
+		return nil, fmt.Errorf("binding resolver requires direct SQL access")
 	}
 
 	// Tenant isolation: scope to the caller's workspace from trusted context.
@@ -366,7 +369,7 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) FindApplicableJobO
 		asOf = req.AsOf.AsTime().UTC()
 	}
 
-	rows, err := r.db.QueryContext(ctx, findApplicableSQL(), wsID, req.GetPriceScheduleId(), versionStatusPublished, asOf)
+	rows, err := ex.QueryContext(ctx, findApplicableSQL(), wsID, req.GetPriceScheduleId(), versionStatusPublished, asOf)
 	if err != nil {
 		return nil, fmt.Errorf("resolver query failed: %w", err)
 	}

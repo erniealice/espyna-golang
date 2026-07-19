@@ -76,9 +76,14 @@ func InitializeAll(
 	// Job-Template Summary (20260711) — service/operation/job_template_summary
 	// generic resolver-scoped template-grain delivery summary (one GROUP-BY read).
 	jobTemplateSummaryUC := initServiceOperationJobTemplateSummary(db, i18nSvc, actionGate)
+	// Job-List Tab Support (20260718 courses-list-perf Rank-1) —
+	// service/operation/job_list_tab_support: ONE UNION-ALL statement for the
+	// "/classes" tabstrip's categories + active-template stubs (replaces 12
+	// generic-List statements); per-kind fail-closed gates.
+	jobListTabSupportUC := initServiceOperationJobListTabSupport(db, i18nSvc, actionGate)
 	// Omni Search (20260710) — service/omni_search generic cross-entity ⌘K
 	// command-palette search; per-category ":list" gate, fail-closed.
 	omniSearchUC := initServiceOmniSearch(db, i18nSvc, actionGate)
 
-	return svcusecases.NewServiceUseCases(auditUC, securityUC, authUC, dashboardUC, reportingUC, performanceUC, taxUC, amortUC, operationUC, jobTemplateSummaryUC, omniSearchUC), nil
+	return svcusecases.NewServiceUseCases(auditUC, securityUC, authUC, dashboardUC, reportingUC, performanceUC, taxUC, amortUC, operationUC, jobTemplateSummaryUC, jobListTabSupportUC, omniSearchUC), nil
 }

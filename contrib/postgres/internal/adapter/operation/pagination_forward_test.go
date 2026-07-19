@@ -9,6 +9,7 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	jobtaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
+	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
 	taskoutcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 	templatetaskcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
 )
@@ -78,6 +79,21 @@ func TestListTemplateTaskCriterias_ForwardsPagination(t *testing.T) {
 		t.Fatalf("ListTemplateTaskCriterias error: %v", err)
 	}
 	assertPaginationForwarded(t, "template_task_criteria", fake.lastListParams, pag)
+}
+
+// TestListOutcomeCriterias_ForwardsPagination — codex wave1-q1 finding 6A: the
+// outcome_criteria adapter built ListParams with only Filters, so the
+// code-validation pagination loop re-read page 1 (limit 100, offset 0) on every
+// iteration. Same one-line row-cap regression family as the three above.
+func TestListOutcomeCriterias_ForwardsPagination(t *testing.T) {
+	fake := &listCapturingDBOps{}
+	r := NewPostgresOutcomeCriteriaRepository(fake, "outcome_criteria")
+	pag := &commonpb.PaginationRequest{Limit: 25}
+
+	if _, err := r.ListOutcomeCriterias(context.Background(), &outcomecriteriapb.ListOutcomeCriteriasRequest{Pagination: pag}); err != nil {
+		t.Fatalf("ListOutcomeCriterias error: %v", err)
+	}
+	assertPaginationForwarded(t, "outcome_criteria", fake.lastListParams, pag)
 }
 
 // TestListJobTasks_NilParamsWhenNoFiltersOrPagination pins the other half of the

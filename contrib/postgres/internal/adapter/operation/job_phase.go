@@ -225,7 +225,88 @@ func (r *PostgresJobPhaseRepository) ListJobPhases(ctx context.Context, req *pb.
 // so ORDER BY can never reference an unprojected/injected identifier.
 var jobPhaseSortableSQLCols = []string{
 	"id", "date_created", "date_modified", "active", "job_id",
-	"name", "phase_order", "status",
+	"name", "phase_order", "status", "approval_status",
+}
+
+// jobPhaseApprovalCols is the ordered SELECT fragment (leading comma) for the
+// P1 approval read surface, appended after jp.status in every explicit
+// projection (list/item/ListByJob). Kept in one place so the column order stays
+// in lockstep with applyJobPhaseApprovalScan's Scan target order.
+const jobPhaseApprovalCols = `,
+				jp.approval_status,
+				jp.submitted_by,
+				jp.submitted_at,
+				jp.verified_by,
+				jp.verified_at,
+				jp.published_by,
+				jp.published_at,
+				jp.return_reason,
+				jp.returned_by,
+				jp.returned_at`
+
+// jobPhaseApprovalScan holds the raw scan targets for the approval read surface.
+// approval_status is NOT NULL (enum name); the audit pairs + return_reason are
+// nullable. Declared as a struct so each projection can scan the same address
+// set in the same order as jobPhaseApprovalCols.
+type jobPhaseApprovalScan struct {
+	approvalStatus string
+	submittedBy    sql.NullString
+	submittedAt    sql.NullInt64
+	verifiedBy     sql.NullString
+	verifiedAt     sql.NullInt64
+	publishedBy    sql.NullString
+	publishedAt    sql.NullInt64
+	returnReason   sql.NullString
+	returnedBy     sql.NullString
+	returnedAt     sql.NullInt64
+}
+
+// scanDest returns the Scan target pointers in jobPhaseApprovalCols order.
+func (a *jobPhaseApprovalScan) scanDest() []any {
+	return []any{
+		&a.approvalStatus,
+		&a.submittedBy, &a.submittedAt,
+		&a.verifiedBy, &a.verifiedAt,
+		&a.publishedBy, &a.publishedAt,
+		&a.returnReason,
+		&a.returnedBy, &a.returnedAt,
+	}
+}
+
+// apply maps the scanned approval columns onto the proto. UNSPECIFIED/unknown
+// tokens leave ApprovalStatus at its zero value (fail-soft on read); the DB
+// CHECK guarantees only the four persisted tokens exist.
+func (a *jobPhaseApprovalScan) apply(phase *pb.JobPhase) {
+	if v, ok := pb.PhaseApprovalStatus_value[a.approvalStatus]; ok {
+		phase.ApprovalStatus = pb.PhaseApprovalStatus(v)
+	}
+	if a.submittedBy.Valid {
+		phase.SubmittedBy = &a.submittedBy.String
+	}
+	if a.submittedAt.Valid {
+		phase.SubmittedAt = &a.submittedAt.Int64
+	}
+	if a.verifiedBy.Valid {
+		phase.VerifiedBy = &a.verifiedBy.String
+	}
+	if a.verifiedAt.Valid {
+		phase.VerifiedAt = &a.verifiedAt.Int64
+	}
+	if a.publishedBy.Valid {
+		phase.PublishedBy = &a.publishedBy.String
+	}
+	if a.publishedAt.Valid {
+		phase.PublishedAt = &a.publishedAt.Int64
+	}
+	if a.returnReason.Valid {
+		phase.ReturnReason = &a.returnReason.String
+	}
+	if a.returnedBy.Valid {
+		phase.ReturnedBy = &a.returnedBy.String
+	}
+	if a.returnedAt.Valid {
+		phase.ReturnedAt = &a.returnedAt.Int64
+	}
 }
 
 // GetJobPhaseListPageData retrieves job phases with pagination, filtering, sorting, and search
@@ -276,7 +357,7 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseListPageData(
 				jp.job_id,
 				jp.name,
 				jp.phase_order,
-				jp.status
+				jp.status` + jobPhaseApprovalCols + `
 			FROM ` + entityid.JobPhase + ` jp
 			WHERE jp.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -311,21 +392,16 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseListPageData(
 			name         string
 			phaseOrder   int32
 			status       string
+			approval     jobPhaseApprovalScan
 			total        int64
 		)
 
-		err := rows.Scan(
-			&id,
-			&dateCreated,
-			&dateModified,
-			&active,
-			&jobID,
-			&name,
-			&phaseOrder,
-			&status,
-			&total,
-		)
-		if err != nil {
+		// Scan order must match the CTE SELECT (e.* then COUNT(*) OVER () AS total):
+		// base cols, jobPhaseApprovalCols, then total.
+		dest := []any{&id, &dateCreated, &dateModified, &active, &jobID, &name, &phaseOrder, &status}
+		dest = append(dest, approval.scanDest()...)
+		dest = append(dest, &total)
+		if err := rows.Scan(dest...); err != nil {
 			return nil, fmt.Errorf("failed to scan job phase row: %w", err)
 		}
 
@@ -343,6 +419,7 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseListPageData(
 		if v, ok := pb.PhaseStatus_value[status]; ok {
 			phase.Status = pb.PhaseStatus(v)
 		}
+		approval.apply(phase)
 
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
@@ -406,7 +483,7 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseItemPageData(
 			jp.job_id,
 			jp.name,
 			jp.phase_order,
-			jp.status
+			jp.status` + jobPhaseApprovalCols + `
 		FROM ` + entityid.JobPhase + ` jp
 		WHERE jp.id = $1 AND jp.active = true
 	`
@@ -422,18 +499,12 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseItemPageData(
 		name         string
 		phaseOrder   int32
 		status       string
+		approval     jobPhaseApprovalScan
 	)
 
-	err := row.Scan(
-		&id,
-		&dateCreated,
-		&dateModified,
-		&active,
-		&jobID,
-		&name,
-		&phaseOrder,
-		&status,
-	)
+	dest := []any{&id, &dateCreated, &dateModified, &active, &jobID, &name, &phaseOrder, &status}
+	dest = append(dest, approval.scanDest()...)
+	err := row.Scan(dest...)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("job phase with ID '%s' not found", req.JobPhaseId)
 	}
@@ -452,6 +523,7 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseItemPageData(
 	if v, ok := pb.PhaseStatus_value[status]; ok {
 		phase.Status = pb.PhaseStatus(v)
 	}
+	approval.apply(phase)
 
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()
@@ -490,7 +562,7 @@ func (r *PostgresJobPhaseRepository) ListByJob(
 			jp.job_id,
 			jp.name,
 			jp.phase_order,
-			jp.status
+			jp.status` + jobPhaseApprovalCols + `
 		FROM ` + entityid.JobPhase + ` jp
 		WHERE jp.job_id = $1 AND jp.active = true
 		ORDER BY jp.phase_order ASC
@@ -513,19 +585,12 @@ func (r *PostgresJobPhaseRepository) ListByJob(
 			name         string
 			phaseOrder   int32
 			status       string
+			approval     jobPhaseApprovalScan
 		)
 
-		err := rows.Scan(
-			&id,
-			&dateCreated,
-			&dateModified,
-			&active,
-			&jobID,
-			&name,
-			&phaseOrder,
-			&status,
-		)
-		if err != nil {
+		dest := []any{&id, &dateCreated, &dateModified, &active, &jobID, &name, &phaseOrder, &status}
+		dest = append(dest, approval.scanDest()...)
+		if err := rows.Scan(dest...); err != nil {
 			return nil, fmt.Errorf("failed to scan job phase row: %w", err)
 		}
 
@@ -540,6 +605,7 @@ func (r *PostgresJobPhaseRepository) ListByJob(
 		if v, ok := pb.PhaseStatus_value[status]; ok {
 			phase.Status = pb.PhaseStatus(v)
 		}
+		approval.apply(phase)
 
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()

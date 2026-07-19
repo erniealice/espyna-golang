@@ -34,9 +34,10 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/audit"
 	serviceauth "github.com/erniealice/espyna-golang/internal/application/usecases/service/auth"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard"
+	"github.com/erniealice/espyna-golang/internal/application/usecases/service/omnisearch"
+	joblisttabsupport "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/job_list_tab_support"
 	jobtemplatesummary "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/job_template_summary"
 	outcomematrix "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/outcome_matrix"
-	"github.com/erniealice/espyna-golang/internal/application/usecases/service/omnisearch"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/performance"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/reporting"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/security"
@@ -81,6 +82,15 @@ type ServiceUseCases struct {
 	// to empty.
 	JobTemplateSummary *jobtemplatesummary.UseCases
 
+	// JobListTabSupport (20260718 courses-list-perf Rank-1) —
+	// service/operation/job_list_tab_support. ONE UNION-ALL statement for the
+	// job-list "/classes" tabstrip (all categories + active-template stubs),
+	// replacing 12 generic-List statements. Per-kind fail-closed gates
+	// (job_category:list, job_template:list). Sibling of JobTemplateSummary under
+	// service/operation; direct typed field. Nil-safe: no postgres provider →
+	// empty read.
+	JobListTabSupport *joblisttabsupport.UseCases
+
 	// OmniSearch (20260710) — service/omni_search. Generic cross-entity ⌘K
 	// command-palette search (client/subscription/subscription_group/plan/
 	// price_schedule/product), split by category, permission-gated per category
@@ -112,6 +122,7 @@ func NewServiceUseCases(
 	amort *amortization.UseCases,
 	operation *outcomematrix.UseCases,
 	jobTemplateSummary *jobtemplatesummary.UseCases,
+	jobListTabSupport *joblisttabsupport.UseCases,
 	omniSearch *omnisearch.UseCases,
 ) *ServiceUseCases {
 	return &ServiceUseCases{
@@ -125,6 +136,7 @@ func NewServiceUseCases(
 		Amortization:       amort,
 		OutcomeMatrix:      operation,
 		JobTemplateSummary: jobTemplateSummary,
+		JobListTabSupport:  jobListTabSupport,
 		OmniSearch:         omniSearch,
 	}
 }

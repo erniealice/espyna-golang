@@ -262,18 +262,40 @@ func paginationBounds(p *commonpb.PaginationRequest) (limit, offset int32) {
 }
 
 // buildListJobTemplateSummariesSQL is the pure SQL builder (no ctx, no DB — the
-// permission_query_test.go testing idiom). It assembles the full statement +
+// permission_query_test.go testing idiom). It assembles the two-CTE statement +
 // positional args in a fixed order:
 //
 //	$1                = workspaceID (referenced by EVERY table's workspace_id)
-//	$2 (if status!="")= the job status token
-//	$next (if group)  = subscription_group_id filter
-//	scope args        = scopeFn(startParam) result, spliced verbatim
+//	$2 (if status!="")= the job status token (bound INSIDE the jj CTE)
+//	$next (if group)  = subscription_group_id filter (bound on the OUTER sg join)
+//	scope args        = scopeFn(startParam) result, spliced into the jj CTE
 //	$next,$next+1     = LIMIT, OFFSET (when limit>0)
+//
+// The 20260718 courses-list-perf rewrite (P1: 1024ms→395ms, 310-row parity)
+// forces a hash-join plan structurally instead of relying on planner knobs:
+//
+//	jj  MATERIALIZED CTE = job ⋈ job_template, pre-filtered (workspace, active,
+//	     subscription origin, optional status, optional STAFF row-scope). Emits
+//	     one row per (job, template) carrying the subscription_id/client_id/
+//	     output_product_id hash-join keys.
+//	dd  MATERIALIZED CTE = subscription_seat ⋈ product_plan ⋈ staff ⋈ "user"
+//	     (LEFT) ⋈ subscription_group_member — the deliverer/group side, keyed by
+//	     (subscription_id, client_id, product_id). sgm is correlated to the seat
+//	     on (subscription_id, client_id): in the original both sgm AND ss bind to
+//	     the job's (origin_id, client_id), so binding them to each other is
+//	     transitively identical once jj joins in.
+//
+// jj ⋈ dd on (subscription_id, client_id, output_product_id/product_id) restores
+// the original inner-join semantics (the seat's product_plan.product_id must
+// equal the template's output_product_id); sg/ps/op then join at the outer level
+// and GROUP BY folds the staff axis. Row grain, column order, GROUP BY and ORDER
+// BY are byte-equivalent to the pre-rewrite aggregate.
 //
 // scopeFn receives the placeholder index at which its args begin, so the caller
 // (principalscope.StaffReachableJobClause) and this builder never disagree on
-// numbering. A nil scopeFn (or one returning "") leaves the query unscoped.
+// numbering. The scope clause aliases the job table as "j" — which is exactly
+// the jj CTE's inner alias — so it splices into the jj CTE's WHERE. A nil scopeFn
+// (or one returning "") leaves the query unscoped.
 func buildListJobTemplateSummariesSQL(
 	workspaceID, status, groupID string,
 	limit, offset int32,
@@ -282,24 +304,33 @@ func buildListJobTemplateSummariesSQL(
 	args = []any{workspaceID}
 	p := 2
 
-	where := "WHERE j.job_template_id IS NOT NULL" +
+	// jjWhere is the jj CTE's inner WHERE: base subscription-job predicates +
+	// optional status + optional STAFF row-scope (all on the job aliased "j").
+	jjWhere := "WHERE j.job_template_id IS NOT NULL" +
 		" AND j.workspace_id = $1" +
 		" AND j.active" +
 		" AND j.origin_type = '" + originTypeSubscriptionToken + "'"
 
 	if status != "" {
-		where += fmt.Sprintf(" AND j.status = $%d", p)
+		jjWhere += fmt.Sprintf(" AND j.status = $%d", p)
 		args = append(args, status)
 		p++
 	}
+
+	// The optional group filter stays on the OUTER sg join (sg is joined after
+	// the jj×dd hash join). Its placeholder is numbered before the scope args, so
+	// the arg order remains (ws, status, group, scope…, limit, offset) — identical
+	// to the pre-rewrite builder.
+	outerWhere := ""
 	if groupID != "" {
-		where += fmt.Sprintf(" AND sg.id = $%d", p)
+		outerWhere = fmt.Sprintf("\nWHERE sg.id = $%d", p)
 		args = append(args, groupID)
 		p++
 	}
+
 	if scopeFn != nil {
 		clause, scopeArgs := scopeFn(p)
-		where += clause
+		jjWhere += clause
 		args = append(args, scopeArgs...)
 		p += len(scopeArgs)
 	}
@@ -311,61 +342,97 @@ func buildListJobTemplateSummariesSQL(
 		p += 2
 	}
 
-	stmt = jobTemplateSummarySelectFrom() + "\n" + where + "\n" + jobTemplateSummaryGroupOrder() + limitClause
+	stmt = jobTemplateSummaryCTEs(jjWhere) + "\n" +
+		jobTemplateSummarySelectFrom() + outerWhere + "\n" +
+		jobTemplateSummaryGroupOrder() + limitClause
 	return stmt, args
 }
 
-// jobTemplateSummarySelectFrom is the SELECT + FROM + JOIN skeleton. EVERY table
-// identifier comes from registry/entityid constants (infra-sql-table-name-source
-// rule — never a quoted literal). "user" is the ONE double-quoted identifier
-// (reserved word), exactly as the staff CTE join / outcome_matrix adapter do.
-// Every table with a workspace_id column is bound to $1; product_plan and "user"
-// have none and are bound transitively (see the method doc).
+// jobTemplateSummaryCTEs builds the two MATERIALIZED CTE definitions (jj, dd).
+// EVERY table identifier comes from registry/entityid constants (infra-sql-
+// table-name-source rule — never a quoted literal). "user" is the ONE double-
+// quoted identifier (reserved word). jjWhere carries the job-side predicates
+// (built by buildListJobTemplateSummariesSQL: workspace/active/origin + optional
+// status + optional STAFF row-scope on the "j" alias). MATERIALIZED pins the
+// hash-join plan (P1 empirical win) regardless of small-table stats.
+func jobTemplateSummaryCTEs(jjWhere string) string {
+	return `WITH jj AS MATERIALIZED (
+    SELECT
+        j.id               AS job_id,
+        j.origin_id        AS subscription_id,
+        j.client_id        AS client_id,
+        jt.id              AS template_id,
+        jt.name            AS template_name,
+        jt.output_product_id AS output_product_id
+    FROM ` + entityid.Job + ` j
+    JOIN ` + entityid.JobTemplate + ` jt
+           ON jt.id = j.job_template_id AND jt.workspace_id = $1 AND jt.active
+    ` + jjWhere + `
+),
+dd AS MATERIALIZED (
+    SELECT
+        ss.subscription_id       AS subscription_id,
+        ss.client_id             AS client_id,
+        pl.product_id            AS product_id,
+        st.id                    AS staff_id,
+        u.first_name             AS first_name,
+        u.last_name              AS last_name,
+        sgm.subscription_group_id AS subscription_group_id
+    FROM ` + entityid.SubscriptionSeat + ` ss
+    JOIN ` + entityid.ProductPlan + ` pl
+           ON pl.id = ss.product_plan_id
+    JOIN ` + entityid.Staff + ` st
+           ON st.id = ss.staff_id AND st.workspace_id = $1
+    LEFT JOIN "` + entityid.User + `" u
+           ON u.id = st.user_id AND u.active
+    JOIN ` + entityid.SubscriptionGroupMember + ` sgm
+           ON sgm.subscription_id = ss.subscription_id AND sgm.client_id = ss.client_id
+          AND sgm.workspace_id = $1 AND sgm.active
+    WHERE ss.status = 'active' AND ss.active AND ss.workspace_id = $1
+)`
+}
+
+// jobTemplateSummarySelectFrom is the OUTER SELECT + FROM over the two CTEs. It
+// hash-joins jj×dd on (subscription_id, client_id, output_product_id/product_id)
+// — restoring the original seat/plan-product ↔ template-output match — then joins
+// subscription_group (sg), price_schedule (ps, LEFT) and product (op, LEFT) at
+// the outer level. Every table with a workspace_id column is bound to $1;
+// product_plan and "user" (inside dd) have none and are bound transitively.
 func jobTemplateSummarySelectFrom() string {
 	return `SELECT
-    jt.id                          AS job_template_id,
-    jt.name                        AS job_template_name,
+    jj.template_id                 AS job_template_id,
+    jj.template_name               AS job_template_name,
     sg.id                          AS subscription_group_id,
     sg.name                        AS subscription_group_name,
-    st.id                          AS staff_id,
-    COALESCE(NULLIF(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')), ''), st.id) AS staff_name,
-    COUNT(DISTINCT j.id)           AS job_count,
+    dd.staff_id                    AS staff_id,
+    COALESCE(NULLIF(TRIM(COALESCE(dd.first_name, '') || ' ' || COALESCE(dd.last_name, '')), ''), dd.staff_id) AS staff_name,
+    COUNT(DISTINCT jj.job_id)      AS job_count,
     ps.id                          AS price_schedule_id,
     ps.name                        AS price_schedule_name,
-    jt.output_product_id           AS output_product_id,
+    jj.output_product_id           AS output_product_id,
     op.name                        AS output_product_name
-FROM ` + entityid.Job + ` j
-JOIN ` + entityid.JobTemplate + ` jt
-       ON jt.id = j.job_template_id AND jt.workspace_id = $1 AND jt.active
-JOIN ` + entityid.SubscriptionGroupMember + ` sgm
-       ON sgm.subscription_id = j.origin_id AND sgm.client_id = j.client_id
-      AND sgm.workspace_id = $1 AND sgm.active
+FROM jj
+JOIN dd
+       ON dd.subscription_id = jj.subscription_id
+      AND dd.client_id = jj.client_id
+      AND dd.product_id = jj.output_product_id
 JOIN ` + entityid.SubscriptionGroup + ` sg
-       ON sg.id = sgm.subscription_group_id AND sg.workspace_id = $1 AND sg.active
+       ON sg.id = dd.subscription_group_id AND sg.workspace_id = $1 AND sg.active
 LEFT JOIN ` + entityid.PriceSchedule + ` ps
        ON ps.id = sg.price_schedule_id AND ps.workspace_id = $1
-JOIN ` + entityid.SubscriptionSeat + ` ss
-       ON ss.subscription_id = j.origin_id AND ss.client_id = j.client_id
-      AND ss.status = 'active' AND ss.active AND ss.workspace_id = $1
-JOIN ` + entityid.ProductPlan + ` pl
-       ON pl.id = ss.product_plan_id AND pl.product_id = jt.output_product_id
-JOIN ` + entityid.Staff + ` st
-       ON st.id = ss.staff_id AND st.workspace_id = $1
-LEFT JOIN "` + entityid.User + `" u
-       ON u.id = st.user_id AND u.active
 LEFT JOIN ` + entityid.Product + ` op
-       ON op.id = jt.output_product_id AND op.workspace_id = $1`
+       ON op.id = jj.output_product_id AND op.workspace_id = $1`
 }
 
 // jobTemplateSummaryGroupOrder is the GROUP BY + ORDER BY tail. The grain is one
 // row per (template, group, staff, schedule, product); a merged, multi-deliverer
 // template produces one row per staff (collateDeliverySummaries folds them into one
 // summary carrying all deliverers). ORDER BY group name then template name is the
-// LOCKED view order; the trailing staff_name, st.id keys make the per-template
+// LOCKED view order; the trailing staff_name, dd.staff_id keys make the per-template
 // DELIVERER order deterministic (a stable multi-name render). The leading
-// `sg.name, jt.name` prefix is unchanged, so a template's rows stay contiguous.
+// `sg.name, jj.template_name` prefix is unchanged, so a template's rows stay contiguous.
 func jobTemplateSummaryGroupOrder() string {
-	return `GROUP BY jt.id, jt.name, sg.id, sg.name, st.id, u.first_name, u.last_name,
-         ps.id, ps.name, jt.output_product_id, op.name
-ORDER BY sg.name, jt.name, staff_name, st.id`
+	return `GROUP BY jj.template_id, jj.template_name, sg.id, sg.name, dd.staff_id, dd.first_name, dd.last_name,
+         ps.id, ps.name, jj.output_product_id, op.name
+ORDER BY sg.name, jj.template_name, staff_name, dd.staff_id`
 }

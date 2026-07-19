@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	adaptercore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/internal/application/ports/security"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	"github.com/erniealice/espyna-golang/registry/entityid"
@@ -358,7 +359,13 @@ func (q *PostgresPermissionQuery) GetUserPermissionCodes(
 		return []string{}, nil
 	}
 
-	rows, err := q.db.QueryContext(ctx, stmt, args...)
+	// Read on the ambient executor: the active *sql.Tx when the caller is inside a
+	// transaction (so an in-transaction authorization decision — the approval verb
+	// gate / publish override, codex P3 §A1 — reflects the same snapshot as the
+	// surrounding work), else the pooled *sql.DB. Strictly safer than a bare
+	// q.db.QueryContext for every caller.
+	exec := adaptercore.ExecutorFromContext(ctx, q.db)
+	rows, err := exec.QueryContext(ctx, stmt, args...)
 	if err != nil {
 		return nil, fmt.Errorf("permission_query: %w", err)
 	}

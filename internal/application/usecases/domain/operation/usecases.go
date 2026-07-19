@@ -1,6 +1,8 @@
 package operation
 
 import (
+	"context"
+
 	// Operation use cases
 	criteriaOptionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/criteria_option"
 	criteriaThresholdUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/criteria_threshold"
@@ -530,6 +532,20 @@ func NewUseCases(
 			ActionGatekeeper: actionGate,
 		},
 	)
+
+	// FIX-3 submit-time freshness barrier: inject the sheet-recompute port into the
+	// job_phase adapter so SubmitJobPhaseApproval can finalize phase + job summaries
+	// on its own transition transaction, post-lock/pre-flip. The adapter (built by a
+	// registry factory) cannot import the use-case layer, so the closure is injected
+	// here via a type-asserted setter — the same post-construction shape as the audit
+	// dependency. On the postgres provider repos.JobPhase implements SetSheetRecompute;
+	// the mock/firestore providers do not, so the assertion is a safe no-op there and
+	// the barrier is only active where a real transaction exists.
+	if setter, ok := repos.JobPhase.(interface {
+		SetSheetRecompute(fn func(ctx context.Context, phaseIDs, jobIDs []string) error)
+	}); ok {
+		setter.SetSheetRecompute(gradeComputeUC.SheetRecompute)
+	}
 
 	// Performance Evaluation (20260604 v1).
 	evaluationUC := evaluationUseCases.NewUseCases(

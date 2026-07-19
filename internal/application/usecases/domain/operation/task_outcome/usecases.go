@@ -13,25 +13,25 @@ type TaskOutcomeRepositories struct {
 
 // TaskOutcomeServices groups all business service dependencies
 type TaskOutcomeServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // UseCases contains all task_outcome-related use cases
 type UseCases struct {
-	CreateTaskOutcome          *CreateTaskOutcomeUseCase
-	ReadTaskOutcome            *ReadTaskOutcomeUseCase
-	UpdateTaskOutcome          *UpdateTaskOutcomeUseCase
-	DeleteTaskOutcome          *DeleteTaskOutcomeUseCase
-	ListTaskOutcomes           *ListTaskOutcomesUseCase
-	GetTaskOutcomeListPageData *GetTaskOutcomeListPageDataUseCase
-	GetTaskOutcomeItemPageData *GetTaskOutcomeItemPageDataUseCase
-	ListByJobTask              *ListByJobTaskUseCase
-	ListByJobPhase             *ListByJobPhaseUseCase
-	ListByJob                  *ListByJobUseCase
+	CreateTaskOutcome               *CreateTaskOutcomeUseCase
+	ReadTaskOutcome                 *ReadTaskOutcomeUseCase
+	UpdateTaskOutcome               *UpdateTaskOutcomeUseCase
+	DeleteTaskOutcome               *DeleteTaskOutcomeUseCase
+	ListTaskOutcomes                *ListTaskOutcomesUseCase
+	GetTaskOutcomeListPageData      *GetTaskOutcomeListPageDataUseCase
+	GetTaskOutcomeItemPageData      *GetTaskOutcomeItemPageDataUseCase
+	ListByJobTask                   *ListByJobTaskUseCase
+	ListByJobPhase                  *ListByJobPhaseUseCase
+	ListByJob                       *ListByJobUseCase
 	ListCodedTaskOutcomeValuesByJob *ListCodedTaskOutcomeValuesByJobUseCase
 }
 
@@ -45,10 +45,10 @@ func NewUseCases(
 	}
 	createServices := CreateTaskOutcomeServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer:  services.Authorizer,
-		Transactor:  services.Transactor,
-		Translator:  services.Translator,
-		IDGenerator: services.IDGenerator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
+		IDGenerator:      services.IDGenerator,
 	}
 
 	readRepos := ReadTaskOutcomeRepositories{
@@ -56,9 +56,9 @@ func NewUseCases(
 	}
 	readServices := ReadTaskOutcomeServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	updateRepos := UpdateTaskOutcomeRepositories{
@@ -66,9 +66,9 @@ func NewUseCases(
 	}
 	updateServices := UpdateTaskOutcomeServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	deleteRepos := DeleteTaskOutcomeRepositories{
@@ -76,9 +76,9 @@ func NewUseCases(
 	}
 	deleteServices := DeleteTaskOutcomeServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listRepos := ListTaskOutcomesRepositories{
@@ -86,9 +86,9 @@ func NewUseCases(
 	}
 	listServices := ListTaskOutcomesServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listPageDataRepos := GetTaskOutcomeListPageDataRepositories{
@@ -96,9 +96,9 @@ func NewUseCases(
 	}
 	listPageDataServices := GetTaskOutcomeListPageDataServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	itemPageDataRepos := GetTaskOutcomeItemPageDataRepositories{
@@ -106,9 +106,9 @@ func NewUseCases(
 	}
 	itemPageDataServices := GetTaskOutcomeItemPageDataServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listByJobTaskRepos := ListByJobTaskRepositories{
@@ -116,9 +116,9 @@ func NewUseCases(
 	}
 	listByJobTaskServices := ListByJobTaskServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listByJobPhaseRepos := ListByJobPhaseRepositories{
@@ -126,9 +126,9 @@ func NewUseCases(
 	}
 	listByJobPhaseServices := ListByJobPhaseServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listByJobRepos := ListByJobRepositories{
@@ -136,9 +136,9 @@ func NewUseCases(
 	}
 	listByJobServices := ListByJobServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listCodedByJobRepos := ListCodedTaskOutcomeValuesByJobRepositories{
@@ -152,16 +152,16 @@ func NewUseCases(
 	}
 
 	return &UseCases{
-		CreateTaskOutcome:          NewCreateTaskOutcomeUseCase(createRepos, createServices),
-		ReadTaskOutcome:            NewReadTaskOutcomeUseCase(readRepos, readServices),
-		UpdateTaskOutcome:          NewUpdateTaskOutcomeUseCase(updateRepos, updateServices),
-		DeleteTaskOutcome:          NewDeleteTaskOutcomeUseCase(deleteRepos, deleteServices),
-		ListTaskOutcomes:           NewListTaskOutcomesUseCase(listRepos, listServices),
-		GetTaskOutcomeListPageData: NewGetTaskOutcomeListPageDataUseCase(listPageDataRepos, listPageDataServices),
-		GetTaskOutcomeItemPageData: NewGetTaskOutcomeItemPageDataUseCase(itemPageDataRepos, itemPageDataServices),
-		ListByJobTask:              NewListByJobTaskUseCase(listByJobTaskRepos, listByJobTaskServices),
-		ListByJobPhase:             NewListByJobPhaseUseCase(listByJobPhaseRepos, listByJobPhaseServices),
-		ListByJob:                  NewListByJobUseCase(listByJobRepos, listByJobServices),
+		CreateTaskOutcome:               NewCreateTaskOutcomeUseCase(createRepos, createServices),
+		ReadTaskOutcome:                 NewReadTaskOutcomeUseCase(readRepos, readServices),
+		UpdateTaskOutcome:               NewUpdateTaskOutcomeUseCase(updateRepos, updateServices),
+		DeleteTaskOutcome:               NewDeleteTaskOutcomeUseCase(deleteRepos, deleteServices),
+		ListTaskOutcomes:                NewListTaskOutcomesUseCase(listRepos, listServices),
+		GetTaskOutcomeListPageData:      NewGetTaskOutcomeListPageDataUseCase(listPageDataRepos, listPageDataServices),
+		GetTaskOutcomeItemPageData:      NewGetTaskOutcomeItemPageDataUseCase(itemPageDataRepos, itemPageDataServices),
+		ListByJobTask:                   NewListByJobTaskUseCase(listByJobTaskRepos, listByJobTaskServices),
+		ListByJobPhase:                  NewListByJobPhaseUseCase(listByJobPhaseRepos, listByJobPhaseServices),
+		ListByJob:                       NewListByJobUseCase(listByJobRepos, listByJobServices),
 		ListCodedTaskOutcomeValuesByJob: NewListCodedTaskOutcomeValuesByJobUseCase(listCodedByJobRepos, listCodedByJobServices),
 	}
 }

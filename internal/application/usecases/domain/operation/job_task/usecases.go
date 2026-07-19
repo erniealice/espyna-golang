@@ -9,8 +9,8 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
 )
 
@@ -21,11 +21,11 @@ type JobTaskRepositories struct {
 
 // JobTaskServices groups all business service dependencies
 type JobTaskServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // UseCases contains all job-task-related use cases
@@ -51,74 +51,76 @@ func NewUseCases(
 			repositories: CreateJobTaskRepositories{JobTask: repositories.JobTask},
 			services: CreateJobTaskServices{
 				ActionGatekeeper: services.ActionGatekeeper,
-				Authorizer:  services.Authorizer,
-				Transactor:  services.Transactor,
-				Translator:  services.Translator,
-				IDGenerator: services.IDGenerator,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
+				IDGenerator:      services.IDGenerator,
 			},
 		},
 		ReadJobTask: &ReadJobTaskUseCase{
 			repositories: ReadJobTaskRepositories{JobTask: repositories.JobTask},
 			services: ReadJobTaskServices{
 				ActionGatekeeper: services.ActionGatekeeper,
-				Authorizer: services.Authorizer,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Translator:       services.Translator,
 			},
 		},
 		UpdateJobTask: &UpdateJobTaskUseCase{
 			repositories: UpdateJobTaskRepositories{JobTask: repositories.JobTask},
 			services: UpdateJobTaskServices{
 				ActionGatekeeper: services.ActionGatekeeper,
-				Authorizer: services.Authorizer,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
 			},
 		},
 		DeleteJobTask: &DeleteJobTaskUseCase{
 			repositories: DeleteJobTaskRepositories{JobTask: repositories.JobTask},
 			services: DeleteJobTaskServices{
 				ActionGatekeeper: services.ActionGatekeeper,
-				Authorizer: services.Authorizer,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
 			},
 		},
 		ListJobTasks: &ListJobTasksUseCase{
 			repositories: ListJobTasksRepositories{JobTask: repositories.JobTask},
 			services: ListJobTasksServices{
 				ActionGatekeeper: services.ActionGatekeeper,
-				Authorizer: services.Authorizer,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Translator:       services.Translator,
 			},
 		},
 		GetJobTaskListPageData: &GetJobTaskListPageDataUseCase{
 			repositories: GetJobTaskListPageDataRepositories{JobTask: repositories.JobTask},
 			services: GetJobTaskListPageDataServices{
 				ActionGatekeeper: services.ActionGatekeeper,
-				Authorizer: services.Authorizer,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Translator:       services.Translator,
 			},
 		},
 		GetJobTaskItemPageData: &GetJobTaskItemPageDataUseCase{
 			repositories: GetJobTaskItemPageDataRepositories{JobTask: repositories.JobTask},
 			services: GetJobTaskItemPageDataServices{
 				ActionGatekeeper: services.ActionGatekeeper,
-				Authorizer: services.Authorizer,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Translator:       services.Translator,
 			},
 		},
 		ListByPhase: &ListByPhaseUseCase{
 			repositories: ListByPhaseRepositories{JobTask: repositories.JobTask},
 			services: ListByPhaseServices{
 				ActionGatekeeper: services.ActionGatekeeper,
-				Authorizer: services.Authorizer,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Translator:       services.Translator,
 			},
 		},
 		ListByAssignee: &ListByAssigneeUseCase{
 			repositories: ListByAssigneeRepositories{JobTask: repositories.JobTask},
 			services: ListByAssigneeServices{
 				ActionGatekeeper: services.ActionGatekeeper,
-				Authorizer: services.Authorizer,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Translator:       services.Translator,
 			},
 		},
 	}
@@ -128,11 +130,11 @@ func NewUseCases(
 
 type CreateJobTaskRepositories struct{ JobTask pb.JobTaskDomainServiceServer }
 type CreateJobTaskServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 type CreateJobTaskUseCase struct {
 	repositories CreateJobTaskRepositories
@@ -167,6 +169,41 @@ func (uc *CreateJobTaskUseCase) Execute(ctx context.Context, req *pb.CreateJobTa
 	req.Data.DateModifiedString = &dcs
 	req.Data.Active = true
 
+	// Approval-aware (PostgreSQL) path: creating a new task under a phase is a
+	// membership/data-grain mutation, so it must run the phase-level cell-write lock
+	// protocol inside a transaction (codex P3 §A2 — generic JobTask create was
+	// unguarded). Require a transaction — NO nontransactional fallback for the
+	// guarded path.
+	phaseGuard, phaseGuarded := uc.repositories.JobTask.(jobTaskPhaseGuard)
+	txCapable := uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions()
+	if txCapable && !phaseGuarded {
+		// A transactional (PostgreSQL) provider whose guard capability was stripped
+		// by a wrapper — fail closed rather than silently bypass the lock protocol.
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_task.errors.guard_required", "job task create requires the cell-write guard on a transactional provider [DEFAULT]"))
+	}
+	if phaseGuarded {
+		if !txCapable {
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_task.errors.transaction_required", "job task create requires a transaction (cell-write lock protocol) [DEFAULT]"))
+		}
+		var result *pb.CreateJobTaskResponse
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+			if gerr := phaseGuard.GuardPhaseWrite(txCtx, req.Data.JobPhaseId); gerr != nil {
+				return gerr
+			}
+			res, err := uc.repositories.JobTask.CreateJobTask(txCtx, req)
+			if err != nil {
+				return err
+			}
+			result = res
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		return result, nil
+	}
+
+	// Non-guarded provider (mock/firestore) — behaviour unchanged.
 	if uc.services.Transactor != nil {
 		var result *pb.CreateJobTaskResponse
 		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
@@ -185,12 +222,20 @@ func (uc *CreateJobTaskUseCase) Execute(ctx context.Context, req *pb.CreateJobTa
 	return uc.repositories.JobTask.CreateJobTask(ctx, req)
 }
 
+// jobTaskPhaseGuard is the optional phase-level cell-write lock capability the
+// PostgreSQL job_task adapter implements (see GuardPhaseWrite). Used by generic
+// Create to lock the TARGET phase before inserting a new task. Mock/firestore
+// providers do not implement it.
+type jobTaskPhaseGuard interface {
+	GuardPhaseWrite(ctx context.Context, jobPhaseID string) error
+}
+
 // ---- ReadJobTask ----
 
 type ReadJobTaskRepositories struct{ JobTask pb.JobTaskDomainServiceServer }
 type ReadJobTaskServices struct {
-	Authorizer ports.Authorizer
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type ReadJobTaskUseCase struct {
@@ -216,8 +261,9 @@ func (uc *ReadJobTaskUseCase) Execute(ctx context.Context, req *pb.ReadJobTaskRe
 
 type UpdateJobTaskRepositories struct{ JobTask pb.JobTaskDomainServiceServer }
 type UpdateJobTaskServices struct {
-	Authorizer ports.Authorizer
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type UpdateJobTaskUseCase struct {
@@ -241,6 +287,36 @@ func (uc *UpdateJobTaskUseCase) Execute(ctx context.Context, req *pb.UpdateJobTa
 	req.Data.DateModified = &dm
 	req.Data.DateModifiedString = &dms
 
+	// Approval-aware (PostgreSQL) path: a generic job_task update must run under
+	// the cell-write lock protocol so it cannot mutate a task whose sheet has
+	// advanced past IN_PROGRESS or been hard-frozen (codex FIX-FIRST 2). Require a
+	// transaction — NO nontransactional fallback for the guarded path.
+	guard, guarded := uc.repositories.JobTask.(jobTaskCellGuard)
+	txCapable := uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions()
+	if txCapable && !guarded {
+		// codex P3 §A2: a transactional (PostgreSQL) provider whose guard capability
+		// was stripped by a wrapper must fail closed, not silently skip the guard.
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_task.errors.guard_required", "job task update requires the cell-write guard on a transactional provider [DEFAULT]"))
+	}
+	if guarded {
+		if !txCapable {
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_task.errors.transaction_required", "job task update requires a transaction (cell-write lock protocol) [DEFAULT]"))
+		}
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+			if gerr := guard.GuardCellWrite(txCtx, req.Data.Id); gerr != nil {
+				return gerr
+			}
+			if _, uerr := uc.repositories.JobTask.UpdateJobTask(txCtx, req); uerr != nil {
+				return uerr
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &pb.UpdateJobTaskResponse{Success: true, Data: []*pb.JobTask{req.Data}}, nil
+	}
+
 	_, err := uc.repositories.JobTask.UpdateJobTask(ctx, req)
 	if err != nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_task.errors.update_failed", "job task update failed [DEFAULT]"))
@@ -248,12 +324,20 @@ func (uc *UpdateJobTaskUseCase) Execute(ctx context.Context, req *pb.UpdateJobTa
 	return &pb.UpdateJobTaskResponse{Success: true, Data: []*pb.JobTask{req.Data}}, nil
 }
 
+// jobTaskCellGuard is the optional cell-write lock capability the PostgreSQL
+// job_task adapter implements (see GuardCellWrite). Mock/firestore providers do
+// not, so their generic update path is unchanged.
+type jobTaskCellGuard interface {
+	GuardCellWrite(ctx context.Context, jobTaskID string) error
+}
+
 // ---- DeleteJobTask ----
 
 type DeleteJobTaskRepositories struct{ JobTask pb.JobTaskDomainServiceServer }
 type DeleteJobTaskServices struct {
-	Authorizer ports.Authorizer
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type DeleteJobTaskUseCase struct {
@@ -268,6 +352,38 @@ func (uc *DeleteJobTaskUseCase) Execute(ctx context.Context, req *pb.DeleteJobTa
 	if req == nil || req.Data == nil || req.Data.Id == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_task.validation.id_required", "job task ID is required"))
 	}
+
+	// Approval-aware (PostgreSQL) path: deleting a task is a membership/data-grain
+	// mutation, so it must run the cell-write lock protocol inside a transaction
+	// (codex P3 §A2 — generic JobTask delete had no transaction or guard). Require a
+	// transaction — NO nontransactional fallback for the guarded path.
+	guard, guarded := uc.repositories.JobTask.(jobTaskCellGuard)
+	txCapable := uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions()
+	if txCapable && !guarded {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_task.errors.guard_required", "job task delete requires the cell-write guard on a transactional provider [DEFAULT]"))
+	}
+	if guarded {
+		if !txCapable {
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_task.errors.transaction_required", "job task delete requires a transaction (cell-write lock protocol) [DEFAULT]"))
+		}
+		var result *pb.DeleteJobTaskResponse
+		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+			if gerr := guard.GuardCellWrite(txCtx, req.Data.Id); gerr != nil {
+				return gerr
+			}
+			res, derr := uc.repositories.JobTask.DeleteJobTask(txCtx, req)
+			if derr != nil {
+				return derr
+			}
+			result = res
+			return nil
+		})
+		if err != nil {
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_task.errors.deletion_failed", "job task deletion failed [DEFAULT]"))
+		}
+		return result, nil
+	}
+
 	result, err := uc.repositories.JobTask.DeleteJobTask(ctx, req)
 	if err != nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_task.errors.deletion_failed", "job task deletion failed [DEFAULT]"))
@@ -279,8 +395,8 @@ func (uc *DeleteJobTaskUseCase) Execute(ctx context.Context, req *pb.DeleteJobTa
 
 type ListJobTasksRepositories struct{ JobTask pb.JobTaskDomainServiceServer }
 type ListJobTasksServices struct {
-	Authorizer ports.Authorizer
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type ListJobTasksUseCase struct {
@@ -306,8 +422,8 @@ func (uc *ListJobTasksUseCase) Execute(ctx context.Context, req *pb.ListJobTasks
 
 type GetJobTaskListPageDataRepositories struct{ JobTask pb.JobTaskDomainServiceServer }
 type GetJobTaskListPageDataServices struct {
-	Authorizer ports.Authorizer
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type GetJobTaskListPageDataUseCase struct {
@@ -329,8 +445,8 @@ func (uc *GetJobTaskListPageDataUseCase) Execute(ctx context.Context, req *pb.Ge
 
 type GetJobTaskItemPageDataRepositories struct{ JobTask pb.JobTaskDomainServiceServer }
 type GetJobTaskItemPageDataServices struct {
-	Authorizer ports.Authorizer
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type GetJobTaskItemPageDataUseCase struct {
@@ -352,8 +468,8 @@ func (uc *GetJobTaskItemPageDataUseCase) Execute(ctx context.Context, req *pb.Ge
 
 type ListByPhaseRepositories struct{ JobTask pb.JobTaskDomainServiceServer }
 type ListByPhaseServices struct {
-	Authorizer ports.Authorizer
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type ListByPhaseUseCase struct {
@@ -375,8 +491,8 @@ func (uc *ListByPhaseUseCase) Execute(ctx context.Context, req *pb.ListJobTasksB
 
 type ListByAssigneeRepositories struct{ JobTask pb.JobTaskDomainServiceServer }
 type ListByAssigneeServices struct {
-	Authorizer ports.Authorizer
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type ListByAssigneeUseCase struct {

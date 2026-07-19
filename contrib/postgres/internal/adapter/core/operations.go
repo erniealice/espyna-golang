@@ -1857,6 +1857,22 @@ func (p *PostgresOperations) GetExecutor(ctx context.Context) sqlexec.DBExecutor
 	return p.getExecutor(ctx)
 }
 
+// ExecutorFromContext returns the ambient *sql.Tx when a Pending transaction is
+// active in ctx, otherwise the supplied fallback (typically a pooled *sql.DB).
+// Adapters that hold ONLY a bare *sql.DB — e.g. the RBAC permission query — use
+// this to run a read on the CALLER'S transaction so an in-transaction
+// authorization decision reflects the same snapshot as the surrounding work
+// (codex P3 §A1: the approval verb / publish-override read must be ambient-tx,
+// not a pooled/cached verdict). Mirrors (*PostgresOperations).getExecutor.
+func ExecutorFromContext(ctx context.Context, fallback sqlexec.DBExecutor) sqlexec.DBExecutor {
+	if tx, ok := operations.GetTransactionFromContext(ctx); ok {
+		if pgTx, ok := tx.(*PostgreSQLTransaction); ok && pgTx.State() == interfaces.TransactionStatePending {
+			return pgTx.GetTx()
+		}
+	}
+	return fallback
+}
+
 // serializeValue converts map and slice values to JSON bytes so the SQL
 // driver can store them in JSONB columns. Primitive types pass through.
 func serializeValue(v any) any {

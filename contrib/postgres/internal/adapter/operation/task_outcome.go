@@ -82,6 +82,22 @@ func (r *PostgresTaskOutcomeRepository) executor(ctx context.Context) sqlexec.DB
 	return nil
 }
 
+// GuardCellWrite runs the shared CELL-WRITE lock protocol for the matrix cell that
+// the given job_task owns: parent job_template_phase FOR SHARE → owning job_phase
+// FOR UPDATE → recheck trusted workspace + ancestry + approval status (IN_PROGRESS)
+// + hard-frozen (guardCellWrite in job_phase_approval.go). The task_outcome
+// create/update/delete USE CASES call this INSIDE their transaction before the
+// leaf write, so a concurrent approval transition cannot flip the phase mid-edit
+// (codex FIX-FIRST 2). Additive — the historical/coded read paths are untouched.
+// Fails closed when no trusted workspace / no ambient transaction is present.
+func (r *PostgresTaskOutcomeRepository) GuardCellWrite(ctx context.Context, jobTaskID string) error {
+	id, ok := identity.FromContext(ctx)
+	if !ok || id == nil || id.WorkspaceID == "" {
+		return fmt.Errorf("task_outcome cell write: no trusted workspace in context (fail closed)")
+	}
+	return guardCellWrite(ctx, r.executor(ctx), jobTaskID, id.WorkspaceID)
+}
+
 // CreateTaskOutcome creates a new task_outcome record
 func (r *PostgresTaskOutcomeRepository) CreateTaskOutcome(ctx context.Context, req *pb.CreateTaskOutcomeRequest) (*pb.CreateTaskOutcomeResponse, error) {
 	if req.Data == nil {
@@ -183,6 +199,16 @@ func (r *PostgresTaskOutcomeRepository) UpdateTaskOutcome(ctx context.Context, r
 	convertMillisToTime(data, "dateModified")
 	convertMillisToTime(data, "recordedDate")
 	convertMillisToTime(data, "reviewedDate")
+
+	// Membership immutability (codex P3 §A2): a generic update can NEVER reparent an
+	// outcome into a different cell (job_task_id) or move it to another criterion
+	// (criteria_version_id) — either would relocate the leaf into a possibly-advanced
+	// sheet after a transition captured its locked set / blank count. Stripping the
+	// anchors from the partial-update payload leaves the existing columns untouched;
+	// the guardCellWrite protocol locks the EXISTING owner's phase, and this makes
+	// that guard sound (the "membership anchors are immutable" premise it relies on).
+	delete(data, "jobTaskId")
+	delete(data, "criteriaVersionId")
 
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {
@@ -485,9 +511,26 @@ func (r *PostgresTaskOutcomeRepository) ListByJobPhase(
 		return nil, fmt.Errorf("job phase ID is required")
 	}
 
+	// Use the transaction-aware executor so this JOIN read participates in an
+	// active *sql.Tx (and never nil-derefs a missing raw *sql.DB handle). The
+	// workspace-aware dbOps exposes GetExecutor(ctx); fall back to the stored
+	// pool only if that capability is somehow absent.
+	exec := r.executor(ctx)
+	if exec == nil {
+		return nil, fmt.Errorf("task_outcome ListByJobPhase: no SQL executor available")
+	}
+
 	// Staff row-scope (Phase 4): within a phase a STAFF principal sees only the
-	// outcomes it recorded_by OR reviewed_by ($2). Non-staff → empty clause.
+	// outcomes it recorded_by OR reviewed_by ($2). Non-staff → empty clause. The
+	// trusted submit-time recompute seam (codex P3 §A3) drops this scope so the
+	// system finalization rolls up the FULL sheet's inputs — honoured only on the
+	// ambient transition tx (fail-closed off the pool).
 	staffClause, staffArgs := principalscope.StaffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 2)
+	if drop, derr := dropStaffScopeForRecompute(ctx, exec); derr != nil {
+		return nil, derr
+	} else if drop {
+		staffClause, staffArgs = "", nil
+	}
 
 	query := `
 		SELECT
@@ -503,15 +546,6 @@ func (r *PostgresTaskOutcomeRepository) ListByJobPhase(
 		WHERE jt.job_phase_id = $1 AND to_.active = true` + staffClause + `
 		ORDER BY to_.date_created DESC
 	`
-
-	// Use the transaction-aware executor so this JOIN read participates in an
-	// active *sql.Tx (and never nil-derefs a missing raw *sql.DB handle). The
-	// workspace-aware dbOps exposes GetExecutor(ctx); fall back to the stored
-	// pool only if that capability is somehow absent.
-	exec := r.executor(ctx)
-	if exec == nil {
-		return nil, fmt.Errorf("task_outcome ListByJobPhase: no SQL executor available")
-	}
 	rows, err := exec.QueryContext(ctx, query, append([]any{req.JobPhaseId}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list task outcomes by job phase: %w", err)

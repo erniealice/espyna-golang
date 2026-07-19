@@ -134,6 +134,23 @@ func (a *PostgresJobTemplateSummaryQuery) ListJobTemplateSummaries(
 			priceScheduleName        sql.NullString
 			outputProductID          sql.NullString
 			outputProductName        sql.NullString
+			// job_template.job_category_id is a NULLABLE FK (esqyma job_template.proto
+			// field 32) — a legacy/uncategorized template row is NULL. Scan through
+			// sql.NullString and map NULL → "" (the read-model empty string); the
+			// landing view maps "" → the single "Uncategorized" bucket (R9 §3.0/§3.1),
+			// mirroring the price_schedule_id/output_product_id nullable-scan pattern
+			// above.
+			jobCategoryID sql.NullString
+			// R7 P4 approval preaggregate — template-wide (fields 14-17) + group+
+			// template (fields 18-21) grains. Counts/mixed are COALESCEd in SQL; the
+			// lowest ranks stay NULLable (NULL = zero data-bearing sheets → the enum
+			// UNSPECIFIED via approvalRankToStatus, the neutral not-started default).
+			publishedCount, phaseCount           int32
+			lowestRank                           sql.NullInt64
+			mixedAttention                       bool
+			groupPublishedCount, groupPhaseCount int32
+			groupLowestRank                      sql.NullInt64
+			groupMixedAttention                  bool
 		)
 		if err := rows.Scan(
 			&templateID, &templateName,
@@ -142,6 +159,9 @@ func (a *PostgresJobTemplateSummaryQuery) ListJobTemplateSummaries(
 			&jobCount,
 			&priceScheduleID, &priceScheduleName,
 			&outputProductID, &outputProductName,
+			&jobCategoryID,
+			&publishedCount, &phaseCount, &lowestRank, &mixedAttention,
+			&groupPublishedCount, &groupPhaseCount, &groupLowestRank, &groupMixedAttention,
 		); err != nil {
 			return nil, fmt.Errorf("job_template_summary: scan: %w", err)
 		}
@@ -149,11 +169,20 @@ func (a *PostgresJobTemplateSummaryQuery) ListJobTemplateSummaries(
 			templateID: templateID, templateName: templateName,
 			groupID: groupID, groupName: groupName,
 			staffID: staffID, staffName: staffName,
-			jobCount:          jobCount,
-			priceScheduleID:   priceScheduleID.String,
-			priceScheduleName: priceScheduleName.String,
-			outputProductID:   outputProductID.String,
-			outputProductName: outputProductName.String,
+			jobCount:            jobCount,
+			priceScheduleID:     priceScheduleID.String,
+			priceScheduleName:   priceScheduleName.String,
+			outputProductID:     outputProductID.String,
+			outputProductName:   outputProductName.String,
+			jobCategoryID:       jobCategoryID.String,
+			publishedCount:      publishedCount,
+			phaseCount:          phaseCount,
+			lowestRank:          nullRankToInt(lowestRank),
+			mixedAttention:      mixedAttention,
+			groupPublishedCount: groupPublishedCount,
+			groupPhaseCount:     groupPhaseCount,
+			groupLowestRank:     nullRankToInt(groupLowestRank),
+			groupMixedAttention: groupMixedAttention,
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -191,6 +220,27 @@ type summaryScanRow struct {
 	priceScheduleName        string
 	outputProductID          string
 	outputProductName        string
+	jobCategoryID            string // "" when the template's job_category FK is NULL (→ Uncategorized bucket)
+	// R7 P4 approval preaggregate. Ranks are the SQL ladder ranks (1..4); 0 =
+	// NULL = zero data-bearing sheets (→ PhaseApprovalStatus UNSPECIFIED).
+	// The template-wide quadruple is functionally determined by templateID; the
+	// group quadruple by (templateID, groupID) — both ⊆ the collation key, so
+	// they are constant across a key's folded staff rows (set-once first-seen).
+	publishedCount, phaseCount           int32
+	lowestRank                           int
+	mixedAttention                       bool
+	groupPublishedCount, groupPhaseCount int32
+	groupLowestRank                      int
+	groupMixedAttention                  bool
+}
+
+// nullRankToInt maps a NULLable SQL ladder rank to its int form (0 = NULL = no
+// data-bearing sheet at that grain; approvalRankToStatus(0) → UNSPECIFIED).
+func nullRankToInt(r sql.NullInt64) int {
+	if !r.Valid {
+		return 0
+	}
+	return int(r.Int64)
 }
 
 // collateDeliverySummaries folds the per-(template,staff) aggregate rows into ONE
@@ -222,6 +272,22 @@ func collateDeliverySummaries(scanned []summaryScanRow) []*summarypb.JobTemplate
 				PriceScheduleName:     r.priceScheduleName,
 				OutputProductId:       r.outputProductID,
 				OutputProductName:     r.outputProductName,
+				// job_category_id is functionally determined by the template, so it is
+				// constant across a collation key's folded staff rows — set once on
+				// first-seen. "" (NULL FK) collates to the Uncategorized bucket (§3.0).
+				JobCategoryId: r.jobCategoryID,
+				// R7 P4 approval quadruples — template-wide (14-17, determined by the
+				// template) and group+template (18-21, determined by (template, group)):
+				// both ⊆ the collation key, so set-once first-seen, constant across the
+				// folded staff rows. Rank 0 (no data-bearing sheet) → UNSPECIFIED.
+				PublishedCount:      r.publishedCount,
+				PhaseCount:          r.phaseCount,
+				LowestStatus:        approvalRankToStatus(r.lowestRank),
+				MixedAttention:      r.mixedAttention,
+				GroupPublishedCount: r.groupPublishedCount,
+				GroupPhaseCount:     r.groupPhaseCount,
+				GroupLowestStatus:   approvalRankToStatus(r.groupLowestRank),
+				GroupMixedAttention: r.groupMixedAttention,
 			}
 			byKey[key] = s
 			out = append(out, s)
@@ -262,7 +328,9 @@ func paginationBounds(p *commonpb.PaginationRequest) (limit, offset int32) {
 }
 
 // buildListJobTemplateSummariesSQL is the pure SQL builder (no ctx, no DB — the
-// permission_query_test.go testing idiom). It assembles the two-CTE statement +
+// permission_query_test.go testing idiom). It assembles ONE statement — the
+// jj/dd MATERIALIZED CTEs + the R7 P4 approval preaggregate CTEs (pa/tp/ta/ga)
+// + the `base` delivery aggregation + the top-level approval join — with
 // positional args in a fixed order:
 //
 //	$1                = workspaceID (referenced by EVERY table's workspace_id)
@@ -342,19 +410,61 @@ func buildListJobTemplateSummariesSQL(
 		p += 2
 	}
 
-	stmt = jobTemplateSummaryCTEs(jjWhere) + "\n" +
+	stmt = jobTemplateSummaryCTEs(jjWhere) + ",\nbase AS (\n" +
 		jobTemplateSummarySelectFrom() + outerWhere + "\n" +
-		jobTemplateSummaryGroupOrder() + limitClause
+		jobTemplateSummaryGroupOrder() + "\n)\n" +
+		jobTemplateSummaryApprovalSelect() + limitClause
 	return stmt, args
 }
 
-// jobTemplateSummaryCTEs builds the two MATERIALIZED CTE definitions (jj, dd).
+// approvalStatusRankCASE is the approval_status → ladder-rank mapping the
+// preaggregate CTEs use (1=IN_PROGRESS … 4=PUBLISHED; unknown token → 1,
+// fail-conservative). EXACTLY mirrors outcome_matrix_query.go's roll-up CASE so
+// the courses chip and the matrix bar can never disagree on rank semantics;
+// approvalRankToStatus (same package) maps the rank back to the enum.
+const approvalStatusRankCASE = `CASE jp.approval_status
+             WHEN 'PHASE_APPROVAL_STATUS_IN_PROGRESS' THEN 1
+             WHEN 'PHASE_APPROVAL_STATUS_FOR_REVIEW'  THEN 2
+             WHEN 'PHASE_APPROVAL_STATUS_VERIFIED'    THEN 3
+             WHEN 'PHASE_APPROVAL_STATUS_PUBLISHED'   THEN 4
+             ELSE 1 END`
+
+// jobTemplateSummaryCTEs builds the two MATERIALIZED CTE definitions (jj, dd)
+// PLUS the R7 P4 phase-approval preaggregate CTEs (pa → tp → ta / ga).
 // EVERY table identifier comes from registry/entityid constants (infra-sql-
 // table-name-source rule — never a quoted literal). "user" is the ONE double-
 // quoted identifier (reserved word). jjWhere carries the job-side predicates
 // (built by buildListJobTemplateSummariesSQL: workspace/active/origin + optional
 // status + optional STAFF row-scope on the "j" alias). MATERIALIZED pins the
 // hash-join plan (P1 empirical win) regardless of small-table stats.
+//
+// Approval preaggregate (plan 20260718-phase-approval-workflow §4.5 + the
+// 20260719-report-cards-landing §3.5 grain amendment; codex-tandem "Courses-list
+// chip" contract). Sourced from the SAME scoped jj job set as the delivery row
+// (the STAFF splice lives in jjWhere, so STAFF and admin see a chip over exactly
+// the job scope of their row), and fully COLLAPSED to its two output grains
+// BEFORE it ever meets the delivery join — raw job_phase/job_task/task_outcome
+// rows never enter the delivery aggregate (no job/deliverer fanout):
+//
+//	pa  (template, group, template_phase) grain: MIN/MAX approval ladder rank
+//	     over the slice's active template-backed job_phase rows + has_data
+//	     (>=1 active task_outcome under an active job_task — the SAME data seam
+//	     as the matrix roll-up / D6). All three aggregates are duplicate-
+//	     insensitive, so the task/outcome LEFT-join fanout inside pa is harmless
+//	     by construction. group_id comes from subscription_group_member on the
+//	     job's (origin subscription, client) — NULL (kept) when the job is in no
+//	     group: such rows still feed the template-wide grain but never a group.
+//	tp  (template, template_phase): pa collapsed across groups — the R7 sheet
+//	     grain (ALL rows of one (template, template_phase)).
+//	ta  one row/template (fields 14-17): the courses-row TEMPLATE-WIDE roll-up.
+//	ga  one row/(template, group) (fields 18-21): the R9 cell GROUP+TEMPLATE
+//	     roll-up. Both compute the SAME quadruple: phase_count counts only
+//	     DATA-BEARING sheets (no-data sheets are EXCLUDED from every aggregate —
+//	     the D3/Q-R9-1 denominator contract), published_count counts data-bearing
+//	     sheets whose every row is PUBLISHED (min_rank=4), lowest_rank is the
+//	     conservative LOWEST rank across data-bearing sheets (NULL when none —
+//	     scanned to UNSPECIFIED), mixed_attention is true when any data-bearing
+//	     sheet is internally mixed at that grain.
 func jobTemplateSummaryCTEs(jjWhere string) string {
 	return `WITH jj AS MATERIALIZED (
     SELECT
@@ -363,7 +473,8 @@ func jobTemplateSummaryCTEs(jjWhere string) string {
         j.client_id        AS client_id,
         jt.id              AS template_id,
         jt.name            AS template_name,
-        jt.output_product_id AS output_product_id
+        jt.output_product_id AS output_product_id,
+        jt.job_category_id AS job_category_id
     FROM ` + entityid.Job + ` j
     JOIN ` + entityid.JobTemplate + ` jt
            ON jt.id = j.job_template_id AND jt.workspace_id = $1 AND jt.active
@@ -389,15 +500,65 @@ dd AS MATERIALIZED (
            ON sgm.subscription_id = ss.subscription_id AND sgm.client_id = ss.client_id
           AND sgm.workspace_id = $1 AND sgm.active
     WHERE ss.status = 'active' AND ss.active AND ss.workspace_id = $1
+),
+pa AS (
+    SELECT
+        jj.template_id            AS template_id,
+        gm.subscription_group_id  AS group_id,
+        jp.template_phase_id      AS template_phase_id,
+        MIN(` + approvalStatusRankCASE + `) AS min_rank,
+        MAX(` + approvalStatusRankCASE + `) AS max_rank,
+        BOOL_OR(tox.job_task_id IS NOT NULL) AS has_data
+    FROM jj
+    JOIN ` + entityid.JobPhase + ` jp
+           ON jp.job_id = jj.job_id AND jp.active AND jp.template_phase_id IS NOT NULL
+    LEFT JOIN ` + entityid.JobTask + ` tk
+           ON tk.job_phase_id = jp.id AND tk.active
+    LEFT JOIN ` + entityid.TaskOutcome + ` tox
+           ON tox.job_task_id = tk.id AND tox.active
+    LEFT JOIN ` + entityid.SubscriptionGroupMember + ` gm
+           ON gm.subscription_id = jj.subscription_id AND gm.client_id = jj.client_id
+          AND gm.workspace_id = $1 AND gm.active
+    GROUP BY jj.template_id, gm.subscription_group_id, jp.template_phase_id
+),
+tp AS (
+    SELECT template_id, template_phase_id,
+           MIN(min_rank)     AS min_rank,
+           MAX(max_rank)     AS max_rank,
+           BOOL_OR(has_data) AS has_data
+    FROM pa
+    GROUP BY template_id, template_phase_id
+),
+ta AS (
+    SELECT template_id,
+           COUNT(*) FILTER (WHERE has_data AND min_rank = 4) AS published_count,
+           COUNT(*) FILTER (WHERE has_data)                  AS phase_count,
+           MIN(min_rank) FILTER (WHERE has_data)             AS lowest_rank,
+           COALESCE(BOOL_OR(min_rank <> max_rank) FILTER (WHERE has_data), false) AS mixed_attention
+    FROM tp
+    GROUP BY template_id
+),
+ga AS (
+    SELECT template_id, group_id,
+           COUNT(*) FILTER (WHERE has_data AND min_rank = 4) AS published_count,
+           COUNT(*) FILTER (WHERE has_data)                  AS phase_count,
+           MIN(min_rank) FILTER (WHERE has_data)             AS lowest_rank,
+           COALESCE(BOOL_OR(min_rank <> max_rank) FILTER (WHERE has_data), false) AS mixed_attention
+    FROM pa
+    WHERE group_id IS NOT NULL
+    GROUP BY template_id, group_id
 )`
 }
 
-// jobTemplateSummarySelectFrom is the OUTER SELECT + FROM over the two CTEs. It
-// hash-joins jj×dd on (subscription_id, client_id, output_product_id/product_id)
-// — restoring the original seat/plan-product ↔ template-output match — then joins
-// subscription_group (sg), price_schedule (ps, LEFT) and product (op, LEFT) at
-// the outer level. Every table with a workspace_id column is bound to $1;
-// product_plan and "user" (inside dd) have none and are bound transitively.
+// jobTemplateSummarySelectFrom is the DELIVERY SELECT + FROM over the two CTEs
+// (the body of the `base` CTE). It hash-joins jj×dd on (subscription_id,
+// client_id, output_product_id/product_id) — restoring the original
+// seat/plan-product ↔ template-output match — then joins subscription_group
+// (sg), price_schedule (ps, LEFT) and product (op, LEFT). Every table with a
+// workspace_id column is bound to $1; product_plan and "user" (inside dd) have
+// none and are bound transitively. The approval preaggregates do NOT appear
+// here — they join AFTER the delivery aggregation (jobTemplateSummary-
+// ApprovalSelect), per the codex-tandem contract.
 func jobTemplateSummarySelectFrom() string {
 	return `SELECT
     jj.template_id                 AS job_template_id,
@@ -410,7 +571,8 @@ func jobTemplateSummarySelectFrom() string {
     ps.id                          AS price_schedule_id,
     ps.name                        AS price_schedule_name,
     jj.output_product_id           AS output_product_id,
-    op.name                        AS output_product_name
+    op.name                        AS output_product_name,
+    jj.job_category_id             AS job_category_id
 FROM jj
 JOIN dd
        ON dd.subscription_id = jj.subscription_id
@@ -424,6 +586,43 @@ LEFT JOIN ` + entityid.Product + ` op
        ON op.id = jj.output_product_id AND op.workspace_id = $1`
 }
 
+// jobTemplateSummaryApprovalSelect is the TOP-LEVEL SELECT: the delivery
+// aggregation (`base`, one row per (template, group, staff, schedule, product))
+// LEFT-joined to the two already-collapsed approval roll-ups — ta unique per
+// template_id (fields 14-17) and ga unique per (template_id, group_id) (fields
+// 18-21). Joining ONLY AFTER the delivery aggregation is the codex-tandem
+// contract ("join that one-row/template result only after delivery
+// aggregation"): the join keys are unique per CTE row and base is already at
+// its final grain, so job_count/deliverer fanout is impossible AND the join
+// touches ~310 aggregated rows instead of ~8.5k pre-aggregation rows (the
+// single-level form measured 1.04s vs 0.31s on education1 — the planner
+// nested-looped the aggregates under its rows=1 estimate).
+//
+// A template with no approval rows LEFT-joins to NULL → counts COALESCE to 0
+// and the ranks scan NULL → UNSPECIFIED (neutral not-started default). The
+// ORDER BY keys are the LOCKED view order (group name, template name,
+// staff_name, staff_id) — the SAME key semantics as the pre-P4 statement,
+// referenced through base's output aliases because the sort now sits above the
+// wrapper.
+func jobTemplateSummaryApprovalSelect() string {
+	return `SELECT
+    base.*,
+    COALESCE(ta.published_count, 0)        AS published_count,
+    COALESCE(ta.phase_count, 0)            AS phase_count,
+    ta.lowest_rank                         AS lowest_rank,
+    COALESCE(ta.mixed_attention, false)    AS mixed_attention,
+    COALESCE(ga.published_count, 0)        AS group_published_count,
+    COALESCE(ga.phase_count, 0)            AS group_phase_count,
+    ga.lowest_rank                         AS group_lowest_rank,
+    COALESCE(ga.mixed_attention, false)    AS group_mixed_attention
+FROM base
+LEFT JOIN ta
+       ON ta.template_id = base.job_template_id
+LEFT JOIN ga
+       ON ga.template_id = base.job_template_id AND ga.group_id = base.subscription_group_id
+ORDER BY base.subscription_group_name, base.job_template_name, base.staff_name, base.staff_id`
+}
+
 // jobTemplateSummaryGroupOrder is the GROUP BY + ORDER BY tail. The grain is one
 // row per (template, group, staff, schedule, product); a merged, multi-deliverer
 // template produces one row per staff (collateDeliverySummaries folds them into one
@@ -431,8 +630,14 @@ LEFT JOIN ` + entityid.Product + ` op
 // LOCKED view order; the trailing staff_name, dd.staff_id keys make the per-template
 // DELIVERER order deterministic (a stable multi-name render). The leading
 // `sg.name, jj.template_name` prefix is unchanged, so a template's rows stay contiguous.
+// jj.job_category_id (R9 W-A1) is appended to GROUP BY only: it is functionally
+// determined by jj.template_id (one nullable job_category FK per template), so it
+// widens each row without fanning it out — row grain UNCHANGED. This is the
+// `base` CTE's GROUP BY (R7 P4 moved the delivery aggregation into `base`); the
+// ORDER BY now lives at the top level (jobTemplateSummaryApprovalSelect) with
+// byte-identical key SEMANTICS (group name, template name, staff_name, staff_id)
+// because the approval roll-ups join above this aggregation.
 func jobTemplateSummaryGroupOrder() string {
 	return `GROUP BY jj.template_id, jj.template_name, sg.id, sg.name, dd.staff_id, dd.first_name, dd.last_name,
-         ps.id, ps.name, jj.output_product_id, op.name
-ORDER BY sg.name, jj.template_name, staff_name, dd.staff_id`
+         ps.id, ps.name, jj.output_product_id, op.name, jj.job_category_id`
 }

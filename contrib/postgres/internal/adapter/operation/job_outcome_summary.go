@@ -17,6 +17,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
@@ -58,6 +59,21 @@ func NewPostgresJobOutcomeSummaryRepository(dbOps interfaces.DatabaseOperation, 
 		db:        db,
 		tableName: tableName,
 	}
+}
+
+// executor returns the transaction-aware SQL executor: the active *sql.Tx when
+// one is present on ctx (so raw-SQL reads participate in the use-case transaction
+// and see its uncommitted writes — the submit-time recompute barrier's job-summary
+// lookup, codex P3 §A3), else the pooled *sql.DB.
+func (r *PostgresJobOutcomeSummaryRepository) executor(ctx context.Context) sqlexec.DBExecutor {
+	if ep, ok := r.dbOps.(interface {
+		GetExecutor(ctx context.Context) sqlexec.DBExecutor
+	}); ok {
+		if e := ep.GetExecutor(ctx); e != nil {
+			return e
+		}
+	}
+	return r.db
 }
 
 // CreateJobOutcomeSummary creates a new job_outcome_summary record
@@ -254,7 +270,7 @@ const jobOutcomeSummaryProjection = `
 // sessionWorkspaceID returns the session identity's workspace id, or "" when no
 // identity is present. Sourcing from the SESSION (never a request param) is the
 // multi-tenancy invariant; the empty fallback is FAIL-CLOSED — a caller with no
-// workspace binds jos.workspace_id = '' which matches no real row (every
+// workspace binds jos.workspace_id = ” which matches no real row (every
 // job_outcome_summary carries a non-empty workspace_id). Mirrors the
 // outcome_matrix_query.go workspace sourcing (FromContext, not identity.Must,
 // so a missing identity fails closed rather than panicking).
@@ -448,12 +464,22 @@ func (r *PostgresJobOutcomeSummaryRepository) GetByJob(
 	}
 
 	// HAZ-02 close (Q-SEC-7): bind the workspace ($2, session identity). Staff
-	// row-scope shifts to $3 (fail-closed → empty result via sql.ErrNoRows).
+	// row-scope shifts to $3 (fail-closed → empty result via sql.ErrNoRows). The
+	// trusted submit-time recompute seam (codex P3 §A3) reads on the ambient
+	// transition tx and drops the STAFF scope so the year-final upsert-lookup finds
+	// the sheet's existing/authoritative summary regardless of who issued it (still
+	// workspace-bound: $2 is the actor's own trusted workspace, which owns the job).
+	exec := r.executor(ctx)
 	workspaceID := sessionWorkspaceID(ctx)
 	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "jos.issued_by", 3)
+	if drop, derr := dropStaffScopeForRecompute(ctx, exec); derr != nil {
+		return nil, derr
+	} else if drop {
+		staffClause, staffArgs = "", nil
+	}
 	query := jobOutcomeSummaryByColumnSQL("jos.job_id = $1", staffClause, "ORDER BY jos.date_created DESC\n\t\tLIMIT 1")
 
-	row := r.db.QueryRowContext(ctx, query, append([]any{req.JobId, workspaceID}, staffArgs...)...)
+	row := exec.QueryRowContext(ctx, query, append([]any{req.JobId, workspaceID}, staffArgs...)...)
 
 	summary, err := scanJobOutcomeSummarySingleRow(row)
 	if err == sql.ErrNoRows {

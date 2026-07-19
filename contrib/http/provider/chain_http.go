@@ -90,6 +90,16 @@ func BuildChain(p consumermw.Preset, inner http.Handler) http.Handler {
 	// rotation rate-limit, Strict session cookie, fresh CSRF cookie on rotation.
 	handler = BuildWorkspacePath(p.Workspace())(handler)
 
+	// ── AuditContext slot ───────────────────────────────────────────────────
+	// Runs AFTER Session establishes identity (Session wraps this slot) so every
+	// downstream handler — including the job-phase approval transition RPCs —
+	// carries a TRUSTED actor for the audit_entry insert. Without it LogEntry
+	// inserts an empty/zero actor (codex §7 HIGH: trusted actor not guaranteed on
+	// the shipped http chain). Defense in depth: the transition boundary also
+	// derives its actor directly from trusted identity, but wiring it here fixes
+	// the actor for ALL audited writes on this chain (generic create/update/…).
+	handler = cmw.AuditContextMiddleware(handler)
+
 	// ── Session slot ────────────────────────────────────────────────────────
 	// nil handler → pass-through (boot-time / no auth provider).
 	handler = cmw.Session(sessionHandler(p.Session()))(handler)

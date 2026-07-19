@@ -17,6 +17,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
@@ -57,6 +58,22 @@ func NewPostgresPhaseOutcomeSummaryRepository(dbOps interfaces.DatabaseOperation
 		db:        db,
 		tableName: tableName,
 	}
+}
+
+// executor returns the transaction-aware SQL executor: the active *sql.Tx when
+// one is present on ctx (so raw-SQL reads participate in the use-case transaction
+// and see its uncommitted writes — required by the submit-time recompute barrier,
+// codex P3 §A3), else the pooled *sql.DB. Falls back to the stored *sql.DB handle
+// only if the GetExecutor capability is somehow absent.
+func (r *PostgresPhaseOutcomeSummaryRepository) executor(ctx context.Context) sqlexec.DBExecutor {
+	if ep, ok := r.dbOps.(interface {
+		GetExecutor(ctx context.Context) sqlexec.DBExecutor
+	}); ok {
+		if e := ep.GetExecutor(ctx); e != nil {
+			return e
+		}
+	}
+	return r.db
 }
 
 // CreatePhaseOutcomeSummary creates a new phase_outcome_summary record
@@ -399,7 +416,16 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetByJobPhase(
 
 	// Staff row-scope (Phase 4): the latest phase summary is visible to a STAFF
 	// principal only if it issued it ($2). Fail-closed → empty result otherwise.
+	// The trusted submit-time recompute seam (codex P3 §A3) reads on the ambient
+	// transition tx and drops this scope so the upsert-lookup finds the sheet's
+	// authoritative summary regardless of who issued it.
+	exec := r.executor(ctx)
 	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "pos.issued_by", 2)
+	if drop, derr := dropStaffScopeForRecompute(ctx, exec); derr != nil {
+		return nil, derr
+	} else if drop {
+		staffClause, staffArgs = "", nil
+	}
 
 	query := `
 		SELECT
@@ -416,7 +442,7 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetByJobPhase(
 		LIMIT 1
 	`
 
-	row := r.db.QueryRowContext(ctx, query, append([]any{req.JobPhaseId}, staffArgs...)...)
+	row := exec.QueryRowContext(ctx, query, append([]any{req.JobPhaseId}, staffArgs...)...)
 	summary, err := scanPhaseOutcomeSummarySingleRow(row)
 	if err == sql.ErrNoRows {
 		return &pb.GetPhaseOutcomeSummaryByJobPhaseResponse{
@@ -443,8 +469,18 @@ func (r *PostgresPhaseOutcomeSummaryRepository) ListByJob(
 	}
 
 	// Staff row-scope (Phase 4): within a job a STAFF principal sees only the
-	// phase summaries it issued ($2). Non-staff → empty clause.
+	// phase summaries it issued ($2). Non-staff → empty clause. The trusted
+	// submit-time recompute seam (codex P3 §A3) reads on the ambient transition tx
+	// and drops this scope so the JOB roll-up sees EVERY phase summary this pass
+	// wrote in the SAME tx (not just the acting teacher's) — this is the read that
+	// previously missed the in-tx phase writes on the pool.
+	exec := r.executor(ctx)
 	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "pos.issued_by", 2)
+	if drop, derr := dropStaffScopeForRecompute(ctx, exec); derr != nil {
+		return nil, derr
+	} else if drop {
+		staffClause, staffArgs = "", nil
+	}
 
 	// Newest-first ordering is a CONSUMER CONTRACT (gate M1). When a consumer
 	// fans these rows into a map keyed by job_phase_id (or job_id) it MUST
@@ -468,7 +504,7 @@ func (r *PostgresPhaseOutcomeSummaryRepository) ListByJob(
 		ORDER BY pos.date_created DESC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, append([]any{req.JobId}, staffArgs...)...)
+	rows, err := exec.QueryContext(ctx, query, append([]any{req.JobId}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list phase outcome summaries by job: %w", err)
 	}

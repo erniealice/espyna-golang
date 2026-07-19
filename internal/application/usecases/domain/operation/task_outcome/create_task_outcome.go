@@ -7,8 +7,8 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 )
 
@@ -17,11 +17,11 @@ type CreateTaskOutcomeRepositories struct {
 }
 
 type CreateTaskOutcomeServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // CreateTaskOutcomeUseCase handles the business logic for creating task outcomes
@@ -63,13 +63,50 @@ func (uc *CreateTaskOutcomeUseCase) Execute(ctx context.Context, req *pb.CreateT
 	// Business enrichment
 	enrichedData := uc.applyBusinessLogic(req.Data)
 
-	// Use transaction service if available
-	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
-		return uc.executeWithTransaction(ctx, req, enrichedData)
+	// Approval-aware (PostgreSQL) path: the cell-write lock protocol REQUIRES an
+	// ambient transaction — NO nontransactional fallback (codex FIX-FIRST 2). The
+	// guard runs inside the transaction, before the leaf write, so a concurrent
+	// approval transition cannot flip the phase out from under this cell.
+	guard, guarded := isGuardedRepo(uc.repositories.TaskOutcome)
+	txCapable := uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions()
+	if txCapable && !guarded {
+		// codex P3 §A2: a transactional (PostgreSQL) provider whose guard capability
+		// was stripped by a wrapper must fail closed, not silently bypass the guard.
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.errors.guard_required", "[ERR-DEFAULT] task_outcome create requires the cell-write guard on a transactional provider"))
+	}
+	if guarded {
+		if !txCapable {
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.errors.transaction_required", "[ERR-DEFAULT] task_outcome create requires a transaction (cell-write lock protocol)"))
+		}
+		return uc.executeGuarded(ctx, req, enrichedData, guard)
 	}
 
-	// Fallback to non-transactional execution
+	// Non-guarded provider (mock/firestore) — behaviour unchanged.
+	if txCapable {
+		return uc.executeWithTransaction(ctx, req, enrichedData)
+	}
 	return uc.executeCore(ctx, req, enrichedData)
+}
+
+// executeGuarded runs the cell-write guard then the create, both inside ONE
+// transaction (parent SHARE → job_phase FOR UPDATE → recheck → write).
+func (uc *CreateTaskOutcomeUseCase) executeGuarded(ctx context.Context, req *pb.CreateTaskOutcomeRequest, enrichedData *pb.TaskOutcome, guard cellWriteGuard) (*pb.CreateTaskOutcomeResponse, error) {
+	var result *pb.CreateTaskOutcomeResponse
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		if err := guard.GuardCellWrite(txCtx, enrichedData.GetJobTaskId()); err != nil {
+			return err
+		}
+		res, err := uc.executeCore(txCtx, req, enrichedData)
+		if err != nil {
+			return err
+		}
+		result = res
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // executeWithTransaction executes creation within a transaction

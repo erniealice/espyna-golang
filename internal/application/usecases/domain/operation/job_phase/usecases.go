@@ -10,8 +10,8 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 )
@@ -28,11 +28,11 @@ type JobPhaseRepositories struct {
 
 // JobPhaseServices groups all business service dependencies
 type JobPhaseServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // UseCases contains all job-phase-related use cases
@@ -45,6 +45,12 @@ type UseCases struct {
 	GetJobPhaseListPageData *GetJobPhaseListPageDataUseCase
 	GetJobPhaseItemPageData *GetJobPhaseItemPageDataUseCase
 	ListByJob               *ListByJobUseCase
+
+	// Per-phase approval transitions (plan 20260718-phase-approval-workflow §4.2).
+	SubmitJobPhaseApproval  *SubmitJobPhaseApprovalUseCase
+	VerifyJobPhaseApproval  *VerifyJobPhaseApprovalUseCase
+	PublishJobPhaseApproval *PublishJobPhaseApprovalUseCase
+	ReturnJobPhaseApproval  *ReturnJobPhaseApprovalUseCase
 }
 
 // NewUseCases creates a new collection of job phase use cases
@@ -57,19 +63,19 @@ func NewUseCases(
 			repositories: CreateJobPhaseRepositories{JobPhase: repositories.JobPhase},
 			services: CreateJobPhaseServices{
 				ActionGatekeeper: services.ActionGatekeeper,
-				Authorizer:  services.Authorizer,
-				Transactor:  services.Transactor,
-				Translator:  services.Translator,
-				IDGenerator: services.IDGenerator,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
+				IDGenerator:      services.IDGenerator,
 			},
 		},
 		ReadJobPhase: &ReadJobPhaseUseCase{
 			repositories: ReadJobPhaseRepositories{JobPhase: repositories.JobPhase},
 			services: ReadJobPhaseServices{
 				ActionGatekeeper: services.ActionGatekeeper,
-				Authorizer: services.Authorizer,
-				Transactor: services.Transactor,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
 			},
 		},
 		UpdateJobPhase: &UpdateJobPhaseUseCase{
@@ -79,56 +85,117 @@ func NewUseCases(
 			},
 			services: UpdateJobPhaseServices{
 				ActionGatekeeper: services.ActionGatekeeper,
-				Authorizer: services.Authorizer,
-				Transactor: services.Transactor,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
 			},
 		},
 		DeleteJobPhase: &DeleteJobPhaseUseCase{
 			repositories: DeleteJobPhaseRepositories{JobPhase: repositories.JobPhase},
 			services: DeleteJobPhaseServices{
 				ActionGatekeeper: services.ActionGatekeeper,
-				Authorizer: services.Authorizer,
-				Transactor: services.Transactor,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
 			},
 		},
 		ListJobPhases: &ListJobPhasesUseCase{
 			repositories: ListJobPhasesRepositories{JobPhase: repositories.JobPhase},
 			services: ListJobPhasesServices{
 				ActionGatekeeper: services.ActionGatekeeper,
-				Authorizer: services.Authorizer,
-				Transactor: services.Transactor,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
 			},
 		},
 		GetJobPhaseListPageData: &GetJobPhaseListPageDataUseCase{
 			repositories: GetJobPhaseListPageDataRepositories{JobPhase: repositories.JobPhase},
 			services: GetJobPhaseListPageDataServices{
 				ActionGatekeeper: services.ActionGatekeeper,
-				Authorizer: services.Authorizer,
-				Transactor: services.Transactor,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
 			},
 		},
 		GetJobPhaseItemPageData: &GetJobPhaseItemPageDataUseCase{
 			repositories: GetJobPhaseItemPageDataRepositories{JobPhase: repositories.JobPhase},
 			services: GetJobPhaseItemPageDataServices{
 				ActionGatekeeper: services.ActionGatekeeper,
-				Authorizer: services.Authorizer,
-				Transactor: services.Transactor,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
 			},
 		},
 		ListByJob: &ListByJobUseCase{
 			repositories: ListByJobRepositories{JobPhase: repositories.JobPhase},
 			services: ListByJobServices{
 				ActionGatekeeper: services.ActionGatekeeper,
-				Authorizer: services.Authorizer,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Translator:       services.Translator,
+			},
+		},
+		SubmitJobPhaseApproval: &SubmitJobPhaseApprovalUseCase{
+			repositories: transitionRepositories{JobPhase: repositories.JobPhase},
+			services: transitionServices{
+				ActionGatekeeper: services.ActionGatekeeper,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
+			},
+		},
+		VerifyJobPhaseApproval: &VerifyJobPhaseApprovalUseCase{
+			repositories: transitionRepositories{JobPhase: repositories.JobPhase},
+			services: transitionServices{
+				ActionGatekeeper: services.ActionGatekeeper,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
+			},
+		},
+		PublishJobPhaseApproval: &PublishJobPhaseApprovalUseCase{
+			repositories: transitionRepositories{JobPhase: repositories.JobPhase},
+			services: transitionServices{
+				ActionGatekeeper: services.ActionGatekeeper,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
+			},
+		},
+		ReturnJobPhaseApproval: &ReturnJobPhaseApprovalUseCase{
+			repositories: transitionRepositories{JobPhase: repositories.JobPhase},
+			services: transitionServices{
+				ActionGatekeeper: services.ActionGatekeeper,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
 			},
 		},
 	}
+}
+
+// clearJobPhaseApprovalAudit nulls every approval audit stamp on the proto so a
+// generic create/update can never carry a forged submitted/verified/published/
+// returned pair or reason. The ladder status is set separately by the caller
+// (IN_PROGRESS on create, UNSPECIFIED-so-protojson-omits on update). This is the
+// use-case half of the server-owned lifecycle (the adapter strips the map keys
+// too — codex CRITICAL finding, defense-in-depth at BOTH boundaries).
+func clearJobPhaseApprovalAudit(d *pb.JobPhase) {
+	if d == nil {
+		return
+	}
+	d.SubmittedBy = nil
+	d.SubmittedAt = nil
+	d.SubmittedAtString = nil
+	d.VerifiedBy = nil
+	d.VerifiedAt = nil
+	d.VerifiedAtString = nil
+	d.PublishedBy = nil
+	d.PublishedAt = nil
+	d.PublishedAtString = nil
+	d.ReturnReason = nil
+	d.ReturnedBy = nil
+	d.ReturnedAt = nil
+	d.ReturnedAtString = nil
 }
 
 // ---- CreateJobPhase ----
@@ -137,11 +204,11 @@ type CreateJobPhaseRepositories struct {
 	JobPhase pb.JobPhaseDomainServiceServer
 }
 type CreateJobPhaseServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 type CreateJobPhaseUseCase struct {
 	repositories CreateJobPhaseRepositories
@@ -162,6 +229,15 @@ func (uc *CreateJobPhaseUseCase) Execute(ctx context.Context, req *pb.CreateJobP
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_phase.validation.job_id_required", "job ID is required [DEFAULT]"))
 	}
 
+	// Membership-phantom guard (codex §4 CRITICAL): a template-backed phase
+	// (template_phase_id set) is sheet membership and may be created ONLY through
+	// the parent-locked W-SPAWN seam, never the generic create API. The adapter
+	// enforces the same rule as defense-in-depth (unless the trusted spawn marker
+	// is present), so this is the use-case half of a both-boundaries guard.
+	if req.Data.TemplatePhaseId != nil && strings.TrimSpace(*req.Data.TemplatePhaseId) != "" {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_phase.validation.template_phase_id_forbidden", "template-backed job phases are created by the system, not the generic create API [DEFAULT]"))
+	}
+
 	now := time.Now()
 	if uc.services.IDGenerator != nil {
 		req.Data.Id = uc.services.IDGenerator.GenerateID()
@@ -175,6 +251,12 @@ func (uc *CreateJobPhaseUseCase) Execute(ctx context.Context, req *pb.CreateJobP
 	req.Data.DateModified = &dc
 	req.Data.DateModifiedString = &dcs
 	req.Data.Active = true
+
+	// Server-owned lifecycle (P2): force IN_PROGRESS + null audit on generic
+	// create. New phases NEVER inherit a forged/advanced approval status; the
+	// dedicated transition RPCs own every stamp.
+	req.Data.ApprovalStatus = pb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_IN_PROGRESS
+	clearJobPhaseApprovalAudit(req.Data)
 
 	if uc.services.Transactor != nil {
 		var result *pb.CreateJobPhaseResponse
@@ -200,9 +282,9 @@ type ReadJobPhaseRepositories struct {
 	JobPhase pb.JobPhaseDomainServiceServer
 }
 type ReadJobPhaseServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type ReadJobPhaseUseCase struct {
@@ -231,9 +313,9 @@ type UpdateJobPhaseRepositories struct {
 	BillingEvent billingeventpb.BillingEventDomainServiceServer
 }
 type UpdateJobPhaseServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type UpdateJobPhaseUseCase struct {
@@ -265,6 +347,13 @@ func (uc *UpdateJobPhaseUseCase) Execute(ctx context.Context, req *pb.UpdateJobP
 	dms := now.Format(time.RFC3339)
 	req.Data.DateModified = &dm
 	req.Data.DateModifiedString = &dms
+
+	// Server-owned lifecycle (P2): a generic update can never move the approval
+	// ladder or touch an audit stamp. Zero the status (protojson omits the
+	// zero-value enum so the column is untouched) and null every audit pointer;
+	// the adapter strips the map keys too. Only the transition RPCs mutate them.
+	req.Data.ApprovalStatus = pb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_UNSPECIFIED
+	clearJobPhaseApprovalAudit(req.Data)
 
 	_, err := uc.repositories.JobPhase.UpdateJobPhase(ctx, req)
 	if err != nil {
@@ -370,9 +459,9 @@ type DeleteJobPhaseRepositories struct {
 	JobPhase pb.JobPhaseDomainServiceServer
 }
 type DeleteJobPhaseServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type DeleteJobPhaseUseCase struct {
@@ -400,9 +489,9 @@ type ListJobPhasesRepositories struct {
 	JobPhase pb.JobPhaseDomainServiceServer
 }
 type ListJobPhasesServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type ListJobPhasesUseCase struct {
@@ -430,9 +519,9 @@ type GetJobPhaseListPageDataRepositories struct {
 	JobPhase pb.JobPhaseDomainServiceServer
 }
 type GetJobPhaseListPageDataServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type GetJobPhaseListPageDataUseCase struct {
@@ -456,9 +545,9 @@ type GetJobPhaseItemPageDataRepositories struct {
 	JobPhase pb.JobPhaseDomainServiceServer
 }
 type GetJobPhaseItemPageDataServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type GetJobPhaseItemPageDataUseCase struct {
@@ -482,8 +571,8 @@ type ListByJobRepositories struct {
 	JobPhase pb.JobPhaseDomainServiceServer
 }
 type ListByJobServices struct {
-	Authorizer ports.Authorizer
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 type ListByJobUseCase struct {

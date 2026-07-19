@@ -35,6 +35,13 @@ import (
 // false (stale + retryable).
 var ErrSummaryFrozen = errors.New("job_outcome_summary is authoritative (frozen); recompute refused")
 
+// ErrNoGradedPhases is returned (wrapped) by ComputeJobOutcome.Execute when a job
+// has no graded phase summaries to roll up (every phase is still blank). The
+// submit-time freshness barrier (RecomputeJobInAmbientTx) treats it as an EXPECTED
+// skip — an all-blank sheet legitimately produces no year-final summary yet (D6
+// partial/blank submission). Other callers see the same human message via %w.
+var ErrNoGradedPhases = errors.New("job has no graded phase summaries to roll up")
+
 // ComputeJobOutcomeRequest is the structured input for the JOB-level (year-final)
 // grade roll-up: the job whose phase grades roll up into one job_outcome_summary
 // (+ a per-subject job_outcome_line).
@@ -149,8 +156,11 @@ func (uc *ComputeJobOutcomeUseCase) executeJobCore(ctx context.Context, req *Com
 		})
 	}
 	if len(rollups) == 0 {
+		// Wrap the sentinel so the submit-time freshness barrier can errors.Is it and
+		// treat an all-blank job as an expected skip; the human %s(job) message is
+		// preserved for every other caller.
 		return nil, fmt.Errorf(uc.msg(ctx, "grade_compute.errors.no_graded_phases",
-			"[ERR-DEFAULT] job %s has no graded phase summaries to roll up"), req.JobId)
+			"[ERR-DEFAULT] job %s has no graded phase summaries to roll up")+": %w", req.JobId, ErrNoGradedPhases)
 	}
 
 	// 4. Year-final policy: the terminal (highest phase_order) phase carries.

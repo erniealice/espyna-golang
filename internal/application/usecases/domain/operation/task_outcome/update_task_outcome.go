@@ -7,8 +7,8 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 )
 
@@ -17,9 +17,9 @@ type UpdateTaskOutcomeRepositories struct {
 }
 
 type UpdateTaskOutcomeServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -63,13 +63,61 @@ func (uc *UpdateTaskOutcomeUseCase) Execute(ctx context.Context, req *pb.UpdateT
 	// Business enrichment
 	enrichedData := uc.applyBusinessLogic(req.Data)
 
-	// Use transaction service if available
-	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
-		return uc.executeWithTransaction(ctx, req, enrichedData)
+	// Approval-aware (PostgreSQL) path: require a transaction and run the
+	// cell-write lock protocol before the leaf write — NO nontransactional
+	// fallback (codex FIX-FIRST 2).
+	guard, guarded := isGuardedRepo(uc.repositories.TaskOutcome)
+	txCapable := uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions()
+	if txCapable && !guarded {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.errors.guard_required", "[ERR-DEFAULT] task_outcome update requires the cell-write guard on a transactional provider"))
+	}
+	if guarded {
+		if !txCapable {
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.errors.transaction_required", "[ERR-DEFAULT] task_outcome update requires a transaction (cell-write lock protocol)"))
+		}
+		return uc.executeGuarded(ctx, req, enrichedData, guard)
 	}
 
-	// Fallback to non-transactional execution
+	// Non-guarded provider (mock/firestore) — behaviour unchanged.
+	if txCapable {
+		return uc.executeWithTransaction(ctx, req, enrichedData)
+	}
 	return uc.executeCore(ctx, req, enrichedData)
+}
+
+// executeGuarded resolves the job_task that owns the target outcome under the
+// transaction, runs the cell-write guard on that task's phase, then updates.
+func (uc *UpdateTaskOutcomeUseCase) executeGuarded(ctx context.Context, req *pb.UpdateTaskOutcomeRequest, enrichedData *pb.TaskOutcome, guard cellWriteGuard) (*pb.UpdateTaskOutcomeResponse, error) {
+	var result *pb.UpdateTaskOutcomeResponse
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		existing, rerr := uc.repositories.TaskOutcome.ReadTaskOutcome(txCtx, &pb.ReadTaskOutcomeRequest{Data: &pb.TaskOutcome{Id: req.Data.Id}})
+		if rerr != nil || existing == nil || len(existing.GetData()) == 0 {
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.errors.not_found", "[ERR-DEFAULT] Task outcome not found"))
+		}
+		// Guard on the EXISTING owner's task so a reparent attempt still locks the
+		// original phase.
+		existingTaskID := existing.GetData()[0].GetJobTaskId()
+		if err := guard.GuardCellWrite(txCtx, existingTaskID); err != nil {
+			return err
+		}
+		// Membership immutability (codex P3 §A2): pin the anchors to the EXISTING
+		// row so this update can never reparent the outcome into a different cell —
+		// defense-in-depth ahead of the adapter's own strip (the guard only locked
+		// the ORIGINAL phase, so persisting a caller-supplied new anchor would move
+		// the leaf unguarded).
+		enrichedData.JobTaskId = existingTaskID
+		enrichedData.CriteriaVersionId = existing.GetData()[0].GetCriteriaVersionId()
+		res, err := uc.executeCore(txCtx, req, enrichedData)
+		if err != nil {
+			return err
+		}
+		result = res
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // executeWithTransaction executes update within a transaction

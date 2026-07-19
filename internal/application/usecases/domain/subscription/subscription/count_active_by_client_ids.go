@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
@@ -18,8 +18,8 @@ type CountActiveByClientIdsRepositories struct {
 // CountActiveByClientIdsServices groups service dependencies for
 // the CountActiveByClientIds use case.
 type CountActiveByClientIdsServices struct {
-	Authorizer ports.Authorizer
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 

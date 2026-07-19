@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
@@ -60,11 +60,11 @@ type MaterializeJobsForSubscriptionRepositories struct {
 // MaterializeJobsForSubscriptionServices mirrors the standard service struct
 // pattern used by every other use case in this package.
 type MaterializeJobsForSubscriptionServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 
 	// Optional. When set, the use case calls it for every spawned Job whose
 	// billing_rule_type == MILESTONE per plan §3.7. Errors propagate and
@@ -259,6 +259,19 @@ func (uc *MaterializeJobsForSubscriptionUseCase) materializeCore(
 		spawnedJobs = spawnedJobs[:0]
 		rootJob = nil
 
+		// FIX-5 graph-wide parent pre-lock: enumerate EVERY job_template_phase across
+		// all templates this graph will spawn (root + active relations) and take them
+		// all FOR UPDATE in one global id order BEFORE the first job write, so the
+		// entire graph serializes against any concurrent transition/spawn on a shared
+		// parent (no-op on the mock/firestore providers).
+		graphTemplateIDs := make([]string, 0, len(toSpawn))
+		for _, entry := range toSpawn {
+			graphTemplateIDs = append(graphTemplateIDs, entry.templateID)
+		}
+		if err := preLockSpawnGraph(txCtx, uc.spawnDeps(), graphTemplateIDs); err != nil {
+			return err
+		}
+
 		for _, entry := range toSpawn {
 			tpl, err := uc.readJobTemplate(txCtx, entry.templateID)
 			if err != nil {
@@ -312,6 +325,12 @@ func (uc *MaterializeJobsForSubscriptionUseCase) materializeCore(
 		return nil
 	}
 
+	// FIX-5 (codex §5 HIGH): on the enforcing provider, template-backed spawn
+	// requires a transaction — fail closed BEFORE the first job write so a miswired
+	// transactor cannot autocommit a partial graph.
+	if err := requireTxForTemplateSpawn(uc.repositories.JobPhase, uc.services.Transactor); err != nil {
+		return nil, err
+	}
 	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		if err := uc.services.Transactor.ExecuteInTransaction(ctx, writeFn); err != nil {
 			return nil, err
@@ -512,12 +531,12 @@ func (uc *MaterializeJobsForSubscriptionUseCase) spawnJob(
 	}
 
 	job := &jobpb.Job{
-		Id:                 jobID,
-		Name:               jobName,
-		JobTemplateId:      &templateID,
-		OriginType:         enumspb.OriginType_ORIGIN_TYPE_SUBSCRIPTION,
-		OriginId:           &originID,
-		ClientId:           &clientID,
+		Id:            jobID,
+		Name:          jobName,
+		JobTemplateId: &templateID,
+		OriginType:    enumspb.OriginType_ORIGIN_TYPE_SUBSCRIPTION,
+		OriginId:      &originID,
+		ClientId:      &clientID,
 		// Q-GSE-9 (initial_status homed on job_template per the inversion rider):
 		// a spawned Job adopts its source template's initial_status. A NULL/empty
 		// or unrecognized value falls back to JOB_STATUS_PLANNED — the historical
@@ -609,6 +628,31 @@ func (uc *MaterializeJobsForSubscriptionUseCase) executeCyclicShell(
 
 	writeFn := func(txCtx context.Context) error {
 		spawnedJobs = spawnedJobs[:0]
+
+		// FIX-5 / codex P3 §A5: graph-wide parent pre-lock BEFORE the first Job write
+		// (the shell). The shell itself is template-less (no phases), but the
+		// ONCE_AT_ENGAGEMENT_START children DO spawn template-backed phases; enumerate
+		// EVERY such child template and take all their job_template_phase parents FOR
+		// UPDATE in one global id order up front, so the whole cyclic-shell graph
+		// serializes against any concurrent transition/spawn on a shared parent — the
+		// cyclic-shell branch previously wrote its first Job with no prelock at all.
+		// (no-op on the mock/firestore providers).
+		graphTemplateIDs := make([]string, 0, len(relations))
+		for _, rel := range relations {
+			if !rel.GetActive() {
+				continue
+			}
+			if rel.GetRelationType() != jobtemplaterelationpb.JobTemplateRelationType_JOB_TEMPLATE_RELATION_TYPE_ONCE_AT_ENGAGEMENT_START {
+				continue
+			}
+			if cid := rel.GetChildTemplateId(); cid != "" {
+				graphTemplateIDs = append(graphTemplateIDs, cid)
+			}
+		}
+		if err := preLockSpawnGraph(txCtx, uc.spawnDeps(), graphTemplateIDs); err != nil {
+			return err
+		}
+
 		// 1. Shell Job — no template, no phases. Status ACTIVE so the
 		// shell stays open for life of subscription.
 		shell, err := uc.spawnShell(txCtx, dc, dcs, sub, pricePlan)
@@ -659,6 +703,12 @@ func (uc *MaterializeJobsForSubscriptionUseCase) executeCyclicShell(
 		return nil
 	}
 
+	// FIX-5 (codex §5 HIGH): on the enforcing provider, template-backed spawn
+	// requires a transaction — fail closed BEFORE the first job write so a miswired
+	// transactor cannot autocommit a partial graph.
+	if err := requireTxForTemplateSpawn(uc.repositories.JobPhase, uc.services.Transactor); err != nil {
+		return nil, err
+	}
 	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		if err := uc.services.Transactor.ExecuteInTransaction(ctx, writeFn); err != nil {
 			return nil, err
@@ -721,107 +771,25 @@ func (uc *MaterializeJobsForSubscriptionUseCase) spawnShell(
 	return job, nil
 }
 
+// spawnPhasesAndTasks delegates to the shared spawnPhasesAndTasksForJob seam
+// (materialize_phase_spawn.go) so the W-SPAWN body is not duplicated between the
+// base and instance materializers. New phases are born IN_PROGRESS/null-audit;
+// the seam pre-locks template-phase parents and rejects hard-frozen targets on
+// the postgres path.
 func (uc *MaterializeJobsForSubscriptionUseCase) spawnPhasesAndTasks(
 	ctx context.Context, dc int64, dcs string, job *jobpb.Job, templateID string,
 ) error {
-	phaseResp, err := uc.repositories.JobTemplatePhase.ListByJobTemplate(ctx,
-		&jobtemplatephasepb.ListByJobTemplateRequest{JobTemplateId: templateID})
-	if err != nil {
-		return fmt.Errorf("list_template_phases (template=%s): %w", templateID, err)
-	}
-	tplPhases := []*jobtemplatephasepb.JobTemplatePhase{}
-	if phaseResp != nil {
-		tplPhases = phaseResp.GetJobTemplatePhases()
-	}
-	sort.SliceStable(tplPhases, func(i, j int) bool {
-		return tplPhases[i].GetPhaseOrder() < tplPhases[j].GetPhaseOrder()
-	})
+	return spawnPhasesAndTasksForJob(ctx, uc.spawnDeps(), dc, dcs, job, templateID)
+}
 
-	phaseIDMap := make(map[string]string, len(tplPhases))
-
-	for _, tp := range tplPhases {
-		var phaseID string
-		if uc.services.IDGenerator != nil {
-			phaseID = uc.services.IDGenerator.GenerateID()
-		} else {
-			phaseID = fmt.Sprintf("phase-%d", time.Now().UnixNano())
-		}
-		tplPhaseID := tp.GetId()
-		// Propagate the scoring scheme from the template phase. grade-compute
-		// enumerates job_phase rows by scoring_scheme_id; a spawned phase with a
-		// NULL scheme is invisible to the whole education grading pipeline (grade
-		// sheet, phase/year-final compute, report card). Nil-safe copy so phases
-		// whose template declares no scheme stay NULL (unchanged for non-graded verticals).
-		var scoringSchemeID *string
-		if tp.ScoringSchemeId != nil {
-			v := tp.GetScoringSchemeId()
-			scoringSchemeID = &v
-		}
-		phase := &jobphasepb.JobPhase{
-			Id:                 phaseID,
-			JobId:              job.GetId(),
-			Name:               tp.GetName(),
-			PhaseOrder:         tp.GetPhaseOrder(),
-			Status:             jobphasepb.PhaseStatus_PHASE_STATUS_PENDING,
-			Active:             true,
-			TemplatePhaseId:    &tplPhaseID,
-			ScoringSchemeId:    scoringSchemeID,
-			DateCreated:        &dc,
-			DateCreatedString:  &dcs,
-			DateModified:       &dc,
-			DateModifiedString: &dcs,
-		}
-		if tp.PredecessorTemplatePhaseId != nil && *tp.PredecessorTemplatePhaseId != "" {
-			if mapped, ok := phaseIDMap[*tp.PredecessorTemplatePhaseId]; ok {
-				v := mapped
-				phase.PredecessorPhaseId = &v
-			}
-		}
-		if _, err := uc.repositories.JobPhase.CreateJobPhase(ctx,
-			&jobphasepb.CreateJobPhaseRequest{Data: phase}); err != nil {
-			return fmt.Errorf("create_job_phase (template_phase=%s): %w", tplPhaseID, err)
-		}
-		phaseIDMap[tplPhaseID] = phaseID
-
-		taskResp, err := uc.repositories.JobTemplateTask.ListByPhase(ctx,
-			&jobtemplatetaskpb.ListJobTemplateTasksByPhaseRequest{JobTemplatePhaseId: tplPhaseID})
-		if err != nil {
-			return fmt.Errorf("list_template_tasks (phase=%s): %w", tplPhaseID, err)
-		}
-		tplTasks := []*jobtemplatetaskpb.JobTemplateTask{}
-		if taskResp != nil {
-			tplTasks = taskResp.GetJobTemplateTasks()
-		}
-		sort.SliceStable(tplTasks, func(i, j int) bool {
-			return tplTasks[i].GetStepOrder() < tplTasks[j].GetStepOrder()
-		})
-		for _, tt := range tplTasks {
-			var taskID string
-			if uc.services.IDGenerator != nil {
-				taskID = uc.services.IDGenerator.GenerateID()
-			} else {
-				taskID = fmt.Sprintf("task-%d", time.Now().UnixNano())
-			}
-			tplTaskID := tt.GetId()
-			task := &jobtaskpb.JobTask{
-				Id:                 taskID,
-				JobPhaseId:         phaseID,
-				Name:               tt.GetName(),
-				StepOrder:          tt.GetStepOrder(),
-				Status:             jobtaskpb.TaskStatus_TASK_STATUS_PENDING,
-				IsAdHoc:            false,
-				Active:             true,
-				TemplateTaskId:     &tplTaskID,
-				DateCreated:        &dc,
-				DateCreatedString:  &dcs,
-				DateModified:       &dc,
-				DateModifiedString: &dcs,
-			}
-			if _, err := uc.repositories.JobTask.CreateJobTask(ctx,
-				&jobtaskpb.CreateJobTaskRequest{Data: task}); err != nil {
-				return fmt.Errorf("create_job_task (template_task=%s): %w", tplTaskID, err)
-			}
-		}
+// spawnDeps returns the shared W-SPAWN dependency set (also used by the FIX-5
+// graph-wide parent pre-lock).
+func (uc *MaterializeJobsForSubscriptionUseCase) spawnDeps() phaseSpawnDeps {
+	return phaseSpawnDeps{
+		JobTemplatePhase: uc.repositories.JobTemplatePhase,
+		JobTemplateTask:  uc.repositories.JobTemplateTask,
+		JobPhase:         uc.repositories.JobPhase,
+		JobTask:          uc.repositories.JobTask,
+		IDGenerator:      uc.services.IDGenerator,
 	}
-	return nil
 }

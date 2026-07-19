@@ -17,6 +17,8 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
 )
@@ -136,6 +138,47 @@ func (r *PostgresJobTaskRepository) ReadJobTask(ctx context.Context, req *pb.Rea
 	}, nil
 }
 
+// cellExecutor returns the ambient tx executor (or pooled db) — mirrors the
+// task_outcome adapter's executor resolution.
+func (r *PostgresJobTaskRepository) cellExecutor(ctx context.Context) sqlexec.DBExecutor {
+	if ep, ok := r.dbOps.(interface {
+		GetExecutor(ctx context.Context) sqlexec.DBExecutor
+	}); ok {
+		if e := ep.GetExecutor(ctx); e != nil {
+			return e
+		}
+	}
+	return r.db
+}
+
+// GuardCellWrite runs the shared CELL-WRITE lock protocol for the phase that owns
+// the given job_task (parent job_template_phase FOR SHARE → owning job_phase FOR
+// UPDATE → recheck workspace/ancestry/status(IN_PROGRESS)/hard-frozen). The
+// generic job_task UPDATE use case calls this inside its transaction so a task
+// cannot be mutated once its sheet has advanced past IN_PROGRESS or been frozen
+// (codex FIX-FIRST 2). Fails closed without a trusted workspace / ambient tx.
+func (r *PostgresJobTaskRepository) GuardCellWrite(ctx context.Context, jobTaskID string) error {
+	id, ok := identity.FromContext(ctx)
+	if !ok || id == nil || id.WorkspaceID == "" {
+		return fmt.Errorf("job_task cell write: no trusted workspace in context (fail closed)")
+	}
+	return guardCellWrite(ctx, r.cellExecutor(ctx), jobTaskID, id.WorkspaceID)
+}
+
+// GuardPhaseWrite runs the CELL-WRITE lock protocol for a TARGET job_phase (used
+// when CREATING a new job_task under that phase — the task does not exist yet, so
+// GuardCellWrite's job_task resolve cannot run). It takes the parent
+// job_template_phase FOR SHARE → owning job_phase FOR UPDATE → recheck
+// workspace/IN_PROGRESS/hard-frozen, so a new task cannot be added to an advanced
+// or frozen sheet (codex P3 §A2). Fails closed without a trusted workspace / tx.
+func (r *PostgresJobTaskRepository) GuardPhaseWrite(ctx context.Context, jobPhaseID string) error {
+	id, ok := identity.FromContext(ctx)
+	if !ok || id == nil || id.WorkspaceID == "" {
+		return fmt.Errorf("job_task phase write: no trusted workspace in context (fail closed)")
+	}
+	return guardPhaseWrite(ctx, r.cellExecutor(ctx), jobPhaseID, id.WorkspaceID)
+}
+
 // UpdateJobTask updates a job task record
 func (r *PostgresJobTaskRepository) UpdateJobTask(ctx context.Context, req *pb.UpdateJobTaskRequest) (*pb.UpdateJobTaskResponse, error) {
 	if req.Data == nil || req.Data.Id == "" {
@@ -154,6 +197,15 @@ func (r *PostgresJobTaskRepository) UpdateJobTask(ctx context.Context, req *pb.U
 
 	convertMillisToTime(data, "dateCreated")
 	convertMillisToTime(data, "dateModified")
+
+	// Membership immutability (codex P3 §A2): a generic update can NEVER reparent a
+	// task to another phase/job (job_phase_id / job_id) — that would move a cell
+	// into a different, possibly-advanced sheet after a transition captured its
+	// locked set. Stripping the anchors from the partial-update payload leaves the
+	// existing columns untouched; membership changes belong only to parent-locked
+	// seams. (The generic UpdateJobTask use case additionally runs GuardCellWrite.)
+	delete(data, "jobPhaseId")
+	delete(data, "jobId")
 
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {

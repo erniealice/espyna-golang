@@ -209,6 +209,29 @@ func (a *PermissionAuthorizer) loadCodes(ctx context.Context, userID, workspaceI
 	return codes, nil
 }
 
+// queryCodesFresh resolves the effective ALLOW-minus-DENY code set DIRECTLY from
+// the authoritative PermissionQuery, BYPASSING the TTL cache entirely. The binding
+// is extracted from ctx the same way loadCodes does (only a complete, real binding
+// scopes the lookup; anything else collapses to the zero tuple → legacy union). It
+// is the in-transaction read path for security-critical verdicts: because the
+// PostgresPermissionQuery routes onto the ambient *sql.Tx, a permission revoked
+// mid-request (a committed change visible under read-committed) is honoured
+// immediately rather than served from a ≤5-min-stale cache entry (codex P3 §A1).
+func (a *PermissionAuthorizer) queryCodesFresh(ctx context.Context, userID, workspaceID string) ([]string, error) {
+	kind, principalID, actingAsClientID, actingAsSupplierID := contextutil.ExtractBindingFromContext(ctx)
+	if !(kind != 0 && principalID != "") {
+		kind, principalID, actingAsClientID, actingAsSupplierID = 0, "", "", ""
+	}
+	codes, err := a.query.GetUserPermissionCodes(ctx, userID, workspaceID, kind, principalID, actingAsClientID, actingAsSupplierID)
+	if err != nil {
+		return nil, err
+	}
+	if codes == nil {
+		codes = []string{}
+	}
+	return codes, nil
+}
+
 // hasCode is the single membership-test helper every boolean method delegates
 // to. It loads the code set once and tests with slices.Contains.
 //
@@ -260,6 +283,49 @@ func (a *PermissionAuthorizer) hasCode(ctx context.Context, userID, workspaceID,
 func (a *PermissionAuthorizer) HasPermission(ctx context.Context, userID, permission string) (bool, error) {
 	ws := contextutil.ExtractWorkspaceIDFromContext(ctx)
 	return a.hasCode(ctx, userID, ws, permission)
+}
+
+// StrictEnforcement reports whether AUTHZ_ENFORCE is active (real verdicts are
+// returned on a would-be DENY). Security-critical gates that must NEVER inherit
+// shadow mode's allow-on-deny — e.g. the job-phase approval transitions and their
+// publish-derived admin override — consult this and refuse to run when it is
+// false. It is intentionally the raw enforce flag, NOT IsEnabled(): IsEnabled()
+// is always true for the real authorizer and does not distinguish shadow.
+func (a *PermissionAuthorizer) StrictEnforcement() bool { return a.enforce }
+
+// HasPermissionStrict returns the REAL allow/deny verdict for the ctx workspace,
+// independent of shadow mode: a genuine deny returns (false, nil) even when
+// AUTHZ_ENFORCE is OFF, so it cannot be used as a shadow-mode allow-on-deny
+// bypass. A lookup ERROR propagates (fail-closed). This is the deny-capable path
+// the approval transitions use for both the verb gate and the admin override; it
+// deliberately does NOT log a shadow-deny row (that measurement belongs to the
+// shadow path in hasCode, not to a gate that already treats deny as authoritative).
+func (a *PermissionAuthorizer) HasPermissionStrict(ctx context.Context, userID, permission string) (bool, error) {
+	ws := contextutil.ExtractWorkspaceIDFromContext(ctx)
+	codes, err := a.loadCodes(ctx, userID, ws)
+	if err != nil {
+		log.Printf("AUTHZ_RBAC_ERROR | strict | user=%s | workspace=%s | code=%s | error=%v", userID, ws, permission, err)
+		return false, err
+	}
+	return slices.Contains(codes, permission), nil
+}
+
+// HasPermissionStrictFresh returns the REAL allow/deny verdict for the ctx
+// workspace, independent of shadow mode AND bypassing the TTL cache, reading on
+// the ambient transaction executor (PostgresPermissionQuery routes onto the
+// active *sql.Tx). This is the AUTHORITATIVE in-transaction gate the job-phase
+// approval transitions use for both the verb re-check and the publish-derived
+// admin override (codex P3 §A1): warming the permission cache and then revoking
+// the grant can no longer mint a stale allow — the decisive verdict is read fresh
+// inside the locked transition transaction. A lookup error propagates (fail-closed).
+func (a *PermissionAuthorizer) HasPermissionStrictFresh(ctx context.Context, userID, permission string) (bool, error) {
+	ws := contextutil.ExtractWorkspaceIDFromContext(ctx)
+	codes, err := a.queryCodesFresh(ctx, userID, ws)
+	if err != nil {
+		log.Printf("AUTHZ_RBAC_ERROR | strict-fresh | user=%s | workspace=%s | code=%s | error=%v", userID, ws, permission, err)
+		return false, err
+	}
+	return slices.Contains(codes, permission), nil
 }
 
 // HasGlobalPermission is v1-identical to HasPermission (the interface doc at

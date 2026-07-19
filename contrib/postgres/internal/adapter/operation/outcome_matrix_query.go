@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
+	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 	criteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
 	matrixpb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/outcome_matrix"
 
@@ -95,13 +96,215 @@ func (a *PostgresOutcomeMatrixQuery) GetOutcomeMatrix(
 		return nil, err
 	}
 
+	// Per-template-phase approval roll-up, derived over the FULL sheet S
+	// (workspace-scoped, NO staff predicate — codex-rereview.md fresh finding:
+	// "Derive it over full S for an otherwise authorized template, not the
+	// staff-visible subset"). Independent of req.Scope, so a teacher on
+	// scope=MINE still sees the sheet's true approval state.
+	rollups, err := a.loadApprovalRollups(ctx, jobTemplateID, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &matrixpb.GetOutcomeMatrixResponse{
 		JobTemplateId:   jobTemplateID,
 		JobTemplateName: templateName,
 		Phases:          phases,
 		Rows:            rows,
+		ApprovalRollups: rollups,
 		Success:         true,
 	}, nil
+}
+
+// approvalRankToStatus maps the status-rank the roll-up SQL computes (1..4) back
+// to the enum. Unknown → UNSPECIFIED (fail-soft, never persisted).
+func approvalRankToStatus(rank int) jobphasepb.PhaseApprovalStatus {
+	switch rank {
+	case 1:
+		return jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_IN_PROGRESS
+	case 2:
+		return jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_FOR_REVIEW
+	case 3:
+		return jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_VERIFIED
+	case 4:
+		return jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_PUBLISHED
+	default:
+		return jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_UNSPECIFIED
+	}
+}
+
+// loadApprovalRollups computes the truthful per-template-phase approval roll-up
+// over the FULL sheet set S for one job_template (plan §4.5 / codex "the matrix
+// response already carries enough data for a truthful approval bar" — REFUTED).
+//
+// S = every active, template-backed job_phase in the trusted workspace under
+// this template, keyed by template_phase_id. NO staff predicate — the roll-up is
+// the whole sheet's state, not the acting principal's visible rows. Four reads,
+// all workspace-scoped:
+//   - status/count/mixed per phase (status = sole, or LOWEST ladder rank when mixed);
+//   - has_data per phase (any active task_outcome under the sheet);
+//   - blank required task×criterion leaves per phase (D6 confirm count; surfaced
+//     only for IN_PROGRESS sheets — mirrors the submit transition's
+//     countBlankRequiredCells seam exactly);
+//   - hard_frozen per phase, REUSING the P2 sheetHardFrozen read verbatim
+//     (closed schedule OR active authoritative final — plan §4.4).
+func (a *PostgresOutcomeMatrixQuery) loadApprovalRollups(ctx context.Context, jobTemplateID, workspaceID string) ([]*matrixpb.PhaseApprovalRollup, error) {
+	// (A) status-rank min/max + member count per template_phase.
+	const statusSQL = `
+SELECT jp.template_phase_id,
+       COUNT(*) AS target_count,
+       MIN(CASE jp.approval_status
+             WHEN 'PHASE_APPROVAL_STATUS_IN_PROGRESS' THEN 1
+             WHEN 'PHASE_APPROVAL_STATUS_FOR_REVIEW'  THEN 2
+             WHEN 'PHASE_APPROVAL_STATUS_VERIFIED'    THEN 3
+             WHEN 'PHASE_APPROVAL_STATUS_PUBLISHED'   THEN 4
+             ELSE 1 END) AS lowest_rank,
+       COUNT(DISTINCT jp.approval_status) AS distinct_statuses
+FROM ` + entityid.JobPhase + ` jp
+JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
+WHERE j.job_template_id = $1 AND j.workspace_id = $2
+  AND jp.active = true AND jp.template_phase_id IS NOT NULL
+GROUP BY jp.template_phase_id
+ORDER BY jp.template_phase_id`
+
+	rows, err := a.db.QueryContext(ctx, statusSQL, jobTemplateID, workspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("outcome_matrix: approval roll-up status query: %w", err)
+	}
+	defer rows.Close()
+
+	type agg struct {
+		phaseID     string
+		targetCount int32
+		lowestRank  int
+		mixed       bool
+	}
+	var order []string
+	byPhase := map[string]*agg{}
+	for rows.Next() {
+		var (
+			phaseID  string
+			count    int32
+			rank     int
+			distinct int
+		)
+		if err := rows.Scan(&phaseID, &count, &rank, &distinct); err != nil {
+			return nil, fmt.Errorf("outcome_matrix: scan approval roll-up: %w", err)
+		}
+		byPhase[phaseID] = &agg{phaseID: phaseID, targetCount: count, lowestRank: rank, mixed: distinct > 1}
+		order = append(order, phaseID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("outcome_matrix: approval roll-up rows: %w", err)
+	}
+	if len(order) == 0 {
+		return nil, nil
+	}
+
+	// (B) has_data: template_phases with any active outcome under the sheet.
+	hasData := map[string]bool{}
+	const hasDataSQL = `
+SELECT DISTINCT jp.template_phase_id
+FROM ` + entityid.JobPhase + ` jp
+JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
+JOIN ` + entityid.JobTask + ` jt ON jt.job_phase_id = jp.id AND jt.active = true
+JOIN ` + entityid.TaskOutcome + ` t ON t.job_task_id = jt.id AND t.active = true
+WHERE j.job_template_id = $1 AND j.workspace_id = $2
+  AND jp.active = true AND jp.template_phase_id IS NOT NULL`
+	if err := a.scanPhaseIDSet(ctx, hasDataSQL, jobTemplateID, workspaceID, hasData); err != nil {
+		return nil, err
+	}
+
+	// (C) blank EFFECTIVE-REQUIRED task×criterion leaves per phase (D6). Mirrors
+	// countBlankRequiredCells (job_phase_approval.go) grouped by template_phase —
+	// codex P3 §B1: it must join the active OutcomeCriteria and filter
+	// COALESCE(ttc.required_override, oc.required) = true so the confirm count and
+	// the transition audit count agree (optional leaves are NOT blanks; a
+	// per-template-task required_override wins over the criterion default).
+	blankByPhase := map[string]int32{}
+	const blankSQL = `
+SELECT jp.template_phase_id, COUNT(*)
+FROM ` + entityid.JobPhase + ` jp
+JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
+JOIN ` + entityid.JobTask + ` jt ON jt.job_phase_id = jp.id AND jt.active = true
+JOIN ` + entityid.TemplateTaskCriteria + ` ttc
+  ON ttc.job_template_task_id = jt.template_task_id AND ttc.active = true
+JOIN ` + entityid.OutcomeCriteria + ` oc
+  ON oc.id = ttc.outcome_criteria_id AND oc.active = true
+WHERE j.job_template_id = $1 AND j.workspace_id = $2
+  AND jp.active = true AND jp.template_phase_id IS NOT NULL
+  AND COALESCE(ttc.required_override, oc.required) = true
+  AND NOT EXISTS (
+    SELECT 1 FROM ` + entityid.TaskOutcome + ` t
+    WHERE t.job_task_id = jt.id
+      AND t.criteria_version_id = ttc.outcome_criteria_id
+      AND t.active = true
+  )
+GROUP BY jp.template_phase_id`
+	brows, err := a.db.QueryContext(ctx, blankSQL, jobTemplateID, workspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("outcome_matrix: approval roll-up blank-count query: %w", err)
+	}
+	defer brows.Close()
+	for brows.Next() {
+		var phaseID string
+		var n int32
+		if err := brows.Scan(&phaseID, &n); err != nil {
+			return nil, fmt.Errorf("outcome_matrix: scan blank count: %w", err)
+		}
+		blankByPhase[phaseID] = n
+	}
+	if err := brows.Err(); err != nil {
+		return nil, fmt.Errorf("outcome_matrix: blank-count rows: %w", err)
+	}
+
+	out := make([]*matrixpb.PhaseApprovalRollup, 0, len(order))
+	for _, phaseID := range order {
+		g := byPhase[phaseID]
+		status := approvalRankToStatus(g.lowestRank)
+		// hard_frozen: reuse the P2 read verbatim (closed schedule / authoritative
+		// final), per phase, workspace-scoped.
+		frozen, ferr := sheetHardFrozen(ctx, a.db, jobTemplateID, phaseID, workspaceID)
+		if ferr != nil {
+			return nil, ferr
+		}
+		rollup := &matrixpb.PhaseApprovalRollup{
+			JobTemplatePhaseId: phaseID,
+			Status:             status,
+			Mixed:              g.mixed,
+			TargetCount:        g.targetCount,
+			HasData:            hasData[phaseID],
+			HardFrozen:         frozen,
+		}
+		// D6: surface the blank count only when the sheet is IN_PROGRESS (the only
+		// submit-eligible state — the confirm dialog is a submit-only affordance).
+		if status == jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_IN_PROGRESS && !g.mixed {
+			rollup.BlankRequiredCount = blankByPhase[phaseID]
+		}
+		out = append(out, rollup)
+	}
+	return out, nil
+}
+
+// scanPhaseIDSet runs a single-column template_phase_id query and marks each id
+// present in the supplied set.
+func (a *PostgresOutcomeMatrixQuery) scanPhaseIDSet(ctx context.Context, query, jobTemplateID, workspaceID string, set map[string]bool) error {
+	rows, err := a.db.QueryContext(ctx, query, jobTemplateID, workspaceID)
+	if err != nil {
+		return fmt.Errorf("outcome_matrix: approval roll-up set query: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return fmt.Errorf("outcome_matrix: scan roll-up set id: %w", err)
+		}
+		set[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("outcome_matrix: roll-up set rows: %w", err)
+	}
+	return nil
 }
 
 // loadTemplateName resolves the template display name (tolerates a NULL/shared
@@ -386,8 +589,8 @@ ORDER BY j.client_id, jt.id, ttc.id, t.recorded_date DESC NULLS LAST, t.id DESC`
 		editable := computeCellEditable(hasOutcome, staffOK, recordedBy, assignedTo, actingStaff, jobTaskID)
 
 		cell := &matrixpb.OutcomeCell{
-			OutcomeId:  nullStringVal(outcomeID),
-			JobTaskId:  jobTaskID,
+			OutcomeId: nullStringVal(outcomeID),
+			JobTaskId: jobTaskID,
 			// Server-derived recompute keys (W2 inline recompute, Q-GSE-5): the
 			// record action reads these — never a browser value — to dedup the
 			// affected phase then job for ComputePhaseOutcome/ComputeJobOutcome.

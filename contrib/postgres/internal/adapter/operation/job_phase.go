@@ -10,15 +10,141 @@ import (
 	"log"
 	"time"
 
+	"github.com/lib/pq"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	auditadapter "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/audit"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
+	"github.com/erniealice/espyna-golang/internal/application/shared/approvalctx"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 )
+
+// jobPhaseApprovalMutableKeys are the protojson (camelCase) map keys for the
+// server-owned approval lifecycle. Generic create/delete-from + generic update
+// strip these so ONLY the dedicated transition RPCs can stamp them (codex CRITICAL
+// finding: generic create/update must not accept forged approval/audit fields).
+// The *_string mirrors are (db).ignore and never persist, but are stripped too
+// for completeness.
+var jobPhaseApprovalMutableKeys = []string{
+	"approvalStatus",
+	"submittedBy", "submittedAt", "submittedAtString",
+	"verifiedBy", "verifiedAt", "verifiedAtString",
+	"publishedBy", "publishedAt", "publishedAtString",
+	"returnReason",
+	"returnedBy", "returnedAt", "returnedAtString",
+}
+
+// jobPhaseMembershipKeys are the protojson (camelCase) map keys for the sheet
+// membership anchors + the active flag. A generic UPDATE strips them so an
+// ordinary edit can never REPARENT a phase (change job_id / template_phase_id) or
+// toggle active — either would let a concurrent write insert/move a member after
+// the transition captured its locked set S, defeating the sorted-RETURNING
+// comparison (codex §4 CRITICAL: membership must not be generically mutable
+// outside the parent mutex). Reparent/active changes belong only to the dedicated
+// parent-locked seams.
+var jobPhaseMembershipKeys = []string{"jobId", "templatePhaseId", "active"}
+
+// stripJobPhaseApprovalKeys deletes every approval/audit lifecycle key from a
+// generic write payload. On CREATE this drops approval_status from the INSERT so
+// the DB default ('PHASE_APPROVAL_STATUS_IN_PROGRESS') applies and the audit
+// columns stay NULL; on UPDATE it leaves those columns untouched.
+func stripJobPhaseApprovalKeys(data map[string]any) {
+	for _, k := range jobPhaseApprovalMutableKeys {
+		delete(data, k)
+	}
+}
+
+// stripJobPhaseMembershipKeys deletes the membership anchors + active flag from a
+// generic UPDATE payload so they stay immutable (see jobPhaseMembershipKeys).
+func stripJobPhaseMembershipKeys(data map[string]any) {
+	for _, k := range jobPhaseMembershipKeys {
+		delete(data, k)
+	}
+}
+
+// jobWorkspaceScope returns the SHADOW-INDEPENDENT tenant-ancestry JOIN fragment and
+// its bind arg for the explicit job_phase projections (FIX-4 / codex §4 HIGH).
+// job_phase has no workspace_id column, so its owning workspace is derived via
+// job.workspace_id. The three explicit projections (list/item/ListByJob) previously
+// read the raw DB with NO tenant join, and the workspace decorator only scopes
+// job_phase reads through the parent-JOIN probe gated on the global AUTHZ_ENFORCE
+// flag (SHADOW by default = log-but-pass). This binds the trusted parent ancestry
+// ALWAYS when a workspace is present — regardless of that flag — mirroring the coded
+// task_outcome reads (ListCodedTaskOutcomeValuesByJob binds j.workspace_id in the SQL
+// predicate unconditionally). placeholderNum is the $N index the workspace bind
+// occupies. When no trusted workspace is in context (service-to-service /
+// unauthenticated — e.g. a CLI or the login path) the scope is empty (pass-through),
+// exactly like the decorator's own wsID=="" short-circuit, so system callers are
+// unaffected. Only THIS entity's reads change; other entities' shadow behavior is
+// untouched.
+func jobWorkspaceScope(ctx context.Context, placeholderNum int) (joinSQL string, arg string, scoped bool) {
+	id, ok := identity.FromContext(ctx)
+	if !ok || id == nil || id.WorkspaceID == "" {
+		return "", "", false
+	}
+	joinSQL = "\n\t\t\tJOIN " + entityid.Job + " j ON j.id = jp.job_id AND j.workspace_id = " + fmt.Sprintf("$%d", placeholderNum)
+	return joinSQL, id.WorkspaceID, true
+}
+
+// requireTrustedJobWorkspace proves that the given job belongs to the caller's
+// TRUSTED context workspace, SHADOW-INDEPENDENTLY (codex P3 §A4: generic Create
+// must prove the supplied Job belongs to the trusted workspace, not merely inject
+// it). Returns nil when there is no trusted workspace in ctx (service-to-service /
+// CLI pass-through, mirroring jobWorkspaceScope). Fails closed when a workspace IS
+// present and the job is missing / owned by another tenant.
+func (r *PostgresJobPhaseRepository) requireTrustedJobWorkspace(ctx context.Context, jobID string) error {
+	id, ok := identity.FromContext(ctx)
+	if !ok || id == nil || id.WorkspaceID == "" {
+		return nil // no trusted workspace → pass-through (system/CLI)
+	}
+	if jobID == "" {
+		return fmt.Errorf("job_phase create: no owning job_id to prove workspace (fail closed)")
+	}
+	var exists bool
+	const q = `SELECT EXISTS(SELECT 1 FROM ` + entityid.Job + ` WHERE id = $1 AND workspace_id = $2 AND active = true)`
+	if err := r.readExecutor(ctx).QueryRowContext(ctx, q, jobID, id.WorkspaceID).Scan(&exists); err != nil {
+		return fmt.Errorf("job_phase: owning-job workspace probe: %w", err)
+	}
+	if !exists {
+		return fmt.Errorf("job_phase: owning job not in trusted workspace — denied")
+	}
+	return nil
+}
+
+// resolvePhaseInTrustedWorkspace resolves a phase's owning job_id + (coalesced)
+// template_phase_id, SHADOW-INDEPENDENTLY binding the phase's owning job to the
+// trusted context workspace (codex P3 §A4: generic Read/Update/Delete must enforce
+// Job ancestry independent of the SHADOW-sensitive generic decorator). found=false
+// means the phase is missing or owned by another tenant → the caller MUST fail
+// closed. When no trusted workspace is present the resolve is unscoped
+// (pass-through for system/CLI callers), found reflects mere existence.
+func (r *PostgresJobPhaseRepository) resolvePhaseInTrustedWorkspace(ctx context.Context, phaseID string) (jobID, templatePhaseID string, found bool, err error) {
+	id, ok := identity.FromContext(ctx)
+	wsPresent := ok && id != nil && id.WorkspaceID != ""
+	q := `SELECT jp.job_id, COALESCE(jp.template_phase_id, '')
+		FROM ` + entityid.JobPhase + ` jp
+		JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
+		WHERE jp.id = $1`
+	args := []any{phaseID}
+	if wsPresent {
+		q += ` AND j.workspace_id = $2`
+		args = append(args, id.WorkspaceID)
+	}
+	err = r.readExecutor(ctx).QueryRowContext(ctx, q, args...).Scan(&jobID, &templatePhaseID)
+	if err == sql.ErrNoRows {
+		return "", "", false, nil
+	}
+	if err != nil {
+		return "", "", false, fmt.Errorf("job_phase: phase ancestry probe: %w", err)
+	}
+	return jobID, templatePhaseID, true, nil
+}
 
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.JobPhase, func(conn any, tableName string) (any, error) {
@@ -37,6 +163,30 @@ type PostgresJobPhaseRepository struct {
 	dbOps     interfaces.DatabaseOperation
 	db        *sql.DB
 	tableName string
+	// audit writes the append-only sheet transition event inside each approval
+	// transition's business transaction (ambient-tx aware). Nil-safe: nil skips
+	// the audit write (mock/test paths).
+	audit infraports.AuditService
+	// recompute is the injected submit-time freshness barrier (FIX-3): it finalizes
+	// the phase + job outcome summaries for the locked sheet on the AMBIENT
+	// transition transaction, post-lock/pre-flip. It is wired in operation/usecases.go
+	// (grade_compute.UseCases.SheetRecompute) via SetSheetRecompute — the adapter
+	// cannot import the use-case layer, so the closure is injected as a bare func.
+	// SubmitJobPhaseApproval fails CLOSED when it is nil (refusing to advance a
+	// possibly-stale sheet). phaseIDs are the locked job_phase ids; jobIDs their
+	// distinct owning job ids. A non-nil return rolls the transition back.
+	recompute func(ctx context.Context, phaseIDs, jobIDs []string) error
+}
+
+// SetSheetRecompute injects the submit-time summary-recompute freshness barrier
+// (FIX-3). The application initializer calls this once with
+// grade_compute.UseCases.SheetRecompute after both the job_phase adapter and the
+// grade-compute use cases exist (the adapter is built by a registry factory that has
+// no access to the use-case layer, so the port is injected post-construction — the
+// same shape as the audit dependency). The bare func type matches exactly across
+// packages, so no shared named type is required.
+func (r *PostgresJobPhaseRepository) SetSheetRecompute(fn func(ctx context.Context, phaseIDs, jobIDs []string) error) {
+	r.recompute = fn
 }
 
 // NewPostgresJobPhaseRepository creates a new PostgreSQL job_phase repository
@@ -50,10 +200,19 @@ func NewPostgresJobPhaseRepository(dbOps interfaces.DatabaseOperation, tableName
 		db = pgOps.GetDB()
 	}
 
+	var auditSvc infraports.AuditService
+	if db != nil {
+		// The approval transition audit is a security-critical durable record, so
+		// it is always written (the audit adapter is ambient-tx aware and joins the
+		// active transition transaction via ctx).
+		auditSvc = auditadapter.New(db)
+	}
+
 	return &PostgresJobPhaseRepository{
 		dbOps:     dbOps,
 		db:        db,
 		tableName: tableName,
+		audit:     auditSvc,
 	}
 }
 
@@ -75,6 +234,34 @@ func (r *PostgresJobPhaseRepository) CreateJobPhase(ctx context.Context, req *pb
 
 	convertMillisToTime(data, "dateCreated")
 	convertMillisToTime(data, "dateModified")
+
+	// Membership-phantom guard (codex §4 CRITICAL): a template-backed phase
+	// (template_phase_id set) may be created ONLY by the trusted W-SPAWN seam,
+	// which pre-locks the parent job_template_phase FOR UPDATE so the insert
+	// serializes against in-flight transitions. A generic create that sets
+	// template_phase_id is rejected — otherwise a concurrent insert could add a
+	// sheet member after a transition captured its locked set S. The internal
+	// spawn marker cannot be forged by any downstream module.
+	if tpid, ok := data["templatePhaseId"].(string); ok && tpid != "" && !approvalctx.IsTrustedSpawn(ctx) {
+		return nil, fmt.Errorf("job_phase create: template-backed membership (template_phase_id) may only be created through the W-SPAWN seam — generic create rejected")
+	}
+
+	// Tenant proof (codex P3 §A4): prove the supplied job_id belongs to the trusted
+	// workspace — a generic create must not attach a phase to another tenant's job.
+	// The trusted spawn seam supplies internally-resolved same-workspace jobs, so it
+	// passes; a forged cross-tenant job_id is rejected. No-workspace (system/CLI)
+	// contexts pass through.
+	if jid, _ := data["jobId"].(string); true {
+		if err := r.requireTrustedJobWorkspace(ctx, jid); err != nil {
+			return nil, err
+		}
+	}
+
+	// Server-owned lifecycle (defense-in-depth vs the use-case strip): a generic
+	// create can never seed approval_status or the audit stamps. Dropping
+	// approval_status lets the DB default (IN_PROGRESS) apply; the audit columns
+	// stay NULL. Only the transition RPCs stamp them.
+	stripJobPhaseApprovalKeys(data)
 
 	result, err := r.dbOps.Create(ctx, r.tableName, data)
 	if err != nil {
@@ -118,6 +305,14 @@ func (r *PostgresJobPhaseRepository) ReadJobPhase(ctx context.Context, req *pb.R
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
+	// Tenant ancestry (codex P3 §A4): the generic dbOps.Read by id has no WHERE
+	// seam, so enforce the SHADOW-INDEPENDENT parent scope post-read — a phase whose
+	// owning job is not in the trusted workspace is not-found. No-workspace
+	// (system/CLI) contexts pass through.
+	if err := r.requireTrustedJobWorkspace(ctx, phase.JobId); err != nil {
+		return nil, fmt.Errorf("job phase with ID '%s' not found", req.Data.Id)
+	}
+
 	return &pb.ReadJobPhaseResponse{
 		Success: true,
 		Data:    []*pb.JobPhase{phase},
@@ -142,6 +337,24 @@ func (r *PostgresJobPhaseRepository) UpdateJobPhase(ctx context.Context, req *pb
 
 	convertMillisToTime(data, "dateCreated")
 	convertMillisToTime(data, "dateModified")
+
+	// Tenant ancestry (codex P3 §A4): prove the target phase's owning job is in the
+	// trusted workspace, SHADOW-INDEPENDENTLY, BEFORE the generic decorator update —
+	// a cross-tenant phase id fails closed to not-found. No-workspace contexts pass
+	// through.
+	if _, _, found, aerr := r.resolvePhaseInTrustedWorkspace(ctx, req.Data.Id); aerr != nil {
+		return nil, aerr
+	} else if !found {
+		return nil, fmt.Errorf("job phase with ID '%s' not found", req.Data.Id)
+	}
+
+	// Server-owned lifecycle (defense-in-depth vs the use-case strip): a generic
+	// update can never mutate approval_status or any audit stamp, NOR reparent the
+	// phase (job_id / template_phase_id) or toggle active. Stripping the keys
+	// leaves those columns untouched; only the transition RPCs move the ladder and
+	// only the parent-locked seams change membership.
+	stripJobPhaseApprovalKeys(data)
+	stripJobPhaseMembershipKeys(data)
 
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {
@@ -168,6 +381,23 @@ func (r *PostgresJobPhaseRepository) UpdateJobPhase(ctx context.Context, req *pb
 func (r *PostgresJobPhaseRepository) DeleteJobPhase(ctx context.Context, req *pb.DeleteJobPhaseRequest) (*pb.DeleteJobPhaseResponse, error) {
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("job phase ID is required")
+	}
+
+	// Tenant ancestry + membership guard (codex P3 §A4): resolve the phase's owning
+	// job under the trusted workspace (SHADOW-independent); a cross-tenant id fails
+	// closed. A TEMPLATE-BACKED phase is a sheet member — deactivating it defeats a
+	// transition's locked-set-S comparison, so it may be removed ONLY through a
+	// parent-locked seam, never generic delete. No-workspace (system/CLI) contexts
+	// still resolve (unscoped) so the template-backed guard applies uniformly.
+	_, templatePhaseID, found, aerr := r.resolvePhaseInTrustedWorkspace(ctx, req.Data.Id)
+	if aerr != nil {
+		return nil, aerr
+	}
+	if !found {
+		return nil, fmt.Errorf("job phase with ID '%s' not found", req.Data.Id)
+	}
+	if templatePhaseID != "" {
+		return nil, fmt.Errorf("job_phase delete: template-backed sheet member (template_phase_id set) cannot be removed via generic delete — use the parent-locked seam")
 	}
 
 	err := r.dbOps.Delete(ctx, r.tableName, req.Data.Id)
@@ -214,10 +444,79 @@ func (r *PostgresJobPhaseRepository) ListJobPhases(ctx context.Context, req *pb.
 		phases = append(phases, phase)
 	}
 
+	// FIX-4: the generic List routes through the workspace decorator, but job_phase
+	// is column-less so the decorator only SHADOW-logs the unscoped tenant list (it
+	// cannot express a parent-JOIN predicate in a StringFilter). Enforce trusted
+	// parent ancestry here instead — SHADOW-independent — by dropping any phase whose
+	// owning job is not in the caller's workspace (one batched job probe). A caller
+	// with no trusted workspace (service-to-service / unauthenticated) is passed
+	// through unchanged. Same-tenant data is never dropped, so pagination is
+	// unaffected for legitimate callers; only cross-tenant leakage is removed.
+	scoped, err := r.filterPhasesByWorkspace(ctx, phases)
+	if err != nil {
+		return nil, err
+	}
+
 	return &pb.ListJobPhasesResponse{
 		Success: true,
-		Data:    phases,
+		Data:    scoped,
 	}, nil
+}
+
+// filterPhasesByWorkspace drops phases whose owning job is not in the trusted
+// context workspace (FIX-4). It is SHADOW-independent (always filters when a
+// workspace is present) and passes through unchanged when the context carries no
+// workspace. It runs one batched job-ancestry probe on the ambient executor (the
+// active *sql.Tx when inside a transaction, else the pool), so a phase whose job the
+// caller cannot prove it owns is excluded fail-closed.
+func (r *PostgresJobPhaseRepository) filterPhasesByWorkspace(ctx context.Context, phases []*pb.JobPhase) ([]*pb.JobPhase, error) {
+	id, ok := identity.FromContext(ctx)
+	if !ok || id == nil || id.WorkspaceID == "" {
+		return phases, nil // no trusted workspace → pass-through (service-to-service / CLI)
+	}
+	if len(phases) == 0 {
+		return phases, nil
+	}
+	seen := make(map[string]struct{}, len(phases))
+	jobIDs := make([]string, 0, len(phases))
+	for _, p := range phases {
+		if p == nil || p.JobId == "" {
+			continue
+		}
+		if _, dup := seen[p.JobId]; dup {
+			continue
+		}
+		seen[p.JobId] = struct{}{}
+		jobIDs = append(jobIDs, p.JobId)
+	}
+	if len(jobIDs) == 0 {
+		// No resolvable owning job on any row → cannot prove tenancy → fail closed.
+		return []*pb.JobPhase{}, nil
+	}
+	allowed := make(map[string]bool, len(jobIDs))
+	const q = `SELECT id FROM ` + entityid.Job + ` WHERE id = ANY($1) AND workspace_id = $2`
+	rows, err := r.readExecutor(ctx).QueryContext(ctx, q, pq.Array(jobIDs), id.WorkspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("job_phase list: workspace ancestry probe: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var jid string
+		if err := rows.Scan(&jid); err != nil {
+			return nil, fmt.Errorf("job_phase list: scan workspace ancestry: %w", err)
+		}
+		allowed[jid] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("job_phase list: iterate workspace ancestry: %w", err)
+	}
+	out := make([]*pb.JobPhase, 0, len(phases))
+	for _, p := range phases {
+		if p != nil && allowed[p.JobId] {
+			out = append(out, p)
+		}
+	}
+	return out, nil
 }
 
 // jobPhaseSortableSQLCols is the fail-closed sort whitelist for
@@ -347,6 +646,15 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseListPageData(
 		return nil, err
 	}
 
+	// FIX-4: bind trusted job.workspace_id ancestry unconditionally (workspace = $4)
+	// when the context carries a workspace — SHADOW-independent tenant scoping for
+	// this page projection.
+	wsJoin, wsID, wsScoped := jobWorkspaceScope(ctx, 4)
+	queryArgs := []any{searchPattern, limit, offset}
+	if wsScoped {
+		queryArgs = append(queryArgs, wsID)
+	}
+
 	query := `
 		WITH enriched AS (
 			SELECT
@@ -358,7 +666,7 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseListPageData(
 				jp.name,
 				jp.phase_order,
 				jp.status` + jobPhaseApprovalCols + `
-			FROM ` + entityid.JobPhase + ` jp
+			FROM ` + entityid.JobPhase + ` jp` + wsJoin + `
 			WHERE jp.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       jp.name ILIKE $1)
@@ -373,7 +681,7 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query job phase list page data: %w", err)
 	}
@@ -474,6 +782,15 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseItemPageData(
 		return nil, fmt.Errorf("job phase ID is required")
 	}
 
+	// FIX-4: bind trusted job.workspace_id ancestry unconditionally (workspace = $2)
+	// when present — a cross-tenant by-id item read now fails closed to not-found
+	// regardless of the global shadow/enforce flag.
+	wsJoin, wsID, wsScoped := jobWorkspaceScope(ctx, 2)
+	itemArgs := []any{req.JobPhaseId}
+	if wsScoped {
+		itemArgs = append(itemArgs, wsID)
+	}
+
 	query := `
 		SELECT
 			jp.id,
@@ -484,11 +801,11 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseItemPageData(
 			jp.name,
 			jp.phase_order,
 			jp.status` + jobPhaseApprovalCols + `
-		FROM ` + entityid.JobPhase + ` jp
+		FROM ` + entityid.JobPhase + ` jp` + wsJoin + `
 		WHERE jp.id = $1 AND jp.active = true
 	`
 
-	row := r.db.QueryRowContext(ctx, query, req.JobPhaseId)
+	row := r.db.QueryRowContext(ctx, query, itemArgs...)
 
 	var (
 		id           string
@@ -553,6 +870,16 @@ func (r *PostgresJobPhaseRepository) ListByJob(
 		return nil, fmt.Errorf("job ID is required")
 	}
 
+	// FIX-4: bind trusted job.workspace_id ancestry unconditionally (workspace = $2)
+	// when present — ListByJob no longer returns another tenant's phases regardless
+	// of the global shadow/enforce flag. A system/CLI caller with no workspace in
+	// context keeps the prior unscoped behavior (pass-through).
+	wsJoin, wsID, wsScoped := jobWorkspaceScope(ctx, 2)
+	listArgs := []any{req.JobId}
+	if wsScoped {
+		listArgs = append(listArgs, wsID)
+	}
+
 	query := `
 		SELECT
 			jp.id,
@@ -563,12 +890,12 @@ func (r *PostgresJobPhaseRepository) ListByJob(
 			jp.name,
 			jp.phase_order,
 			jp.status` + jobPhaseApprovalCols + `
-		FROM ` + entityid.JobPhase + ` jp
+		FROM ` + entityid.JobPhase + ` jp` + wsJoin + `
 		WHERE jp.job_id = $1 AND jp.active = true
 		ORDER BY jp.phase_order ASC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, req.JobId)
+	rows, err := r.db.QueryContext(ctx, query, listArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list job phases by job: %w", err)
 	}

@@ -125,7 +125,7 @@ func newUpdateSubUC(t *testing.T, ppRepo *mockPricePlanRepoSub, clientRepo *mock
 			Authorizer:       ports.NewNoOpAuthorizer(),
 			ActionGatekeeper: actiongate.NewActionGatekeeper(ports.NewNoOpAuthorizer(), ports.NewNoOpTranslator()),
 			Transactor:       noTxnSub{},
-			Translator: ports.NewNoOpTranslator(),
+			Translator:       ports.NewNoOpTranslator(),
 		},
 	)
 }

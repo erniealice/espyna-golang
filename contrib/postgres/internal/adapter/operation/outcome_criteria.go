@@ -232,7 +232,7 @@ func (r *PostgresOutcomeCriteriaRepository) LineageEstablishedCode(ctx context.C
 // lookup against the criteria_group anchor's normalized domain claim
 // (uq_criteria_group_domain_code). Returns the criteria_group_id that owns
 // (scopeKey, workspaceKey, industryKey, code) across ALL version statuses and
-// both active states, or "" when unclaimed. Keys are the normalized ''-for-NULL
+// both active states, or "" when unclaimed. Keys are the normalized ”-for-NULL
 // forms the anchor stores (the caller derives workspaceKey from the TRUSTED
 // request context, never from client input). Single statement -> inherently
 // snapshot-consistent; the unique index behind it remains the authoritative
@@ -260,8 +260,8 @@ func (r *PostgresOutcomeCriteriaRepository) CodeOwnerGroup(ctx context.Context, 
 // domain-consistency guard: a single indexed point lookup against the
 // criteria_group anchor (PK id -> scope/workspace_key/industry_key). Returns
 // claimed=false when the lineage has no anchor yet (no coded version). The
-// columns are NOT NULL, ''-normalized forms (the populate trigger COALESCEs
-// NULL domain parts to ''), so plain string scans are exact. Single statement
+// columns are NOT NULL, ”-normalized forms (the populate trigger COALESCEs
+// NULL domain parts to ”), so plain string scans are exact. Single statement
 // -> inherently snapshot-consistent; parameterized; the caller supplies the
 // context deadline. Not workspace-scoped for the same reason as
 // LineageEstablishedCode: the anchor's claim is the global fact the guard

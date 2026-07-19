@@ -9,10 +9,10 @@ import (
 	"os"
 	"sync"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/database/model"
 	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
@@ -58,6 +58,12 @@ import (
 // applied keeps treating them as column-less until restart — the map removal AND a
 // process restart are both required for correct direct-column scoping.
 var columnLessTenantTables = map[string]bool{
+	// job_phase has no workspace_id column and was absent from this map (a
+	// cross-tenant by-id IDOR surface on generic Read/Update/Delete). Its owning
+	// workspace is derived via the single-hop job_id → job.workspace_id probe
+	// below (phase-approval plan §4.3 CRITICAL). SHADOW by default (log-only);
+	// AUTHZ_ENFORCE denies a cross-tenant by-id phase access.
+	"job_phase":                true,
 	"treasury_collection":      true,
 	"treasury_disbursement":    true,
 	"invoice":                  true,
@@ -130,6 +136,13 @@ type parentJoinProbe struct {
 // inaccessible under ENFORCE — documented as the accepted fail-closed cost. In
 // SHADOW (default) it only emits a log line; behavior is unchanged.
 var columnLessTenantParentJoins = map[string]parentJoinProbe{
+	// job_phase.job_id → job.workspace_id (immediate parent carries the column
+	// today) — phase-approval plan §4.3 defense-in-depth. A NULL/orphan job_id
+	// fail-closed-excludes under ENFORCE.
+	"job_phase": {
+		fkColumn: "job_id", childAlias: "c", parentAlias: "p",
+		parentTable: "job", joinCond: "c.job_id = p.id", parentWs: "p.workspace_id",
+	},
 	"treasury_collection": {
 		fkColumn: "revenue_id", childAlias: "c", parentAlias: "p",
 		parentTable: "revenue", joinCond: "c.revenue_id = p.id", parentWs: "p.workspace_id",

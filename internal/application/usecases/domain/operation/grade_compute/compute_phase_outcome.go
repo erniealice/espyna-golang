@@ -24,6 +24,14 @@ import (
 	taskoutcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 )
 
+// ErrNoRecordedValues is returned (wrapped) by ComputePhaseOutcome when a gradable
+// phase (its scheme resolves a score scale and scoped criteria) has no recorded
+// numeric task_outcome values yet. The submit-time freshness barrier
+// (RecomputePhaseInAmbientTx) treats it as an EXPECTED skip — a blank phase is not a
+// compute failure, and D6 permits partial/blank submission. Other callers see the
+// same human message via %w wrapping and keep their prior behavior.
+var ErrNoRecordedValues = errors.New("no recorded numeric values for the scoped criteria")
+
 // ComputePhaseOutcomeRequest is the structured input for the grade roll-up.
 //
 // JobPhaseId is the phase being graded. ReportingCheckpointId is a pass-through
@@ -140,8 +148,11 @@ func (uc *ComputePhaseOutcomeUseCase) executeCore(ctx context.Context, req *Comp
 	}
 	inputs, contributing := bucketByCriterion(outcomes, inScope)
 	if contributing == 0 {
+		// Wrap the sentinel so the submit-time freshness barrier can errors.Is it and
+		// treat a gradable-but-blank phase as an expected skip; the human %s(jobPhase)
+		// message is preserved for every other caller.
 		return nil, fmt.Errorf(uc.msg(ctx, "grade_compute.errors.no_recorded_values",
-			"[ERR-DEFAULT] no numeric task_outcome values recorded against the scoped criteria for job_phase %s"), req.JobPhaseId)
+			"[ERR-DEFAULT] no numeric task_outcome values recorded against the scoped criteria for job_phase %s")+": %w", req.JobPhaseId, ErrNoRecordedValues)
 	}
 
 	// 5. Composite method: only SUM is implemented today. Fail loud on any other

@@ -16,6 +16,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
@@ -65,6 +66,20 @@ func NewPostgresJobTemplatePhaseRepository(dbOps interfaces.DatabaseOperation, t
 		db:        db,
 		tableName: tableName,
 	}
+}
+
+// executor returns the transaction-aware SQL executor: the active *sql.Tx when
+// one is present on ctx (so the W-SPAWN graph enumeration reads the parents it is
+// about to lock ON the same transaction — codex P3 §A5), else the pooled *sql.DB.
+func (r *PostgresJobTemplatePhaseRepository) executor(ctx context.Context) sqlexec.DBExecutor {
+	if ep, ok := r.dbOps.(interface {
+		GetExecutor(ctx context.Context) sqlexec.DBExecutor
+	}); ok {
+		if e := ep.GetExecutor(ctx); e != nil {
+			return e
+		}
+	}
+	return r.db
 }
 
 // CreateJobTemplatePhase creates a new job template phase record
@@ -600,7 +615,7 @@ func jobTemplatePhaseOwnedTemplateIDsSQL() string {
 // ensurePhaseInWorkspace fails a by-id generic op closed when the phase's parent
 // job_template is not owned by the caller's workspace. An empty workspace (a
 // service context with no tenant bound) skips the check, matching the raw reads'
-// ($N = '' OR ...) posture.
+// ($N = ” OR ...) posture.
 func (r *PostgresJobTemplatePhaseRepository) ensurePhaseInWorkspace(ctx context.Context, phaseID string) error {
 	wsID := identity.Must(ctx).WorkspaceID
 	if wsID == "" {
@@ -703,7 +718,7 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 		wsID = id.WorkspaceID
 	}
 
-	rows, err := r.db.QueryContext(ctx, query, req.JobTemplateId, wsID)
+	rows, err := r.executor(ctx).QueryContext(ctx, query, req.JobTemplateId, wsID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list job template phases by template: %w", err)
 	}

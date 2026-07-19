@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"testing"
 
+	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 	matrixpb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/outcome_matrix"
 )
 
@@ -25,6 +26,31 @@ func TestOutcomeCell_TrustedRecomputeKeys(t *testing.T) {
 	}
 	if cell.GetJobId() != "job-1" {
 		t.Errorf("job_id recompute key not carried: got %q", cell.GetJobId())
+	}
+}
+
+// TestApprovalRankToStatus pins the roll-up status-rank mapping used by
+// loadApprovalRollups: the SQL emits MIN(rank) where 1=IN_PROGRESS, 2=FOR_REVIEW,
+// 3=VERIFIED, 4=PUBLISHED (the "sole or LOWEST status" contract), and this maps
+// it back to the enum. Any unknown rank is UNSPECIFIED (fail-soft; never
+// persisted). The grouped SQL itself is exercised by the live integration reboot
+// (this package has no live-DB harness — same note as above).
+func TestApprovalRankToStatus(t *testing.T) {
+	cases := []struct {
+		rank int
+		want jobphasepb.PhaseApprovalStatus
+	}{
+		{1, jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_IN_PROGRESS},
+		{2, jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_FOR_REVIEW},
+		{3, jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_VERIFIED},
+		{4, jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_PUBLISHED},
+		{0, jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_UNSPECIFIED},
+		{9, jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_UNSPECIFIED},
+	}
+	for _, c := range cases {
+		if got := approvalRankToStatus(c.rank); got != c.want {
+			t.Errorf("approvalRankToStatus(%d) = %v, want %v", c.rank, got, c.want)
+		}
 	}
 }
 

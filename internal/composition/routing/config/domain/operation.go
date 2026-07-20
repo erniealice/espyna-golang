@@ -11,6 +11,7 @@ import (
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	jobcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_category"
 	joboutcomesummarydoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
+	jobtemplatedoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_document_template"
 	joboutcomelinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_line"
 	jobtaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
@@ -238,6 +239,46 @@ func ConfigureOperationDomain(operationUseCases *operationuc.OperationUseCases) 
 				Method:  "POST",
 				Path:    "/api/operation/job-outcome-summary-document-template/list",
 				Handler: contracts.NewGenericHandler(b.ListJobOutcomeSummaryDocumentTemplates, &joboutcomesummarydoctmplpb.ListJobOutcomeSummaryDocumentTemplatesRequest{}),
+			})
+		}
+	}
+
+	// JobTemplateDocumentTemplate routes (sheet-family / grade-sheet template binding — 20260720).
+	if operationUseCases.JobTemplateDocumentTemplate != nil {
+		b := operationUseCases.JobTemplateDocumentTemplate
+		if b.CreateJobTemplateDocumentTemplate != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-template-document-template/create",
+				Handler: contracts.NewGenericHandler(b.CreateJobTemplateDocumentTemplate, &jobtemplatedoctmplpb.CreateJobTemplateDocumentTemplateRequest{}),
+			})
+		}
+		if b.ReadJobTemplateDocumentTemplate != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-template-document-template/read",
+				Handler: contracts.NewGenericHandler(b.ReadJobTemplateDocumentTemplate, &jobtemplatedoctmplpb.ReadJobTemplateDocumentTemplateRequest{}),
+			})
+		}
+		if b.UpdateJobTemplateDocumentTemplate != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-template-document-template/update",
+				Handler: contracts.NewGenericHandler(b.UpdateJobTemplateDocumentTemplate, &jobtemplatedoctmplpb.UpdateJobTemplateDocumentTemplateRequest{}),
+			})
+		}
+		if b.DeleteJobTemplateDocumentTemplate != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-template-document-template/delete",
+				Handler: contracts.NewGenericHandler(b.DeleteJobTemplateDocumentTemplate, &jobtemplatedoctmplpb.DeleteJobTemplateDocumentTemplateRequest{}),
+			})
+		}
+		if b.ListJobTemplateDocumentTemplates != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/job-template-document-template/list",
+				Handler: contracts.NewGenericHandler(b.ListJobTemplateDocumentTemplates, &jobtemplatedoctmplpb.ListJobTemplateDocumentTemplatesRequest{}),
 			})
 		}
 	}

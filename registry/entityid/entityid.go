@@ -281,6 +281,12 @@ const (
 	// (optional) price_schedule, versioned. Owns the publication lifecycle +
 	// validity window that must NOT live on the shared document_template.
 	JobOutcomeSummaryDocumentTemplate = "job_outcome_summary_document_template"
+	// Sheet-family template binding (20260720) — binds the job_template
+	// rendering surface (the outcome-matrix "grade sheet") to a generic
+	// document_template, scoped by workspace + (optional) price_schedule +
+	// (optional) job_category (the sheet COLUMN SHAPE axis), versioned. JOSDT
+	// sibling; owns the publication lifecycle + validity window.
+	JobTemplateDocumentTemplate = "job_template_document_template"
 )
 
 // Operation domain — Layer 7: Outcome
@@ -526,6 +532,7 @@ var OperationEntities = []string{
 	JobSettlement, InventoryMovement,
 	JobCategory,
 	JobOutcomeSummaryDocumentTemplate,
+	JobTemplateDocumentTemplate,
 	Evaluation, EvaluationResponse, EvaluationTemplate,
 	EvaluationTemplateItem, EvaluationCycle, EvaluationCycleMember,
 	WorkRequest, WorkRequestType,

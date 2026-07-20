@@ -17,6 +17,7 @@ import (
 	jobActivityUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_activity"
 	jobCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_category"
 	jobOutcomeSummaryDocumentTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_outcome_summary_document_template"
+	jobTemplateDocumentTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_template_document_template"
 	jobOutcomeLineUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_outcome_line"
 	jobOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_outcome_summary"
 	jobPhaseUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_phase"
@@ -56,6 +57,7 @@ import (
 	jobactivitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
 	jobcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_category"
 	joboutcomesummarydoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
+	jobtemplatedoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_document_template"
 	joboutcomelinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_line"
 	joboutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
@@ -115,6 +117,8 @@ type OperationRepositories struct {
 	JobCategory jobcategorypb.JobCategoryDomainServiceServer
 	// JobOutcomeSummaryDocumentTemplate — report-card template binding (20260714).
 	JobOutcomeSummaryDocumentTemplate joboutcomesummarydoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer
+	// JobTemplateDocumentTemplate — sheet-family (grade-sheet) template binding (20260720).
+	JobTemplateDocumentTemplate jobtemplatedoctmplpb.JobTemplateDocumentTemplateDomainServiceServer
 	OutcomeCriteria      outcomecriteriapb.OutcomeCriteriaDomainServiceServer
 	CriteriaThreshold    criteriathresholdpb.CriteriaThresholdDomainServiceServer
 	CriteriaOption       criteriaoptionpb.CriteriaOptionDomainServiceServer
@@ -174,6 +178,8 @@ type OperationUseCases struct {
 	JobCategory *jobCategoryUseCases.UseCases
 	// JobOutcomeSummaryDocumentTemplate — report-card template binding (20260714).
 	JobOutcomeSummaryDocumentTemplate *jobOutcomeSummaryDocumentTemplateUseCases.UseCases
+	// JobTemplateDocumentTemplate — sheet-family (grade-sheet) template binding (20260720).
+	JobTemplateDocumentTemplate *jobTemplateDocumentTemplateUseCases.UseCases
 	OutcomeCriteria      *outcomeCriteriaUseCases.UseCases
 	CriteriaThreshold    *criteriaThresholdUseCases.UseCases
 	CriteriaOption       *criteriaOptionUseCases.UseCases
@@ -331,6 +337,18 @@ func NewUseCases(
 	jobOutcomeSummaryDocumentTemplateUC := jobOutcomeSummaryDocumentTemplateUseCases.NewUseCases(
 		jobOutcomeSummaryDocumentTemplateUseCases.Repositories{JobOutcomeSummaryDocumentTemplate: repos.JobOutcomeSummaryDocumentTemplate},
 		jobOutcomeSummaryDocumentTemplateUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	// JobTemplateDocumentTemplate — sheet-family (grade-sheet) template binding (20260720).
+	jobTemplateDocumentTemplateUC := jobTemplateDocumentTemplateUseCases.NewUseCases(
+		jobTemplateDocumentTemplateUseCases.Repositories{JobTemplateDocumentTemplate: repos.JobTemplateDocumentTemplate},
+		jobTemplateDocumentTemplateUseCases.Services{
 			Authorizer:       authSvc,
 			Transactor:       txSvc,
 			Translator:       i18nSvc,
@@ -644,6 +662,7 @@ func NewUseCases(
 		JobActivity:          jobActivityUC,
 		JobCategory:          jobCategoryUC,
 		JobOutcomeSummaryDocumentTemplate: jobOutcomeSummaryDocumentTemplateUC,
+		JobTemplateDocumentTemplate:       jobTemplateDocumentTemplateUC,
 		OutcomeCriteria:      outcomeCriteriaUC,
 		CriteriaThreshold:    criteriaThresholdUC,
 		CriteriaOption:       criteriaOptionUC,

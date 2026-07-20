@@ -36,6 +36,8 @@ func InitializeOperation(
 		JobCategory: repos.JobCategory,
 		// JobOutcomeSummaryDocumentTemplate — report-card template binding (20260714).
 		JobOutcomeSummaryDocumentTemplate: repos.JobOutcomeSummaryDocumentTemplate,
+		// JobTemplateDocumentTemplate — sheet-family (grade-sheet) template binding (20260720).
+		JobTemplateDocumentTemplate: repos.JobTemplateDocumentTemplate,
 		OutcomeCriteria:                   repos.OutcomeCriteria,
 		// TemplateTaskCriteria backs the A/B/C/D criterion ordering
 		// (template_task_criteria.sequence_order) that the report-card document

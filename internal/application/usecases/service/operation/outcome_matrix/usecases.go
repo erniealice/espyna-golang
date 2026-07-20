@@ -23,7 +23,8 @@ import (
 
 // UseCases aggregates every outcome-matrix service use case.
 type UseCases struct {
-	GetOutcomeMatrix *GetOutcomeMatrixUseCase
+	GetOutcomeMatrix        *GetOutcomeMatrixUseCase
+	GetOutcomeSummaryRoster *GetOutcomeSummaryRosterUseCase
 }
 
 // Repositories groups infrastructure dependencies. Query may be nil when no
@@ -45,6 +46,13 @@ func NewUseCases(repositories Repositories, services Services) *UseCases {
 		GetOutcomeMatrix: NewGetOutcomeMatrixUseCase(
 			GetOutcomeMatrixRepositories{Query: repositories.Query},
 			GetOutcomeMatrixServices{
+				Translator:       services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
+			},
+		),
+		GetOutcomeSummaryRoster: NewGetOutcomeSummaryRosterUseCase(
+			GetOutcomeSummaryRosterRepositories{Query: repositories.Query},
+			GetOutcomeSummaryRosterServices{
 				Translator:       services.Translator,
 				ActionGatekeeper: services.ActionGatekeeper,
 			},

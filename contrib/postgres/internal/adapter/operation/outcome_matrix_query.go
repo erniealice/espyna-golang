@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
@@ -114,6 +115,210 @@ func (a *PostgresOutcomeMatrixQuery) GetOutcomeMatrix(
 		ApprovalRollups: rollups,
 		Success:         true,
 	}, nil
+}
+
+// GetOutcomeSummaryRoster returns the STORED per-period + year-final composites
+// for every student under one job_template (20260720 export drawer P2). It reads
+// stored values VERBATIM — phase_outcome_summary.scaled_label (per job_phase) and
+// job_outcome_summary.scaled_label + is_authoritative (per job) — and NEVER
+// recomputes (D8: closed AYs are frozen/authoritative). Workspace-scoped in SQL
+// from the session identity, and row-scoped EXACTLY as the grid's loadRows:
+//   - scope=MINE/UNSPECIFIED: principalscope.StaffReachableJobClause narrows BOTH
+//     queries to the acting staff's reachable jobs (fail-closed: a non-staff
+//     principal has no reachable job set → ZERO rows, loadRows parity). This closes
+//     the period=final leak — a MINE-scoped teacher must NOT receive the full
+//     workspace roster (the year-final CSV would otherwise expose every student).
+//   - scope=ALL: no staff predicate (workspace-only), the widen authorized upstream
+//     by the use case's list gate (and re-gated at the view on workspace:list).
+//
+// Both queries select from the SAME scoped job set. The read is gated upstream by
+// the use case on job_outcome_summary:list.
+func (a *PostgresOutcomeMatrixQuery) GetOutcomeSummaryRoster(
+	ctx context.Context,
+	req *matrixpb.GetOutcomeSummaryRosterRequest,
+) (*matrixpb.GetOutcomeSummaryRosterResponse, error) {
+	if req == nil || req.GetJobTemplateId() == "" {
+		return &matrixpb.GetOutcomeSummaryRosterResponse{Success: true}, nil
+	}
+
+	// workspace_id from the session identity — required for multi-tenancy.
+	// FromContext (not identity.Must) so a missing identity fails closed to an
+	// empty response rather than panicking (GetOutcomeMatrix parity).
+	id, ok := identity.FromContext(ctx)
+	if !ok || id == nil || id.WorkspaceID == "" {
+		return &matrixpb.GetOutcomeSummaryRosterResponse{JobTemplateId: req.GetJobTemplateId(), Success: true}, nil
+	}
+	workspaceID := id.WorkspaceID
+	jobTemplateID := req.GetJobTemplateId()
+
+	// Row-scope predicate — mirrors loadRows' scope branch EXACTLY. Both roster
+	// queries bind $1=job_template_id and $2=workspace_id, so the staff clause (when
+	// any) starts at $3 and is appended to BOTH so they read the SAME scoped job set.
+	staffClause, staffArgs, allowed := rosterScopeClause(ctx, req.GetScope(), 3)
+	if !allowed {
+		// MINE/UNSPECIFIED for a non-staff principal: no reachable job set — fail
+		// closed to ZERO rows (exact loadRows parity; the view then 404s).
+		return &matrixpb.GetOutcomeSummaryRosterResponse{JobTemplateId: jobTemplateID, Success: true}, nil
+	}
+	args := append([]any{jobTemplateID, workspaceID}, staffArgs...)
+
+	// (A) Roster + year-final: ONE row per client under the template — DISTINCT ON
+	// (j.client_id) (grid parity: the matrix rows are DISTINCT ON j.client_id). The
+	// chosen job is deterministic (smallest j.id per client, matching the prior
+	// first-by-id dedup), and j.id is captured so (B) attaches phases from the SAME
+	// job. LEFT JOIN the latest active job_outcome_summary so a student with no
+	// year-final still appears; the stored year-final is read verbatim.
+	rosterSQL := `
+SELECT DISTINCT ON (j.client_id)
+       j.client_id,
+       j.id                                  AS job_id,
+       COALESCE(jos.scaled_label, '')        AS year_final_label,
+       COALESCE(jos.is_authoritative, false) AS year_final_is_authoritative
+FROM ` + entityid.Job + ` j
+LEFT JOIN ` + entityid.JobOutcomeSummary + ` jos
+       ON jos.job_id = j.id AND jos.active = true
+WHERE j.job_template_id = $1 AND j.workspace_id = $2 AND j.active = true` + staffClause + `
+ORDER BY j.client_id, j.id, jos.date_created DESC NULLS LAST, jos.id DESC`
+
+	rrows, err := a.db.QueryContext(ctx, rosterSQL, args...)
+	if err != nil {
+		return nil, fmt.Errorf("outcome_matrix: roster year-final query: %w", err)
+	}
+	defer rrows.Close()
+
+	var order []string
+	rowByClient := map[string]*matrixpb.OutcomeSummaryRosterRow{}
+	jobByClient := map[string]string{} // client_id → the ONE job (A) chose (Finding 2 dedup)
+	for rrows.Next() {
+		var (
+			clientID        string
+			jobID           string
+			yearFinalLabel  string
+			yearFinalIsAuth bool
+		)
+		if err := rrows.Scan(&clientID, &jobID, &yearFinalLabel, &yearFinalIsAuth); err != nil {
+			return nil, fmt.Errorf("outcome_matrix: scan roster row: %w", err)
+		}
+		if clientID == "" || rowByClient[clientID] != nil {
+			continue
+		}
+		rowByClient[clientID] = &matrixpb.OutcomeSummaryRosterRow{
+			ClientId:                 clientID,
+			ClientLabel:              clientID, // opaque id; the view resolves a display name (matrix parity)
+			YearFinalLabel:           yearFinalLabel,
+			YearFinalIsAuthoritative: yearFinalIsAuth,
+		}
+		jobByClient[clientID] = jobID
+		order = append(order, clientID)
+	}
+	if err := rrows.Err(); err != nil {
+		return nil, fmt.Errorf("outcome_matrix: roster year-final rows: %w", err)
+	}
+
+	// (B) Per-phase composites: the latest active phase_outcome_summary.scaled_label
+	// per job_phase, mapped to its job_template_phase (code/label/order). DISTINCT ON
+	// (jp.id) keeps the newest pos revision (date_created DESC). A phase entry is
+	// attached only when its job is the SAME job (A) chose for the client — a client
+	// with >1 job under the template must not mix another job's phases with this
+	// year-final (Finding 2 dedup parity: one row per client, phases + year-final
+	// from ONE job).
+	phaseSQL := `
+SELECT DISTINCT ON (jp.id)
+       j.client_id,
+       j.id                            AS job_id,
+       jp.template_phase_id,
+       COALESCE(jtp.code, '')          AS phase_code,
+       jtp.name                        AS phase_name,
+       jtp.phase_order,
+       COALESCE(pos.scaled_label, '')  AS scaled_label
+FROM ` + entityid.Job + ` j
+JOIN ` + entityid.JobPhase + ` jp
+       ON jp.job_id = j.id AND jp.active = true AND jp.template_phase_id IS NOT NULL
+JOIN ` + entityid.JobTemplatePhase + ` jtp
+       ON jtp.id = jp.template_phase_id AND jtp.active = true
+LEFT JOIN ` + entityid.PhaseOutcomeSummary + ` pos
+       ON pos.job_phase_id = jp.id AND pos.active = true
+WHERE j.job_template_id = $1 AND j.workspace_id = $2 AND j.active = true` + staffClause + `
+ORDER BY jp.id, pos.date_created DESC NULLS LAST, pos.id DESC`
+
+	prows, err := a.db.QueryContext(ctx, phaseSQL, args...)
+	if err != nil {
+		return nil, fmt.Errorf("outcome_matrix: roster phase composite query: %w", err)
+	}
+	defer prows.Close()
+	for prows.Next() {
+		var (
+			clientID    string
+			jobID       string
+			phaseID     string
+			phaseCode   string
+			phaseName   string
+			phaseOrder  int32
+			scaledLabel string
+		)
+		if err := prows.Scan(&clientID, &jobID, &phaseID, &phaseCode, &phaseName, &phaseOrder, &scaledLabel); err != nil {
+			return nil, fmt.Errorf("outcome_matrix: scan roster phase: %w", err)
+		}
+		row := rowByClient[clientID]
+		if row == nil {
+			// A job_phase whose parent job was absent from (A) — should not happen
+			// (same WHERE), but skip defensively rather than fabricate a student.
+			continue
+		}
+		if jobByClient[clientID] != jobID {
+			// A different job of the same client than (A) chose — skip so the
+			// composite stays internally consistent (phases + year-final one job).
+			continue
+		}
+		row.Phases = append(row.Phases, &matrixpb.OutcomeSummaryPhaseEntry{
+			JobTemplatePhaseId: phaseID,
+			Code:               phaseCode,
+			Label:              phaseName,
+			SequenceOrder:      phaseOrder,
+			ScaledLabel:        scaledLabel,
+		})
+	}
+	if err := prows.Err(); err != nil {
+		return nil, fmt.Errorf("outcome_matrix: roster phase rows: %w", err)
+	}
+
+	// Assemble in a deterministic order: students by client_id (grid parity — the
+	// matrix rows are DISTINCT ON j.client_id), phases by sequence_order.
+	sort.Strings(order)
+	out := make([]*matrixpb.OutcomeSummaryRosterRow, 0, len(order))
+	for _, clientID := range order {
+		row := rowByClient[clientID]
+		sort.SliceStable(row.Phases, func(i, j int) bool {
+			return row.Phases[i].GetSequenceOrder() < row.Phases[j].GetSequenceOrder()
+		})
+		out = append(out, row)
+	}
+
+	return &matrixpb.GetOutcomeSummaryRosterResponse{
+		JobTemplateId: jobTemplateID,
+		Rows:          out,
+		Success:       true,
+	}, nil
+}
+
+// rosterScopeClause mirrors loadRows' scope branch EXACTLY for the roster read so
+// the period=final composite can never leak the full workspace roster to a
+// MINE-scoped staff principal. scope=ALL drops the staff predicate (workspace-only;
+// the widen is authorized upstream by the use case's list gate). scope=MINE /
+// UNSPECIFIED applies StaffReachableJobClause on the job alias "j"; a NON-STAFF
+// principal has no reachable job set, so allowed=false tells the caller to fail
+// closed to ZERO rows (exact loadRows parity). nextParam is the 1-based index of the
+// next positional placeholder (both roster queries bind $1=template, $2=workspace →
+// nextParam is 3); the caller appends the returned args after those two.
+func rosterScopeClause(ctx context.Context, scope matrixpb.OutcomeMatrixScope, nextParam int) (clause string, args []any, allowed bool) {
+	if scope == matrixpb.OutcomeMatrixScope_OUTCOME_MATRIX_SCOPE_ALL {
+		return "", nil, true
+	}
+	if _, applies := principalscope.StaffRowScope(ctx); !applies {
+		return "", nil, false
+	}
+	clause, args = principalscope.StaffReachableJobClause(ctx, "j", nextParam)
+	return clause, args, true
 }
 
 // approvalRankToStatus maps the status-rank the roll-up SQL computes (1..4) back
@@ -335,6 +540,7 @@ func (a *PostgresOutcomeMatrixQuery) loadColumnTree(ctx context.Context, jobTemp
 SELECT
     jtp.id                        AS phase_id,
     jtp.name                      AS phase_name,
+    jtp.code                      AS phase_code,
     pv.sku                        AS variant_name,
     jtp.phase_order,
     jtt.id                        AS task_id,
@@ -387,6 +593,7 @@ ORDER BY jtp.phase_order, jtt.step_order, ttc.sequence_order`
 	for rows.Next() {
 		var (
 			phaseID, phaseName       string
+			phaseCode                sql.NullString
 			variantName              sql.NullString
 			phaseOrder               int32
 			taskID, taskName         string
@@ -405,7 +612,7 @@ ORDER BY jtp.phase_order, jtt.step_order, ttc.sequence_order`
 			required                 sql.NullBool
 		)
 		if err := rows.Scan(
-			&phaseID, &phaseName, &variantName, &phaseOrder,
+			&phaseID, &phaseName, &phaseCode, &variantName, &phaseOrder,
 			&taskID, &taskName, &stepOrder,
 			&seqOrder,
 			&criteriaID, &criteriaName, &criteriaType,
@@ -421,6 +628,11 @@ ORDER BY jtp.phase_order, jtt.step_order, ttc.sequence_order`
 				JobTemplatePhaseId: phaseID,
 				Label:              composePhaseLabel(phaseName, variantName),
 				SequenceOrder:      phaseOrder,
+				// Q8 (20260720 export drawer): the stable s1/s2 period anchor,
+				// COALESCE'd to "" when the phase carries no code (heals the 22
+				// inactive NULL-code duplicates — those are jtp.active=false and
+				// excluded above anyway; a live NULL still renders empty).
+				Code: nullStringVal(phaseCode),
 			}
 			phaseByID[phaseID] = phase
 			phases = append(phases, phase)

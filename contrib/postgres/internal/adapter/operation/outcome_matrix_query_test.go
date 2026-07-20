@@ -3,12 +3,92 @@
 package operation
 
 import (
+	"context"
 	"database/sql"
+	"strings"
 	"testing"
 
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 	matrixpb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/outcome_matrix"
+
+	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
+	"github.com/erniealice/espyna-golang/shared/identity"
 )
+
+// rosterStaffCtx builds a session context whose active binding is a STAFF principal
+// (kind 7) — the shape the session middleware stamps and the ONLY source the scope
+// helper reads (never a request param).
+func rosterStaffCtx(staffID string) context.Context {
+	return identity.WithRequestIdentity(context.Background(), &identity.RequestIdentity{
+		WorkspaceID:   "ws-1",
+		PrincipalType: principalscope.PrincipalTypeStaff,
+		PrincipalID:   staffID,
+	})
+}
+
+// rosterNonStaffCtx builds a session context whose active binding is a NON-staff
+// principal (operator kind 1) — a MINE roster read for such a caller must fail
+// closed (no reachable job set).
+func rosterNonStaffCtx() context.Context {
+	return identity.WithRequestIdentity(context.Background(), &identity.RequestIdentity{
+		WorkspaceID:   "ws-1",
+		PrincipalType: 1,
+		PrincipalID:   "op-1",
+	})
+}
+
+// TestRosterScopeClause pins the roster read's row-scope decision — the Finding 1
+// fix that closes the period=final full-roster leak. It must mirror loadRows'
+// branch EXACTLY: scope=ALL drops the staff predicate (workspace-only widen);
+// scope=MINE/UNSPECIFIED applies StaffReachableJobClause for a staff principal and
+// FAILS CLOSED (allowed=false → zero rows) for a non-staff principal; a malformed
+// staff session (empty staff.id) yields the always-false 1=0 predicate.
+func TestRosterScopeClause(t *testing.T) {
+	const mine = matrixpb.OutcomeMatrixScope_OUTCOME_MATRIX_SCOPE_MINE
+	const all = matrixpb.OutcomeMatrixScope_OUTCOME_MATRIX_SCOPE_ALL
+	const unspecified = matrixpb.OutcomeMatrixScope_OUTCOME_MATRIX_SCOPE_UNSPECIFIED
+
+	// scope=ALL → no staff predicate regardless of principal (workspace-only).
+	if clause, args, allowed := rosterScopeClause(rosterStaffCtx("staff-1"), all, 3); !allowed || clause != "" || args != nil {
+		t.Errorf("ALL/staff = (%q, %v, %v), want (\"\", nil, true)", clause, args, allowed)
+	}
+	if clause, args, allowed := rosterScopeClause(rosterNonStaffCtx(), all, 3); !allowed || clause != "" || args != nil {
+		t.Errorf("ALL/non-staff = (%q, %v, %v), want (\"\", nil, true)", clause, args, allowed)
+	}
+
+	// scope=MINE, staff principal → StaffReachableJobClause on "j", two bind args
+	// (staff.id, workspace.id) starting at $3.
+	clause, args, allowed := rosterScopeClause(rosterStaffCtx("staff-1"), mine, 3)
+	if !allowed {
+		t.Fatal("MINE/staff: allowed=false, want true")
+	}
+	if !strings.Contains(clause, "j.id IN (") {
+		t.Errorf("MINE/staff clause = %q, want a j.id IN (...) predicate", clause)
+	}
+	if !strings.Contains(clause, "$3") || len(args) != 2 {
+		t.Errorf("MINE/staff = (%q, %v), want $3-anchored clause with 2 args", clause, args)
+	}
+
+	// scope=MINE, NON-staff principal → fail closed to ZERO rows (loadRows parity).
+	if clause, args, allowed := rosterScopeClause(rosterNonStaffCtx(), mine, 3); allowed || clause != "" || args != nil {
+		t.Errorf("MINE/non-staff = (%q, %v, %v), want (\"\", nil, false) [fail-closed]", clause, args, allowed)
+	}
+
+	// UNSPECIFIED is treated as MINE (fail-closed → MINE): non-staff fails closed,
+	// staff narrows.
+	if _, _, allowed := rosterScopeClause(rosterNonStaffCtx(), unspecified, 3); allowed {
+		t.Error("UNSPECIFIED/non-staff: allowed=true, want false (UNSPECIFIED → MINE fail-closed)")
+	}
+	if _, _, allowed := rosterScopeClause(rosterStaffCtx("staff-1"), unspecified, 3); !allowed {
+		t.Error("UNSPECIFIED/staff: allowed=false, want true")
+	}
+
+	// Malformed staff session (empty staff.id): applies=true but the reachable-job
+	// clause is the always-false 1=0 predicate (zero rows), not an unscoped read.
+	if clause, _, allowed := rosterScopeClause(rosterStaffCtx(""), mine, 3); !allowed || !strings.Contains(clause, "1=0") {
+		t.Errorf("MINE/empty-staff = (%q, allowed=%v), want a 1=0 fail-closed predicate", clause, allowed)
+	}
+}
 
 // TestOutcomeCell_TrustedRecomputeKeys pins the W2 inline-recompute contract at
 // the proto boundary: an OutcomeCell must carry the SERVER-DERIVED job_phase_id

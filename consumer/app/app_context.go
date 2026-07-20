@@ -162,6 +162,19 @@ type AppContext struct {
 	// the app container (binding resolver ∘ storage download).
 	ResolveTemplateBytes any
 
+	// ResolveSheetTemplateBytes resolves the applicable published grade-sheet
+	// (outcome-matrix) template binding for a (job_category_id, price_schedule_id)
+	// pair and returns the bound template's storage bytes. Signature:
+	//   func(ctx context.Context, jobCategoryID, priceScheduleID string) ([]byte, error)
+	// Returns (nil, nil) on ANY miss — BUT the fayna outcome_matrix PDF handler
+	// treats nil bytes as FAIL-LOUD ("no template configured", 503), asymmetric to
+	// ResolveTemplateBytes (report cards fall back to an embedded template) BY
+	// DESIGN (grade-sheet Q1: no embedded fallback). Injected by the app container
+	// (job_template_document_template resolver ∘ storage download); the fayna
+	// EngineBlock type-asserts the bare two-string signature (GenerateDoc pattern),
+	// so no fayna→espyna dependency is introduced.
+	ResolveSheetTemplateBytes any
+
 	// ListAuditHistory lists audit trail entries for an entity.
 	ListAuditHistory any
 

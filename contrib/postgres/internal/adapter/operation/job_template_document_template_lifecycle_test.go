@@ -196,6 +196,11 @@ func TestFindApplicableJTDTSQL_HasFailClosedPredicateShape(t *testing.T) {
 		"schedule scope match":      "b.price_schedule_id = rs.price_schedule_id OR b.price_schedule_id IS NULL",
 		"category scope match":      "b.job_category_id = rs.job_category_id OR b.job_category_id IS NULL",
 		"category param":            "NULLIF($5, '')",
+		// Defense-in-depth purpose filter (20260720 Wave C): the resolver can only
+		// surface a document_template whose family (dt.document_purpose) matches the
+		// caller-pinned $6 — so a sheet resolver never returns a report-card
+		// template. Empty $6 = no filter (backward compatible).
+		"document_purpose filter": "$6 = '' OR dt.document_purpose = $6",
 	}
 	for name, sub := range mustContain {
 		if !strings.Contains(q, sub) {
@@ -240,6 +245,9 @@ func TestPublishFlipJTDTSQL_IsDraftOnlyGuarded(t *testing.T) {
 	}
 	if !strings.Contains(q, entityid_JobTemplateDocumentTemplate()) {
 		t.Errorf("publish flip must target the binding table via entityid, got: %q", q)
+	}
+	if !strings.Contains(q, "validity_start = COALESCE(validity_start, $8)") {
+		t.Errorf("publish flip must stamp validity_start at the tenure boundary when the operator left it NULL (historical as_of would otherwise resolve the current template), got: %q", q)
 	}
 }
 

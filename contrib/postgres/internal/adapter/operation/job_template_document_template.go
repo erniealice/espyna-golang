@@ -283,7 +283,8 @@ func (r *PostgresJobTemplateDocumentTemplateRepository) executor(ctx context.Con
 // unit-testable without a live DB.
 //
 // Params: $1=workspace(ctx), $2=price_schedule_id, $3='VERSION_STATUS_PUBLISHED',
-// $4=as_of, $5=job_category_id.
+// $4=as_of, $5=job_category_id, $6=document_purpose (defense-in-depth family
+// filter on the joined document_template; empty = no filter).
 //
 // 4-tier most-specific-wins match_rank (category ≻ schedule, per Q2):
 //
@@ -339,6 +340,7 @@ func findApplicableJobTemplateDocumentTemplateSQL() string {
 			AND (b.validity_end IS NULL OR $4 < b.validity_end)
 			AND (b.price_schedule_id = rs.price_schedule_id OR b.price_schedule_id IS NULL)
 			AND (b.job_category_id = rs.job_category_id OR b.job_category_id IS NULL)
+			AND ($6 = '' OR dt.document_purpose = $6)
 		ORDER BY match_rank, b.version DESC
 		LIMIT 2`,
 		entityid.JobTemplateDocumentTemplate, entityid.DocumentTemplate, entityid.PriceSchedule, entityid.JobCategory)
@@ -374,7 +376,7 @@ func (r *PostgresJobTemplateDocumentTemplateRepository) FindApplicableJobTemplat
 		asOf = req.AsOf.AsTime().UTC()
 	}
 
-	rows, err := ex.QueryContext(ctx, findApplicableJobTemplateDocumentTemplateSQL(), wsID, req.GetPriceScheduleId(), versionStatusPublished, asOf, req.GetJobCategoryId())
+	rows, err := ex.QueryContext(ctx, findApplicableJobTemplateDocumentTemplateSQL(), wsID, req.GetPriceScheduleId(), versionStatusPublished, asOf, req.GetJobCategoryId(), req.GetDocumentPurpose())
 	if err != nil {
 		return nil, fmt.Errorf("resolver query failed: %w", err)
 	}
@@ -584,8 +586,15 @@ func (r *PostgresJobTemplateDocumentTemplateRepository) FindApplicableJobTemplat
 // non-draft target) fails closed instead of double-publishing. Table identifier
 // from entityid (Q-TABLE-NAMES).
 func jobTemplateDocumentTemplatePublishFlipSQL() string {
+	// validity_start is stamped to the tenure boundary when the operator left it
+	// NULL: the upload drawer carries no validity inputs, and an open start would
+	// make EVERY published version match a historical as_of (version DESC would
+	// then resolve the CURRENT template for past-dated renders). COALESCE keeps an
+	// operator-set start authoritative; the boundary equals the prior sibling's
+	// stamped validity_end, so half-open windows chain without gap or overlap.
 	return fmt.Sprintf(`UPDATE %s
-		    SET version_status = $1, version = $2, published_at = $3, published_by = $4, date_modified = $3
+		    SET version_status = $1, version = $2, published_at = $3, published_by = $4, date_modified = $3,
+		        validity_start = COALESCE(validity_start, $8)
 		  WHERE id = $5 AND workspace_id = $6 AND version_status = $7`,
 		entityid.JobTemplateDocumentTemplate)
 }
@@ -691,7 +700,8 @@ func (r *PostgresJobTemplateDocumentTemplateRepository) PublishJobTemplateDocume
 	// Flip the target to PUBLISHED — guarded by the DRAFT predicate + affected-row
 	// check so a concurrent publish cannot double-apply.
 	res, err := tx.ExecContext(ctx, jobTemplateDocumentTemplatePublishFlipSQL(),
-		versionStatusPublished, newVersion, nowMillis, publishedBy, req.Id, wsID, versionStatusDraft)
+		versionStatusPublished, newVersion, nowMillis, publishedBy, req.Id, wsID, versionStatusDraft,
+		closeAt.Time)
 	if err != nil {
 		return nil, fmt.Errorf("publish target: %w", err)
 	}

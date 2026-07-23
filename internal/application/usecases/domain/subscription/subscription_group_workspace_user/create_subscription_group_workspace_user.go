@@ -50,6 +50,12 @@ func (uc *CreateSubscriptionGroupWorkspaceUserUseCase) enrich(data *pb.Subscript
 		data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	data.Active = true
+	// Generic servicing-capacity floor: least-privilege default ('access' = view-only)
+	// set explicitly rather than relying on the protojson-omit → DB DEFAULT path. A
+	// lead-eligible servicer ('primary') must be requested explicitly by the caller.
+	if data.Capacity == "" {
+		data.Capacity = "access"
+	}
 	ms := now.UnixMilli()
 	s := now.Format(time.RFC3339)
 	data.DateCreated = &ms

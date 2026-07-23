@@ -732,6 +732,7 @@ SELECT DISTINCT ON (j.client_id, jt.id, ttc.id)
        t.text_value,
        t.categorical_value,
        t.pass_fail_value,
+       t.determination_note,
        COALESCE(t.recorded_by, '')    AS recorded_by,
        COALESCE(jt.assigned_to, '')   AS assigned_to
 FROM ` + entityid.Job + ` j
@@ -776,12 +777,13 @@ ORDER BY j.client_id, jt.id, ttc.id, t.recorded_date DESC NULLS LAST, t.id DESC`
 			textValue      sql.NullString
 			categorical    sql.NullString
 			passFail       sql.NullBool
+			determination  sql.NullString
 			recordedBy     string
 			assignedTo     string
 		)
 		if err := rows.Scan(
 			&clientID, &jobTaskID, &jobPhaseID, &jobIDVal, &jobTemplateTID, &criteriaID,
-			&outcomeID, &numericValue, &textValue, &categorical, &passFail, &recordedBy, &assignedTo,
+			&outcomeID, &numericValue, &textValue, &categorical, &passFail, &determination, &recordedBy, &assignedTo,
 		); err != nil {
 			return nil, fmt.Errorf("outcome_matrix: scan cells: %w", err)
 		}
@@ -826,6 +828,14 @@ ORDER BY j.client_id, jt.id, ttc.id, t.recorded_date DESC NULLS LAST, t.id DESC`
 		if passFail.Valid {
 			v := passFail.Bool
 			cell.PassFailValue = &v
+		}
+		// determination_note (f14) mirrored verbatim into the additive
+		// OutcomeCell.determination_note (f11) — NULL-tolerant, "" when absent.
+		// Drives the grid message-glyph filled/outline state + the narrative
+		// drawer read; never conflated with the typed value fields above.
+		if determination.Valid {
+			v := determination.String
+			cell.DeterminationNote = &v
 		}
 
 		row.Cells[jobTemplateTID+":"+criteriaID] = cell

@@ -32,6 +32,7 @@ import (
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	clientworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_workspace_user"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
+	productplanstaffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan_staff"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
@@ -43,7 +44,6 @@ import (
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	pricescheduleworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule_workspace_user"
-	productplanstaffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan_staff"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
@@ -57,22 +57,22 @@ import (
 
 // SubscriptionRepositories contains all subscription domain repositories
 type SubscriptionRepositories struct {
-	Balance               balancepb.BalanceDomainServiceServer
-	BalanceAttribute      balanceattributepb.BalanceAttributeDomainServiceServer
-	BillingEvent          billingeventpb.BillingEventDomainServiceServer
-	Client                clientpb.ClientDomainServiceServer
-	Invoice               invoicepb.InvoiceDomainServiceServer
-	InvoiceAttribute      invoiceattributepb.InvoiceAttributeDomainServiceServer
-	Plan                  planpb.PlanDomainServiceServer
-	PlanAttribute         planattributepb.PlanAttributeDomainServiceServer
-	PlanSettings          plansettingspb.PlanSettingsDomainServiceServer
-	PricePlan             priceplanpb.PricePlanDomainServiceServer
-	PriceSchedule         priceschedulepb.PriceScheduleDomainServiceServer
-	ProductPlan           productplanpb.ProductPlanDomainServiceServer // Cross-domain (Model D: product_price_plan.product_plan_id FK validation)
+	Balance          balancepb.BalanceDomainServiceServer
+	BalanceAttribute balanceattributepb.BalanceAttributeDomainServiceServer
+	BillingEvent     billingeventpb.BillingEventDomainServiceServer
+	Client           clientpb.ClientDomainServiceServer
+	Invoice          invoicepb.InvoiceDomainServiceServer
+	InvoiceAttribute invoiceattributepb.InvoiceAttributeDomainServiceServer
+	Plan             planpb.PlanDomainServiceServer
+	PlanAttribute    planattributepb.PlanAttributeDomainServiceServer
+	PlanSettings     plansettingspb.PlanSettingsDomainServiceServer
+	PricePlan        priceplanpb.PricePlanDomainServiceServer
+	PriceSchedule    priceschedulepb.PriceScheduleDomainServiceServer
+	ProductPlan      productplanpb.ProductPlanDomainServiceServer // Cross-domain (Model D: product_price_plan.product_plan_id FK validation)
 	// ProductPlanStaff — cross-domain (product): backs the sgpps class-edge
 	// eligibility guard (red-team HIGH #5).
-	ProductPlanStaff productplanstaffpb.ProductPlanStaffDomainServiceServer
-	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
+	ProductPlanStaff      productplanstaffpb.ProductPlanStaffDomainServiceServer
+	ProductPricePlan      productpriceplanpb.ProductPricePlanDomainServiceServer
 	Subscription          subscriptionpb.SubscriptionDomainServiceServer
 	SubscriptionAttribute subscriptionattributepb.SubscriptionAttributeDomainServiceServer
 	// Outsourcing-vertical seat + servicing membership
@@ -349,10 +349,17 @@ func NewUseCases(
 		},
 	)
 
-	// Subscription-group membership + group-scoped staffing use cases (simple
-	// single-repo CRUD + page-data; no cross-entity deps).
+	// Subscription-group CRUD + page-data. The delete use case additionally
+	// consults the three subscription_group_id-FK dependents (member / class
+	// staff / access grant) for the referential delete guard — so they are wired
+	// in here alongside the parent repo.
 	subscriptionGroupUC := subscriptionGroupUseCases.NewUseCases(
-		subscriptionGroupUseCases.Repositories{SubscriptionGroup: repos.SubscriptionGroup},
+		subscriptionGroupUseCases.Repositories{
+			SubscriptionGroup:                 repos.SubscriptionGroup,
+			SubscriptionGroupMember:           repos.SubscriptionGroupMember,
+			SubscriptionGroupProductPlanStaff: repos.SubscriptionGroupProductPlanStaff,
+			SubscriptionGroupWorkspaceUser:    repos.SubscriptionGroupWorkspaceUser,
+		},
 		subscriptionGroupUseCases.Services{
 			Authorizer:       authSvc,
 			Transactor:       txSvc,

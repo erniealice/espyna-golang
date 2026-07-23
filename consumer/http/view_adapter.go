@@ -424,10 +424,14 @@ func (a *ViewAdapter) handleRedirect(w http.ResponseWriter, r *http.Request, res
 		statusCode = http.StatusSeeOther
 	}
 
-	if isHTMX(r) {
+	if isHTMX(r) && !isHistoryRestoreRequest(r) {
 		w.Header().Set("HX-Redirect", result.Redirect)
 		w.WriteHeader(http.StatusOK)
 	} else {
+		// A history-restore request (browser Back/Forward on an htmx cache
+		// MISS) cannot act on an HX-Redirect header — htmx's history loader
+		// only swaps a 2xx/3xx response body into hx-history-elt. Emit a real
+		// HTTP redirect so the browser navigates and re-restores.
 		http.Redirect(w, r, result.Redirect, statusCode)
 	}
 }
@@ -470,7 +474,16 @@ func (a *ViewAdapter) handleRender(w http.ResponseWriter, r *http.Request, resul
 
 	template := result.Template
 
-	if isHTMX(r) {
+	// A history-restore request (browser Back/Forward that lands on an htmx
+	// history-cache MISS) MUST render the FULL page shell, never a content
+	// partial. htmx swaps this response into hx-history-elt (the <body>) and
+	// expects a whole document; serving the shell-less "-content" partial (or
+	// falling through to it) leaves the address bar showing a bare, unstyled
+	// fragment. Treat it as a non-HTMX full-page render even though it carries
+	// HX-Request:true. This is the app-wide standing convention — every route
+	// that can land in the address bar renders the full shell when the request
+	// is not an interactive (boosted/target-scoped) HTMX swap.
+	if isHTMX(r) && !isHistoryRestoreRequest(r) {
 		hxTarget := r.Header.Get("HX-Target")
 
 		if hxTarget == "main-content" {
@@ -527,6 +540,20 @@ func (a *ViewAdapter) handleRender(w http.ResponseWriter, r *http.Request, resul
 
 func isHTMX(r *http.Request) bool {
 	return r.Header.Get("HX-Request") == "true"
+}
+
+// isHistoryRestoreRequest reports whether this is an htmx history-restore
+// request — the GET htmx issues when a browser Back/Forward lands on an entry
+// that is NOT in its history cache (a cache MISS). htmx 1.9.10 sends it with
+// HX-Request:true AND HX-History-Restore-Request:true (and HX-Current-URL), then
+// swaps the response into the hx-history-elt element (the <body>), so the server
+// must return the FULL page shell — the same output a cold full-page load
+// produces — NOT a "-content" partial. Because it carries HX-Request:true a
+// naive isHTMX() gate would (mis)route it into the partial branches and strip
+// the app shell; callers pair `isHTMX(r) && !isHistoryRestoreRequest(r)` so the
+// full-shell (else) path runs for it.
+func isHistoryRestoreRequest(r *http.Request) bool {
+	return r.Header.Get("HX-History-Restore-Request") == "true"
 }
 
 func getLang(r *http.Request) string {

@@ -11,7 +11,7 @@ import (
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
-	work_requestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
+	workRequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
 )
 
 // AssignWorkRequestRequest is the Go-shaped input for assignment.
@@ -22,7 +22,7 @@ type AssignWorkRequestRequest struct {
 
 // AssignWorkRequestRepositories groups all repository dependencies.
 type AssignWorkRequestRepositories struct {
-	WorkRequest   work_requestpb.WorkRequestDomainServiceServer
+	WorkRequest   workRequestpb.WorkRequestDomainServiceServer
 	WorkspaceUser workspaceuserpb.WorkspaceUserDomainServiceServer // FK validation
 }
 
@@ -49,7 +49,7 @@ func NewAssignWorkRequestUseCase(repositories AssignWorkRequestRepositories, ser
 	return &AssignWorkRequestUseCase{repositories: repositories, services: services}
 }
 
-func (uc *AssignWorkRequestUseCase) Execute(ctx context.Context, req *AssignWorkRequestRequest) (*work_requestpb.UpdateWorkRequestResponse, error) {
+func (uc *AssignWorkRequestUseCase) Execute(ctx context.Context, req *AssignWorkRequestRequest) (*workRequestpb.UpdateWorkRequestResponse, error) {
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: entityid.WorkRequest,
 		Action: entityid.ActionUpdate,
@@ -77,8 +77,8 @@ func (uc *AssignWorkRequestUseCase) Execute(ctx context.Context, req *AssignWork
 	}
 
 	// Load the current work request.
-	readResp, err := uc.repositories.WorkRequest.ReadWorkRequest(ctx, &work_requestpb.ReadWorkRequestRequest{
-		Data: &work_requestpb.WorkRequest{Id: req.WorkRequestID},
+	readResp, err := uc.repositories.WorkRequest.ReadWorkRequest(ctx, &workRequestpb.ReadWorkRequestRequest{
+		Data: &workRequestpb.WorkRequest{Id: req.WorkRequestID},
 	})
 	if err != nil {
 		return nil, err
@@ -98,7 +98,7 @@ func (uc *AssignWorkRequestUseCase) Execute(ctx context.Context, req *AssignWork
 	wr.DateModified = &[]int64{now.UnixMilli()}[0]
 	wr.DateModifiedString = &[]string{now.Format(time.RFC3339)}[0]
 
-	resp, err := uc.repositories.WorkRequest.UpdateWorkRequest(ctx, &work_requestpb.UpdateWorkRequestRequest{Data: wr})
+	resp, err := uc.repositories.WorkRequest.UpdateWorkRequest(ctx, &workRequestpb.UpdateWorkRequestRequest{Data: wr})
 	if err != nil {
 		translated := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workRequest.errors.assign_failed", "Work request assignment failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translated, err)

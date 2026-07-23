@@ -10,12 +10,12 @@ import (
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
-	work_request_typepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
+	workRequestTypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
 )
 
 // ListWorkRequestTypesRepositories groups all repository dependencies
 type ListWorkRequestTypesRepositories struct {
-	WorkRequestType work_request_typepb.WorkRequestTypeDomainServiceServer // Primary entity repository
+	WorkRequestType workRequestTypepb.WorkRequestTypeDomainServiceServer // Primary entity repository
 }
 
 // ListWorkRequestTypesServices groups all business service dependencies
@@ -43,7 +43,7 @@ func NewListWorkRequestTypesUseCase(
 }
 
 // Execute performs the list work request types operation with optional status filter
-func (uc *ListWorkRequestTypesUseCase) Execute(ctx context.Context, req *work_request_typepb.ListWorkRequestTypesRequest, status string) (*work_request_typepb.ListWorkRequestTypesResponse, error) {
+func (uc *ListWorkRequestTypesUseCase) Execute(ctx context.Context, req *workRequestTypepb.ListWorkRequestTypesRequest, status string) (*workRequestTypepb.ListWorkRequestTypesResponse, error) {
 	// Authorization check
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: entityid.WorkRequestType,
@@ -84,7 +84,7 @@ func (uc *ListWorkRequestTypesUseCase) Execute(ctx context.Context, req *work_re
 }
 
 // validateInput validates the input request
-func (uc *ListWorkRequestTypesUseCase) validateInput(ctx context.Context, req *work_request_typepb.ListWorkRequestTypesRequest) error {
+func (uc *ListWorkRequestTypesUseCase) validateInput(ctx context.Context, req *workRequestTypepb.ListWorkRequestTypesRequest) error {
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "work_request_type.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}

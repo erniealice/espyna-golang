@@ -10,12 +10,12 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	work_requestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
+	workRequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
 )
 
 // UpdateWorkRequestRepositories groups all repository dependencies.
 type UpdateWorkRequestRepositories struct {
-	WorkRequest work_requestpb.WorkRequestDomainServiceServer
+	WorkRequest workRequestpb.WorkRequestDomainServiceServer
 }
 
 // UpdateWorkRequestServices groups all business service dependencies.
@@ -41,7 +41,7 @@ func NewUpdateWorkRequestUseCase(repositories UpdateWorkRequestRepositories, ser
 	return &UpdateWorkRequestUseCase{repositories: repositories, services: services}
 }
 
-func (uc *UpdateWorkRequestUseCase) Execute(ctx context.Context, req *work_requestpb.UpdateWorkRequestRequest) (*work_requestpb.UpdateWorkRequestResponse, error) {
+func (uc *UpdateWorkRequestUseCase) Execute(ctx context.Context, req *workRequestpb.UpdateWorkRequestRequest) (*workRequestpb.UpdateWorkRequestResponse, error) {
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: entityid.WorkRequest,
 		Action: entityid.ActionUpdate,

@@ -11,7 +11,7 @@ import (
 	revaluationuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/asset/asset_revaluation"
 
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
-	revaluation_pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_revaluation"
+	revaluationPb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_revaluation"
 	assettxpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_transaction"
 )
 
@@ -174,14 +174,14 @@ func (r *fakeAssetTransactionRepo) CreateAssetTransaction(ctx context.Context, r
 // is filled in from a deterministic per-insert counter so the in-memory
 // stable-sort in deriveSurplusStateFromHistory is deterministic).
 type fakeRevaluationRepo struct {
-	revaluation_pb.UnimplementedAssetRevaluationDomainServiceServer
-	created []*revaluation_pb.AssetRevaluation
+	revaluationPb.UnimplementedAssetRevaluationDomainServiceServer
+	created []*revaluationPb.AssetRevaluation
 	// dayCounter advances RevaluationDate by 1 per insert so the in-memory
 	// chronological sort is stable + deterministic.
 	dayCounter int
 }
 
-func (r *fakeRevaluationRepo) CreateAssetRevaluation(ctx context.Context, req *revaluation_pb.CreateAssetRevaluationRequest) (*revaluation_pb.CreateAssetRevaluationResponse, error) {
+func (r *fakeRevaluationRepo) CreateAssetRevaluation(ctx context.Context, req *revaluationPb.CreateAssetRevaluationRequest) (*revaluationPb.CreateAssetRevaluationResponse, error) {
 	row := req.GetData()
 	// If the use case did not stamp RevaluationDate (it does, but defensive),
 	// or if we want strictly increasing dates regardless of clock granularity,
@@ -189,12 +189,12 @@ func (r *fakeRevaluationRepo) CreateAssetRevaluation(ctx context.Context, req *r
 	r.dayCounter++
 	row.RevaluationDate = isoDate(2025, 1, r.dayCounter)
 	r.created = append(r.created, row)
-	return &revaluation_pb.CreateAssetRevaluationResponse{Data: []*revaluation_pb.AssetRevaluation{row}}, nil
+	return &revaluationPb.CreateAssetRevaluationResponse{Data: []*revaluationPb.AssetRevaluation{row}}, nil
 }
 
-func (r *fakeRevaluationRepo) ListAssetRevaluations(ctx context.Context, req *revaluation_pb.ListAssetRevaluationsRequest) (*revaluation_pb.ListAssetRevaluationsResponse, error) {
+func (r *fakeRevaluationRepo) ListAssetRevaluations(ctx context.Context, req *revaluationPb.ListAssetRevaluationsRequest) (*revaluationPb.ListAssetRevaluationsResponse, error) {
 	target := req.GetAssetId()
-	out := make([]*revaluation_pb.AssetRevaluation, 0, len(r.created))
+	out := make([]*revaluationPb.AssetRevaluation, 0, len(r.created))
 	for _, row := range r.created {
 		if row.GetAssetId() == target {
 			out = append(out, row)
@@ -202,7 +202,7 @@ func (r *fakeRevaluationRepo) ListAssetRevaluations(ctx context.Context, req *re
 	}
 	// We deliberately return in INSERT order (chronological). The use case
 	// re-sorts in-memory, so this represents adapter-side guarantees.
-	return &revaluation_pb.ListAssetRevaluationsResponse{Data: out}, nil
+	return &revaluationPb.ListAssetRevaluationsResponse{Data: out}, nil
 }
 
 // isoDate produces a YYYY-MM-DD string. Day rolls over month/year if the
@@ -319,7 +319,7 @@ func TestRevalueAsset_RejectsCostModelAsset(t *testing.T) {
 
 	uc := newRevalueUseCaseWithRepos(assetRepo, txRepo, revRepo)
 
-	res, err := uc.Execute(ctxForWorkspace("ws-1"), &revaluation_pb.RevalueAssetUseCaseRequest{
+	res, err := uc.Execute(ctxForWorkspace("ws-1"), &revaluationPb.RevalueAssetUseCaseRequest{
 		AssetId:      "asset-cost-1",
 		NewFairValue: 150_000,
 	})
@@ -376,14 +376,14 @@ func TestRevalueAsset_UpThenDown(t *testing.T) {
 	ctx := ctxForWorkspace("ws-1")
 
 	// Step 1: up to 300_000.
-	if _, err := uc.Execute(ctx, &revaluation_pb.RevalueAssetUseCaseRequest{
+	if _, err := uc.Execute(ctx, &revaluationPb.RevalueAssetUseCaseRequest{
 		AssetId: "asset-up-down", NewFairValue: 300_000,
 	}); err != nil {
 		t.Fatalf("step1 (up) error: %v", err)
 	}
 
 	// Step 2: down to 50_000 (book value now 300_000, so down by 250_000).
-	if _, err := uc.Execute(ctx, &revaluation_pb.RevalueAssetUseCaseRequest{
+	if _, err := uc.Execute(ctx, &revaluationPb.RevalueAssetUseCaseRequest{
 		AssetId: "asset-up-down", NewFairValue: 50_000,
 	}); err != nil {
 		t.Fatalf("step2 (down) error: %v", err)
@@ -432,12 +432,12 @@ func TestRevalueAsset_DownThenUp(t *testing.T) {
 	uc := newRevalueUseCaseWithRepos(assetRepo, txRepo, revRepo)
 	ctx := ctxForWorkspace("ws-1")
 
-	if _, err := uc.Execute(ctx, &revaluation_pb.RevalueAssetUseCaseRequest{
+	if _, err := uc.Execute(ctx, &revaluationPb.RevalueAssetUseCaseRequest{
 		AssetId: "asset-down-up", NewFairValue: 100_000,
 	}); err != nil {
 		t.Fatalf("step1 (down) error: %v", err)
 	}
-	if _, err := uc.Execute(ctx, &revaluation_pb.RevalueAssetUseCaseRequest{
+	if _, err := uc.Execute(ctx, &revaluationPb.RevalueAssetUseCaseRequest{
 		AssetId: "asset-down-up", NewFairValue: 350_000,
 	}); err != nil {
 		t.Fatalf("step2 (up) error: %v", err)
@@ -484,7 +484,7 @@ func TestRevalueAsset_UpDownUp(t *testing.T) {
 	ctx := ctxForWorkspace("ws-1")
 
 	for i, fv := range []int64{300_000, 250_000, 400_000} {
-		if _, err := uc.Execute(ctx, &revaluation_pb.RevalueAssetUseCaseRequest{
+		if _, err := uc.Execute(ctx, &revaluationPb.RevalueAssetUseCaseRequest{
 			AssetId: "asset-udu", NewFairValue: fv,
 		}); err != nil {
 			t.Fatalf("step%d error: %v", i+1, err)
@@ -537,7 +537,7 @@ func TestRevalueAsset_UpDownPastSurplus_Up(t *testing.T) {
 	ctx := ctxForWorkspace("ws-1")
 
 	for i, fv := range []int64{200_000, 50_000, 200_000} {
-		if _, err := uc.Execute(ctx, &revaluation_pb.RevalueAssetUseCaseRequest{
+		if _, err := uc.Execute(ctx, &revaluationPb.RevalueAssetUseCaseRequest{
 			AssetId: "asset-udu-past", NewFairValue: fv,
 		}); err != nil {
 			t.Fatalf("step%d error: %v", i+1, err)
@@ -605,7 +605,7 @@ func TestRevalueAsset_RejectsEmptyWorkspaceInContext(t *testing.T) {
 	uc := newRevalueUseCaseWithRepos(assetRepo, txRepo, revRepo)
 
 	// Deliberately omit workspace from context (no WithWorkspaceID call).
-	res, err := uc.Execute(context.Background(), &revaluation_pb.RevalueAssetUseCaseRequest{
+	res, err := uc.Execute(context.Background(), &revaluationPb.RevalueAssetUseCaseRequest{
 		AssetId:      "asset-ws-test",
 		NewFairValue: 150_000,
 	})

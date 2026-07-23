@@ -6,24 +6,24 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
-	workflow_templatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
+	workflowTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
 )
 
 // ListWorkflowTemplatesRepositories groups all repository dependencies
 type ListWorkflowTemplatesRepositories struct {
-	WorkflowTemplate workflow_templatepb.WorkflowTemplateDomainServiceServer // Primary entity repository
-	Workspace        workspacepb.WorkspaceDomainServiceServer                // Workspace repository for foreign key validation
+	WorkflowTemplate workflowTemplatepb.WorkflowTemplateDomainServiceServer // Primary entity repository
+	Workspace        workspacepb.WorkspaceDomainServiceServer               // Workspace repository for foreign key validation
 }
 
 // ListWorkflowTemplatesServices groups all business service dependencies
 type ListWorkflowTemplatesServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -46,7 +46,7 @@ func NewListWorkflowTemplatesUseCase(
 
 // NewListWorkflowTemplatesUseCaseUngrouped creates use case with individual parameters
 // Deprecated: Use NewListWorkflowTemplatesUseCase with grouped parameters instead
-func NewListWorkflowTemplatesUseCaseUngrouped(workflowTemplateRepo workflow_templatepb.WorkflowTemplateDomainServiceServer, workspaceRepo workspacepb.WorkspaceDomainServiceServer) *ListWorkflowTemplatesUseCase {
+func NewListWorkflowTemplatesUseCaseUngrouped(workflowTemplateRepo workflowTemplatepb.WorkflowTemplateDomainServiceServer, workspaceRepo workspacepb.WorkspaceDomainServiceServer) *ListWorkflowTemplatesUseCase {
 	// Build grouped parameters internally for backward compatibility
 	repositories := ListWorkflowTemplatesRepositories{
 		WorkflowTemplate: workflowTemplateRepo,
@@ -54,8 +54,8 @@ func NewListWorkflowTemplatesUseCaseUngrouped(workflowTemplateRepo workflow_temp
 	}
 
 	services := ListWorkflowTemplatesServices{
-		Authorizer: nil,
-		Transactor: ports.NewNoOpTransactor(),
+		Authorizer:       nil,
+		Transactor:       ports.NewNoOpTransactor(),
 		Translator:       ports.NewNoOpTranslator(),
 		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
@@ -64,7 +64,7 @@ func NewListWorkflowTemplatesUseCaseUngrouped(workflowTemplateRepo workflow_temp
 }
 
 // Execute performs the list workflow templates operation
-func (uc *ListWorkflowTemplatesUseCase) Execute(ctx context.Context, req *workflow_templatepb.ListWorkflowTemplatesRequest) (*workflow_templatepb.ListWorkflowTemplatesResponse, error) {
+func (uc *ListWorkflowTemplatesUseCase) Execute(ctx context.Context, req *workflowTemplatepb.ListWorkflowTemplatesRequest) (*workflowTemplatepb.ListWorkflowTemplatesResponse, error) {
 	// Authorization check
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: "workflow_template",
@@ -96,8 +96,8 @@ func (uc *ListWorkflowTemplatesUseCase) Execute(ctx context.Context, req *workfl
 }
 
 // executeWithTransaction executes workflow template listing within a transaction
-func (uc *ListWorkflowTemplatesUseCase) executeWithTransaction(ctx context.Context, req *workflow_templatepb.ListWorkflowTemplatesRequest) (*workflow_templatepb.ListWorkflowTemplatesResponse, error) {
-	var result *workflow_templatepb.ListWorkflowTemplatesResponse
+func (uc *ListWorkflowTemplatesUseCase) executeWithTransaction(ctx context.Context, req *workflowTemplatepb.ListWorkflowTemplatesRequest) (*workflowTemplatepb.ListWorkflowTemplatesResponse, error) {
+	var result *workflowTemplatepb.ListWorkflowTemplatesResponse
 
 	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
@@ -116,15 +116,15 @@ func (uc *ListWorkflowTemplatesUseCase) executeWithTransaction(ctx context.Conte
 }
 
 // executeCore contains the core business logic for listing workflow templates
-func (uc *ListWorkflowTemplatesUseCase) executeCore(ctx context.Context, req *workflow_templatepb.ListWorkflowTemplatesRequest) (*workflow_templatepb.ListWorkflowTemplatesResponse, error) {
+func (uc *ListWorkflowTemplatesUseCase) executeCore(ctx context.Context, req *workflowTemplatepb.ListWorkflowTemplatesRequest) (*workflowTemplatepb.ListWorkflowTemplatesResponse, error) {
 	// Delegate to repository
 	return uc.repositories.WorkflowTemplate.ListWorkflowTemplates(ctx, req)
 }
 
 // applyBusinessLogic applies business rules and returns enriched request
-func (uc *ListWorkflowTemplatesUseCase) applyBusinessLogic(req *workflow_templatepb.ListWorkflowTemplatesRequest) *workflow_templatepb.ListWorkflowTemplatesRequest {
+func (uc *ListWorkflowTemplatesUseCase) applyBusinessLogic(req *workflowTemplatepb.ListWorkflowTemplatesRequest) *workflowTemplatepb.ListWorkflowTemplatesRequest {
 	// Create enriched request with new proto fields
-	enrichedReq := &workflow_templatepb.ListWorkflowTemplatesRequest{
+	enrichedReq := &workflowTemplatepb.ListWorkflowTemplatesRequest{
 		Search:     req.Search,
 		Filters:    req.Filters,
 		Sort:       req.Sort,
@@ -144,7 +144,7 @@ func (uc *ListWorkflowTemplatesUseCase) applyBusinessLogic(req *workflow_templat
 }
 
 // validateBusinessRules enforces business constraints
-func (uc *ListWorkflowTemplatesUseCase) validateBusinessRules(ctx context.Context, req *workflow_templatepb.ListWorkflowTemplatesRequest) error {
+func (uc *ListWorkflowTemplatesUseCase) validateBusinessRules(ctx context.Context, req *workflowTemplatepb.ListWorkflowTemplatesRequest) error {
 	// Business rule: Pagination validation if provided
 	if req.Pagination != nil {
 		if req.Pagination.Limit < 0 {

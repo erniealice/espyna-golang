@@ -4,22 +4,22 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
-	workflow_templatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
+	workflowTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
 )
 
 // WorkflowTemplateRepositories groups all repository dependencies for workflow template use cases
 type WorkflowTemplateRepositories struct {
-	WorkflowTemplate workflow_templatepb.WorkflowTemplateDomainServiceServer // Primary entity repository
-	Workspace        workspacepb.WorkspaceDomainServiceServer                // Workspace repository for foreign key validation
+	WorkflowTemplate workflowTemplatepb.WorkflowTemplateDomainServiceServer // Primary entity repository
+	Workspace        workspacepb.WorkspaceDomainServiceServer               // Workspace repository for foreign key validation
 }
 
 // WorkflowTemplateServices groups all business service dependencies for workflow template use cases
 type WorkflowTemplateServices struct {
-	Authorizer  ports.Authorizer // Current: RBAC and permissions
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer // Current: RBAC and permissions
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator // Required for Create use case
+	IDGenerator      ports.IDGenerator // Required for Create use case
 }
 
 // UseCases contains all workflow template-related use cases
@@ -42,42 +42,42 @@ func NewUseCases(
 	createRepos := CreateWorkflowTemplateRepositories(repositories)
 	createServices := CreateWorkflowTemplateServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer:  services.Authorizer,
-		Transactor:  services.Transactor,
-		Translator:  services.Translator,
-		IDGenerator: services.IDGenerator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
+		IDGenerator:      services.IDGenerator,
 	}
 
 	readRepos := ReadWorkflowTemplateRepositories(repositories)
 	readServices := ReadWorkflowTemplateServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	updateRepos := UpdateWorkflowTemplateRepositories(repositories)
 	updateServices := UpdateWorkflowTemplateServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	deleteRepos := DeleteWorkflowTemplateRepositories(repositories)
 	deleteServices := DeleteWorkflowTemplateServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listRepos := ListWorkflowTemplatesRepositories(repositories)
 	listServices := ListWorkflowTemplatesServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	getListPageDataRepos := GetWorkflowTemplateListPageDataRepositories{
@@ -85,8 +85,8 @@ func NewUseCases(
 	}
 	getListPageDataServices := GetWorkflowTemplateListPageDataServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	getItemPageDataRepos := GetWorkflowTemplateItemPageDataRepositories{
@@ -94,8 +94,8 @@ func NewUseCases(
 	}
 	getItemPageDataServices := GetWorkflowTemplateItemPageDataServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	return &UseCases{

@@ -9,7 +9,7 @@ import (
 
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
 	assetcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_category"
-	revaluation_pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_revaluation"
+	revaluationPb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_revaluation"
 	assettxpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_transaction"
 	depschpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/depreciation"
 	deprunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/depreciation_run"
@@ -22,7 +22,7 @@ type AssetRepositories struct {
 	AssetTransaction     assettxpb.AssetTransactionDomainServiceServer
 	DepreciationSchedule depschpb.DepreciationDomainServiceServer
 	DepreciationRun      deprunpb.DepreciationRunDomainServiceServer
-	AssetRevaluation     revaluation_pb.AssetRevaluationDomainServiceServer
+	AssetRevaluation     revaluationPb.AssetRevaluationDomainServiceServer
 }
 
 // NewAssetRepositories creates and returns a new set of AssetRepositories.
@@ -70,9 +70,9 @@ func NewAssetRepositories(dbProvider contracts.Provider, tableConfig *registry.T
 		}
 	}
 
-	var assetRevRepo revaluation_pb.AssetRevaluationDomainServiceServer
+	var assetRevRepo revaluationPb.AssetRevaluationDomainServiceServer
 	if r, e := repoCreator.CreateRepository(entityid.AssetRevaluation, conn, tableConfig.TableName(entityid.AssetRevaluation)); e == nil && r != nil {
-		if typed, ok := r.(revaluation_pb.AssetRevaluationDomainServiceServer); ok {
+		if typed, ok := r.(revaluationPb.AssetRevaluationDomainServiceServer); ok {
 			assetRevRepo = typed
 		}
 	}

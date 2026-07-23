@@ -15,11 +15,11 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
-	revaluation_pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_revaluation"
+	revaluationPb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_revaluation"
 	assettxpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_transaction"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
@@ -30,16 +30,16 @@ const entityAssetRevaluation = "asset"
 type RevalueAssetRepositories struct {
 	Asset            assetpb.AssetDomainServiceServer
 	AssetTransaction assettxpb.AssetTransactionDomainServiceServer
-	AssetRevaluation revaluation_pb.AssetRevaluationDomainServiceServer
+	AssetRevaluation revaluationPb.AssetRevaluationDomainServiceServer
 }
 
 // RevalueAssetServices groups all business service dependencies.
 type RevalueAssetServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // RevalueAssetRequest is the internal input to the use case.
@@ -56,7 +56,7 @@ type RevalueAssetRequest struct {
 // RevalueAssetResult is the internal output.
 // Kept for internal helpers; the public boundary returns *revaluation_pb.RevalueAssetUseCaseResponse.
 type RevalueAssetResult struct {
-	Revaluation *revaluation_pb.AssetRevaluation
+	Revaluation *revaluationPb.AssetRevaluation
 	Transaction *assettxpb.AssetTransaction
 }
 
@@ -83,7 +83,7 @@ type RevalueAssetUseCase struct {
 
 // AssetRevaluationRepo exposes the underlying AssetRevaluation repository for
 // consumer-layer pass-through calls (ListAssetRevaluations, ReadAssetRevaluation, etc.)
-func (uc *RevalueAssetUseCase) AssetRevaluationRepo() revaluation_pb.AssetRevaluationDomainServiceServer {
+func (uc *RevalueAssetUseCase) AssetRevaluationRepo() revaluationPb.AssetRevaluationDomainServiceServer {
 	if uc == nil {
 		return nil
 	}
@@ -106,8 +106,8 @@ func NewRevalueAssetUseCase(
 // concurrent revaluations on the same asset cannot misallocate the split.
 func (uc *RevalueAssetUseCase) Execute(
 	ctx context.Context,
-	pbReq *revaluation_pb.RevalueAssetUseCaseRequest,
-) (*revaluation_pb.RevalueAssetUseCaseResponse, error) {
+	pbReq *revaluationPb.RevalueAssetUseCaseRequest,
+) (*revaluationPb.RevalueAssetUseCaseResponse, error) {
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: entityAssetRevaluation,
 		Action: entityid.ActionCreate,
@@ -227,7 +227,7 @@ func (uc *RevalueAssetUseCase) Execute(
 			notesPtr = &notes
 		}
 
-		rev := &revaluation_pb.AssetRevaluation{
+		rev := &revaluationPb.AssetRevaluation{
 			Id:                        revID,
 			AssetId:                   req.AssetID,
 			RevaluationDate:           revDate,
@@ -245,7 +245,7 @@ func (uc *RevalueAssetUseCase) Execute(
 			DateCreatedString:         &nowStr,
 			Active:                    true,
 		}
-		createdRevResp, revErr := uc.repositories.AssetRevaluation.CreateAssetRevaluation(txCtx, &revaluation_pb.CreateAssetRevaluationRequest{
+		createdRevResp, revErr := uc.repositories.AssetRevaluation.CreateAssetRevaluation(txCtx, &revaluationPb.CreateAssetRevaluationRequest{
 			Data: rev,
 		})
 		if revErr != nil {
@@ -320,7 +320,7 @@ func (uc *RevalueAssetUseCase) Execute(
 	}
 
 	// Translate internal result to proto response.
-	resp := &revaluation_pb.RevalueAssetUseCaseResponse{Success: true}
+	resp := &revaluationPb.RevalueAssetUseCaseResponse{Success: true}
 	if result != nil {
 		resp.Revaluation = result.Revaluation
 		if result.Transaction != nil {
@@ -358,7 +358,7 @@ func (uc *RevalueAssetUseCase) Execute(
 // guarantee sorted output.
 func deriveSurplusStateFromHistory(
 	ctx context.Context,
-	repo revaluation_pb.AssetRevaluationDomainServiceServer,
+	repo revaluationPb.AssetRevaluationDomainServiceServer,
 	assetID string,
 ) (priorSurplusBalance int64, priorPnLLossBalance int64, err error) {
 	if repo == nil {
@@ -368,7 +368,7 @@ func deriveSurplusStateFromHistory(
 	// Request sort by recorded_at ASC. Even if the underlying adapter ignores
 	// the SortRequest, we re-sort defensively in-memory below.
 	sortAsc := commonpb.SortDirection_ASC
-	resp, err := repo.ListAssetRevaluations(ctx, &revaluation_pb.ListAssetRevaluationsRequest{
+	resp, err := repo.ListAssetRevaluations(ctx, &revaluationPb.ListAssetRevaluationsRequest{
 		AssetId: &assetID,
 		Filters: &commonpb.FilterRequest{
 			Filters: []*commonpb.TypedFilter{
@@ -395,7 +395,7 @@ func deriveSurplusStateFromHistory(
 		return 0, 0, err
 	}
 
-	history := append([]*revaluation_pb.AssetRevaluation(nil), resp.GetData()...)
+	history := append([]*revaluationPb.AssetRevaluation(nil), resp.GetData()...)
 
 	// Defensive in-memory sort (oldest first). The repository SortRequest may
 	// be a no-op on some adapters; the algorithm REQUIRES chronological order.

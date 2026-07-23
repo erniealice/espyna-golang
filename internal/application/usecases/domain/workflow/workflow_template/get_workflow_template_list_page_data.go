@@ -7,21 +7,21 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
-	workflow_templatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
+	workflowTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
 )
 
 type GetWorkflowTemplateListPageDataRepositories struct {
-	WorkflowTemplate workflow_templatepb.WorkflowTemplateDomainServiceServer
+	WorkflowTemplate workflowTemplatepb.WorkflowTemplateDomainServiceServer
 }
 
 type GetWorkflowTemplateListPageDataServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -47,8 +47,8 @@ func NewGetWorkflowTemplateListPageDataUseCase(
 // Execute performs the get workflow template list page data operation
 func (uc *GetWorkflowTemplateListPageDataUseCase) Execute(
 	ctx context.Context,
-	req *workflow_templatepb.GetWorkflowTemplateListPageDataRequest,
-) (*workflow_templatepb.GetWorkflowTemplateListPageDataResponse, error) {
+	req *workflowTemplatepb.GetWorkflowTemplateListPageDataRequest,
+) (*workflowTemplatepb.GetWorkflowTemplateListPageDataResponse, error) {
 	// Authorization check
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: "workflow_template",
@@ -74,9 +74,9 @@ func (uc *GetWorkflowTemplateListPageDataUseCase) Execute(
 // executeWithTransaction executes workflow template list page data retrieval within a transaction
 func (uc *GetWorkflowTemplateListPageDataUseCase) executeWithTransaction(
 	ctx context.Context,
-	req *workflow_templatepb.GetWorkflowTemplateListPageDataRequest,
-) (*workflow_templatepb.GetWorkflowTemplateListPageDataResponse, error) {
-	var result *workflow_templatepb.GetWorkflowTemplateListPageDataResponse
+	req *workflowTemplatepb.GetWorkflowTemplateListPageDataRequest,
+) (*workflowTemplatepb.GetWorkflowTemplateListPageDataResponse, error) {
+	var result *workflowTemplatepb.GetWorkflowTemplateListPageDataResponse
 
 	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
@@ -101,10 +101,10 @@ func (uc *GetWorkflowTemplateListPageDataUseCase) executeWithTransaction(
 // executeCore contains the core business logic for getting workflow template list page data
 func (uc *GetWorkflowTemplateListPageDataUseCase) executeCore(
 	ctx context.Context,
-	req *workflow_templatepb.GetWorkflowTemplateListPageDataRequest,
-) (*workflow_templatepb.GetWorkflowTemplateListPageDataResponse, error) {
+	req *workflowTemplatepb.GetWorkflowTemplateListPageDataRequest,
+) (*workflowTemplatepb.GetWorkflowTemplateListPageDataResponse, error) {
 	// First, get all workflow templates from the repository
-	listReq := &workflow_templatepb.ListWorkflowTemplatesRequest{}
+	listReq := &workflowTemplatepb.ListWorkflowTemplatesRequest{}
 	listResp, err := uc.repositories.WorkflowTemplate.ListWorkflowTemplates(ctx, listReq)
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
@@ -118,8 +118,8 @@ func (uc *GetWorkflowTemplateListPageDataUseCase) executeCore(
 	if listResp == nil || len(listResp.Data) == 0 {
 		// Return empty response with proper pagination metadata
 		emptyPagination := uc.processor.GetPaginationUtils().CreatePaginationResponse(req.Pagination, 0, false)
-		return &workflow_templatepb.GetWorkflowTemplateListPageDataResponse{
-			WorkflowTemplateList: []*workflow_templatepb.WorkflowTemplate{},
+		return &workflowTemplatepb.GetWorkflowTemplateListPageDataResponse{
+			WorkflowTemplateList: []*workflowTemplatepb.WorkflowTemplate{},
 			Pagination:           emptyPagination,
 			SearchResults:        []*commonpb.SearchResult{},
 			Success:              true,
@@ -150,9 +150,9 @@ func (uc *GetWorkflowTemplateListPageDataUseCase) executeCore(
 	}
 
 	// Convert processed items back to workflow template protobuf format
-	processedWorkflowTemplates := make([]*workflow_templatepb.WorkflowTemplate, len(result.Items))
+	processedWorkflowTemplates := make([]*workflowTemplatepb.WorkflowTemplate, len(result.Items))
 	for i, item := range result.Items {
-		if workflowTemplate, ok := item.(*workflow_templatepb.WorkflowTemplate); ok {
+		if workflowTemplate, ok := item.(*workflowTemplatepb.WorkflowTemplate); ok {
 			processedWorkflowTemplates[i] = workflowTemplate
 		} else {
 			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(
@@ -173,7 +173,7 @@ func (uc *GetWorkflowTemplateListPageDataUseCase) executeCore(
 		}
 	}
 
-	return &workflow_templatepb.GetWorkflowTemplateListPageDataResponse{
+	return &workflowTemplatepb.GetWorkflowTemplateListPageDataResponse{
 		WorkflowTemplateList: processedWorkflowTemplates,
 		Pagination:           result.PaginationResponse,
 		SearchResults:        searchResults,
@@ -184,7 +184,7 @@ func (uc *GetWorkflowTemplateListPageDataUseCase) executeCore(
 // validateInput validates the input request
 func (uc *GetWorkflowTemplateListPageDataUseCase) validateInput(
 	ctx context.Context,
-	req *workflow_templatepb.GetWorkflowTemplateListPageDataRequest,
+	req *workflowTemplatepb.GetWorkflowTemplateListPageDataRequest,
 ) error {
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(

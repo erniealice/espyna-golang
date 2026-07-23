@@ -9,12 +9,12 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	work_requestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
+	workRequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
 )
 
 // StampRequestSLABreachesRepositories groups all repository dependencies.
 type StampRequestSLABreachesRepositories struct {
-	WorkRequest work_requestpb.WorkRequestDomainServiceServer
+	WorkRequest workRequestpb.WorkRequestDomainServiceServer
 }
 
 // StampRequestSLABreachesServices groups all business service dependencies.
@@ -65,7 +65,7 @@ func (uc *StampRequestSLABreachesUseCase) Execute(ctx context.Context, req *Stam
 	}
 
 	// List open (non-terminal) requests that have an SLA due date.
-	listResp, err := uc.repositories.WorkRequest.ListWorkRequests(ctx, &work_requestpb.ListWorkRequestsRequest{})
+	listResp, err := uc.repositories.WorkRequest.ListWorkRequests(ctx, &workRequestpb.ListWorkRequestsRequest{})
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func (uc *StampRequestSLABreachesUseCase) Execute(ctx context.Context, req *Stam
 	}
 
 	now := time.Now().UnixMilli()
-	var toStamp []*work_requestpb.WorkRequest
+	var toStamp []*workRequestpb.WorkRequest
 
 	for _, wr := range listResp.Data {
 		// Single predicate: status NOT IN (5,6,7) AND sla_due_at < now AND sla_breached_at IS NULL.
@@ -103,7 +103,7 @@ func (uc *StampRequestSLABreachesUseCase) Execute(ctx context.Context, req *Stam
 			nowStr := time.Now().Format(time.RFC3339)
 			wr.DateModified = &nowMilli
 			wr.DateModifiedString = &nowStr
-			if _, updateErr := uc.repositories.WorkRequest.UpdateWorkRequest(c, &work_requestpb.UpdateWorkRequestRequest{Data: wr}); updateErr != nil {
+			if _, updateErr := uc.repositories.WorkRequest.UpdateWorkRequest(c, &workRequestpb.UpdateWorkRequestRequest{Data: wr}); updateErr != nil {
 				return updateErr
 			}
 		}

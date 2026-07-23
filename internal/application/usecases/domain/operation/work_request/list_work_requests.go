@@ -7,12 +7,12 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
-	work_requestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
+	workRequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
 )
 
 // ListWorkRequestsRepositories groups all repository dependencies.
 type ListWorkRequestsRepositories struct {
-	WorkRequest work_requestpb.WorkRequestDomainServiceServer
+	WorkRequest workRequestpb.WorkRequestDomainServiceServer
 }
 
 // ListWorkRequestsServices groups all business service dependencies.
@@ -37,7 +37,7 @@ func NewListWorkRequestsUseCase(repositories ListWorkRequestsRepositories, servi
 	return &ListWorkRequestsUseCase{repositories: repositories, services: services}
 }
 
-func (uc *ListWorkRequestsUseCase) Execute(ctx context.Context, req *work_requestpb.ListWorkRequestsRequest) (*work_requestpb.ListWorkRequestsResponse, error) {
+func (uc *ListWorkRequestsUseCase) Execute(ctx context.Context, req *workRequestpb.ListWorkRequestsRequest) (*workRequestpb.ListWorkRequestsResponse, error) {
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: entityid.WorkRequest,
 		Action: entityid.ActionList,
@@ -45,7 +45,7 @@ func (uc *ListWorkRequestsUseCase) Execute(ctx context.Context, req *work_reques
 		return nil, err
 	}
 	if req == nil {
-		req = &work_requestpb.ListWorkRequestsRequest{}
+		req = &workRequestpb.ListWorkRequestsRequest{}
 	}
 	return uc.repositories.WorkRequest.ListWorkRequests(ctx, req)
 }
@@ -53,7 +53,7 @@ func (uc *ListWorkRequestsUseCase) Execute(ctx context.Context, req *work_reques
 // InjectStatusFilter appends a server-side status filter to the list request.
 // This ensures correct pagination counts — NEVER filter client-side after
 // paginated results (use-case-patterns.md: Server-Side Status Filtering).
-func InjectStatusFilter(req *work_requestpb.ListWorkRequestsRequest, status string) {
+func InjectStatusFilter(req *workRequestpb.ListWorkRequestsRequest, status string) {
 	if req.Filters == nil {
 		req.Filters = &commonpb.FilterRequest{}
 	}
@@ -70,7 +70,7 @@ func InjectStatusFilter(req *work_requestpb.ListWorkRequestsRequest, status stri
 
 // InjectOriginFilter appends a server-side origin filter for admin inbox
 // origin-filter chips (Client / Internal / Client-related).
-func InjectOriginFilter(req *work_requestpb.ListWorkRequestsRequest, origin string) {
+func InjectOriginFilter(req *workRequestpb.ListWorkRequestsRequest, origin string) {
 	if req.Filters == nil {
 		req.Filters = &commonpb.FilterRequest{}
 	}
@@ -88,7 +88,7 @@ func InjectOriginFilter(req *work_requestpb.ListWorkRequestsRequest, origin stri
 // InjectClientIDFilter appends a server-side client_id filter for the client
 // portal path. The client_id is the session's acting_as_client_id (NEVER a
 // request parameter).
-func InjectClientIDFilter(req *work_requestpb.ListWorkRequestsRequest, clientID string) {
+func InjectClientIDFilter(req *workRequestpb.ListWorkRequestsRequest, clientID string) {
 	if req.Filters == nil {
 		req.Filters = &commonpb.FilterRequest{}
 	}

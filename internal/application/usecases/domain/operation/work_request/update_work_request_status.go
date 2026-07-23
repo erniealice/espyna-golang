@@ -10,19 +10,19 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	work_requestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
+	workRequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
 )
 
 // UpdateWorkRequestStatusRequest is the Go-shaped input for status transitions.
 type UpdateWorkRequestStatusRequest struct {
 	WorkRequestID  string
-	NewStatus      work_requestpb.WorkRequestStatus
+	NewStatus      workRequestpb.WorkRequestStatus
 	ResolutionNote string // optional staff note on approve/decline/complete/return/hold
 }
 
 // UpdateWorkRequestStatusRepositories groups all repository dependencies.
 type UpdateWorkRequestStatusRepositories struct {
-	WorkRequest work_requestpb.WorkRequestDomainServiceServer
+	WorkRequest workRequestpb.WorkRequestDomainServiceServer
 }
 
 // UpdateWorkRequestStatusServices groups all business service dependencies.
@@ -51,7 +51,7 @@ func NewUpdateWorkRequestStatusUseCase(repositories UpdateWorkRequestStatusRepos
 	return &UpdateWorkRequestStatusUseCase{repositories: repositories, services: services}
 }
 
-func (uc *UpdateWorkRequestStatusUseCase) Execute(ctx context.Context, req *UpdateWorkRequestStatusRequest) (*work_requestpb.UpdateWorkRequestResponse, error) {
+func (uc *UpdateWorkRequestStatusUseCase) Execute(ctx context.Context, req *UpdateWorkRequestStatusRequest) (*workRequestpb.UpdateWorkRequestResponse, error) {
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: entityid.WorkRequest,
 		Action: entityid.ActionUpdate,
@@ -61,13 +61,13 @@ func (uc *UpdateWorkRequestStatusUseCase) Execute(ctx context.Context, req *Upda
 	if req == nil || req.WorkRequestID == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workRequest.validation.id_required", "Work request ID is required [DEFAULT]"))
 	}
-	if req.NewStatus == work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_UNSPECIFIED {
+	if req.NewStatus == workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_UNSPECIFIED {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workRequest.validation.status_required", "New status is required [DEFAULT]"))
 	}
 
 	// Load the current work request.
-	readResp, err := uc.repositories.WorkRequest.ReadWorkRequest(ctx, &work_requestpb.ReadWorkRequestRequest{
-		Data: &work_requestpb.WorkRequest{Id: req.WorkRequestID},
+	readResp, err := uc.repositories.WorkRequest.ReadWorkRequest(ctx, &workRequestpb.ReadWorkRequestRequest{
+		Data: &workRequestpb.WorkRequest{Id: req.WorkRequestID},
 	})
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func (uc *UpdateWorkRequestStatusUseCase) Execute(ctx context.Context, req *Upda
 
 	// Persist.
 	persist := func(c context.Context) error {
-		_, updateErr := uc.repositories.WorkRequest.UpdateWorkRequest(c, &work_requestpb.UpdateWorkRequestRequest{Data: wr})
+		_, updateErr := uc.repositories.WorkRequest.UpdateWorkRequest(c, &workRequestpb.UpdateWorkRequestRequest{Data: wr})
 		return updateErr
 	}
 
@@ -122,16 +122,16 @@ func (uc *UpdateWorkRequestStatusUseCase) Execute(ctx context.Context, req *Upda
 		}
 	}
 
-	return &work_requestpb.UpdateWorkRequestResponse{Data: []*work_requestpb.WorkRequest{wr}, Success: true}, nil
+	return &workRequestpb.UpdateWorkRequestResponse{Data: []*workRequestpb.WorkRequest{wr}, Success: true}, nil
 }
 
 // isTerminalStatus returns true for the terminal set: {DECLINED=5, COMPLETED=6, CANCELLED=7}.
 // Everything else — including APPROVED=4 and the 4 negative states 8-11 — is NON-terminal.
-func isTerminalStatus(s work_requestpb.WorkRequestStatus) bool {
+func isTerminalStatus(s workRequestpb.WorkRequestStatus) bool {
 	switch s {
-	case work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_DECLINED,
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_COMPLETED,
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_CANCELLED:
+	case workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_DECLINED,
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_COMPLETED,
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_CANCELLED:
 		return true
 	default:
 		return false
@@ -152,7 +152,7 @@ func isTerminalStatus(s work_requestpb.WorkRequestStatus) bool {
 //	PENDING_OVERRIDE  -> APPROVED, DECLINED, IN_REVIEW
 //	APPROVED          -> COMPLETED
 //	DECLINED/COMPLETED/CANCELLED -> (terminal, no outbound)
-func isValidTransition(from, to work_requestpb.WorkRequestStatus) bool {
+func isValidTransition(from, to workRequestpb.WorkRequestStatus) bool {
 	allowed, ok := transitionMatrix[from]
 	if !ok {
 		return false
@@ -166,48 +166,48 @@ func isValidTransition(from, to work_requestpb.WorkRequestStatus) bool {
 }
 
 // transitionMatrix encodes the full transition matrix from entities.md section 4.2.
-var transitionMatrix = map[work_requestpb.WorkRequestStatus][]work_requestpb.WorkRequestStatus{
-	work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_NEW: {
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_SUBMITTED,
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_CANCELLED,
+var transitionMatrix = map[workRequestpb.WorkRequestStatus][]workRequestpb.WorkRequestStatus{
+	workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_NEW: {
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_SUBMITTED,
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_CANCELLED,
 	},
-	work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_SUBMITTED: {
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_IN_REVIEW,
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_DECLINED,
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_CANCELLED,
+	workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_SUBMITTED: {
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_IN_REVIEW,
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_DECLINED,
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_CANCELLED,
 	},
-	work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_IN_REVIEW: {
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_RETURNED_FOR_INFO,
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_ON_HOLD,
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_ESCALATED,
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_PENDING_OVERRIDE,
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_APPROVED,
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_DECLINED,
+	workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_IN_REVIEW: {
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_RETURNED_FOR_INFO,
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_ON_HOLD,
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_ESCALATED,
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_PENDING_OVERRIDE,
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_APPROVED,
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_DECLINED,
 	},
-	work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_RETURNED_FOR_INFO: {
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_SUBMITTED,
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_IN_REVIEW,
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_CANCELLED,
+	workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_RETURNED_FOR_INFO: {
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_SUBMITTED,
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_IN_REVIEW,
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_CANCELLED,
 	},
-	work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_ON_HOLD: {
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_IN_REVIEW,
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_CANCELLED,
+	workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_ON_HOLD: {
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_IN_REVIEW,
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_CANCELLED,
 	},
-	work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_ESCALATED: {
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_IN_REVIEW,
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_APPROVED,
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_DECLINED,
+	workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_ESCALATED: {
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_IN_REVIEW,
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_APPROVED,
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_DECLINED,
 	},
-	work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_PENDING_OVERRIDE: {
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_APPROVED,
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_DECLINED,
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_IN_REVIEW,
+	workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_PENDING_OVERRIDE: {
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_APPROVED,
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_DECLINED,
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_IN_REVIEW,
 	},
-	work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_APPROVED: {
-		work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_COMPLETED,
+	workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_APPROVED: {
+		workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_COMPLETED,
 	},
 	// Terminal states — no outbound transitions.
-	work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_DECLINED:  {},
-	work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_COMPLETED: {},
-	work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_CANCELLED: {},
+	workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_DECLINED:  {},
+	workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_COMPLETED: {},
+	workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_CANCELLED: {},
 }

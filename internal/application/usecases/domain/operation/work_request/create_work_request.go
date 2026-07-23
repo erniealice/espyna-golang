@@ -10,14 +10,14 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	work_requestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
-	work_request_typepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
+	workRequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
+	workRequestTypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
 )
 
 // CreateWorkRequestRepositories groups all repository dependencies.
 type CreateWorkRequestRepositories struct {
-	WorkRequest     work_requestpb.WorkRequestDomainServiceServer
-	WorkRequestType work_request_typepb.WorkRequestTypeDomainServiceServer // FK validation + SLA snapshot
+	WorkRequest     workRequestpb.WorkRequestDomainServiceServer
+	WorkRequestType workRequestTypepb.WorkRequestTypeDomainServiceServer // FK validation + SLA snapshot
 }
 
 // CreateWorkRequestServices groups all business service dependencies.
@@ -48,7 +48,7 @@ func NewCreateWorkRequestUseCase(repositories CreateWorkRequestRepositories, ser
 	return &CreateWorkRequestUseCase{repositories: repositories, services: services}
 }
 
-func (uc *CreateWorkRequestUseCase) Execute(ctx context.Context, req *work_requestpb.CreateWorkRequestRequest) (*work_requestpb.CreateWorkRequestResponse, error) {
+func (uc *CreateWorkRequestUseCase) Execute(ctx context.Context, req *workRequestpb.CreateWorkRequestRequest) (*workRequestpb.CreateWorkRequestResponse, error) {
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: entityid.WorkRequest,
 		Action: entityid.ActionCreate,
@@ -60,13 +60,13 @@ func (uc *CreateWorkRequestUseCase) Execute(ctx context.Context, req *work_reque
 	}
 
 	// Origin validation: must be explicitly set.
-	if req.Data.Origin == work_requestpb.WorkRequestOrigin_WORK_REQUEST_ORIGIN_UNSPECIFIED {
+	if req.Data.Origin == workRequestpb.WorkRequestOrigin_WORK_REQUEST_ORIGIN_UNSPECIFIED {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workRequest.validation.origin_required", "Work request origin is required [DEFAULT]"))
 	}
 
 	// IDOR gate: origin-aware client_id stamping (Q-REQ-ORIGIN).
 	switch req.Data.Origin {
-	case work_requestpb.WorkRequestOrigin_WORK_REQUEST_ORIGIN_CLIENT_ORIGINATED:
+	case workRequestpb.WorkRequestOrigin_WORK_REQUEST_ORIGIN_CLIENT_ORIGINATED:
 		// Client-originated: client_id MUST come from session, NEVER from the
 		// request body. Deny before any SQL if acting_as_client_id is empty.
 		actingClient := contextutil.GetActingAsClientIDFromContext(ctx)
@@ -75,13 +75,13 @@ func (uc *CreateWorkRequestUseCase) Execute(ctx context.Context, req *work_reque
 		}
 		req.Data.ClientId = &actingClient
 
-	case work_requestpb.WorkRequestOrigin_WORK_REQUEST_ORIGIN_CLIENT_RELATED_INTERNAL:
+	case workRequestpb.WorkRequestOrigin_WORK_REQUEST_ORIGIN_CLIENT_RELATED_INTERNAL:
 		// Client-related-internal: staff provides client_id via the form.
 		if req.Data.ClientId == nil || *req.Data.ClientId == "" {
 			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workRequest.validation.client_id_required_for_client_related", "Client ID is required for a client-related internal request [DEFAULT]"))
 		}
 
-	case work_requestpb.WorkRequestOrigin_WORK_REQUEST_ORIGIN_INTERNAL:
+	case workRequestpb.WorkRequestOrigin_WORK_REQUEST_ORIGIN_INTERNAL:
 		// Internal: no client. Set client_id to nil explicitly.
 		req.Data.ClientId = nil
 	}
@@ -100,7 +100,7 @@ func (uc *CreateWorkRequestUseCase) Execute(ctx context.Context, req *work_reque
 	// Idempotency: the DB has UNIQUE(workspace_id, requested_by_user_id,
 	// submission_idempotency_key). On conflict the adapter should return the
 	// existing row instead of erroring. The use case trusts the adapter contract.
-	var resp *work_requestpb.CreateWorkRequestResponse
+	var resp *workRequestpb.CreateWorkRequestResponse
 	var createErr error
 
 	persist := func(c context.Context) error {
@@ -128,7 +128,7 @@ func (uc *CreateWorkRequestUseCase) Execute(ctx context.Context, req *work_reque
 	return resp, nil
 }
 
-func (uc *CreateWorkRequestUseCase) validateBusinessRules(ctx context.Context, wr *work_requestpb.WorkRequest) error {
+func (uc *CreateWorkRequestUseCase) validateBusinessRules(ctx context.Context, wr *workRequestpb.WorkRequest) error {
 	if wr.WorkRequestTypeId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workRequest.validation.type_required", "Work request type is required [DEFAULT]"))
 	}
@@ -146,8 +146,8 @@ func (uc *CreateWorkRequestUseCase) validateWorkRequestType(ctx context.Context,
 	if uc.repositories.WorkRequestType == nil {
 		return nil // graceful skip during tests without type repo
 	}
-	resp, err := uc.repositories.WorkRequestType.ReadWorkRequestType(ctx, &work_request_typepb.ReadWorkRequestTypeRequest{
-		Data: &work_request_typepb.WorkRequestType{Id: typeID},
+	resp, err := uc.repositories.WorkRequestType.ReadWorkRequestType(ctx, &workRequestTypepb.ReadWorkRequestTypeRequest{
+		Data: &workRequestTypepb.WorkRequestType{Id: typeID},
 	})
 	if err != nil {
 		return err
@@ -155,20 +155,20 @@ func (uc *CreateWorkRequestUseCase) validateWorkRequestType(ctx context.Context,
 	if resp == nil || len(resp.Data) == 0 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workRequest.errors.type_not_found", "Work request type not found [DEFAULT]"))
 	}
-	if resp.Data[0].Status != work_request_typepb.WorkRequestTypeStatus_WORK_REQUEST_TYPE_STATUS_ACTIVE {
+	if resp.Data[0].Status != workRequestTypepb.WorkRequestTypeStatus_WORK_REQUEST_TYPE_STATUS_ACTIVE {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workRequest.errors.type_not_active", "Work request type is not active [DEFAULT]"))
 	}
 	return nil
 }
 
-func (uc *CreateWorkRequestUseCase) enrich(ctx context.Context, wr *work_requestpb.WorkRequest) {
+func (uc *CreateWorkRequestUseCase) enrich(ctx context.Context, wr *workRequestpb.WorkRequest) {
 	now := time.Now()
 	if wr.Id == "" {
 		wr.Id = uc.services.IDGenerator.GenerateID()
 	}
 
 	// New requests start as NEW.
-	wr.Status = work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_NEW
+	wr.Status = workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_NEW
 	// active = status NOT IN (5,6,7) — NEW is active.
 	wr.Active = true
 

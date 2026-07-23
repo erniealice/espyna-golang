@@ -4,8 +4,8 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
-	work_requestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
-	work_request_typepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
+	workRequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
+	workRequestTypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
 )
 
 // UseCases contains all work-request-related use cases.
@@ -25,8 +25,8 @@ type UseCases struct {
 
 // WorkRequestRepositories groups all repository dependencies for work request use cases.
 type WorkRequestRepositories struct {
-	WorkRequest     work_requestpb.WorkRequestDomainServiceServer
-	WorkRequestType work_request_typepb.WorkRequestTypeDomainServiceServer
+	WorkRequest     workRequestpb.WorkRequestDomainServiceServer
+	WorkRequestType workRequestTypepb.WorkRequestTypeDomainServiceServer
 	WorkspaceUser   workspaceuserpb.WorkspaceUserDomainServiceServer // FK validation for assignment
 }
 

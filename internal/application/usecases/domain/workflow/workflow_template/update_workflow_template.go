@@ -10,23 +10,23 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
-	workflow_templatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
+	workflowTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
 )
 
 // UpdateWorkflowTemplateRepositories groups all repository dependencies
 type UpdateWorkflowTemplateRepositories struct {
-	WorkflowTemplate workflow_templatepb.WorkflowTemplateDomainServiceServer // Primary entity repository
-	Workspace        workspacepb.WorkspaceDomainServiceServer                // Workspace repository for foreign key validation
+	WorkflowTemplate workflowTemplatepb.WorkflowTemplateDomainServiceServer // Primary entity repository
+	Workspace        workspacepb.WorkspaceDomainServiceServer               // Workspace repository for foreign key validation
 }
 
 // UpdateWorkflowTemplateServices groups all business service dependencies
 type UpdateWorkflowTemplateServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -49,7 +49,7 @@ func NewUpdateWorkflowTemplateUseCase(
 
 // NewUpdateWorkflowTemplateUseCaseUngrouped creates use case with individual parameters
 // Deprecated: Use NewUpdateWorkflowTemplateUseCase with grouped parameters instead
-func NewUpdateWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflow_templatepb.WorkflowTemplateDomainServiceServer, workspaceRepo workspacepb.WorkspaceDomainServiceServer) *UpdateWorkflowTemplateUseCase {
+func NewUpdateWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflowTemplatepb.WorkflowTemplateDomainServiceServer, workspaceRepo workspacepb.WorkspaceDomainServiceServer) *UpdateWorkflowTemplateUseCase {
 	// Build grouped parameters internally for backward compatibility
 	repositories := UpdateWorkflowTemplateRepositories{
 		WorkflowTemplate: workflowTemplateRepo,
@@ -57,8 +57,8 @@ func NewUpdateWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflow_tem
 	}
 
 	services := UpdateWorkflowTemplateServices{
-		Authorizer: nil,
-		Transactor: ports.NewNoOpTransactor(),
+		Authorizer:       nil,
+		Transactor:       ports.NewNoOpTransactor(),
 		Translator:       ports.NewNoOpTranslator(),
 		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
@@ -67,7 +67,7 @@ func NewUpdateWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflow_tem
 }
 
 // Execute performs the update workflow template operation
-func (uc *UpdateWorkflowTemplateUseCase) Execute(ctx context.Context, req *workflow_templatepb.UpdateWorkflowTemplateRequest) (*workflow_templatepb.UpdateWorkflowTemplateResponse, error) {
+func (uc *UpdateWorkflowTemplateUseCase) Execute(ctx context.Context, req *workflowTemplatepb.UpdateWorkflowTemplateRequest) (*workflowTemplatepb.UpdateWorkflowTemplateResponse, error) {
 	// Authorization check
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: "workflow_template",
@@ -99,8 +99,8 @@ func (uc *UpdateWorkflowTemplateUseCase) Execute(ctx context.Context, req *workf
 }
 
 // executeWithTransaction executes workflow template update within a transaction
-func (uc *UpdateWorkflowTemplateUseCase) executeWithTransaction(ctx context.Context, enrichedWorkflowTemplate *workflow_templatepb.WorkflowTemplate) (*workflow_templatepb.UpdateWorkflowTemplateResponse, error) {
-	var result *workflow_templatepb.UpdateWorkflowTemplateResponse
+func (uc *UpdateWorkflowTemplateUseCase) executeWithTransaction(ctx context.Context, enrichedWorkflowTemplate *workflowTemplatepb.WorkflowTemplate) (*workflowTemplatepb.UpdateWorkflowTemplateResponse, error) {
+	var result *workflowTemplatepb.UpdateWorkflowTemplateResponse
 
 	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, enrichedWorkflowTemplate)
@@ -119,15 +119,15 @@ func (uc *UpdateWorkflowTemplateUseCase) executeWithTransaction(ctx context.Cont
 }
 
 // executeCore contains the core business logic for updating a workflow template
-func (uc *UpdateWorkflowTemplateUseCase) executeCore(ctx context.Context, enrichedWorkflowTemplate *workflow_templatepb.WorkflowTemplate) (*workflow_templatepb.UpdateWorkflowTemplateResponse, error) {
+func (uc *UpdateWorkflowTemplateUseCase) executeCore(ctx context.Context, enrichedWorkflowTemplate *workflowTemplatepb.WorkflowTemplate) (*workflowTemplatepb.UpdateWorkflowTemplateResponse, error) {
 	// Delegate to repository
-	return uc.repositories.WorkflowTemplate.UpdateWorkflowTemplate(ctx, &workflow_templatepb.UpdateWorkflowTemplateRequest{
+	return uc.repositories.WorkflowTemplate.UpdateWorkflowTemplate(ctx, &workflowTemplatepb.UpdateWorkflowTemplateRequest{
 		Data: enrichedWorkflowTemplate,
 	})
 }
 
 // applyBusinessLogic applies business rules and returns enriched workflow template
-func (uc *UpdateWorkflowTemplateUseCase) applyBusinessLogic(workflowTemplate *workflow_templatepb.WorkflowTemplate) *workflow_templatepb.WorkflowTemplate {
+func (uc *UpdateWorkflowTemplateUseCase) applyBusinessLogic(workflowTemplate *workflowTemplatepb.WorkflowTemplate) *workflowTemplatepb.WorkflowTemplate {
 	now := time.Now()
 
 	// Business logic: Set modification audit fields
@@ -145,7 +145,7 @@ func (uc *UpdateWorkflowTemplateUseCase) applyBusinessLogic(workflowTemplate *wo
 }
 
 // validateBusinessRules enforces business constraints
-func (uc *UpdateWorkflowTemplateUseCase) validateBusinessRules(ctx context.Context, workflowTemplate *workflow_templatepb.WorkflowTemplate) error {
+func (uc *UpdateWorkflowTemplateUseCase) validateBusinessRules(ctx context.Context, workflowTemplate *workflowTemplatepb.WorkflowTemplate) error {
 	// Business rule: Required data validation
 	if workflowTemplate == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.data_required", "Workflow template data is required [DEFAULT]"))

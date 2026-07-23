@@ -8,12 +8,12 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	work_requestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
+	workRequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
 )
 
 // GetRequestInboxKPIsRepositories groups all repository dependencies.
 type GetRequestInboxKPIsRepositories struct {
-	WorkRequest work_requestpb.WorkRequestDomainServiceServer
+	WorkRequest workRequestpb.WorkRequestDomainServiceServer
 }
 
 // GetRequestInboxKPIsServices groups all business service dependencies.
@@ -61,7 +61,7 @@ func (uc *GetRequestInboxKPIsUseCase) Execute(ctx context.Context, req *GetReque
 	}
 
 	// List all requests for the workspace.
-	listResp, err := uc.repositories.WorkRequest.ListWorkRequests(ctx, &work_requestpb.ListWorkRequestsRequest{})
+	listResp, err := uc.repositories.WorkRequest.ListWorkRequests(ctx, &workRequestpb.ListWorkRequestsRequest{})
 	if err != nil {
 		return nil, err
 	}

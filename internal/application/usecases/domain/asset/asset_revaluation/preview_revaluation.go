@@ -23,7 +23,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
-	revaluation_pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_revaluation"
+	revaluationPb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_revaluation"
 )
 
 // PreviewRevaluationRequest is the internal input to PreviewRevaluation.
@@ -70,8 +70,8 @@ func NewPreviewRevaluationUseCase(
 // Read-only; no transaction needed.
 func (uc *PreviewRevaluationUseCase) Execute(
 	ctx context.Context,
-	pbReq *revaluation_pb.PreviewRevaluationUseCaseRequest,
-) (*revaluation_pb.PreviewRevaluationUseCaseResponse, error) {
+	pbReq *revaluationPb.PreviewRevaluationUseCaseRequest,
+) (*revaluationPb.PreviewRevaluationUseCaseResponse, error) {
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: entityAssetRevaluation,
 		Action: entityid.ActionRead,
@@ -121,7 +121,7 @@ func (uc *PreviewRevaluationUseCase) Execute(
 	revaluationAmount := req.NewFairValue - currentBookValue
 	if revaluationAmount == 0 {
 		// Caller can render this as a "no change" preview.
-		return &revaluation_pb.PreviewRevaluationUseCaseResponse{
+		return &revaluationPb.PreviewRevaluationUseCaseResponse{
 			Success:                true,
 			PreviousCarryingAmount: currentBookValue,
 			NewFairValue:           req.NewFairValue,
@@ -144,7 +144,7 @@ func (uc *PreviewRevaluationUseCase) Execute(
 
 	pnl, oci, newSurplus := ComputePnLOCISplit(absAmount, isIncrease, priorSurplus, priorPnLLoss)
 
-	return &revaluation_pb.PreviewRevaluationUseCaseResponse{
+	return &revaluationPb.PreviewRevaluationUseCaseResponse{
 		Success:                true,
 		PreviousCarryingAmount: currentBookValue,
 		NewFairValue:           req.NewFairValue,
@@ -178,7 +178,7 @@ func (uc *PreviewRevaluationUseCase) readAsset(ctx context.Context, assetID stri
 // AssetRevaluationRepo exposes the underlying AssetRevaluation repository so
 // the consumer-layer pass-through can drill in. Mirrors RevalueAssetUseCase
 // for symmetry — preview and revalue share a repo.
-func (uc *PreviewRevaluationUseCase) AssetRevaluationRepo() revaluation_pb.AssetRevaluationDomainServiceServer {
+func (uc *PreviewRevaluationUseCase) AssetRevaluationRepo() revaluationPb.AssetRevaluationDomainServiceServer {
 	if uc == nil {
 		return nil
 	}

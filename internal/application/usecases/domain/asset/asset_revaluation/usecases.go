@@ -5,7 +5,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
-	revaluation_pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_revaluation"
+	revaluationPb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_revaluation"
 	assettxpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_transaction"
 )
 
@@ -13,16 +13,16 @@ import (
 type AssetRevaluationRepositories struct {
 	Asset            assetpb.AssetDomainServiceServer
 	AssetTransaction assettxpb.AssetTransactionDomainServiceServer
-	AssetRevaluation revaluation_pb.AssetRevaluationDomainServiceServer
+	AssetRevaluation revaluationPb.AssetRevaluationDomainServiceServer
 }
 
 // AssetRevaluationServices groups all service dependencies.
 type AssetRevaluationServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // UseCases contains all asset-revaluation-related use cases.
@@ -42,11 +42,11 @@ func NewUseCases(
 		AssetRevaluation: repositories.AssetRevaluation,
 	}
 	revalueServices := RevalueAssetServices{
-		Authorizer:  services.Authorizer,
-		Transactor:  services.Transactor,
-		Translator:  services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 		ActionGatekeeper: services.ActionGatekeeper,
-		IDGenerator: services.IDGenerator,
+		IDGenerator:      services.IDGenerator,
 	}
 
 	return &UseCases{

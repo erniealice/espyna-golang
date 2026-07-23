@@ -9,23 +9,23 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
-	workflow_templatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
+	workflowTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
 )
 
 // DeleteWorkflowTemplateRepositories groups all repository dependencies
 type DeleteWorkflowTemplateRepositories struct {
-	WorkflowTemplate workflow_templatepb.WorkflowTemplateDomainServiceServer // Primary entity repository
-	Workspace        workspacepb.WorkspaceDomainServiceServer                // Workspace repository for foreign key validation
+	WorkflowTemplate workflowTemplatepb.WorkflowTemplateDomainServiceServer // Primary entity repository
+	Workspace        workspacepb.WorkspaceDomainServiceServer               // Workspace repository for foreign key validation
 }
 
 // DeleteWorkflowTemplateServices groups all business service dependencies
 type DeleteWorkflowTemplateServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -48,7 +48,7 @@ func NewDeleteWorkflowTemplateUseCase(
 
 // NewDeleteWorkflowTemplateUseCaseUngrouped creates use case with individual parameters
 // Deprecated: Use NewDeleteWorkflowTemplateUseCase with grouped parameters instead
-func NewDeleteWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflow_templatepb.WorkflowTemplateDomainServiceServer, workspaceRepo workspacepb.WorkspaceDomainServiceServer) *DeleteWorkflowTemplateUseCase {
+func NewDeleteWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflowTemplatepb.WorkflowTemplateDomainServiceServer, workspaceRepo workspacepb.WorkspaceDomainServiceServer) *DeleteWorkflowTemplateUseCase {
 	// Build grouped parameters internally for backward compatibility
 	repositories := DeleteWorkflowTemplateRepositories{
 		WorkflowTemplate: workflowTemplateRepo,
@@ -56,8 +56,8 @@ func NewDeleteWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflow_tem
 	}
 
 	services := DeleteWorkflowTemplateServices{
-		Authorizer: nil,
-		Transactor: ports.NewNoOpTransactor(),
+		Authorizer:       nil,
+		Transactor:       ports.NewNoOpTransactor(),
 		Translator:       ports.NewNoOpTranslator(),
 		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
@@ -66,7 +66,7 @@ func NewDeleteWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflow_tem
 }
 
 // Execute performs the delete workflow template operation
-func (uc *DeleteWorkflowTemplateUseCase) Execute(ctx context.Context, req *workflow_templatepb.DeleteWorkflowTemplateRequest) (*workflow_templatepb.DeleteWorkflowTemplateResponse, error) {
+func (uc *DeleteWorkflowTemplateUseCase) Execute(ctx context.Context, req *workflowTemplatepb.DeleteWorkflowTemplateRequest) (*workflowTemplatepb.DeleteWorkflowTemplateResponse, error) {
 	// Authorization check
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: "workflow_template",
@@ -95,8 +95,8 @@ func (uc *DeleteWorkflowTemplateUseCase) Execute(ctx context.Context, req *workf
 }
 
 // executeWithTransaction executes workflow template deletion within a transaction
-func (uc *DeleteWorkflowTemplateUseCase) executeWithTransaction(ctx context.Context, workflowTemplate *workflow_templatepb.WorkflowTemplate) (*workflow_templatepb.DeleteWorkflowTemplateResponse, error) {
-	var result *workflow_templatepb.DeleteWorkflowTemplateResponse
+func (uc *DeleteWorkflowTemplateUseCase) executeWithTransaction(ctx context.Context, workflowTemplate *workflowTemplatepb.WorkflowTemplate) (*workflowTemplatepb.DeleteWorkflowTemplateResponse, error) {
+	var result *workflowTemplatepb.DeleteWorkflowTemplateResponse
 
 	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, workflowTemplate)
@@ -115,15 +115,15 @@ func (uc *DeleteWorkflowTemplateUseCase) executeWithTransaction(ctx context.Cont
 }
 
 // executeCore contains the core business logic for deleting a workflow template
-func (uc *DeleteWorkflowTemplateUseCase) executeCore(ctx context.Context, workflowTemplate *workflow_templatepb.WorkflowTemplate) (*workflow_templatepb.DeleteWorkflowTemplateResponse, error) {
+func (uc *DeleteWorkflowTemplateUseCase) executeCore(ctx context.Context, workflowTemplate *workflowTemplatepb.WorkflowTemplate) (*workflowTemplatepb.DeleteWorkflowTemplateResponse, error) {
 	// Delegate to repository
-	return uc.repositories.WorkflowTemplate.DeleteWorkflowTemplate(ctx, &workflow_templatepb.DeleteWorkflowTemplateRequest{
+	return uc.repositories.WorkflowTemplate.DeleteWorkflowTemplate(ctx, &workflowTemplatepb.DeleteWorkflowTemplateRequest{
 		Data: workflowTemplate,
 	})
 }
 
 // validateBusinessRules enforces business constraints
-func (uc *DeleteWorkflowTemplateUseCase) validateBusinessRules(ctx context.Context, workflowTemplate *workflow_templatepb.WorkflowTemplate) error {
+func (uc *DeleteWorkflowTemplateUseCase) validateBusinessRules(ctx context.Context, workflowTemplate *workflowTemplatepb.WorkflowTemplate) error {
 	// Business rule: Required data validation
 	if workflowTemplate == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.data_required", "Workflow template data is required [DEFAULT]"))

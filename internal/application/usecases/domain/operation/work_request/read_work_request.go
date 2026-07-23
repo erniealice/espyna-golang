@@ -8,12 +8,12 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	work_requestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
+	workRequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
 )
 
 // ReadWorkRequestRepositories groups all repository dependencies.
 type ReadWorkRequestRepositories struct {
-	WorkRequest work_requestpb.WorkRequestDomainServiceServer
+	WorkRequest workRequestpb.WorkRequestDomainServiceServer
 }
 
 // ReadWorkRequestServices groups all business service dependencies.
@@ -37,7 +37,7 @@ func NewReadWorkRequestUseCase(repositories ReadWorkRequestRepositories, service
 	return &ReadWorkRequestUseCase{repositories: repositories, services: services}
 }
 
-func (uc *ReadWorkRequestUseCase) Execute(ctx context.Context, req *work_requestpb.ReadWorkRequestRequest) (*work_requestpb.ReadWorkRequestResponse, error) {
+func (uc *ReadWorkRequestUseCase) Execute(ctx context.Context, req *workRequestpb.ReadWorkRequestRequest) (*workRequestpb.ReadWorkRequestResponse, error) {
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: entityid.WorkRequest,
 		Action: entityid.ActionRead,

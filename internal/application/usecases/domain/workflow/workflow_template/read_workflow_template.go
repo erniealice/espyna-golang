@@ -9,23 +9,23 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
-	workflow_templatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
+	workflowTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
 )
 
 // ReadWorkflowTemplateRepositories groups all repository dependencies
 type ReadWorkflowTemplateRepositories struct {
-	WorkflowTemplate workflow_templatepb.WorkflowTemplateDomainServiceServer // Primary entity repository
-	Workspace        workspacepb.WorkspaceDomainServiceServer                // Workspace repository for foreign key validation
+	WorkflowTemplate workflowTemplatepb.WorkflowTemplateDomainServiceServer // Primary entity repository
+	Workspace        workspacepb.WorkspaceDomainServiceServer               // Workspace repository for foreign key validation
 }
 
 // ReadWorkflowTemplateServices groups all business service dependencies
 type ReadWorkflowTemplateServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -48,7 +48,7 @@ func NewReadWorkflowTemplateUseCase(
 
 // NewReadWorkflowTemplateUseCaseUngrouped creates use case with individual parameters
 // Deprecated: Use NewReadWorkflowTemplateUseCase with grouped parameters instead
-func NewReadWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflow_templatepb.WorkflowTemplateDomainServiceServer, workspaceRepo workspacepb.WorkspaceDomainServiceServer) *ReadWorkflowTemplateUseCase {
+func NewReadWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflowTemplatepb.WorkflowTemplateDomainServiceServer, workspaceRepo workspacepb.WorkspaceDomainServiceServer) *ReadWorkflowTemplateUseCase {
 	// Build grouped parameters internally for backward compatibility
 	repositories := ReadWorkflowTemplateRepositories{
 		WorkflowTemplate: workflowTemplateRepo,
@@ -56,8 +56,8 @@ func NewReadWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflow_templ
 	}
 
 	services := ReadWorkflowTemplateServices{
-		Authorizer: nil,
-		Transactor: ports.NewNoOpTransactor(),
+		Authorizer:       nil,
+		Transactor:       ports.NewNoOpTransactor(),
 		Translator:       ports.NewNoOpTranslator(),
 		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
@@ -66,7 +66,7 @@ func NewReadWorkflowTemplateUseCaseUngrouped(workflowTemplateRepo workflow_templ
 }
 
 // Execute performs the read workflow template operation
-func (uc *ReadWorkflowTemplateUseCase) Execute(ctx context.Context, req *workflow_templatepb.ReadWorkflowTemplateRequest) (*workflow_templatepb.ReadWorkflowTemplateResponse, error) {
+func (uc *ReadWorkflowTemplateUseCase) Execute(ctx context.Context, req *workflowTemplatepb.ReadWorkflowTemplateRequest) (*workflowTemplatepb.ReadWorkflowTemplateResponse, error) {
 	// Authorization check
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: "workflow_template",
@@ -95,8 +95,8 @@ func (uc *ReadWorkflowTemplateUseCase) Execute(ctx context.Context, req *workflo
 }
 
 // executeWithTransaction executes workflow template read within a transaction
-func (uc *ReadWorkflowTemplateUseCase) executeWithTransaction(ctx context.Context, workflowTemplate *workflow_templatepb.WorkflowTemplate) (*workflow_templatepb.ReadWorkflowTemplateResponse, error) {
-	var result *workflow_templatepb.ReadWorkflowTemplateResponse
+func (uc *ReadWorkflowTemplateUseCase) executeWithTransaction(ctx context.Context, workflowTemplate *workflowTemplatepb.WorkflowTemplate) (*workflowTemplatepb.ReadWorkflowTemplateResponse, error) {
+	var result *workflowTemplatepb.ReadWorkflowTemplateResponse
 
 	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, workflowTemplate)
@@ -115,15 +115,15 @@ func (uc *ReadWorkflowTemplateUseCase) executeWithTransaction(ctx context.Contex
 }
 
 // executeCore contains the core business logic for reading a workflow template
-func (uc *ReadWorkflowTemplateUseCase) executeCore(ctx context.Context, workflowTemplate *workflow_templatepb.WorkflowTemplate) (*workflow_templatepb.ReadWorkflowTemplateResponse, error) {
+func (uc *ReadWorkflowTemplateUseCase) executeCore(ctx context.Context, workflowTemplate *workflowTemplatepb.WorkflowTemplate) (*workflowTemplatepb.ReadWorkflowTemplateResponse, error) {
 	// Delegate to repository
-	return uc.repositories.WorkflowTemplate.ReadWorkflowTemplate(ctx, &workflow_templatepb.ReadWorkflowTemplateRequest{
+	return uc.repositories.WorkflowTemplate.ReadWorkflowTemplate(ctx, &workflowTemplatepb.ReadWorkflowTemplateRequest{
 		Data: workflowTemplate,
 	})
 }
 
 // validateBusinessRules enforces business constraints
-func (uc *ReadWorkflowTemplateUseCase) validateBusinessRules(ctx context.Context, workflowTemplate *workflow_templatepb.WorkflowTemplate) error {
+func (uc *ReadWorkflowTemplateUseCase) validateBusinessRules(ctx context.Context, workflowTemplate *workflowTemplatepb.WorkflowTemplate) error {
 	// Business rule: Required data validation
 	if workflowTemplate == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workflow_template.validation.data_required", "Workflow template data is required [DEFAULT]"))

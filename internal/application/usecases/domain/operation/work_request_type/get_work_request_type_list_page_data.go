@@ -9,12 +9,12 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	work_request_typepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
+	workRequestTypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
 )
 
 // GetWorkRequestTypeListPageDataRepositories groups all repository dependencies
 type GetWorkRequestTypeListPageDataRepositories struct {
-	WorkRequestType work_request_typepb.WorkRequestTypeDomainServiceServer // Primary entity repository
+	WorkRequestType workRequestTypepb.WorkRequestTypeDomainServiceServer // Primary entity repository
 }
 
 // GetWorkRequestTypeListPageDataServices groups all business service dependencies
@@ -42,7 +42,7 @@ func NewGetWorkRequestTypeListPageDataUseCase(
 }
 
 // Execute performs the get work request type list page data operation
-func (uc *GetWorkRequestTypeListPageDataUseCase) Execute(ctx context.Context, req *work_request_typepb.GetWorkRequestTypeListPageDataRequest) (*work_request_typepb.GetWorkRequestTypeListPageDataResponse, error) {
+func (uc *GetWorkRequestTypeListPageDataUseCase) Execute(ctx context.Context, req *workRequestTypepb.GetWorkRequestTypeListPageDataRequest) (*workRequestTypepb.GetWorkRequestTypeListPageDataResponse, error) {
 	// Authorization check
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: entityid.WorkRequestType,
@@ -74,7 +74,7 @@ func (uc *GetWorkRequestTypeListPageDataUseCase) Execute(ctx context.Context, re
 }
 
 // validateInput validates the input request
-func (uc *GetWorkRequestTypeListPageDataUseCase) validateInput(ctx context.Context, req *work_request_typepb.GetWorkRequestTypeListPageDataRequest) error {
+func (uc *GetWorkRequestTypeListPageDataUseCase) validateInput(ctx context.Context, req *workRequestTypepb.GetWorkRequestTypeListPageDataRequest) error {
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "work_request_type.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
@@ -107,7 +107,7 @@ func (uc *GetWorkRequestTypeListPageDataUseCase) validateInput(ctx context.Conte
 }
 
 // validateBusinessRules enforces business constraints for getting list page data
-func (uc *GetWorkRequestTypeListPageDataUseCase) validateBusinessRules(ctx context.Context, req *work_request_typepb.GetWorkRequestTypeListPageDataRequest) error {
+func (uc *GetWorkRequestTypeListPageDataUseCase) validateBusinessRules(ctx context.Context, req *workRequestTypepb.GetWorkRequestTypeListPageDataRequest) error {
 	// No additional business rules for getting list page data
 	return nil
 }

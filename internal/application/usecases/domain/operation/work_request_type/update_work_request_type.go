@@ -11,12 +11,12 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	work_request_typepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
+	workRequestTypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
 )
 
 // UpdateWorkRequestTypeRepositories groups all repository dependencies
 type UpdateWorkRequestTypeRepositories struct {
-	WorkRequestType work_request_typepb.WorkRequestTypeDomainServiceServer // Primary entity repository
+	WorkRequestType workRequestTypepb.WorkRequestTypeDomainServiceServer // Primary entity repository
 }
 
 // UpdateWorkRequestTypeServices groups all business service dependencies
@@ -44,7 +44,7 @@ func NewUpdateWorkRequestTypeUseCase(
 }
 
 // Execute performs the update work request type operation
-func (uc *UpdateWorkRequestTypeUseCase) Execute(ctx context.Context, req *work_request_typepb.UpdateWorkRequestTypeRequest) (*work_request_typepb.UpdateWorkRequestTypeResponse, error) {
+func (uc *UpdateWorkRequestTypeUseCase) Execute(ctx context.Context, req *workRequestTypepb.UpdateWorkRequestTypeRequest) (*workRequestTypepb.UpdateWorkRequestTypeResponse, error) {
 	// Authorization check
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: entityid.WorkRequestType,
@@ -76,7 +76,7 @@ func (uc *UpdateWorkRequestTypeUseCase) Execute(ctx context.Context, req *work_r
 }
 
 // validateInput validates the input request
-func (uc *UpdateWorkRequestTypeUseCase) validateInput(ctx context.Context, req *work_request_typepb.UpdateWorkRequestTypeRequest) error {
+func (uc *UpdateWorkRequestTypeUseCase) validateInput(ctx context.Context, req *workRequestTypepb.UpdateWorkRequestTypeRequest) error {
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "work_request_type.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
@@ -97,11 +97,11 @@ func (uc *UpdateWorkRequestTypeUseCase) validateInput(ctx context.Context, req *
 }
 
 // enrichData applies business enrichment for updates
-func (uc *UpdateWorkRequestTypeUseCase) enrichData(data *work_request_typepb.WorkRequestType) {
+func (uc *UpdateWorkRequestTypeUseCase) enrichData(data *workRequestTypepb.WorkRequestType) {
 	now := time.Now()
 
 	// Derive active from status (active = status is ACTIVE)
-	data.Active = data.Status == work_request_typepb.WorkRequestTypeStatus_WORK_REQUEST_TYPE_STATUS_ACTIVE
+	data.Active = data.Status == workRequestTypepb.WorkRequestTypeStatus_WORK_REQUEST_TYPE_STATUS_ACTIVE
 
 	// Set modification timestamp
 	data.DateModified = &[]int64{now.UnixMilli()}[0]
@@ -109,7 +109,7 @@ func (uc *UpdateWorkRequestTypeUseCase) enrichData(data *work_request_typepb.Wor
 }
 
 // validateBusinessRules enforces business constraints
-func (uc *UpdateWorkRequestTypeUseCase) validateBusinessRules(ctx context.Context, data *work_request_typepb.WorkRequestType) error {
+func (uc *UpdateWorkRequestTypeUseCase) validateBusinessRules(ctx context.Context, data *workRequestTypepb.WorkRequestType) error {
 	// Validate label key length if provided
 	if data.LabelKey != "" && len(data.LabelKey) > 200 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "work_request_type.validation.label_key_too_long", "[ERR-DEFAULT] Label key must not exceed 200 characters"))

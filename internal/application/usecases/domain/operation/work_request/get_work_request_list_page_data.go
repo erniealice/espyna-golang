@@ -5,7 +5,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	work_requestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
+	workRequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
 )
 
 // GetWorkRequestListPageDataUseCase wraps the paginated list page data
@@ -22,7 +22,7 @@ func NewGetWorkRequestListPageDataUseCase(repositories ListWorkRequestsRepositor
 	return &GetWorkRequestListPageDataUseCase{repositories: repositories, services: services}
 }
 
-func (uc *GetWorkRequestListPageDataUseCase) Execute(ctx context.Context, req *work_requestpb.GetWorkRequestListPageDataRequest) (*work_requestpb.GetWorkRequestListPageDataResponse, error) {
+func (uc *GetWorkRequestListPageDataUseCase) Execute(ctx context.Context, req *workRequestpb.GetWorkRequestListPageDataRequest) (*workRequestpb.GetWorkRequestListPageDataResponse, error) {
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: entityid.WorkRequest,
 		Action: entityid.ActionList,

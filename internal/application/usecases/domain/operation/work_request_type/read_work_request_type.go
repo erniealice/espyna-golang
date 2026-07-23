@@ -8,12 +8,12 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	work_request_typepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
+	workRequestTypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
 )
 
 // ReadWorkRequestTypeRepositories groups all repository dependencies
 type ReadWorkRequestTypeRepositories struct {
-	WorkRequestType work_request_typepb.WorkRequestTypeDomainServiceServer // Primary entity repository
+	WorkRequestType workRequestTypepb.WorkRequestTypeDomainServiceServer // Primary entity repository
 }
 
 // ReadWorkRequestTypeServices groups all business service dependencies
@@ -41,7 +41,7 @@ func NewReadWorkRequestTypeUseCase(
 }
 
 // Execute performs the read work request type operation
-func (uc *ReadWorkRequestTypeUseCase) Execute(ctx context.Context, req *work_request_typepb.ReadWorkRequestTypeRequest) (*work_request_typepb.ReadWorkRequestTypeResponse, error) {
+func (uc *ReadWorkRequestTypeUseCase) Execute(ctx context.Context, req *workRequestTypepb.ReadWorkRequestTypeRequest) (*workRequestTypepb.ReadWorkRequestTypeResponse, error) {
 	// Authorization check
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: entityid.WorkRequestType,
@@ -65,7 +65,7 @@ func (uc *ReadWorkRequestTypeUseCase) Execute(ctx context.Context, req *work_req
 }
 
 // validateInput validates the input request
-func (uc *ReadWorkRequestTypeUseCase) validateInput(ctx context.Context, req *work_request_typepb.ReadWorkRequestTypeRequest) error {
+func (uc *ReadWorkRequestTypeUseCase) validateInput(ctx context.Context, req *workRequestTypepb.ReadWorkRequestTypeRequest) error {
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "work_request_type.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}

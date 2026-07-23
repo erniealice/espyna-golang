@@ -20,7 +20,7 @@ import (
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
-	plan_locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_location"
+	planLocationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_location"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 )
 
@@ -133,7 +133,7 @@ func seedClientScopedPlan(id, clientID, locationID string) *planpb.Plan {
 	c := clientID
 	p := &planpb.Plan{Id: &idCopy, Name: "Audit Engagement", Active: true, ClientId: &c}
 	if locationID != "" {
-		p.PlanLocations = []*plan_locationpb.PlanLocation{
+		p.PlanLocations = []*planLocationpb.PlanLocation{
 			{LocationId: locationID, Active: true},
 		}
 	}

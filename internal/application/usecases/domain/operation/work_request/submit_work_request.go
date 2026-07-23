@@ -10,8 +10,8 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
-	work_requestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
-	work_request_typepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
+	workRequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
+	workRequestTypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
 )
 
 // SubmitWorkRequestRequest is the Go-shaped input (no proto request type exists
@@ -22,8 +22,8 @@ type SubmitWorkRequestRequest struct {
 
 // SubmitWorkRequestRepositories groups all repository dependencies.
 type SubmitWorkRequestRepositories struct {
-	WorkRequest     work_requestpb.WorkRequestDomainServiceServer
-	WorkRequestType work_request_typepb.WorkRequestTypeDomainServiceServer // SLA snapshot source
+	WorkRequest     workRequestpb.WorkRequestDomainServiceServer
+	WorkRequestType workRequestTypepb.WorkRequestTypeDomainServiceServer // SLA snapshot source
 }
 
 // SubmitWorkRequestServices groups all business service dependencies.
@@ -50,7 +50,7 @@ func NewSubmitWorkRequestUseCase(repositories SubmitWorkRequestRepositories, ser
 	return &SubmitWorkRequestUseCase{repositories: repositories, services: services}
 }
 
-func (uc *SubmitWorkRequestUseCase) Execute(ctx context.Context, req *SubmitWorkRequestRequest) (*work_requestpb.UpdateWorkRequestResponse, error) {
+func (uc *SubmitWorkRequestUseCase) Execute(ctx context.Context, req *SubmitWorkRequestRequest) (*workRequestpb.UpdateWorkRequestResponse, error) {
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: entityid.WorkRequest,
 		Action: entityid.ActionUpdate,
@@ -62,8 +62,8 @@ func (uc *SubmitWorkRequestUseCase) Execute(ctx context.Context, req *SubmitWork
 	}
 
 	// Load the current work request.
-	readResp, err := uc.repositories.WorkRequest.ReadWorkRequest(ctx, &work_requestpb.ReadWorkRequestRequest{
-		Data: &work_requestpb.WorkRequest{Id: req.WorkRequestID},
+	readResp, err := uc.repositories.WorkRequest.ReadWorkRequest(ctx, &workRequestpb.ReadWorkRequestRequest{
+		Data: &workRequestpb.WorkRequest{Id: req.WorkRequestID},
 	})
 	if err != nil {
 		return nil, err
@@ -74,7 +74,7 @@ func (uc *SubmitWorkRequestUseCase) Execute(ctx context.Context, req *SubmitWork
 	wr := readResp.Data[0]
 
 	// Only NEW may be submitted.
-	if wr.Status != work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_NEW {
+	if wr.Status != workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_NEW {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workRequest.errors.not_new", "Only a new work request can be submitted [DEFAULT]"))
 	}
 
@@ -91,7 +91,7 @@ func (uc *SubmitWorkRequestUseCase) Execute(ctx context.Context, req *SubmitWork
 	}
 
 	// Transition to SUBMITTED.
-	wr.Status = work_requestpb.WorkRequestStatus_WORK_REQUEST_STATUS_SUBMITTED
+	wr.Status = workRequestpb.WorkRequestStatus_WORK_REQUEST_STATUS_SUBMITTED
 	// active = status NOT IN (5,6,7) — SUBMITTED is active.
 	wr.Active = true
 
@@ -103,7 +103,7 @@ func (uc *SubmitWorkRequestUseCase) Execute(ctx context.Context, req *SubmitWork
 
 	// Persist.
 	persist := func(c context.Context) error {
-		_, updateErr := uc.repositories.WorkRequest.UpdateWorkRequest(c, &work_requestpb.UpdateWorkRequestRequest{Data: wr})
+		_, updateErr := uc.repositories.WorkRequest.UpdateWorkRequest(c, &workRequestpb.UpdateWorkRequestRequest{Data: wr})
 		return updateErr
 	}
 
@@ -119,7 +119,7 @@ func (uc *SubmitWorkRequestUseCase) Execute(ctx context.Context, req *SubmitWork
 		}
 	}
 
-	return &work_requestpb.UpdateWorkRequestResponse{Data: []*work_requestpb.WorkRequest{wr}, Success: true}, nil
+	return &workRequestpb.UpdateWorkRequestResponse{Data: []*workRequestpb.WorkRequest{wr}, Success: true}, nil
 }
 
 // resolveSLAHours reads the type's default_sla_hours. Falls back to 0 if the
@@ -128,8 +128,8 @@ func (uc *SubmitWorkRequestUseCase) resolveSLAHours(ctx context.Context, typeID 
 	if uc.repositories.WorkRequestType == nil || typeID == "" {
 		return 0
 	}
-	resp, err := uc.repositories.WorkRequestType.ReadWorkRequestType(ctx, &work_request_typepb.ReadWorkRequestTypeRequest{
-		Data: &work_request_typepb.WorkRequestType{Id: typeID},
+	resp, err := uc.repositories.WorkRequestType.ReadWorkRequestType(ctx, &workRequestTypepb.ReadWorkRequestTypeRequest{
+		Data: &workRequestTypepb.WorkRequestType{Id: typeID},
 	})
 	if err != nil || resp == nil || len(resp.Data) == 0 {
 		return 0

@@ -3,12 +3,12 @@ package work_request_type
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	work_request_typepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
+	workRequestTypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
 )
 
 // WorkRequestTypeRepositories groups all repository dependencies for work request type use cases
 type WorkRequestTypeRepositories struct {
-	WorkRequestType work_request_typepb.WorkRequestTypeDomainServiceServer // Primary entity repository
+	WorkRequestType workRequestTypepb.WorkRequestTypeDomainServiceServer // Primary entity repository
 }
 
 // WorkRequestTypeServices groups all business service dependencies for work request type use cases
@@ -21,11 +21,11 @@ type WorkRequestTypeServices struct {
 
 // UseCases contains all work request type-related use cases
 type UseCases struct {
-	CreateWorkRequestType              *CreateWorkRequestTypeUseCase
-	ReadWorkRequestType                *ReadWorkRequestTypeUseCase
-	UpdateWorkRequestType              *UpdateWorkRequestTypeUseCase
-	ListWorkRequestTypes               *ListWorkRequestTypesUseCase
-	GetWorkRequestTypeListPageData     *GetWorkRequestTypeListPageDataUseCase
+	CreateWorkRequestType          *CreateWorkRequestTypeUseCase
+	ReadWorkRequestType            *ReadWorkRequestTypeUseCase
+	UpdateWorkRequestType          *UpdateWorkRequestTypeUseCase
+	ListWorkRequestTypes           *ListWorkRequestTypesUseCase
+	GetWorkRequestTypeListPageData *GetWorkRequestTypeListPageDataUseCase
 }
 
 // NewUseCases creates a new collection of work request type use cases

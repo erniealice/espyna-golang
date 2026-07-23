@@ -12,12 +12,12 @@ import (
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
-	work_request_typepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
+	workRequestTypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
 )
 
 // CreateWorkRequestTypeRepositories groups all repository dependencies
 type CreateWorkRequestTypeRepositories struct {
-	WorkRequestType work_request_typepb.WorkRequestTypeDomainServiceServer // Primary entity repository
+	WorkRequestType workRequestTypepb.WorkRequestTypeDomainServiceServer // Primary entity repository
 }
 
 // CreateWorkRequestTypeServices groups all business service dependencies
@@ -46,7 +46,7 @@ func NewCreateWorkRequestTypeUseCase(
 }
 
 // Execute performs the create work request type operation
-func (uc *CreateWorkRequestTypeUseCase) Execute(ctx context.Context, req *work_request_typepb.CreateWorkRequestTypeRequest) (*work_request_typepb.CreateWorkRequestTypeResponse, error) {
+func (uc *CreateWorkRequestTypeUseCase) Execute(ctx context.Context, req *workRequestTypepb.CreateWorkRequestTypeRequest) (*workRequestTypepb.CreateWorkRequestTypeResponse, error) {
 	// Authorization check
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: entityid.WorkRequestType,
@@ -78,8 +78,8 @@ func (uc *CreateWorkRequestTypeUseCase) Execute(ctx context.Context, req *work_r
 }
 
 // executeWithTransaction executes creation within a transaction
-func (uc *CreateWorkRequestTypeUseCase) executeWithTransaction(ctx context.Context, req *work_request_typepb.CreateWorkRequestTypeRequest) (*work_request_typepb.CreateWorkRequestTypeResponse, error) {
-	var result *work_request_typepb.CreateWorkRequestTypeResponse
+func (uc *CreateWorkRequestTypeUseCase) executeWithTransaction(ctx context.Context, req *workRequestTypepb.CreateWorkRequestTypeRequest) (*workRequestTypepb.CreateWorkRequestTypeResponse, error) {
+	var result *workRequestTypepb.CreateWorkRequestTypeResponse
 	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
@@ -96,7 +96,7 @@ func (uc *CreateWorkRequestTypeUseCase) executeWithTransaction(ctx context.Conte
 }
 
 // executeCore contains the core business logic
-func (uc *CreateWorkRequestTypeUseCase) executeCore(ctx context.Context, req *work_request_typepb.CreateWorkRequestTypeRequest) (*work_request_typepb.CreateWorkRequestTypeResponse, error) {
+func (uc *CreateWorkRequestTypeUseCase) executeCore(ctx context.Context, req *workRequestTypepb.CreateWorkRequestTypeRequest) (*workRequestTypepb.CreateWorkRequestTypeResponse, error) {
 	// Code uniqueness check: list existing types in this workspace and verify code is unique
 	if err := uc.checkCodeUniqueness(ctx, req.Data.WorkspaceId, req.Data.Code, ""); err != nil {
 		return nil, err
@@ -113,7 +113,7 @@ func (uc *CreateWorkRequestTypeUseCase) executeCore(ctx context.Context, req *wo
 // checkCodeUniqueness verifies that the code is unique within the workspace
 func (uc *CreateWorkRequestTypeUseCase) checkCodeUniqueness(ctx context.Context, workspaceID, code, excludeID string) error {
 	// List existing types with a filter on code
-	listReq := &work_request_typepb.ListWorkRequestTypesRequest{
+	listReq := &workRequestTypepb.ListWorkRequestTypesRequest{
 		Filters: &commonpb.FilterRequest{
 			Filters: []*commonpb.TypedFilter{
 				{
@@ -147,7 +147,7 @@ func (uc *CreateWorkRequestTypeUseCase) checkCodeUniqueness(ctx context.Context,
 }
 
 // validateInput validates the input request
-func (uc *CreateWorkRequestTypeUseCase) validateInput(ctx context.Context, req *work_request_typepb.CreateWorkRequestTypeRequest) error {
+func (uc *CreateWorkRequestTypeUseCase) validateInput(ctx context.Context, req *workRequestTypepb.CreateWorkRequestTypeRequest) error {
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "work_request_type.validation.request_required", "[ERR-DEFAULT] Request is required"))
 	}
@@ -175,7 +175,7 @@ func (uc *CreateWorkRequestTypeUseCase) validateInput(ctx context.Context, req *
 }
 
 // validateBusinessRules enforces business constraints
-func (uc *CreateWorkRequestTypeUseCase) validateBusinessRules(ctx context.Context, data *work_request_typepb.WorkRequestType) error {
+func (uc *CreateWorkRequestTypeUseCase) validateBusinessRules(ctx context.Context, data *workRequestTypepb.WorkRequestType) error {
 	// Validate code length
 	if len(data.Code) < 2 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "work_request_type.validation.code_too_short", "[ERR-DEFAULT] Code must be at least 2 characters"))
@@ -195,7 +195,7 @@ func (uc *CreateWorkRequestTypeUseCase) validateBusinessRules(ctx context.Contex
 	}
 
 	// Validate category is set
-	if data.Category == work_request_typepb.WorkRequestTypeCategory_WORK_REQUEST_TYPE_CATEGORY_UNSPECIFIED {
+	if data.Category == workRequestTypepb.WorkRequestTypeCategory_WORK_REQUEST_TYPE_CATEGORY_UNSPECIFIED {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "work_request_type.validation.category_required", "[ERR-DEFAULT] Category is required"))
 	}
 
@@ -215,7 +215,7 @@ func (uc *CreateWorkRequestTypeUseCase) validateBusinessRules(ctx context.Contex
 }
 
 // applyBusinessLogic applies business rules and enrichment
-func (uc *CreateWorkRequestTypeUseCase) applyBusinessLogic(data *work_request_typepb.WorkRequestType) {
+func (uc *CreateWorkRequestTypeUseCase) applyBusinessLogic(data *workRequestTypepb.WorkRequestType) {
 	now := time.Now()
 
 	// Generate ID if not provided
@@ -224,12 +224,12 @@ func (uc *CreateWorkRequestTypeUseCase) applyBusinessLogic(data *work_request_ty
 	}
 
 	// Set status to ACTIVE by default for new types
-	if data.Status == work_request_typepb.WorkRequestTypeStatus_WORK_REQUEST_TYPE_STATUS_UNSPECIFIED {
-		data.Status = work_request_typepb.WorkRequestTypeStatus_WORK_REQUEST_TYPE_STATUS_ACTIVE
+	if data.Status == workRequestTypepb.WorkRequestTypeStatus_WORK_REQUEST_TYPE_STATUS_UNSPECIFIED {
+		data.Status = workRequestTypepb.WorkRequestTypeStatus_WORK_REQUEST_TYPE_STATUS_ACTIVE
 	}
 
 	// Derive active from status (active = status is ACTIVE)
-	data.Active = data.Status == work_request_typepb.WorkRequestTypeStatus_WORK_REQUEST_TYPE_STATUS_ACTIVE
+	data.Active = data.Status == workRequestTypepb.WorkRequestTypeStatus_WORK_REQUEST_TYPE_STATUS_ACTIVE
 
 	// Set audit timestamps
 	data.DateCreated = &[]int64{now.UnixMilli()}[0]

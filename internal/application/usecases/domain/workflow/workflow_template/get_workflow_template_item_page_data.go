@@ -7,19 +7,19 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
-	workflow_templatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
+	"github.com/erniealice/espyna-golang/registry/entityid"
+	workflowTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/workflow_template"
 )
 
 type GetWorkflowTemplateItemPageDataRepositories struct {
-	WorkflowTemplate workflow_templatepb.WorkflowTemplateDomainServiceServer
+	WorkflowTemplate workflowTemplatepb.WorkflowTemplateDomainServiceServer
 }
 
 type GetWorkflowTemplateItemPageDataServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -43,8 +43,8 @@ func NewGetWorkflowTemplateItemPageDataUseCase(
 // Execute performs the get workflow template item page data operation
 func (uc *GetWorkflowTemplateItemPageDataUseCase) Execute(
 	ctx context.Context,
-	req *workflow_templatepb.GetWorkflowTemplateItemPageDataRequest,
-) (*workflow_templatepb.GetWorkflowTemplateItemPageDataResponse, error) {
+	req *workflowTemplatepb.GetWorkflowTemplateItemPageDataRequest,
+) (*workflowTemplatepb.GetWorkflowTemplateItemPageDataResponse, error) {
 	// Authorization check
 	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
 		Entity: "workflow_template",
@@ -75,9 +75,9 @@ func (uc *GetWorkflowTemplateItemPageDataUseCase) Execute(
 // executeWithTransaction executes workflow template item page data retrieval within a transaction
 func (uc *GetWorkflowTemplateItemPageDataUseCase) executeWithTransaction(
 	ctx context.Context,
-	req *workflow_templatepb.GetWorkflowTemplateItemPageDataRequest,
-) (*workflow_templatepb.GetWorkflowTemplateItemPageDataResponse, error) {
-	var result *workflow_templatepb.GetWorkflowTemplateItemPageDataResponse
+	req *workflowTemplatepb.GetWorkflowTemplateItemPageDataRequest,
+) (*workflowTemplatepb.GetWorkflowTemplateItemPageDataResponse, error) {
+	var result *workflowTemplatepb.GetWorkflowTemplateItemPageDataResponse
 
 	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 		res, err := uc.executeCore(txCtx, req)
@@ -102,11 +102,11 @@ func (uc *GetWorkflowTemplateItemPageDataUseCase) executeWithTransaction(
 // executeCore contains the core business logic for getting workflow template item page data
 func (uc *GetWorkflowTemplateItemPageDataUseCase) executeCore(
 	ctx context.Context,
-	req *workflow_templatepb.GetWorkflowTemplateItemPageDataRequest,
-) (*workflow_templatepb.GetWorkflowTemplateItemPageDataResponse, error) {
+	req *workflowTemplatepb.GetWorkflowTemplateItemPageDataRequest,
+) (*workflowTemplatepb.GetWorkflowTemplateItemPageDataResponse, error) {
 	// Create read request for the workflow template
-	readReq := &workflow_templatepb.ReadWorkflowTemplateRequest{
-		Data: &workflow_templatepb.WorkflowTemplate{
+	readReq := &workflowTemplatepb.ReadWorkflowTemplateRequest{
+		Data: &workflowTemplatepb.WorkflowTemplate{
 			Id: req.WorkflowTemplateId,
 		},
 	}
@@ -155,7 +155,7 @@ func (uc *GetWorkflowTemplateItemPageDataUseCase) executeCore(
 	// 5. Load hierarchical workflow template structures and stage template relationships
 
 	// For now, return the workflow template as-is
-	return &workflow_templatepb.GetWorkflowTemplateItemPageDataResponse{
+	return &workflowTemplatepb.GetWorkflowTemplateItemPageDataResponse{
 		WorkflowTemplate: workflowTemplate,
 		Success:          true,
 	}, nil
@@ -164,7 +164,7 @@ func (uc *GetWorkflowTemplateItemPageDataUseCase) executeCore(
 // validateInput validates the input request
 func (uc *GetWorkflowTemplateItemPageDataUseCase) validateInput(
 	ctx context.Context,
-	req *workflow_templatepb.GetWorkflowTemplateItemPageDataRequest,
+	req *workflowTemplatepb.GetWorkflowTemplateItemPageDataRequest,
 ) error {
 	if req == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(
@@ -216,8 +216,8 @@ func (uc *GetWorkflowTemplateItemPageDataUseCase) validateBusinessRules(
 // applyDataTransformation applies any necessary data transformations for the frontend
 func (uc *GetWorkflowTemplateItemPageDataUseCase) applyDataTransformation(
 	ctx context.Context,
-	workflowTemplate *workflow_templatepb.WorkflowTemplate,
-) *workflow_templatepb.WorkflowTemplate {
+	workflowTemplate *workflowTemplatepb.WorkflowTemplate,
+) *workflowTemplatepb.WorkflowTemplate {
 	// TODO: Apply any transformations needed for optimal frontend consumption
 	// This could include:
 	// - Formatting dates
@@ -235,7 +235,7 @@ func (uc *GetWorkflowTemplateItemPageDataUseCase) applyDataTransformation(
 // This would be called from executeCore if needed
 func (uc *GetWorkflowTemplateItemPageDataUseCase) loadRelatedData(
 	ctx context.Context,
-	workflowTemplate *workflow_templatepb.WorkflowTemplate,
+	workflowTemplate *workflowTemplatepb.WorkflowTemplate,
 ) error {
 	// TODO: Implement loading of related data
 	// This could involve calls to stage_template and activity_template repositories
@@ -270,7 +270,7 @@ func (uc *GetWorkflowTemplateItemPageDataUseCase) checkAccessPermissions(
 // loadHierarchicalData loads workflow template hierarchy (workflow_template -> stage_templates -> activity_templates)
 func (uc *GetWorkflowTemplateItemPageDataUseCase) loadHierarchicalData(
 	ctx context.Context,
-	workflowTemplate *workflow_templatepb.WorkflowTemplate,
+	workflowTemplate *workflowTemplatepb.WorkflowTemplate,
 ) error {
 	// TODO: Implement hierarchical data loading for workflow templates
 	// This would involve:

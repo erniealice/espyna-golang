@@ -12,6 +12,7 @@ import (
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	clientworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_workspace_user"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
+	productplanstaffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan_staff"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
@@ -48,7 +49,9 @@ type SubscriptionRepositories struct {
 	PricePlan             priceplanpb.PricePlanDomainServiceServer
 	PriceSchedule         priceschedulepb.PriceScheduleDomainServiceServer
 	ProductPlan           productplanpb.ProductPlanDomainServiceServer // Cross-domain dependency (Model D)
-	ProductPricePlan      productpriceplanpb.ProductPricePlanDomainServiceServer
+	// ProductPlanStaff — cross-domain (product): sgpps eligibility guard anchor.
+	ProductPlanStaff productplanstaffpb.ProductPlanStaffDomainServiceServer
+	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
 	Subscription          subscriptionpb.SubscriptionDomainServiceServer
 	SubscriptionAttribute subscriptionattributepb.SubscriptionAttributeDomainServiceServer
 	// Outsourcing-vertical seat + servicing membership
@@ -216,6 +219,13 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, tableConfig *reg
 		clientWorkspaceUserServer = cwuRepo.(clientworkspaceuserpb.ClientWorkspaceUserDomainServiceServer)
 	}
 
+	// Cross-domain product_plan_staff repository — anchors the sgpps class-edge
+	// eligibility guard (best-effort; the guard fail-closes when nil).
+	var productPlanStaffServer productplanstaffpb.ProductPlanStaffDomainServiceServer
+	if ppsRepo, ppsErr := repoCreator.CreateRepository(entityid.ProductPlanStaff, conn, tableConfig.TableName(entityid.ProductPlanStaff)); ppsErr == nil {
+		productPlanStaffServer = ppsRepo.(productplanstaffpb.ProductPlanStaffDomainServiceServer)
+	}
+
 	// Type assert each repository to its interface
 	return &SubscriptionRepositories{
 		Balance:                           balanceRepo.(balancepb.BalanceDomainServiceServer),
@@ -230,6 +240,7 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, tableConfig *reg
 		PricePlan:                         pricePlanRepo.(priceplanpb.PricePlanDomainServiceServer),
 		PriceSchedule:                     priceScheduleRepo.(priceschedulepb.PriceScheduleDomainServiceServer),
 		ProductPlan:                       productPlanRepo.(productplanpb.ProductPlanDomainServiceServer),
+		ProductPlanStaff:                  productPlanStaffServer,
 		ProductPricePlan:                  productPricePlanRepo.(productpriceplanpb.ProductPricePlanDomainServiceServer),
 		Subscription:                      subscriptionRepo.(subscriptionpb.SubscriptionDomainServiceServer),
 		SubscriptionAttribute:             subscriptionAttributeRepo.(subscriptionattributepb.SubscriptionAttributeDomainServiceServer),

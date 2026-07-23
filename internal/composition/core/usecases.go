@@ -396,9 +396,12 @@ func (uci *UseCaseInitializer) initializeEntityUseCases(container *Container) (*
 	}
 	fmt.Printf("🔐 Auth IdP service for user-lifecycle use cases: %v\n", authIdP != nil)
 
-	// Use composition initializer to wire everything together
+	// Use composition initializer to wire everything together. The permission-
+	// cache invalidator holder (P10/D2) is injected into the authorization-
+	// mutating entity use cases; its delegate is set to the permission loader
+	// later, at the composition layer (finalizeHTTPAdapter).
 	entityUseCases, err := domain.InitializeEntity(repos, authSvc, txSvc, i18nSvc, idSvc,
-		actiongate.NewActionGatekeeper(authSvc, i18nSvc), authIdP)
+		actiongate.NewActionGatekeeper(authSvc, i18nSvc), authIdP, container.permCacheInvalidator)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize entity use cases: %v\n", err)
 		return nil, err
@@ -813,6 +816,9 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 			subscriptionUseCase.MaterializeJobsForSubscriptionRepositories{
 				Subscription:        subscriptionRepos.Subscription,
 				PricePlan:           subscriptionRepos.PricePlan,
+				// PriceSchedule anchors the canonical closed-AY spawn guard
+				// (red-team HIGH #3).
+				PriceSchedule:       subscriptionRepos.PriceSchedule,
 				Plan:                subscriptionRepos.Plan,
 				JobTemplate:         operationRepos.JobTemplate,
 				JobTemplatePhase:    operationRepos.JobTemplatePhase,

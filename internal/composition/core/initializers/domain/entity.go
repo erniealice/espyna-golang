@@ -3,6 +3,7 @@ package domain
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
+	securityports "github.com/erniealice/espyna-golang/internal/application/ports/security"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/entity"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
@@ -60,9 +61,16 @@ func InitializeEntity(
 	idSvc ports.IDGenerator,
 	actionGate *actiongate.ActionGatekeeper,
 	authIdP infraports.AuthService,
+	permCacheInvalidator securityports.PermissionCacheInvalidator,
 ) (*entity.EntityUseCases, error) {
 	svc := func() entityServices {
 		return entityServices{authSvc, txSvc, i18nSvc, actionGate, idSvc}
+	}
+	// permCacheInvalidator (P10/D2) is threaded ONLY into the authorization-
+	// mutating modules below (permission, role_permission, workspace_user_role);
+	// a nil holder degrades to no invalidation (the pre-fix behaviour).
+	if permCacheInvalidator == nil {
+		permCacheInvalidator = securityports.NewNoOpPermissionCacheInvalidator()
 	}
 
 	result := &entity.EntityUseCases{}
@@ -217,9 +225,17 @@ func InitializeEntity(
 	}
 
 	if repos.Permission != nil {
+		s := svc()
 		result.Permission = permissionUseCases.NewUseCases(
 			permissionUseCases.PermissionRepositories{Permission: repos.Permission},
-			permissionUseCases.PermissionServices(svc()),
+			permissionUseCases.PermissionServices{
+				Authorizer:                 s.Authorizer,
+				Transactor:                 s.Transactor,
+				Translator:                 s.Translator,
+				ActionGatekeeper:           s.ActionGatekeeper,
+				IDGenerator:                s.IDGenerator,
+				PermissionCacheInvalidator: permCacheInvalidator,
+			},
 		)
 	}
 
@@ -231,13 +247,35 @@ func InitializeEntity(
 	}
 
 	if repos.RolePermission != nil {
+		s := svc()
 		result.RolePermission = rolePermissionUseCases.NewUseCases(
 			rolePermissionUseCases.RolePermissionRepositories{
 				RolePermission: repos.RolePermission,
 				Role:           repos.Role,
 				Permission:     repos.Permission,
+				// WorkspaceUserRole enumerates the bindings bound to a role so a
+				// role→permission grant/revoke can invalidate exactly those
+				// principals' cached permissions (P10/D2). Nil-safe: absent =>
+				// no enumeration.
+				WorkspaceUserRole: repos.WorkspaceUserRole,
+				// Extend that invalidation to EVERY binding kind the loader caches
+				// (CF-1): WorkspaceUser resolves the staff (kind 7) login user; the
+				// portal + delegate grant tables enumerate the CLIENT/SUPPLIER
+				// portal and delegate principals holding the role. All nil-safe.
+				WorkspaceUser:       repos.WorkspaceUser,
+				ClientPortalGrant:   repos.ClientPortalGrant,
+				SupplierPortalGrant: repos.SupplierPortalGrant,
+				DelegateClient:      repos.DelegateClient,
+				DelegateSupplier:    repos.DelegateSupplier,
 			},
-			rolePermissionUseCases.RolePermissionServices(svc()),
+			rolePermissionUseCases.RolePermissionServices{
+				Authorizer:                 s.Authorizer,
+				Transactor:                 s.Transactor,
+				Translator:                 s.Translator,
+				ActionGatekeeper:           s.ActionGatekeeper,
+				IDGenerator:                s.IDGenerator,
+				PermissionCacheInvalidator: permCacheInvalidator,
+			},
 		)
 	}
 
@@ -377,13 +415,21 @@ func InitializeEntity(
 	}
 
 	if repos.WorkspaceUserRole != nil {
+		s := svc()
 		result.WorkspaceUserRole = workspaceUserRoleUseCases.NewUseCases(
 			workspaceUserRoleUseCases.WorkspaceUserRoleRepositories{
 				WorkspaceUserRole: repos.WorkspaceUserRole,
 				WorkspaceUser:     repos.WorkspaceUser,
 				Role:              repos.Role,
 			},
-			workspaceUserRoleUseCases.WorkspaceUserRoleServices(svc()),
+			workspaceUserRoleUseCases.WorkspaceUserRoleServices{
+				Authorizer:                 s.Authorizer,
+				Transactor:                 s.Transactor,
+				Translator:                 s.Translator,
+				ActionGatekeeper:           s.ActionGatekeeper,
+				IDGenerator:                s.IDGenerator,
+				PermissionCacheInvalidator: permCacheInvalidator,
+			},
 		)
 	}
 

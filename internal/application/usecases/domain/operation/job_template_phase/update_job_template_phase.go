@@ -9,11 +9,18 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
+	scoringschemepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_scheme"
 )
 
+// UpdateJobTemplatePhaseRepositories groups repository dependencies. JobTemplate
+// (owning template) and ScoringScheme anchor the fail-closed cross-workspace FK
+// guards (red-team HIGH #2).
 type UpdateJobTemplatePhaseRepositories struct {
 	JobTemplatePhase pb.JobTemplatePhaseDomainServiceServer
+	JobTemplate      jobtemplatepb.JobTemplateDomainServiceServer
+	ScoringScheme    scoringschemepb.ScoringSchemeDomainServiceServer
 }
 
 type UpdateJobTemplatePhaseServices struct {
@@ -94,11 +101,37 @@ func (uc *UpdateJobTemplatePhaseUseCase) executeWithTransaction(ctx context.Cont
 // executeCore contains the core business logic for updating a job template phase
 func (uc *UpdateJobTemplatePhaseUseCase) executeCore(ctx context.Context, req *pb.UpdateJobTemplatePhaseRequest, enrichedData *pb.JobTemplatePhase) (*pb.UpdateJobTemplatePhaseResponse, error) {
 	// First, check if the entity exists
-	_, err := uc.repositories.JobTemplatePhase.ReadJobTemplatePhase(ctx, &pb.ReadJobTemplatePhaseRequest{
+	existingResp, err := uc.repositories.JobTemplatePhase.ReadJobTemplatePhase(ctx, &pb.ReadJobTemplatePhaseRequest{
 		Data: &pb.JobTemplatePhase{Id: req.Data.Id},
 	})
-	if err != nil {
+	if err != nil || existingResp == nil || len(existingResp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "job_template_phase.errors.not_found", "[ERR-DEFAULT] Job template phase not found"))
+	}
+	existing := existingResp.GetData()[0]
+
+	// Fail-closed cross-workspace FK guard on the effective (post-update) FKs.
+	// The caller must own the existing phase (its owning template in-workspace),
+	// and any repointed job_template_id / scoring_scheme_id must be too. FKs are
+	// mutable — an omitted field keeps the persisted value.
+	wsID := contextutil.ExtractWorkspaceIDFromContext(ctx)
+	if err := requireOwningTemplateInWorkspace(ctx, uc.repositories.JobTemplate, uc.services.Translator, wsID, existing.GetJobTemplateId()); err != nil {
+		return nil, err
+	}
+	effectiveTemplateID := enrichedData.GetJobTemplateId()
+	if effectiveTemplateID == "" {
+		effectiveTemplateID = existing.GetJobTemplateId()
+	}
+	if effectiveTemplateID != existing.GetJobTemplateId() {
+		if err := requireOwningTemplateInWorkspace(ctx, uc.repositories.JobTemplate, uc.services.Translator, wsID, effectiveTemplateID); err != nil {
+			return nil, err
+		}
+	}
+	effectiveScheme := enrichedData.GetScoringSchemeId()
+	if effectiveScheme == "" {
+		effectiveScheme = existing.GetScoringSchemeId()
+	}
+	if err := requireScoringSchemeInWorkspace(ctx, uc.repositories.ScoringScheme, uc.services.Translator, wsID, effectiveScheme); err != nil {
+		return nil, err
 	}
 
 	resp, err := uc.repositories.JobTemplatePhase.UpdateJobTemplatePhase(ctx, &pb.UpdateJobTemplatePhaseRequest{

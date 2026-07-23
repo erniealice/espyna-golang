@@ -9,9 +9,10 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	securityports "github.com/erniealice/espyna-golang/internal/application/ports/security"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
 	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
@@ -26,11 +27,15 @@ type CreateWorkspaceUserRoleRepositories struct {
 
 // CreateWorkspaceUserRoleServices groups all business service dependencies
 type CreateWorkspaceUserRoleServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
+	// PermissionCacheInvalidator evicts the assigned binding's cached RBAC codes
+	// so granting a role to a user takes effect on the next request (P10/D2).
+	// Nil-safe (no-op when unset).
+	PermissionCacheInvalidator securityports.PermissionCacheInvalidator
 }
 
 // CreateWorkspaceUserRoleUseCase handles the business logic for creating workspace user roles
@@ -61,12 +66,35 @@ func (uc *CreateWorkspaceUserRoleUseCase) Execute(ctx context.Context, req *work
 	}
 
 	// Check if transaction service is available and supports transactions
+	var resp *workspaceuserrolepb.CreateWorkspaceUserRoleResponse
+	var err error
 	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
-		return uc.executeWithTransaction(ctx, req)
+		resp, err = uc.executeWithTransaction(ctx, req)
+	} else {
+		// Fallback to non-transactional execution
+		resp, err = uc.executeCore(ctx, req)
+	}
+	if err != nil {
+		return nil, err
 	}
 
-	// Fallback to non-transactional execution
-	return uc.executeCore(ctx, req)
+	// Post-commit: assigning a role to a binding changes that binding's effective
+	// permission set — evict its cached codes so the grant is live on the next
+	// request (P10/D2). Precise: only this workspace_user's binding entries are
+	// dropped (the cache-key bindingID == workspace_user_id), never other users.
+	if req != nil && req.Data != nil {
+		uc.invalidateBindingCache(req.Data.WorkspaceUserId)
+	}
+	return resp, nil
+}
+
+// invalidateBindingCache drops the workspace_user binding's cached permission
+// codes. Nil-safe: no-op when the invalidator is unwired or the id is empty.
+func (uc *CreateWorkspaceUserRoleUseCase) invalidateBindingCache(workspaceUserID string) {
+	if uc.services.PermissionCacheInvalidator == nil || workspaceUserID == "" {
+		return
+	}
+	uc.services.PermissionCacheInvalidator.InvalidateBinding(workspaceUserID)
 }
 
 // executeWithTransaction executes workspace user role creation within a transaction

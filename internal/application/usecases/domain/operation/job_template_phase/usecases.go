@@ -3,12 +3,17 @@ package job_template_phase
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
+	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
+	scoringschemepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_scheme"
 )
 
-// JobTemplatePhaseRepositories groups all repository dependencies
+// JobTemplatePhaseRepositories groups all repository dependencies. JobTemplate
+// and ScoringScheme anchor the create/update cross-workspace FK guards.
 type JobTemplatePhaseRepositories struct {
 	JobTemplatePhase pb.JobTemplatePhaseDomainServiceServer
+	JobTemplate      jobtemplatepb.JobTemplateDomainServiceServer
+	ScoringScheme    scoringschemepb.ScoringSchemeDomainServiceServer
 }
 
 // JobTemplatePhaseServices groups all business service dependencies
@@ -39,6 +44,8 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateJobTemplatePhaseRepositories{
 		JobTemplatePhase: repositories.JobTemplatePhase,
+		JobTemplate:      repositories.JobTemplate,
+		ScoringScheme:    repositories.ScoringScheme,
 	}
 	createServices := CreateJobTemplatePhaseServices{
 		ActionGatekeeper: services.ActionGatekeeper,
@@ -60,6 +67,8 @@ func NewUseCases(
 
 	updateRepos := UpdateJobTemplatePhaseRepositories{
 		JobTemplatePhase: repositories.JobTemplatePhase,
+		JobTemplate:      repositories.JobTemplate,
+		ScoringScheme:    repositories.ScoringScheme,
 	}
 	updateServices := UpdateJobTemplatePhaseServices{
 		ActionGatekeeper: services.ActionGatekeeper,

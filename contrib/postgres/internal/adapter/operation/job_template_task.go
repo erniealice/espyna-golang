@@ -325,7 +325,7 @@ func (r *PostgresJobTemplateTaskRepository) GetJobTemplateTaskListPageData(
 			active                   bool
 			jobTemplatePhaseID       string
 			name                     string
-			stepOrder                int32
+			stepOrder                sql.NullInt32
 			estimatedDurationMinutes *int32
 			code                     sql.NullString
 			total                    int64
@@ -354,7 +354,7 @@ func (r *PostgresJobTemplateTaskRepository) GetJobTemplateTaskListPageData(
 			Active:             active,
 			JobTemplatePhaseId: jobTemplatePhaseID,
 			Name:               name,
-			StepOrder:          stepOrder,
+			StepOrder:          stepOrder.Int32,
 		}
 
 		if estimatedDurationMinutes != nil {
@@ -433,7 +433,7 @@ func (r *PostgresJobTemplateTaskRepository) GetJobTemplateTaskItemPageData(
 		active                   bool
 		jobTemplatePhaseID       string
 		name                     string
-		stepOrder                int32
+		stepOrder                sql.NullInt32
 		estimatedDurationMinutes *int32
 		code                     sql.NullString
 	)
@@ -461,7 +461,7 @@ func (r *PostgresJobTemplateTaskRepository) GetJobTemplateTaskItemPageData(
 		Active:             active,
 		JobTemplatePhaseId: jobTemplatePhaseID,
 		Name:               name,
-		StepOrder:          stepOrder,
+		StepOrder:          stepOrder.Int32,
 	}
 
 	if estimatedDurationMinutes != nil {
@@ -724,7 +724,7 @@ func (r *PostgresJobTemplateTaskRepository) ListByPhase(
 			active                   bool
 			jobTemplatePhaseID       string
 			name                     string
-			stepOrder                int32
+			stepOrder                sql.NullInt32
 			estimatedDurationMinutes *int32
 			code                     sql.NullString
 		)
@@ -749,7 +749,7 @@ func (r *PostgresJobTemplateTaskRepository) ListByPhase(
 			Active:             active,
 			JobTemplatePhaseId: jobTemplatePhaseID,
 			Name:               name,
-			StepOrder:          stepOrder,
+			StepOrder:          stepOrder.Int32,
 		}
 
 		if estimatedDurationMinutes != nil {

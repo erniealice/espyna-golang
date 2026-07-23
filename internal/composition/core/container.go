@@ -10,6 +10,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
+	securityports "github.com/erniealice/espyna-golang/internal/application/ports/security"
 	"github.com/erniealice/espyna-golang/internal/application/usecases"
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/composition/core/initializers/domain"
@@ -111,6 +112,13 @@ type Container struct {
 	useCases *usecases.Aggregate
 	services Platform
 
+	// permCacheInvalidator is the late-bound RBAC permission-cache invalidator
+	// (P10/D2). Created here up front and injected into the authorization-
+	// mutating entity use cases; the composition layer sets its delegate to the
+	// permission loader once that loader is built (the loader wraps a use case,
+	// so it cannot exist until after the use cases do). No-op until wired.
+	permCacheInvalidator *securityports.SettablePermissionCacheInvalidator
+
 	initialized bool
 	closed      bool
 
@@ -150,7 +158,8 @@ func NewContainer() *Container {
 			Version:     "1.0.0",
 			Environment: "development",
 		},
-		services: *NewDefaultPlatform(),
+		services:             *NewDefaultPlatform(),
+		permCacheInvalidator: securityports.NewSettablePermissionCacheInvalidator(),
 	}
 }
 
@@ -817,6 +826,17 @@ func (c *Container) GetUseCases() *usecases.Aggregate {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.useCases
+}
+
+// GetPermissionCacheInvalidator returns the late-bound RBAC permission-cache
+// invalidator holder (P10/D2). The composition layer calls SetDelegate on it
+// once the permission loader is constructed, so an authorization-mutating use
+// case's InvalidateUser/InvalidateBinding call reaches the live cache. Never
+// nil for a container built through NewContainer.
+func (c *Container) GetPermissionCacheInvalidator() *securityports.SettablePermissionCacheInvalidator {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.permCacheInvalidator
 }
 
 // GetWorkflowEngine returns the workflow engine service.

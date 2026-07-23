@@ -36,6 +36,7 @@ func InitializeSubscription(
 			PricePlan:                         repos.PricePlan,
 			PriceSchedule:                     repos.PriceSchedule,
 			ProductPlan:                       repos.ProductPlan,
+			ProductPlanStaff:                  repos.ProductPlanStaff,
 			ProductPricePlan:                  repos.ProductPricePlan,
 			Subscription:                      repos.Subscription,
 			SubscriptionAttribute:             repos.SubscriptionAttribute,

@@ -63,7 +63,13 @@ func (r *PostgresJobTemplateRelationRepository) CreateJobTemplateRelation(
 	if req == nil || req.Data == nil {
 		return nil, fmt.Errorf("job_template_relation data is required")
 	}
-	jsonData, err := protojson.Marshal(req.Data)
+	// UseEnumNumbers: the live relation_type column is INTEGER (ETL-era rows
+	// store 1 = SUB_TEMPLATE). Default protojson emits the enum NAME string,
+	// which postgres rejects ("invalid input syntax for type integer") —
+	// found live 2026-07-21 during the AY-2627 Phase-3 canary (the drawer's
+	// first-ever real write). Reads are symmetric: protojson unmarshal
+	// accepts numbers for enum fields.
+	jsonData, err := (protojson.MarshalOptions{UseEnumNumbers: true}).Marshal(req.Data)
 	if err != nil {
 		return nil, fmt.Errorf("marshal job_template_relation: %w", err)
 	}
@@ -109,7 +115,8 @@ func (r *PostgresJobTemplateRelationRepository) UpdateJobTemplateRelation(
 	if req == nil || req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("job_template_relation ID is required")
 	}
-	jsonData, _ := protojson.Marshal(req.Data)
+	// UseEnumNumbers — see CreateJobTemplateRelation (integer relation_type column).
+	jsonData, _ := (protojson.MarshalOptions{UseEnumNumbers: true}).Marshal(req.Data)
 	var data map[string]any
 	if err := json.Unmarshal(jsonData, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal job_template_relation: %w", err)

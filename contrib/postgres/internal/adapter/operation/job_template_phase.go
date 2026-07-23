@@ -336,7 +336,7 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseListPageData(
 			active        bool
 			jobTemplateID string
 			name          string
-			phaseOrder    int32
+			phaseOrder    sql.NullInt32
 			code          sql.NullString
 			total         int64
 		)
@@ -363,7 +363,7 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseListPageData(
 			Active:        active,
 			JobTemplateId: jobTemplateID,
 			Name:          name,
-			PhaseOrder:    phaseOrder,
+			PhaseOrder:    phaseOrder.Int32,
 		}
 		if code.Valid {
 			v := code.String
@@ -438,7 +438,7 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseItemPageData(
 		active        bool
 		jobTemplateID string
 		name          string
-		phaseOrder    int32
+		phaseOrder    sql.NullInt32
 		code          sql.NullString
 	)
 
@@ -464,7 +464,7 @@ func (r *PostgresJobTemplatePhaseRepository) GetJobTemplatePhaseItemPageData(
 		Active:        active,
 		JobTemplateId: jobTemplateID,
 		Name:          name,
-		PhaseOrder:    phaseOrder,
+		PhaseOrder:    phaseOrder.Int32,
 	}
 	if code.Valid {
 		v := code.String
@@ -733,7 +733,7 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 			active        bool
 			jobTemplateID string
 			name          string
-			phaseOrder    int32
+			phaseOrder    sql.NullInt32
 			scoringScheme sql.NullString
 			predecessorID sql.NullString
 			code          sql.NullString
@@ -760,7 +760,7 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 			Active:        active,
 			JobTemplateId: jobTemplateID,
 			Name:          name,
-			PhaseOrder:    phaseOrder,
+			PhaseOrder:    phaseOrder.Int32,
 		}
 		if scoringScheme.Valid {
 			v := scoringScheme.String

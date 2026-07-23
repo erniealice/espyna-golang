@@ -24,7 +24,7 @@
 //   - ESPYNA-TEST-ENTITY-PERMISSION-CREATE-VALIDATION-EMPTY-WORKSPACE-ID-v1.0: EmptyWorkspaceId
 //   - ESPYNA-TEST-ENTITY-PERMISSION-CREATE-VALIDATION-EMPTY-USER-ID-v1.0: EmptyUserId
 //   - ESPYNA-TEST-ENTITY-PERMISSION-CREATE-VALIDATION-EMPTY-PERMISSION-CODE-v1.0: EmptyPermissionCode
-//   - ESPYNA-TEST-ENTITY-PERMISSION-CREATE-VALIDATION-SELF-GRANT-v1.0: SelfGrantNotAllowed
+//   - ESPYNA-TEST-ENTITY-PERMISSION-CREATE-VALIDATION-SELF-PROVENANCE-v1.0: SelfProvenancedCreateSucceeds
 //   - ESPYNA-TEST-ENTITY-PERMISSION-CREATE-VALIDATION-PERMISSION-CODE-TOO-SHORT-v1.0: PermissionCodeTooShort
 //   - ESPYNA-TEST-ENTITY-PERMISSION-CREATE-ENRICHMENT-v1.0: DataEnrichment
 //
@@ -208,8 +208,14 @@ func TestCreatePermissionUseCase_Execute_TableDriven(t *testing.T) {
 			},
 		},
 		{
-			Name:     "SelfGrantNotAllowed",
-			TestCode: "ESPYNA-TEST-ENTITY-PERMISSION-CREATE-VALIDATION-SELF-GRANT-v1.0",
+			// A self-provenanced create MUST succeed: this entity is the permission-code
+			// DEFINITION row, not a grant edge. UserId == GrantedByUserId is the normal
+			// case (admin creates a definition through a single session principal; every
+			// copya seed row is self-provenanced to superadmin-001). The former self-grant
+			// rejection was removed — role_permission is the grant vehicle and the Layer-2
+			// permission:create gate authorizes the route.
+			Name:     "SelfProvenancedCreateSucceeds",
+			TestCode: "ESPYNA-TEST-ENTITY-PERMISSION-CREATE-VALIDATION-SELF-PROVENANCE-v1.0",
 			SetupRequest: func(t *testing.T, businessType string) *permissionpb.CreatePermissionRequest {
 				return &permissionpb.CreatePermissionRequest{
 					Data: &permissionpb.Permission{
@@ -217,15 +223,19 @@ func TestCreatePermissionUseCase_Execute_TableDriven(t *testing.T) {
 						UserId:          "user-1",
 						GrantedByUserId: "user-1",
 						PermissionCode:  "read:data",
+						PermissionType:  permissionpb.PermissionType_PERMISSION_TYPE_ALLOW,
 					},
 				}
 			},
 			UseTransaction: false,
 			UseAuth:        true,
-			ExpectSuccess:  false,
-			ExpectedError:  "permission.validation.self_grant_not_allowed",
+			ExpectSuccess:  true,
 			Assertions: func(t *testing.T, response *permissionpb.CreatePermissionResponse, err error, useCase interface{}, ctx context.Context) {
-				testutil.AssertValidationError(t, err, "self grant not allowed")
+				testutil.AssertTrue(t, response.Success, "success")
+				createdPermission := response.Data[0]
+				testutil.AssertStringEqual(t, "user-1", createdPermission.UserId, "user ID")
+				testutil.AssertStringEqual(t, "user-1", createdPermission.GrantedByUserId, "granted-by user ID")
+				testutil.AssertNonEmptyString(t, createdPermission.Id, "permission ID")
 			},
 		},
 		{

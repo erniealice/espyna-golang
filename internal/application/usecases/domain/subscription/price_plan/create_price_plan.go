@@ -142,9 +142,9 @@ func (uc *CreatePricePlanUseCase) validateBusinessRules(ctx context.Context, pri
 		return errors.New(msg)
 	}
 
-	// Validate Amount validation
-	if pricePlan.BillingAmount <= 0 {
-		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.amount_positive", "price plan amount must be greater than 0")
+	// Amount: zero is a legitimate free/no-charge plan; only negatives are invalid.
+	if pricePlan.BillingAmount < 0 {
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.amount_non_negative", "price plan amount must not be negative")
 		return errors.New(msg)
 	}
 

@@ -2,6 +2,7 @@ package permission
 
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	securityports "github.com/erniealice/espyna-golang/internal/application/ports/security"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 )
@@ -13,11 +14,14 @@ type PermissionRepositories struct {
 
 // PermissionServices groups all business service dependencies for permission use cases
 type PermissionServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
+	// PermissionCacheInvalidator evicts cached RBAC codes after a definition
+	// write (P10/D2); threaded into the create/update sub-use-cases. Nil-safe.
+	PermissionCacheInvalidator securityports.PermissionCacheInvalidator
 }
 
 // UseCases contains all permission-related use cases
@@ -39,58 +43,60 @@ func NewUseCases(
 	// Build individual grouped parameters for each use case
 	createRepos := CreatePermissionRepositories(repositories)
 	createServices := CreatePermissionServices{
-		Authorizer:  services.Authorizer,
-		Transactor:  services.Transactor,
-		Translator:  services.Translator,
-		ActionGatekeeper: services.ActionGatekeeper,
-		IDGenerator: services.IDGenerator,
+		Authorizer:                 services.Authorizer,
+		Transactor:                 services.Transactor,
+		Translator:                 services.Translator,
+		ActionGatekeeper:           services.ActionGatekeeper,
+		IDGenerator:                services.IDGenerator,
+		PermissionCacheInvalidator: services.PermissionCacheInvalidator,
 	}
 
 	readRepos := ReadPermissionRepositories(repositories)
 	readServices := ReadPermissionServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	updateRepos := UpdatePermissionRepositories(repositories)
 	updateServices := UpdatePermissionServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
-		ActionGatekeeper: services.ActionGatekeeper,
+		Authorizer:                 services.Authorizer,
+		Transactor:                 services.Transactor,
+		Translator:                 services.Translator,
+		ActionGatekeeper:           services.ActionGatekeeper,
+		PermissionCacheInvalidator: services.PermissionCacheInvalidator,
 	}
 
 	deleteRepos := DeletePermissionRepositories(repositories)
 	deleteServices := DeletePermissionServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	listRepos := ListPermissionsRepositories(repositories)
 	listServices := ListPermissionsServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	getListPageDataRepos := GetPermissionListPageDataRepositories(repositories)
 	getListPageDataServices := GetPermissionListPageDataServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
 	getItemPageDataRepos := GetPermissionItemPageDataRepositories(repositories)
 	getItemPageDataServices := GetPermissionItemPageDataServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
@@ -114,8 +120,8 @@ func NewUseCasesUngrouped(permissionRepo permissionpb.PermissionDomainServiceSer
 	}
 
 	services := PermissionServices{
-		Authorizer: nil,
-		Transactor: ports.NewNoOpTransactor(),
+		Authorizer:       nil,
+		Transactor:       ports.NewNoOpTransactor(),
 		Translator:       ports.NewNoOpTranslator(),
 		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}

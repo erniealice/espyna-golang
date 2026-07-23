@@ -9,11 +9,17 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
+	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
+	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
 )
 
 type ListByTemplateTaskRepositories struct {
 	TemplateTaskCriteria pb.TemplateTaskCriteriaDomainServiceServer
+	JobTemplateTask      jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
+	JobTemplatePhase     jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
+	JobTemplate          jobtemplatepb.JobTemplateDomainServiceServer
 }
 
 type ListByTemplateTaskServices struct {
@@ -83,8 +89,24 @@ func (uc *ListByTemplateTaskUseCase) executeWithTransaction(ctx context.Context,
 	return result, nil
 }
 
+// scopeRepos bundles the chain repos for the cross-workspace guard.
+func (uc *ListByTemplateTaskUseCase) scopeRepos() scopeRepos {
+	return scopeRepos{
+		JobTemplateTask:  uc.repositories.JobTemplateTask,
+		JobTemplatePhase: uc.repositories.JobTemplatePhase,
+		JobTemplate:      uc.repositories.JobTemplate,
+	}
+}
+
 // executeCore contains the core business logic for listing criteria by template task
 func (uc *ListByTemplateTaskUseCase) executeCore(ctx context.Context, req *pb.ListTemplateTaskCriteriasByTemplateTaskRequest) (*pb.ListTemplateTaskCriteriasByTemplateTaskResponse, error) {
+	// Fail-closed cross-workspace scope: only list criteria for a task whose
+	// chain resolves to a template in the caller's request workspace.
+	wsID := contextutil.ExtractWorkspaceIDFromContext(ctx)
+	if err := requireTaskChainInWorkspace(ctx, uc.scopeRepos(), uc.services.Translator, wsID, req.GetJobTemplateTaskId()); err != nil {
+		return nil, err
+	}
+
 	resp, err := uc.repositories.TemplateTaskCriteria.ListByTemplateTask(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "template_task_criteria.errors.list_by_template_task_failed", "failed to list template task criteria by template task: %w"), err)

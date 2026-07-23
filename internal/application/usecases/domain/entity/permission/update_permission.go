@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	securityports "github.com/erniealice/espyna-golang/internal/application/ports/security"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 )
 
@@ -20,10 +21,13 @@ type UpdatePermissionRepositories struct {
 
 // UpdatePermissionServices groups all business service dependencies
 type UpdatePermissionServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
+	// PermissionCacheInvalidator evicts the acting-provenance user's cached RBAC
+	// codes after a definition write (P10/D2). Nil-safe (no-op when unset).
+	PermissionCacheInvalidator securityports.PermissionCacheInvalidator
 }
 
 // UpdatePermissionUseCase handles the business logic for updating permissions
@@ -52,8 +56,8 @@ func NewUpdatePermissionUseCaseUngrouped(permissionRepo permissionpb.PermissionD
 	}
 
 	services := UpdatePermissionServices{
-		Authorizer: nil,
-		Transactor: ports.NewNoOpTransactor(),
+		Authorizer:       nil,
+		Transactor:       ports.NewNoOpTransactor(),
 		Translator:       ports.NewNoOpTranslator(),
 		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
@@ -71,12 +75,35 @@ func (uc *UpdatePermissionUseCase) Execute(ctx context.Context, req *permissionp
 	}
 
 	// Check if transaction service is available and supports transactions
+	var resp *permissionpb.UpdatePermissionResponse
+	var err error
 	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
-		return uc.executeWithTransaction(ctx, req)
+		resp, err = uc.executeWithTransaction(ctx, req)
+	} else {
+		// Fallback to non-transactional execution
+		resp, err = uc.executeCore(ctx, req)
+	}
+	if err != nil {
+		return nil, err
 	}
 
-	// Fallback to non-transactional execution
-	return uc.executeCore(ctx, req)
+	// Post-commit: evict the acting-provenance user's cached RBAC codes (P10/D2).
+	// See CreatePermissionUseCase.Execute for the rationale — a permission
+	// definition change is not a grant edge, so this is a conservative,
+	// single-user, cheap safeguard, not a role-wide invalidation.
+	if req != nil && req.Data != nil {
+		uc.invalidateProvenanceCache(req.Data.UserId)
+	}
+	return resp, nil
+}
+
+// invalidateProvenanceCache drops the provenance user's cached permission codes.
+// Nil-safe: no-op when the invalidator is unwired or the id is empty.
+func (uc *UpdatePermissionUseCase) invalidateProvenanceCache(userID string) {
+	if uc.services.PermissionCacheInvalidator == nil || userID == "" {
+		return
+	}
+	uc.services.PermissionCacheInvalidator.InvalidateUser(userID)
 }
 
 // executeWithTransaction executes permission update within a transaction
@@ -103,6 +130,12 @@ func (uc *UpdatePermissionUseCase) executeWithTransaction(ctx context.Context, r
 func (uc *UpdatePermissionUseCase) executeCore(ctx context.Context, req *permissionpb.UpdatePermissionRequest) (*permissionpb.UpdatePermissionResponse, error) {
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
+		return nil, err
+	}
+
+	// Defense-in-depth (CF-5): a body-supplied provenance id that disagrees with
+	// the session principal is rejected. No-op when ctx has no resolved principal.
+	if err := validatePrincipalProvenance(ctx, uc.services.Translator, req.Data); err != nil {
 		return nil, err
 	}
 
@@ -173,10 +206,12 @@ func (uc *UpdatePermissionUseCase) validateBusinessRules(ctx context.Context, pe
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "permission.validation.permission_type_unspecified", "Permission type must be specified [DEFAULT]"))
 	}
 
-	// Validate that user is not granting permission to themselves
-	if permission.UserId == permission.GrantedByUserId {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "permission.validation.self_grant_not_allowed", "Users cannot grant permissions to themselves [DEFAULT]"))
-	}
+	// NOTE: No self-grant check. This entity is the permission-code DEFINITION row,
+	// not a grant edge. UserId/GrantedByUserId are provenance bookkeeping only (every
+	// copya seed row is self-provenanced to superadmin-001, and an admin editing a
+	// definition through a single session principal ALWAYS has UserId == GrantedByUserId).
+	// The actual grant vehicle is role_permission, and route authorization is the
+	// Layer-2 permission:update gate — so a self-provenanced definition is valid.
 
 	return nil
 }

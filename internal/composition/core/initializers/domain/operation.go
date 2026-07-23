@@ -34,6 +34,9 @@ func InitializeOperation(
 		JobActivity:         repos.JobActivity,
 		// JobCategory — per-workspace job taxonomy reference entity (20260714).
 		JobCategory: repos.JobCategory,
+		// Product — cross-domain read for the job_template output_product_id
+		// workspace guard (red-team HIGH #2).
+		Product: repos.Product,
 		// JobOutcomeSummaryDocumentTemplate — report-card template binding (20260714).
 		JobOutcomeSummaryDocumentTemplate: repos.JobOutcomeSummaryDocumentTemplate,
 		// JobTemplateDocumentTemplate — sheet-family (grade-sheet) template binding (20260720).

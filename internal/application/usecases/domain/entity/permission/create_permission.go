@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	securityports "github.com/erniealice/espyna-golang/internal/application/ports/security"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 )
 
@@ -20,11 +21,14 @@ type CreatePermissionRepositories struct {
 
 // CreatePermissionServices groups all business service dependencies
 type CreatePermissionServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
+	// PermissionCacheInvalidator evicts the acting-provenance user's cached RBAC
+	// codes after a definition write (P10/D2). Nil-safe (no-op when unset).
+	PermissionCacheInvalidator securityports.PermissionCacheInvalidator
 }
 
 // CreatePermissionUseCase handles the business logic for creating permissions
@@ -53,11 +57,11 @@ func NewCreatePermissionUseCaseUngrouped(permissionRepo permissionpb.PermissionD
 	}
 
 	services := CreatePermissionServices{
-		Authorizer:  nil,
-		Transactor:  ports.NewNoOpTransactor(),
+		Authorizer:       nil,
+		Transactor:       ports.NewNoOpTransactor(),
 		Translator:       ports.NewNoOpTranslator(),
 		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
-		IDGenerator: ports.NewNoOpIDGenerator(),
+		IDGenerator:      ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreatePermissionUseCase(repositories, services)
@@ -73,12 +77,38 @@ func (uc *CreatePermissionUseCase) Execute(ctx context.Context, req *permissionp
 	}
 
 	// Check if transaction service is available and supports transactions
+	var resp *permissionpb.CreatePermissionResponse
+	var err error
 	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
-		return uc.executeWithTransaction(ctx, req)
+		resp, err = uc.executeWithTransaction(ctx, req)
+	} else {
+		// Fallback to non-transactional execution
+		resp, err = uc.executeCore(ctx, req)
+	}
+	if err != nil {
+		return nil, err
 	}
 
-	// Fallback to non-transactional execution
-	return uc.executeCore(ctx, req)
+	// Post-commit: evict the acting-provenance user's cached RBAC codes so a
+	// permission definition change is not masked by the loader's TTL (P10/D2).
+	// A permission definition is not itself a grant edge, so this does NOT
+	// retroactively alter other users' effective codes; the eviction is a
+	// conservative, single-user, cheap safeguard (no enumeration). Any effect a
+	// deactivated permission has on role holders remains bounded by the loader
+	// TTL until the next role_permission/binding change — documented residual.
+	if req != nil && req.Data != nil {
+		uc.invalidateProvenanceCache(req.Data.UserId)
+	}
+	return resp, nil
+}
+
+// invalidateProvenanceCache drops the provenance user's cached permission codes.
+// Nil-safe: no-op when the invalidator is unwired or the id is empty.
+func (uc *CreatePermissionUseCase) invalidateProvenanceCache(userID string) {
+	if uc.services.PermissionCacheInvalidator == nil || userID == "" {
+		return
+	}
+	uc.services.PermissionCacheInvalidator.InvalidateUser(userID)
 }
 
 // executeWithTransaction executes permission creation within a transaction
@@ -105,6 +135,12 @@ func (uc *CreatePermissionUseCase) executeWithTransaction(ctx context.Context, r
 func (uc *CreatePermissionUseCase) executeCore(ctx context.Context, req *permissionpb.CreatePermissionRequest) (*permissionpb.CreatePermissionResponse, error) {
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
+		return nil, err
+	}
+
+	// Defense-in-depth (CF-5): a body-supplied provenance id that disagrees with
+	// the session principal is rejected. No-op when ctx has no resolved principal.
+	if err := validatePrincipalProvenance(ctx, uc.services.Translator, req.Data); err != nil {
 		return nil, err
 	}
 
@@ -185,10 +221,12 @@ func (uc *CreatePermissionUseCase) validateBusinessRules(ctx context.Context, pe
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "permission.validation.permission_type_unspecified", "Permission type must be specified [DEFAULT]"))
 	}
 
-	// Validate that user is not granting permission to themselves
-	if permission.UserId == permission.GrantedByUserId {
-		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "permission.validation.self_grant_not_allowed", "Users cannot grant permissions to themselves [DEFAULT]"))
-	}
+	// NOTE: No self-grant check. This entity is the permission-code DEFINITION row,
+	// not a grant edge. UserId/GrantedByUserId are provenance bookkeeping only (every
+	// copya seed row is self-provenanced to superadmin-001, and an admin creating a
+	// definition through a single session principal ALWAYS has UserId == GrantedByUserId).
+	// The actual grant vehicle is role_permission, and route authorization is the
+	// Layer-2 permission:create gate — so a self-provenanced definition is valid.
 
 	return nil
 }

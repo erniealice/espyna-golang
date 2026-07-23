@@ -145,9 +145,11 @@ func TestReachableSQLShape(t *testing.T) {
 		wantRefs []string // entityid table constants that must appear
 	}{
 		{"StaffReachableClientExistsSQL", StaffReachableClientExistsSQL(), []int{1, 2, 3},
-			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome, entityid.SubscriptionSeat, entityid.JobTemplate, entityid.ProductPlan}},
+			// The class-edge tables (sgpps + member) are REQUIRED here too (CF-2): the
+			// by-id EXISTS check must carry the same 4th branch as the List seam.
+			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome, entityid.SubscriptionSeat, entityid.JobTemplate, entityid.ProductPlan, entityid.SubscriptionGroupProductPlanStaff, entityid.SubscriptionGroupMember}},
 		{"StaffReachableJobExistsSQL", StaffReachableJobExistsSQL(), []int{1, 2, 3},
-			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome, entityid.SubscriptionSeat, entityid.JobTemplate, entityid.ProductPlan}},
+			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome, entityid.SubscriptionSeat, entityid.JobTemplate, entityid.ProductPlan, entityid.SubscriptionGroupProductPlanStaff, entityid.SubscriptionGroupMember}},
 		{"StaffReachableClientIDsSQL", StaffReachableClientIDsSQL(), []int{1, 2},
 			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome, entityid.SubscriptionSeat, entityid.JobTemplate, entityid.ProductPlan}},
 		{"StaffReachableJobIDsSQL", StaffReachableJobIDsSQL(), []int{1, 2},
@@ -178,6 +180,88 @@ func TestReachableSQLShape(t *testing.T) {
 				t.Errorf("%s: seat tier missing the plan-product/template-output match: %s", c.name, c.sql)
 			}
 		})
+	}
+}
+
+// TestClassEdgeReachabilityBranch asserts the THIRD reachability tier — the
+// class edge (subscription_group_product_plan_staff, "sgpps") — is woven into
+// BOTH graph unions with the exact 4-table shape and is fail-closed. It runs with
+// NO live DB: it inspects the generated SQL string only.
+//
+//   - the class-edge JOIN chain is present (sgpps → subscription_group_member →
+//     product_plan → job), matched to the job's deliverable on
+//     jce.output_product_id = pp.product_id (the subject match) and to the member's
+//     enrollment on jce.origin_id = m.subscription_id (no job_template /
+//     subscription_group / subscription hops);
+//   - BOTH filters land on the sgpps edge — e.staff_id = $1 AND e.workspace_id = $2
+//     (plus e.active) — so an empty staff or workspace bind matches no edge and the
+//     tier yields zero rows (fail-closed); neither filter is a request-param seam.
+func TestClassEdgeReachabilityBranch(t *testing.T) {
+	// Reference the edge/member table constants (no bare literals) so a registry
+	// rename keeps this assertion honest.
+	needles := []string{
+		entityid.SubscriptionGroupProductPlanStaff + " e",
+		entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.active",
+		entityid.ProductPlan + " pp ON pp.id = e.product_plan_id",
+		"jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id",
+		"e.staff_id = $1",     // staff filter on the edge (empty ⇒ zero rows)
+		"e.active",            // only active class edges reach
+		"e.workspace_id = $2", // workspace filter on the edge (empty ⇒ zero rows)
+	}
+	unions := map[string]string{
+		"reachableJobUnion":    reachableJobUnion(1, 2),
+		"reachableClientUnion": reachableClientUnion(1, 2),
+	}
+	for name, sql := range unions {
+		t.Run(name, func(t *testing.T) {
+			for _, n := range needles {
+				if !strings.Contains(sql, n) {
+					t.Errorf("%s: class-edge tier missing %q\nSQL: %s", name, n, sql)
+				}
+			}
+			// Adding the tier must NOT introduce a new positional placeholder: it
+			// reuses the existing $1 (staff) / $2 (workspace) binds, so the union's
+			// arity stays exactly {1,2}.
+			if got := distinctPlaceholders(sql); fmt.Sprint(got) != fmt.Sprint([]int{1, 2}) {
+				t.Errorf("%s: placeholder set %v != [1 2] after adding class edge", name, got)
+			}
+		})
+	}
+	// The tier must also ride the exported List seams (the generic dbOps.List path
+	// used by ListJobs / ListClients), which delegate to the unions.
+	for name, sql := range map[string]string{
+		"StaffReachableJobIDsSQL":    StaffReachableJobIDsSQL(),
+		"StaffReachableClientIDsSQL": StaffReachableClientIDsSQL(),
+	} {
+		if !strings.Contains(sql, entityid.SubscriptionGroupProductPlanStaff) {
+			t.Errorf("%s: exported List seam missing the class-edge tier: %s", name, sql)
+		}
+	}
+
+	// CF-2: the class-edge tier must ALSO ride the by-id EXISTS seams (ReadClient /
+	// ReadJob), else a class-edge-only teacher lists a row but gets a false
+	// not-found opening it. The EXISTS shape carries the target id on $2 and the
+	// workspace bind on $3 (vs $1/$2 in the union), so assert the join chain + both
+	// edge binds ($1 staff, $3 workspace) plus the branch's own target predicate.
+	existsChain := []string{
+		entityid.SubscriptionGroupProductPlanStaff + " e",
+		entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.active",
+		entityid.ProductPlan + " pp ON pp.id = e.product_plan_id",
+		"jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id",
+		"e.staff_id = $1 AND e.active AND e.workspace_id = $3",
+	}
+	for name, spec := range map[string]struct {
+		sql       string
+		targetPred string
+	}{
+		"StaffReachableClientExistsSQL": {StaffReachableClientExistsSQL(), "jce.client_id = $2"},
+		"StaffReachableJobExistsSQL":    {StaffReachableJobExistsSQL(), "jce.id = $2"},
+	} {
+		for _, n := range append(append([]string{}, existsChain...), spec.targetPred) {
+			if !strings.Contains(spec.sql, n) {
+				t.Errorf("%s: class-edge EXISTS branch missing %q\nSQL: %s", name, n, spec.sql)
+			}
+		}
 	}
 }
 

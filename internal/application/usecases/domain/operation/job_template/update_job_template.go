@@ -10,12 +10,18 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	jobcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_category"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 )
 
-// UpdateJobTemplateRepositories groups all repository dependencies
+// UpdateJobTemplateRepositories groups all repository dependencies. JobCategory
+// and Product anchor the fail-closed cross-workspace FK guards (red-team HIGH
+// #2).
 type UpdateJobTemplateRepositories struct {
 	JobTemplate pb.JobTemplateDomainServiceServer
+	JobCategory jobcategorypb.JobCategoryDomainServiceServer
+	Product     productpb.ProductDomainServiceServer
 }
 
 // UpdateJobTemplateServices groups all business service dependencies
@@ -66,6 +72,15 @@ func (uc *UpdateJobTemplateUseCase) Execute(ctx context.Context, req *pb.UpdateJ
 		return nil, err
 	}
 
+	// Fail-closed cross-workspace FK guard on the submitted (effective) FKs: a
+	// mutable job_category_id / output_product_id must not be repointed at another
+	// workspace's row. Empty (omitted) FKs are skipped — the persisted value was
+	// already validated on the create/prior update.
+	wsID := contextutil.ExtractWorkspaceIDFromContext(ctx)
+	if err := requireTemplateFKsInWorkspace(ctx, uc.fkScopeRepos(), uc.services.Translator, wsID, req.Data.GetJobCategoryId(), req.Data.GetOutputProductId()); err != nil {
+		return nil, err
+	}
+
 	// Call repository
 	_, err := uc.repositories.JobTemplate.UpdateJobTemplate(ctx, req)
 	if err != nil {
@@ -76,6 +91,14 @@ func (uc *UpdateJobTemplateUseCase) Execute(ctx context.Context, req *pb.UpdateJ
 		Success: true,
 		Data:    []*pb.JobTemplate{req.Data},
 	}, nil
+}
+
+// fkScopeRepos bundles the FK-resolution repos for the cross-workspace guard.
+func (uc *UpdateJobTemplateUseCase) fkScopeRepos() templateFKScopeRepos {
+	return templateFKScopeRepos{
+		JobCategory: uc.repositories.JobCategory,
+		Product:     uc.repositories.Product,
+	}
 }
 
 // validateInput validates the input request

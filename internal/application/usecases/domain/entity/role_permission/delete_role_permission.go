@@ -7,12 +7,19 @@ import (
 	"log"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	securityports "github.com/erniealice/espyna-golang/internal/application/ports/security"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
+	clientportalgrantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_portal_grant"
+	delegateclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_client"
+	delegatesupplierpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_supplier"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
 	rolepermissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role_permission"
+	supplierportalgrantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier_portal_grant"
+	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
+	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
 )
 
 // DeleteRolePermissionRepositories groups all repository dependencies
@@ -20,14 +27,29 @@ type DeleteRolePermissionRepositories struct {
 	RolePermission rolepermissionpb.RolePermissionDomainServiceServer // Primary entity repository
 	Role           rolepb.RoleDomainServiceServer                     // Entity reference validation
 	Permission     permissionpb.PermissionDomainServiceServer         // Entity reference validation
+	// WorkspaceUserRole enumerates the bindings assigned this role so a revoke
+	// can evict exactly their cached permission codes (P10/D2). Nil-safe.
+	WorkspaceUserRole workspaceuserrolepb.WorkspaceUserRoleDomainServiceServer
+	// The remaining grant-table seams let a REVOKE's cache invalidation reach every
+	// binding kind the loader caches, not just workspace_user_role (CF-1) — the
+	// security-relevant direction (a revoked code must not linger for portal /
+	// delegate / staff principals until the loader TTL). All nil-safe.
+	WorkspaceUser       workspaceuserpb.WorkspaceUserDomainServiceServer
+	ClientPortalGrant   clientportalgrantpb.ClientPortalGrantDomainServiceServer
+	SupplierPortalGrant supplierportalgrantpb.SupplierPortalGrantDomainServiceServer
+	DelegateClient      delegateclientpb.DelegateClientDomainServiceServer
+	DelegateSupplier    delegatesupplierpb.DelegateSupplierDomainServiceServer
 }
 
 // DeleteRolePermissionServices groups all business service dependencies
 type DeleteRolePermissionServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
+	// PermissionCacheInvalidator evicts the affected bindings' cached RBAC codes
+	// after a revoke so it applies immediately (P10/D2). Nil-safe.
+	PermissionCacheInvalidator securityports.PermissionCacheInvalidator
 }
 
 // DeleteRolePermissionUseCase handles the business logic for deleting role permissions
@@ -61,8 +83,8 @@ func NewDeleteRolePermissionUseCaseUngrouped(
 	}
 
 	services := DeleteRolePermissionServices{
-		Authorizer: authorizationService,
-		Transactor: ports.NewNoOpTransactor(),
+		Authorizer:       authorizationService,
+		Transactor:       ports.NewNoOpTransactor(),
 		Translator:       ports.NewNoOpTranslator(),
 		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
@@ -93,6 +115,11 @@ func (uc *DeleteRolePermissionUseCase) Execute(ctx context.Context, req *roleper
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
+	// Resolve the grant's role_id BEFORE the delete so the cache eviction can
+	// enumerate the affected bindings after the row is gone (P10/D2). Prefer a
+	// role id already on the request; otherwise read the row by id.
+	roleID := uc.resolveRoleID(ctx, req)
+
 	// Call repository
 	resp, err := uc.repositories.RolePermission.DeleteRolePermission(ctx, req)
 	if err != nil {
@@ -102,7 +129,48 @@ func (uc *DeleteRolePermissionUseCase) Execute(ctx context.Context, req *roleper
 
 	log.Printf("AUTHZ_CHANGE | action=revoke | role_permission_id=%s", req.Data.Id)
 
+	// Post-revoke: the removed permission changes the effective code set of every
+	// binding assigned this role — evict exactly those bindings' cached codes so
+	// the revoke is live on their next request (P10/D2). Covers EVERY binding kind
+	// the loader caches (operator/staff/portal/delegate), not just
+	// workspace_user_role (CF-1: a revoked code must not linger for those kinds).
+	invalidateRoleBindings(ctx, roleBindingInvalidationRepos{
+		WorkspaceUserRole:   uc.repositories.WorkspaceUserRole,
+		WorkspaceUser:       uc.repositories.WorkspaceUser,
+		ClientPortalGrant:   uc.repositories.ClientPortalGrant,
+		SupplierPortalGrant: uc.repositories.SupplierPortalGrant,
+		DelegateClient:      uc.repositories.DelegateClient,
+		DelegateSupplier:    uc.repositories.DelegateSupplier,
+	}, uc.services.PermissionCacheInvalidator, roleID)
+
 	return resp, nil
+}
+
+// resolveRoleID returns the role_id of the grant being deleted, preferring a
+// value already on the request and otherwise reading the row by id. Returns ""
+// (=> no-op invalidation) when it cannot be resolved.
+func (uc *DeleteRolePermissionUseCase) resolveRoleID(ctx context.Context, req *rolepermissionpb.DeleteRolePermissionRequest) string {
+	if req == nil || req.Data == nil {
+		return ""
+	}
+	if req.Data.RoleId != "" {
+		return req.Data.RoleId
+	}
+	if uc.repositories.RolePermission == nil || req.Data.Id == "" {
+		return ""
+	}
+	read, err := uc.repositories.RolePermission.ReadRolePermission(ctx, &rolepermissionpb.ReadRolePermissionRequest{
+		Data: &rolepermissionpb.RolePermission{Id: req.Data.Id},
+	})
+	if err != nil || read == nil {
+		return ""
+	}
+	for _, row := range read.GetData() {
+		if row != nil && row.GetRoleId() != "" {
+			return row.GetRoleId()
+		}
+	}
+	return ""
 }
 
 // validateInput validates the input request

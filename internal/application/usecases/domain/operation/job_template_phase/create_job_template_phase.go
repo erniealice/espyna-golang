@@ -9,11 +9,18 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
+	scoringschemepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_scheme"
 )
 
+// CreateJobTemplatePhaseRepositories groups repository dependencies. JobTemplate
+// (owning template) and ScoringScheme anchor the fail-closed cross-workspace FK
+// guards (red-team HIGH #2).
 type CreateJobTemplatePhaseRepositories struct {
 	JobTemplatePhase pb.JobTemplatePhaseDomainServiceServer
+	JobTemplate      jobtemplatepb.JobTemplateDomainServiceServer
+	ScoringScheme    scoringschemepb.ScoringSchemeDomainServiceServer
 }
 
 type CreateJobTemplatePhaseServices struct {
@@ -92,6 +99,16 @@ func (uc *CreateJobTemplatePhaseUseCase) executeWithTransaction(ctx context.Cont
 
 // executeCore contains the core business logic for creating a job template phase
 func (uc *CreateJobTemplatePhaseUseCase) executeCore(ctx context.Context, req *pb.CreateJobTemplatePhaseRequest, enrichedData *pb.JobTemplatePhase) (*pb.CreateJobTemplatePhaseResponse, error) {
+	// Fail-closed cross-workspace FK guard: the owning template AND any
+	// scoring_scheme must live in the caller's request workspace.
+	wsID := contextutil.ExtractWorkspaceIDFromContext(ctx)
+	if err := requireOwningTemplateInWorkspace(ctx, uc.repositories.JobTemplate, uc.services.Translator, wsID, enrichedData.GetJobTemplateId()); err != nil {
+		return nil, err
+	}
+	if err := requireScoringSchemeInWorkspace(ctx, uc.repositories.ScoringScheme, uc.services.Translator, wsID, enrichedData.GetScoringSchemeId()); err != nil {
+		return nil, err
+	}
+
 	resp, err := uc.repositories.JobTemplatePhase.CreateJobTemplatePhase(ctx, &pb.CreateJobTemplatePhaseRequest{
 		Data: enrichedData,
 	})

@@ -9,11 +9,23 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
+	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
+	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
+	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
 )
 
 type CreateTemplateTaskCriteriaRepositories struct {
 	TemplateTaskCriteria pb.TemplateTaskCriteriaDomainServiceServer
+	// Chain repos for the fail-closed cross-workspace guard (task -> phase ->
+	// template -> workspace_id).
+	JobTemplateTask  jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
+	JobTemplatePhase jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
+	JobTemplate      jobtemplatepb.JobTemplateDomainServiceServer
+	// OutcomeCriteria anchors the pinned-criterion workspace check (the criterion
+	// carries its own workspace_id).
+	OutcomeCriteria outcomecriteriapb.OutcomeCriteriaDomainServiceServer
 }
 
 type CreateTemplateTaskCriteriaServices struct {
@@ -92,6 +104,17 @@ func (uc *CreateTemplateTaskCriteriaUseCase) executeWithTransaction(ctx context.
 
 // executeCore contains the core business logic for creating a template task criteria
 func (uc *CreateTemplateTaskCriteriaUseCase) executeCore(ctx context.Context, req *pb.CreateTemplateTaskCriteriaRequest, enrichedData *pb.TemplateTaskCriteria) (*pb.CreateTemplateTaskCriteriaResponse, error) {
+	// Fail-closed cross-workspace guard: the pinned task must resolve through
+	// task -> phase -> template to a template in the caller's request workspace.
+	wsID := contextutil.ExtractWorkspaceIDFromContext(ctx)
+	if err := requireTaskChainInWorkspace(ctx, uc.scopeRepos(), uc.services.Translator, wsID, enrichedData.GetJobTemplateTaskId()); err != nil {
+		return nil, err
+	}
+	// The pinned rubric criterion must ALSO live in the caller's workspace.
+	if err := requireCriterionInWorkspace(ctx, uc.scopeRepos(), uc.services.Translator, wsID, enrichedData.GetOutcomeCriteriaId()); err != nil {
+		return nil, err
+	}
+
 	resp, err := uc.repositories.TemplateTaskCriteria.CreateTemplateTaskCriteria(ctx, &pb.CreateTemplateTaskCriteriaRequest{
 		Data: enrichedData,
 	})
@@ -99,6 +122,16 @@ func (uc *CreateTemplateTaskCriteriaUseCase) executeCore(ctx context.Context, re
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "template_task_criteria.errors.creation_failed", "[ERR-DEFAULT] Template task criteria creation failed"))
 	}
 	return resp, nil
+}
+
+// scopeRepos bundles the chain repos for the cross-workspace guard.
+func (uc *CreateTemplateTaskCriteriaUseCase) scopeRepos() scopeRepos {
+	return scopeRepos{
+		JobTemplateTask:  uc.repositories.JobTemplateTask,
+		JobTemplatePhase: uc.repositories.JobTemplatePhase,
+		JobTemplate:      uc.repositories.JobTemplate,
+		OutcomeCriteria:  uc.repositories.OutcomeCriteria,
+	}
 }
 
 // applyBusinessLogic applies business rules and returns enriched data

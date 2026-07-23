@@ -29,12 +29,13 @@ import (
 	"github.com/erniealice/espyna-golang/consumer"
 	consumerapp "github.com/erniealice/espyna-golang/consumer/app"
 	compose "github.com/erniealice/espyna-golang/consumer/compose"
+	securityports "github.com/erniealice/espyna-golang/internal/application/ports/security"
 	"github.com/erniealice/pyeza-golang"
 	pyezatypes "github.com/erniealice/pyeza-golang/types"
 
-	authpb "github.com/erniealice/esqyma/pkg/schema/v1/service/auth"
 	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
+	authpb "github.com/erniealice/esqyma/pkg/schema/v1/service/auth"
 	securitypb "github.com/erniealice/esqyma/pkg/schema/v1/service/security"
 )
 
@@ -152,7 +153,11 @@ func (s *Server) finalizeHTTPAdapter(appCtx *consumerapp.AppContext, routes *rou
 	}
 
 	// ── Catch-all + reserved slugs + fixed-order chain (generic) ─────────
-	s.WithCatchAll(httpAdapter.Handler())
+	// withDownloadTokenCookie decorates the catch-all so every registered route
+	// (view + raw download handlers) emits the download completion-signal cookie
+	// when a request carries ?dltoken=. It wraps only the catch-all, never the
+	// fixed middleware order (download_cookie.go).
+	s.WithCatchAll(withDownloadTokenCookie(httpAdapter.Handler()))
 	if s.assetsDir == "" {
 		s.assetsDir = "assets"
 	}
@@ -191,8 +196,26 @@ func (s *Server) buildPermissionLoader() PermissionLoader {
 		return resp.GetPermissionCodes(), nil
 	}))
 	log.Printf("  PermissionLoader: routed through service.Security.GetUserPermissionCodes use case (binding-scoped)")
+
+	// P10/D2: hand this loader to the late-bound invalidator holder the
+	// container injected into the authorization-mutating use cases (role_permission
+	// grant/revoke, permission create/update, workspace_user_role assign/change/
+	// unassign). Until now the holder was a no-op; from here a grant change evicts
+	// the affected principals' cached codes so it applies on their NEXT request —
+	// no TTL wait, no restart. The loader cannot be built before the use cases
+	// (it wraps one), so this is the earliest correct wiring point.
+	if s.container != nil {
+		if inv := s.container.GetPermissionCacheInvalidator(); inv != nil {
+			inv.SetDelegate(loader)
+			log.Printf("  PermissionLoader: cache-invalidator wired (RBAC grants apply immediately)")
+		}
+	}
 	return loader
 }
+
+// Compile-time assurance that the permission loader satisfies the application-
+// layer invalidation port it is wired into above (P10/D2).
+var _ securityports.PermissionCacheInvalidator = (*DBPermissionLoader)(nil)
 
 // assertWorkspaceLoader reads the block-provided workspace loader from the
 // AppContext slot. The proto-backed impl imports workspacepb (illegal in

@@ -40,6 +40,7 @@ import (
 	taskoutcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 	taskoutcomecheckpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
 	templatetaskcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	workrequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
 	workrequesttypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
@@ -60,6 +61,9 @@ type OperationRepositories struct {
 	JobActivity          jobactivitypb.JobActivityDomainServiceServer
 	// JobCategory — per-workspace job taxonomy reference entity (20260714).
 	JobCategory jobcategorypb.JobCategoryDomainServiceServer
+	// Product — cross-domain (product) repo threaded here ONLY for the
+	// job_template output_product_id workspace guard (red-team HIGH #2).
+	Product productpb.ProductDomainServiceServer
 	// JobOutcomeSummaryDocumentTemplate — report-card template binding (20260714).
 	JobOutcomeSummaryDocumentTemplate joboutcomesummarydoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer
 	// JobTemplateDocumentTemplate — sheet-family (grade-sheet) template binding (20260720).
@@ -176,6 +180,16 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 	jobCategoryRepo, err := repoCreator.CreateRepository(entityid.JobCategory, conn, tableConfig.TableName(entityid.JobCategory))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create job_category repository: %w", err)
+	}
+
+	// Product — cross-domain read used ONLY to fail-closed validate a
+	// job_template's output_product_id against the caller's workspace
+	// (red-team HIGH #2). Best-effort: when no adapter is registered (e.g.
+	// mock-only tests) the guard fail-closes on any non-empty output_product_id
+	// rather than breaking operation-repo initialization.
+	var productServer productpb.ProductDomainServiceServer
+	if productRepo, pErr := repoCreator.CreateRepository(entityid.Product, conn, tableConfig.TableName(entityid.Product)); pErr == nil {
+		productServer = productRepo.(productpb.ProductDomainServiceServer)
 	}
 
 	// JobOutcomeSummaryDocumentTemplate — report-card template binding (20260714).
@@ -336,6 +350,7 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 		JobTemplateRelation:  jobTemplateRelationServer,
 		JobActivity:          jobActivityRepo.(jobactivitypb.JobActivityDomainServiceServer),
 		JobCategory:          jobCategoryRepo.(jobcategorypb.JobCategoryDomainServiceServer),
+		Product:              productServer,
 		JobOutcomeSummaryDocumentTemplate: jobOutcomeSummaryDocumentTemplateRepo.(joboutcomesummarydoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer),
 		JobTemplateDocumentTemplate:       jobTemplateDocumentTemplateRepo.(jobtemplatedoctmplpb.JobTemplateDocumentTemplateDomainServiceServer),
 		OutcomeCriteria:      outcomeCriteriaRepo.(outcomecriteriapb.OutcomeCriteriaDomainServiceServer),

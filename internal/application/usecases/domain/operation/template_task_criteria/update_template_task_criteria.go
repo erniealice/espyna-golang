@@ -8,11 +8,19 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
+	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
+	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
+	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
 )
 
 type UpdateTemplateTaskCriteriaRepositories struct {
 	TemplateTaskCriteria pb.TemplateTaskCriteriaDomainServiceServer
+	JobTemplateTask      jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
+	JobTemplatePhase     jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
+	JobTemplate          jobtemplatepb.JobTemplateDomainServiceServer
+	OutcomeCriteria      outcomecriteriapb.OutcomeCriteriaDomainServiceServer
 }
 
 type UpdateTemplateTaskCriteriaServices struct {
@@ -92,11 +100,35 @@ func (uc *UpdateTemplateTaskCriteriaUseCase) executeWithTransaction(ctx context.
 
 // executeCore contains the core business logic for updating a template task criteria
 func (uc *UpdateTemplateTaskCriteriaUseCase) executeCore(ctx context.Context, req *pb.UpdateTemplateTaskCriteriaRequest, enrichedData *pb.TemplateTaskCriteria) (*pb.UpdateTemplateTaskCriteriaResponse, error) {
-	_, err := uc.repositories.TemplateTaskCriteria.ReadTemplateTaskCriteria(ctx, &pb.ReadTemplateTaskCriteriaRequest{
+	existingResp, err := uc.repositories.TemplateTaskCriteria.ReadTemplateTaskCriteria(ctx, &pb.ReadTemplateTaskCriteriaRequest{
 		Data: &pb.TemplateTaskCriteria{Id: req.Data.Id},
 	})
-	if err != nil {
+	if err != nil || existingResp == nil || len(existingResp.GetData()) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "template_task_criteria.errors.not_found", "[ERR-DEFAULT] Template task criteria not found"))
+	}
+
+	// Fail-closed cross-workspace guard. The caller must own the existing row
+	// (its task chain resolves to a template in the request workspace), and if
+	// the update repoints job_template_task_id, the new chain must too.
+	wsID := contextutil.ExtractWorkspaceIDFromContext(ctx)
+	if err := requireTaskChainInWorkspace(ctx, uc.scopeRepos(), uc.services.Translator, wsID, existingResp.GetData()[0].GetJobTemplateTaskId()); err != nil {
+		return nil, err
+	}
+	if newTaskID := enrichedData.GetJobTemplateTaskId(); newTaskID != "" && newTaskID != existingResp.GetData()[0].GetJobTemplateTaskId() {
+		if err := requireTaskChainInWorkspace(ctx, uc.scopeRepos(), uc.services.Translator, wsID, newTaskID); err != nil {
+			return nil, err
+		}
+	}
+	// The pinned criterion is a mutable FK. Validate its effective value: the
+	// existing criterion must be in-workspace, and if the update repoints it, the
+	// new criterion must be too.
+	if err := requireCriterionInWorkspace(ctx, uc.scopeRepos(), uc.services.Translator, wsID, existingResp.GetData()[0].GetOutcomeCriteriaId()); err != nil {
+		return nil, err
+	}
+	if newCriterionID := enrichedData.GetOutcomeCriteriaId(); newCriterionID != "" && newCriterionID != existingResp.GetData()[0].GetOutcomeCriteriaId() {
+		if err := requireCriterionInWorkspace(ctx, uc.scopeRepos(), uc.services.Translator, wsID, newCriterionID); err != nil {
+			return nil, err
+		}
 	}
 
 	resp, err := uc.repositories.TemplateTaskCriteria.UpdateTemplateTaskCriteria(ctx, &pb.UpdateTemplateTaskCriteriaRequest{
@@ -106,6 +138,16 @@ func (uc *UpdateTemplateTaskCriteriaUseCase) executeCore(ctx context.Context, re
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "template_task_criteria.errors.update_failed", "[ERR-DEFAULT] Template task criteria update failed"))
 	}
 	return resp, nil
+}
+
+// scopeRepos bundles the chain repos for the cross-workspace guard.
+func (uc *UpdateTemplateTaskCriteriaUseCase) scopeRepos() scopeRepos {
+	return scopeRepos{
+		JobTemplateTask:  uc.repositories.JobTemplateTask,
+		JobTemplatePhase: uc.repositories.JobTemplatePhase,
+		JobTemplate:      uc.repositories.JobTemplate,
+		OutcomeCriteria:  uc.repositories.OutcomeCriteria,
+	}
 }
 
 // applyBusinessLogic applies business rules and returns enriched data

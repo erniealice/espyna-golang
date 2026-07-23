@@ -11,12 +11,18 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	jobcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_category"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 )
 
-// CreateJobTemplateRepositories groups all repository dependencies
+// CreateJobTemplateRepositories groups all repository dependencies. JobCategory
+// and Product anchor the fail-closed cross-workspace FK guards (red-team HIGH
+// #2 — job_category_id / output_product_id posted directly from the drawer).
 type CreateJobTemplateRepositories struct {
 	JobTemplate pb.JobTemplateDomainServiceServer
+	JobCategory jobcategorypb.JobCategoryDomainServiceServer
+	Product     productpb.ProductDomainServiceServer
 }
 
 // CreateJobTemplateServices groups all business service dependencies
@@ -98,6 +104,13 @@ func (uc *CreateJobTemplateUseCase) executeCore(ctx context.Context, req *pb.Cre
 		return nil, err
 	}
 
+	// Fail-closed cross-workspace FK guard: every non-empty FK must resolve to
+	// the caller's request workspace.
+	wsID := contextutil.ExtractWorkspaceIDFromContext(ctx)
+	if err := requireTemplateFKsInWorkspace(ctx, uc.fkScopeRepos(), uc.services.Translator, wsID, req.Data.GetJobCategoryId(), req.Data.GetOutputProductId()); err != nil {
+		return nil, err
+	}
+
 	// Call repository
 	response, err := uc.repositories.JobTemplate.CreateJobTemplate(ctx, req)
 	if err != nil {
@@ -105,6 +118,14 @@ func (uc *CreateJobTemplateUseCase) executeCore(ctx context.Context, req *pb.Cre
 	}
 
 	return response, nil
+}
+
+// fkScopeRepos bundles the FK-resolution repos for the cross-workspace guard.
+func (uc *CreateJobTemplateUseCase) fkScopeRepos() templateFKScopeRepos {
+	return templateFKScopeRepos{
+		JobCategory: uc.repositories.JobCategory,
+		Product:     uc.repositories.Product,
+	}
 }
 
 // validateInput validates the input request

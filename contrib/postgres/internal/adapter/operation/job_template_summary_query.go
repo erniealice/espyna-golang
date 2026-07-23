@@ -346,12 +346,20 @@ func paginationBounds(p *commonpb.PaginationRequest) (limit, offset int32) {
 //	     subscription origin, optional status, optional STAFF row-scope). Emits
 //	     one row per (job, template) carrying the subscription_id/client_id/
 //	     output_product_id hash-join keys.
-//	dd  MATERIALIZED CTE = subscription_seat ⋈ product_plan ⋈ staff ⋈ "user"
-//	     (LEFT) ⋈ subscription_group_member — the deliverer/group side, keyed by
-//	     (subscription_id, client_id, product_id). sgm is correlated to the seat
-//	     on (subscription_id, client_id): in the original both sgm AND ss bind to
-//	     the job's (origin_id, client_id), so binding them to each other is
-//	     transitively identical once jj joins in.
+//	dd  MATERIALIZED CTE = a UNION of two deliverer/group branches, both keyed by
+//	     (subscription_id, client_id, product_id) and emitting the identical
+//	     7-column shape:
+//	       (a) subscription_seat ⋈ product_plan ⋈ staff ⋈ "user" (LEFT) ⋈
+//	           subscription_group_member. sgm is correlated to the seat on
+//	           (subscription_id, client_id): in the original both sgm AND ss bind
+//	           to the job's (origin_id, client_id), so binding them to each other
+//	           is transitively identical once jj joins in.
+//	       (b) subscription_group_product_plan_staff (the class edge) ⋈
+//	           subscription_group_member ⋈ product_plan ⋈ staff ⋈ "user" (LEFT),
+//	           filtered role='primary' (teacher-of-record). This covers sections
+//	           that have class-edge servicers but zero seats (AY-2627); without it
+//	           jj⋈dd's INNER join drops every such job (C11). UNION (not UNION ALL)
+//	           dedupes a (sub, client, product, staff) pair reachable via both.
 //
 // jj ⋈ dd on (subscription_id, client_id, output_product_id/product_id) restores
 // the original inner-join semantics (the seat's product_plan.product_id must
@@ -481,6 +489,7 @@ func jobTemplateSummaryCTEs(jjWhere string) string {
     ` + jjWhere + `
 ),
 dd AS MATERIALIZED (
+    -- Branch (a): the SUBSCRIPTION_SEAT deliverer/group side (the original dd).
     SELECT
         ss.subscription_id       AS subscription_id,
         ss.client_id             AS client_id,
@@ -500,6 +509,42 @@ dd AS MATERIALIZED (
            ON sgm.subscription_id = ss.subscription_id AND sgm.client_id = ss.client_id
           AND sgm.workspace_id = $1 AND sgm.active
     WHERE ss.status = 'active' AND ss.active AND ss.workspace_id = $1
+    UNION
+    -- Branch (b): class-edge (sgpps) deliverers, role primary only (C11 — full
+    -- rationale in the jobTemplateSummaryCTEs doc comment). Emits branch (a)'s
+    -- exact 7-column shape (member-sourced keys + the edge plan product).
+    SELECT
+        m.subscription_id        AS subscription_id,
+        m.client_id              AS client_id,
+        pl.product_id            AS product_id,
+        st.id                    AS staff_id,
+        u.first_name             AS first_name,
+        u.last_name              AS last_name,
+        m.subscription_group_id  AS subscription_group_id
+    FROM ` + entityid.SubscriptionGroupProductPlanStaff + ` e
+    JOIN ` + entityid.SubscriptionGroupMember + ` m
+           ON m.subscription_group_id = e.subscription_group_id AND m.active
+    JOIN ` + entityid.ProductPlan + ` pl
+           ON pl.id = e.product_plan_id
+    JOIN ` + entityid.Staff + ` st
+           ON st.id = e.staff_id AND st.workspace_id = $1
+    LEFT JOIN "` + entityid.User + `" u
+           ON u.id = st.user_id AND u.active
+    -- CF-3: the sgpps unique is (group, product_plan, staff) — it does NOT forbid
+    -- two DIFFERENT active primary edges for one (group, product_plan). Pick ONE
+    -- deterministically (newest date_created, id breaks ties) via a correlated
+    -- ORDER BY … LIMIT 1 keyed on (group, product_plan), so a section with
+    -- duplicate primaries attributes a STABLE deliverer that agrees with the
+    -- grade-sheet's class-edge teacher (same rule in fayna fetchClassEdgeTeachers).
+    WHERE e.active AND e.workspace_id = $1 AND e.role = 'primary'
+      AND e.id = (
+          SELECT e2.id FROM ` + entityid.SubscriptionGroupProductPlanStaff + ` e2
+          WHERE e2.subscription_group_id = e.subscription_group_id
+            AND e2.product_plan_id = e.product_plan_id
+            AND e2.active AND e2.workspace_id = $1 AND e2.role = 'primary'
+          ORDER BY e2.date_created DESC, e2.id DESC
+          LIMIT 1
+      )
 ),
 pa AS (
     SELECT

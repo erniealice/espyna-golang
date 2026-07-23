@@ -3,12 +3,17 @@ package job_template
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
+	jobcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_category"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 )
 
-// JobTemplateRepositories groups all repository dependencies
+// JobTemplateRepositories groups all repository dependencies. JobCategory and
+// Product anchor the create/update cross-workspace FK guards.
 type JobTemplateRepositories struct {
 	JobTemplate pb.JobTemplateDomainServiceServer
+	JobCategory jobcategorypb.JobCategoryDomainServiceServer
+	Product     productpb.ProductDomainServiceServer
 }
 
 // JobTemplateServices groups all business service dependencies
@@ -37,7 +42,11 @@ func NewUseCases(
 	repositories JobTemplateRepositories,
 	services JobTemplateServices,
 ) *UseCases {
-	createRepos := CreateJobTemplateRepositories{JobTemplate: repositories.JobTemplate}
+	createRepos := CreateJobTemplateRepositories{
+		JobTemplate: repositories.JobTemplate,
+		JobCategory: repositories.JobCategory,
+		Product:     repositories.Product,
+	}
 	createServices := CreateJobTemplateServices{
 		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:  services.Authorizer,
@@ -54,7 +63,11 @@ func NewUseCases(
 		Translator: services.Translator,
 	}
 
-	updateRepos := UpdateJobTemplateRepositories{JobTemplate: repositories.JobTemplate}
+	updateRepos := UpdateJobTemplateRepositories{
+		JobTemplate: repositories.JobTemplate,
+		JobCategory: repositories.JobCategory,
+		Product:     repositories.Product,
+	}
 	updateServices := UpdateJobTemplateServices{
 		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer: services.Authorizer,

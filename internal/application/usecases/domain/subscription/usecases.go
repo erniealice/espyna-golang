@@ -43,6 +43,7 @@ import (
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	pricescheduleworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule_workspace_user"
+	productplanstaffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan_staff"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
@@ -68,7 +69,10 @@ type SubscriptionRepositories struct {
 	PricePlan             priceplanpb.PricePlanDomainServiceServer
 	PriceSchedule         priceschedulepb.PriceScheduleDomainServiceServer
 	ProductPlan           productplanpb.ProductPlanDomainServiceServer // Cross-domain (Model D: product_price_plan.product_plan_id FK validation)
-	ProductPricePlan      productpriceplanpb.ProductPricePlanDomainServiceServer
+	// ProductPlanStaff — cross-domain (product): backs the sgpps class-edge
+	// eligibility guard (red-team HIGH #5).
+	ProductPlanStaff productplanstaffpb.ProductPlanStaffDomainServiceServer
+	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
 	Subscription          subscriptionpb.SubscriptionDomainServiceServer
 	SubscriptionAttribute subscriptionattributepb.SubscriptionAttributeDomainServiceServer
 	// Outsourcing-vertical seat + servicing membership
@@ -381,7 +385,12 @@ func NewUseCases(
 	)
 
 	subscriptionGroupProductPlanStaffUC := subscriptionGroupProductPlanStaffUseCases.NewUseCases(
-		subscriptionGroupProductPlanStaffUseCases.Repositories{SubscriptionGroupProductPlanStaff: repos.SubscriptionGroupProductPlanStaff},
+		subscriptionGroupProductPlanStaffUseCases.Repositories{
+			SubscriptionGroupProductPlanStaff: repos.SubscriptionGroupProductPlanStaff,
+			ProductPlanStaff:                  repos.ProductPlanStaff,
+			ProductPlan:                       repos.ProductPlan,
+			SubscriptionGroup:                 repos.SubscriptionGroup,
+		},
 		subscriptionGroupProductPlanStaffUseCases.Services{
 			Authorizer:       authSvc,
 			Transactor:       txSvc,

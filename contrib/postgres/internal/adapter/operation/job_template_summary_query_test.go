@@ -43,10 +43,10 @@ func TestJobTemplateSummarySQL_TableNamesFromEntityID(t *testing.T) {
 	}{
 		{"j", entityid.Job},                       // jj CTE
 		{"jt", entityid.JobTemplate},              // jj CTE
-		{"sgm", entityid.SubscriptionGroupMember}, // dd CTE
+		{"sgm", entityid.SubscriptionGroupMember}, // dd CTE, seat branch
 		{"sg", entityid.SubscriptionGroup},        // outer
 		{"ps", entityid.PriceSchedule},            // outer
-		{"ss", entityid.SubscriptionSeat},         // dd CTE
+		{"ss", entityid.SubscriptionSeat},         // dd CTE, seat branch
 		{"pl", entityid.ProductPlan},              // dd CTE
 		{"st", entityid.Staff},                    // dd CTE
 		{"op", entityid.Product},                  // outer
@@ -54,6 +54,11 @@ func TestJobTemplateSummarySQL_TableNamesFromEntityID(t *testing.T) {
 		{"tk", entityid.JobTask},                  // pa CTE (R7 P4)
 		{"tox", entityid.TaskOutcome},             // pa CTE (R7 P4)
 		{"gm", entityid.SubscriptionGroupMember},  // pa CTE (R7 P4)
+		// dd CTE, class-edge (sgpps) branch (C11): the class edge itself + a
+		// SECOND subscription_group_member alias (m) that carries the (subscription,
+		// client, group) triple for a section that has servicers but zero seats.
+		{"e", entityid.SubscriptionGroupProductPlanStaff}, // dd CTE, class-edge branch
+		{"m", entityid.SubscriptionGroupMember},           // dd CTE, class-edge branch
 	}
 	for _, m := range mustJoin {
 		if !strings.Contains(sql, " "+m.table+" "+m.alias) {
@@ -86,11 +91,112 @@ func TestJobTemplateSummarySQL_TableNamesFromEntityID(t *testing.T) {
 		t.Errorf("SELECT/FROM missing double-quoted %q join\nSQL:\n%s", entityid.User, sql)
 	}
 
-	// The over-count trap (subscription_group_product_plan_staff, resolved by
-	// (plan,staff) instead of the job's own membership) must NEVER appear.
-	if strings.Contains(sql, entityid.SubscriptionGroupProductPlanStaff) {
-		t.Errorf("SELECT/FROM leaked the sgpps table %q (cohort-grain over-count trap)\nSQL:\n%s",
-			entityid.SubscriptionGroupProductPlanStaff, sql)
+	// C11: the class-edge (sgpps) branch is now REQUIRED in the dd CTE (a section
+	// with servicers but no seats otherwise yields zero /courses + /report-cards
+	// rows). It is grain-correct — NOT the old cohort-grain over-count trap —
+	// BECAUSE it joins through subscription_group_member to reach the actual
+	// (subscription, client) memberships, exactly the seat branch's grain. The
+	// specific join chain + the role='primary' record semantic are locked in
+	// TestJobTemplateSummarySQL_ClassEdgeDelivererBranch below.
+	if !strings.Contains(sql, entityid.SubscriptionGroupProductPlanStaff+" e") {
+		t.Errorf("dd CTE missing the class-edge branch (sgpps aliased e) — C11 zero-rows regression\nSQL:\n%s", sql)
+	}
+}
+
+// TestJobTemplateSummarySQL_ClassEdgeDelivererBranch locks the C11 fix: the dd
+// CTE is a UNION of (a) the subscription_seat branch and (b) a class-edge (sgpps)
+// branch, so a section that has class-edge servicers but ZERO seats (the AY-2627
+// shape) still produces a dd row and its jobs survive the jj⋈dd INNER join. The
+// branch:
+//   - joins sgpps e → subscription_group_member m (on the group, active) →
+//     product_plan pl (the edge's subject plan) → staff st (workspace-bound) →
+//     "user" u (LEFT, active), sourcing table names from entityid constants;
+//   - filters role='primary' ONLY — the teacher-of-record RECORD semantic (§B):
+//     a 'primary' edge generates the class row + the Teacher/Deliverer column; an
+//     'access' edge is visibility-only (principalscope) and must NOT surface here;
+//   - binds the workspace on the edge AND the staff ($1);
+//   - projects the member-sourced (subscription_id, client_id, subscription_group_id)
+//     + edge-plan product_id so the emitted column set is byte-identical to the
+//     seat branch (jj⋈dd + collateDeliverySummaries need no change);
+//   - dedupes via UNION (not UNION ALL): a (sub, client, product, staff) pair
+//     reachable through BOTH a seat and a class edge collapses to one row.
+func TestJobTemplateSummarySQL_ClassEdgeDelivererBranch(t *testing.T) {
+	sql := fullSummarySQL()
+
+	// The class-edge join chain, each ON clause sourced off the sgpps edge (e).
+	for _, frag := range []string{
+		entityid.SubscriptionGroupProductPlanStaff + " e",
+		entityid.SubscriptionGroupMember + " m",
+		"m.subscription_group_id = e.subscription_group_id AND m.active",
+		"pl.id = e.product_plan_id",
+		"st.id = e.staff_id AND st.workspace_id = $1",
+		`"` + entityid.User + `" u`,
+		"u.id = st.user_id AND u.active",
+	} {
+		if !strings.Contains(sql, frag) {
+			t.Errorf("class-edge branch missing join fragment %q\nSQL:\n%s", frag, sql)
+		}
+	}
+
+	// role='primary' RECORD filter + workspace bind on the edge (§B/§E). The
+	// visibility-only 'access' role must NEVER surface as a class row here.
+	if !strings.Contains(sql, "WHERE e.active AND e.workspace_id = $1 AND e.role = 'primary'") {
+		t.Errorf("class-edge branch missing the active/workspace/role='primary' WHERE\nSQL:\n%s", sql)
+	}
+	if strings.Contains(sql, "role = 'access'") || strings.Contains(sql, "role='access'") {
+		t.Errorf("class-edge branch must NOT filter on 'access' edges — those are visibility-only\nSQL:\n%s", sql)
+	}
+
+	// CF-3: two DIFFERENT active primary edges for one (group, product_plan) must
+	// collapse to a SINGLE deterministic pick (newest date_created, id breaks ties)
+	// so the deliverer is stable across renders and agrees with the grade-sheet's
+	// class-edge teacher. A correlated ORDER BY … LIMIT 1 keyed on
+	// (subscription_group_id, product_plan_id) enforces it — without a NEW
+	// placeholder (it reuses $1).
+	for _, frag := range []string{
+		"e.id = (",
+		"e2.subscription_group_id = e.subscription_group_id",
+		"e2.product_plan_id = e.product_plan_id",
+		"ORDER BY e2.date_created DESC, e2.id DESC",
+		"LIMIT 1",
+	} {
+		if !strings.Contains(sql, frag) {
+			t.Errorf("class-edge branch missing CF-3 deterministic-pick fragment %q\nSQL:\n%s", frag, sql)
+		}
+	}
+
+	// The branch projects the member-sourced keys (m.*) + the edge-plan product so
+	// the emitted 7-column shape matches the seat branch exactly. m.subscription_id
+	// and m.client_id appear ONLY in this branch's SELECT (the seat branch reads
+	// ss.*/sgm.*), so their presence confirms the member-sourced projection.
+	for _, col := range []string{"m.subscription_id", "m.client_id", "m.subscription_group_id"} {
+		if !strings.Contains(sql, col) {
+			t.Errorf("class-edge branch missing member-sourced projection %q\nSQL:\n%s", col, sql)
+		}
+	}
+
+	// dd dedupes via UNION (set semantics), never UNION ALL — a (sub, client,
+	// product, staff) pair reachable through both a seat and a class edge collapses.
+	if !strings.Contains(sql, "UNION") {
+		t.Errorf("dd CTE must UNION the seat + class-edge branches\nSQL:\n%s", sql)
+	}
+	if strings.Contains(sql, "UNION ALL") {
+		t.Errorf("dd must UNION (not UNION ALL) so seat/class-edge duplicates dedupe\nSQL:\n%s", sql)
+	}
+
+	// The class-edge branch must NOT reintroduce the cohort-grain over-count: it
+	// reaches memberships through subscription_group_member (m), NOT by attributing
+	// the whole cohort to the edge. It also must not join subscription_seat inside
+	// the class-edge branch (that branch exists precisely for the zero-seat shape).
+	if !strings.Contains(sql, entityid.SubscriptionGroupProductPlanStaff+" e\n") {
+		t.Errorf("sgpps must be the class-edge branch's driving table (aliased e)\nSQL:\n%s", sql)
+	}
+
+	// Workspace-scoping of the class edge is explicit ($1); the member m is scoped
+	// transitively (globally-unique group FK + the workspace-bound edge + the outer
+	// sg join re-gate), so a bind there is neither required nor present.
+	if !strings.Contains(sql, "e.workspace_id = $1") {
+		t.Errorf("class-edge branch must bind e.workspace_id = $1\nSQL:\n%s", sql)
 	}
 }
 

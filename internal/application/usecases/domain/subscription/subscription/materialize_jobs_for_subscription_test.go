@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
@@ -18,6 +21,7 @@ import (
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
@@ -50,6 +54,22 @@ func (r *stubPricePlanRepo) ReadPricePlan(_ context.Context, req *priceplanpb.Re
 		return nil, errors.New("not found")
 	}
 	return &priceplanpb.ReadPricePlanResponse{Data: []*priceplanpb.PricePlan{pp}}, nil
+}
+
+type stubPriceScheduleRepo struct {
+	priceschedulepb.UnimplementedPriceScheduleDomainServiceServer
+	rows map[string]*priceschedulepb.PriceSchedule
+}
+
+func (r *stubPriceScheduleRepo) ReadPriceSchedule(_ context.Context, req *priceschedulepb.ReadPriceScheduleRequest) (*priceschedulepb.ReadPriceScheduleResponse, error) {
+	if req.GetData() == nil {
+		return nil, errors.New("nil")
+	}
+	s, ok := r.rows[req.GetData().GetId()]
+	if !ok {
+		return nil, errors.New("not found")
+	}
+	return &priceschedulepb.ReadPriceScheduleResponse{Data: []*priceschedulepb.PriceSchedule{s}}, nil
 }
 
 type stubPlanRepo struct {
@@ -198,6 +218,12 @@ type fixtureOpts struct {
 	failOnNthCreate   int
 	withMBE           bool
 	withRelationRepo  bool
+	// Closed-AY spawn guard (red-team HIGH #3). When priceScheduleID is set, the
+	// price_plan points at it and a matching price_schedule row is wired.
+	// scheduleInactive / scheduleEnded model the two blocking window states.
+	priceScheduleID  string
+	scheduleInactive bool
+	scheduleEnded    bool
 }
 
 func newFixture(t *testing.T, opts fixtureOpts) *fixture {
@@ -210,9 +236,18 @@ func newFixture(t *testing.T, opts fixtureOpts) *fixture {
 	subRepo := &stubSubscriptionRepo{rows: map[string]*subscriptionpb.Subscription{
 		subID: {Id: subID, Active: true, ClientId: "client-1", PricePlanId: pricePlanID, Name: "TestSub"},
 	}}
-	ppRepo := &stubPricePlanRepo{rows: map[string]*priceplanpb.PricePlan{
-		pricePlanID: {Id: pricePlanID, Active: true, PlanId: planID, BillingKind: opts.billingKind},
-	}}
+	pp := &priceplanpb.PricePlan{Id: pricePlanID, Active: true, PlanId: planID, BillingKind: opts.billingKind}
+	var schedRepo priceschedulepb.PriceScheduleDomainServiceServer
+	if opts.priceScheduleID != "" {
+		sid := opts.priceScheduleID
+		pp.PriceScheduleId = &sid
+		sched := &priceschedulepb.PriceSchedule{Id: sid, Active: !opts.scheduleInactive}
+		if opts.scheduleEnded {
+			sched.DateTimeEnd = timestamppb.New(time.Now().UTC().Add(-24 * time.Hour))
+		}
+		schedRepo = &stubPriceScheduleRepo{rows: map[string]*priceschedulepb.PriceSchedule{sid: sched}}
+	}
+	ppRepo := &stubPricePlanRepo{rows: map[string]*priceplanpb.PricePlan{pricePlanID: pp}}
 	plan := &planpb.Plan{}
 	if opts.planJobTemplateID != "" {
 		v := opts.planJobTemplateID
@@ -259,6 +294,7 @@ func newFixture(t *testing.T, opts fixtureOpts) *fixture {
 		MaterializeJobsForSubscriptionRepositories{
 			Subscription:        subRepo,
 			PricePlan:           ppRepo,
+			PriceSchedule:       schedRepo,
 			Plan:                planRepo,
 			JobTemplate:         tplRepo,
 			JobTemplatePhase:    phaseRepo,
@@ -676,6 +712,75 @@ func TestMaterializeJobs_OriginFieldsSet(t *testing.T) {
 	}
 	if j.OriginId == nil || *j.OriginId != "sub-1" {
 		t.Errorf("origin_id want sub-1, got %v", j.OriginId)
+	}
+}
+
+// Red-team HIGH #3: a scheduled price_plan whose price_schedule window has ended
+// (date_time_end in the past) must skip the spawn with SkipReasonScheduleClosed,
+// spawning no jobs, on the best-effort (direct) path.
+func TestMaterializeJobs_ScheduleClosed_Skips(t *testing.T) {
+	rootID := "tpl-root"
+	f := newFixture(t, fixtureOpts{
+		planJobTemplateID: rootID,
+		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "Root", true)},
+		priceScheduleID:   "sched-closed",
+		scheduleEnded:     true,
+	})
+	resp, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.GetSkippedReason() != SkipReasonScheduleClosed {
+		t.Errorf("want skip reason %q, got %q", SkipReasonScheduleClosed, resp.GetSkippedReason())
+	}
+	if len(resp.SpawnedJobs) != 0 {
+		t.Errorf("closed-AY schedule must spawn no jobs, got %d", len(resp.SpawnedJobs))
+	}
+	if len(f.jobs.created) != 0 {
+		t.Errorf("no Job rows may be written into a closed AY, got %d", len(f.jobs.created))
+	}
+}
+
+// An inactive price_schedule also blocks the spawn.
+func TestMaterializeJobs_ScheduleInactive_Skips(t *testing.T) {
+	rootID := "tpl-root"
+	f := newFixture(t, fixtureOpts{
+		planJobTemplateID: rootID,
+		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "Root", true)},
+		priceScheduleID:   "sched-inactive",
+		scheduleInactive:  true,
+	})
+	resp, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.GetSkippedReason() != SkipReasonScheduleClosed {
+		t.Errorf("want skip reason %q, got %q", SkipReasonScheduleClosed, resp.GetSkippedReason())
+	}
+	if len(resp.SpawnedJobs) != 0 {
+		t.Errorf("inactive schedule must spawn no jobs, got %d", len(resp.SpawnedJobs))
+	}
+}
+
+// An active, open-ended (or future-ending) schedule spawns normally — the guard
+// must not block a live AY.
+func TestMaterializeJobs_ScheduleOpen_Spawns(t *testing.T) {
+	rootID := "tpl-root"
+	f := newFixture(t, fixtureOpts{
+		planJobTemplateID: rootID,
+		templates:         map[string]*jobtemplatepb.JobTemplate{rootID: makeTemplate(rootID, "Root", true)},
+		priceScheduleID:   "sched-open",
+		// active, no end date -> open window
+	})
+	resp, err := f.uc.Execute(context.Background(), &subscriptionpb.MaterializeJobsForSubscriptionRequest{SubscriptionId: "sub-1", SpawnJobs: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.GetSkippedReason() != "" {
+		t.Errorf("open schedule must not skip, got reason %q", resp.GetSkippedReason())
+	}
+	if len(resp.SpawnedJobs) != 1 {
+		t.Errorf("open schedule must spawn the root job, got %d", len(resp.SpawnedJobs))
 	}
 }
 

@@ -23,6 +23,7 @@ import (
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
@@ -47,6 +48,11 @@ type MaterializeBillingEventsForJobInvoker interface {
 type MaterializeJobsForSubscriptionRepositories struct {
 	Subscription        subscriptionpb.SubscriptionDomainServiceServer
 	PricePlan           priceplanpb.PricePlanDomainServiceServer
+	// PriceSchedule anchors the canonical closed-AY spawn guard: a scheduled
+	// price_plan whose price_schedule window is inactive or closed must not spawn
+	// (red-team HIGH #3). Optional — a nil repo (unwired composition) leaves the
+	// guard as a no-op; the centymo UI guard remains the friendly-UX layer.
+	PriceSchedule       priceschedulepb.PriceScheduleDomainServiceServer
 	Plan                planpb.PlanDomainServiceServer
 	JobTemplate         jobtemplatepb.JobTemplateDomainServiceServer
 	JobTemplatePhase    jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
@@ -91,6 +97,13 @@ type materializeJobsForSubscriptionInternalResponse struct {
 const (
 	SkipReasonNoTemplateFound = "no_template_found"
 	SkipReasonOperatorOptOut  = "operator_opt_out"
+	// SkipReasonScheduleClosed — the subscription's scheduled price_plan resolves
+	// to a price_schedule whose window is inactive or closed, so no jobs may be
+	// spawned into a closed AY (red-team HIGH #3). On the best-effort paths this
+	// is a graceful skip; on the strict require_spawn_success create path the
+	// resulting zero-job spawn is converted to a hard, rolling-back error by
+	// executeWithRequiredSpawn.
+	SkipReasonScheduleClosed = "schedule_closed"
 )
 
 // MaterializeJobsForSubscriptionUseCase spawns Job / JobPhase / JobTask rows
@@ -194,6 +207,21 @@ func (uc *MaterializeJobsForSubscriptionUseCase) materializeCore(
 	if err != nil {
 		return nil, err
 	}
+
+	// Closed-AY spawn guard (canonical enforcement point — red-team HIGH #3).
+	// Resolve the price_schedule via the price_plan; a scheduled plan whose window
+	// is inactive or closed must NOT spawn. Non-scheduled (master) plans and open
+	// windows pass. This runs BEFORE both the direct Execute boundary and the
+	// create-side materializeCore reach any job write. On the best-effort paths it
+	// surfaces as SkipReasonScheduleClosed (Success=true, zero jobs); the strict
+	// require_spawn_success create path turns the zero-job skip into a hard,
+	// rolling-back error (executeWithRequiredSpawn). The centymo UI guard remains
+	// the friendly-UX layer.
+	if uc.spawnWindowClosed(ctx, pricePlan) {
+		skipReason := SkipReasonScheduleClosed
+		return &subscriptionpb.MaterializeJobsForSubscriptionResponse{Success: true, SkippedReason: &skipReason}, nil
+	}
+
 	plan, err := uc.readPlan(ctx, pricePlan.GetPlanId())
 	if err != nil {
 		return nil, err
@@ -410,6 +438,47 @@ func (uc *MaterializeJobsForSubscriptionUseCase) readPricePlan(
 		))
 	}
 	return resp.GetData()[0], nil
+}
+
+// spawnWindowClosed reports whether the subscription's resolved price_schedule
+// blocks spawning. It walks price_plan -> price_schedule and returns true ONLY
+// for a schedule that is definitively inactive or closed. Everything else passes
+// so normal enrollment is never broken:
+//   - no price_schedule_id (master/non-scheduled plan) -> false (documented
+//     exception; those plans have no AY window to close);
+//   - PriceSchedule repo not wired                     -> false (guard
+//     unavailable in this composition; the centymo UI guard still applies);
+//   - schedule read error / not found                  -> false (unverifiable —
+//     block only on a CONFIRMED closed window, never introduce a new failure
+//     mode on a transient/dangling read);
+//   - schedule active with an unpassed (or open-ended) end -> false.
+func (uc *MaterializeJobsForSubscriptionUseCase) spawnWindowClosed(
+	ctx context.Context, pricePlan *priceplanpb.PricePlan,
+) bool {
+	if pricePlan == nil {
+		return false
+	}
+	scheduleID := pricePlan.GetPriceScheduleId()
+	if scheduleID == "" {
+		return false
+	}
+	if uc.repositories.PriceSchedule == nil {
+		return false
+	}
+	resp, err := uc.repositories.PriceSchedule.ReadPriceSchedule(ctx, &priceschedulepb.ReadPriceScheduleRequest{
+		Data: &priceschedulepb.PriceSchedule{Id: scheduleID},
+	})
+	if err != nil || resp == nil || len(resp.GetData()) == 0 {
+		return false
+	}
+	sched := resp.GetData()[0]
+	if !sched.GetActive() {
+		return true
+	}
+	if end := sched.GetDateTimeEnd(); end != nil && end.IsValid() && end.AsTime().Before(time.Now().UTC()) {
+		return true
+	}
+	return false
 }
 
 func (uc *MaterializeJobsForSubscriptionUseCase) readPlan(

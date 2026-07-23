@@ -8,11 +8,17 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
+	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
+	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
 )
 
 type ReadTemplateTaskCriteriaRepositories struct {
 	TemplateTaskCriteria pb.TemplateTaskCriteriaDomainServiceServer
+	JobTemplateTask      jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
+	JobTemplatePhase     jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
+	JobTemplate          jobtemplatepb.JobTemplateDomainServiceServer
 }
 
 type ReadTemplateTaskCriteriaServices struct {
@@ -91,7 +97,23 @@ func (uc *ReadTemplateTaskCriteriaUseCase) executeCore(ctx context.Context, req 
 	if resp == nil || len(resp.Data) == 0 {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "template_task_criteria.errors.not_found", "[ERR-DEFAULT] Template task criteria not found"))
 	}
+
+	// Fail-closed cross-workspace guard: only surface the row when its task
+	// chain resolves to a template in the caller's request workspace.
+	wsID := contextutil.ExtractWorkspaceIDFromContext(ctx)
+	if err := requireTaskChainInWorkspace(ctx, uc.scopeRepos(), uc.services.Translator, wsID, resp.GetData()[0].GetJobTemplateTaskId()); err != nil {
+		return nil, err
+	}
 	return resp, nil
+}
+
+// scopeRepos bundles the chain repos for the cross-workspace guard.
+func (uc *ReadTemplateTaskCriteriaUseCase) scopeRepos() scopeRepos {
+	return scopeRepos{
+		JobTemplateTask:  uc.repositories.JobTemplateTask,
+		JobTemplatePhase: uc.repositories.JobTemplatePhase,
+		JobTemplate:      uc.repositories.JobTemplate,
+	}
 }
 
 // validateInput validates the input request

@@ -3,12 +3,23 @@ package template_task_criteria
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
+	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
+	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
+	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
+	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
 )
 
-// TemplateTaskCriteriaRepositories groups all repository dependencies
+// TemplateTaskCriteriaRepositories groups all repository dependencies. The
+// job_template_task/phase/template repos anchor the fail-closed
+// cross-workspace guard (template_task_criteria carries no workspace_id), and
+// OutcomeCriteria anchors the pinned-criterion workspace check.
 type TemplateTaskCriteriaRepositories struct {
 	TemplateTaskCriteria pb.TemplateTaskCriteriaDomainServiceServer
+	JobTemplateTask      jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
+	JobTemplatePhase     jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
+	JobTemplate          jobtemplatepb.JobTemplateDomainServiceServer
+	OutcomeCriteria      outcomecriteriapb.OutcomeCriteriaDomainServiceServer
 }
 
 // TemplateTaskCriteriaServices groups all business service dependencies
@@ -40,6 +51,10 @@ func NewUseCases(
 ) *UseCases {
 	createRepos := CreateTemplateTaskCriteriaRepositories{
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
+		JobTemplateTask:      repositories.JobTemplateTask,
+		JobTemplatePhase:     repositories.JobTemplatePhase,
+		JobTemplate:          repositories.JobTemplate,
+		OutcomeCriteria:      repositories.OutcomeCriteria,
 	}
 	createServices := CreateTemplateTaskCriteriaServices{
 		ActionGatekeeper: services.ActionGatekeeper,
@@ -51,6 +66,9 @@ func NewUseCases(
 
 	readRepos := ReadTemplateTaskCriteriaRepositories{
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
+		JobTemplateTask:      repositories.JobTemplateTask,
+		JobTemplatePhase:     repositories.JobTemplatePhase,
+		JobTemplate:          repositories.JobTemplate,
 	}
 	readServices := ReadTemplateTaskCriteriaServices{
 		ActionGatekeeper: services.ActionGatekeeper,
@@ -61,6 +79,10 @@ func NewUseCases(
 
 	updateRepos := UpdateTemplateTaskCriteriaRepositories{
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
+		JobTemplateTask:      repositories.JobTemplateTask,
+		JobTemplatePhase:     repositories.JobTemplatePhase,
+		JobTemplate:          repositories.JobTemplate,
+		OutcomeCriteria:      repositories.OutcomeCriteria,
 	}
 	updateServices := UpdateTemplateTaskCriteriaServices{
 		ActionGatekeeper: services.ActionGatekeeper,
@@ -71,6 +93,9 @@ func NewUseCases(
 
 	deleteRepos := DeleteTemplateTaskCriteriaRepositories{
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
+		JobTemplateTask:      repositories.JobTemplateTask,
+		JobTemplatePhase:     repositories.JobTemplatePhase,
+		JobTemplate:          repositories.JobTemplate,
 	}
 	deleteServices := DeleteTemplateTaskCriteriaServices{
 		ActionGatekeeper: services.ActionGatekeeper,
@@ -111,6 +136,9 @@ func NewUseCases(
 
 	listByTemplateTaskRepos := ListByTemplateTaskRepositories{
 		TemplateTaskCriteria: repositories.TemplateTaskCriteria,
+		JobTemplateTask:      repositories.JobTemplateTask,
+		JobTemplatePhase:     repositories.JobTemplatePhase,
+		JobTemplate:          repositories.JobTemplate,
 	}
 	listByTemplateTaskServices := ListByTemplateTaskServices{
 		ActionGatekeeper: services.ActionGatekeeper,

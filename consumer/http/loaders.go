@@ -457,10 +457,41 @@ func (l *DBPermissionLoader) GetUserPermissionCodes(
 
 // InvalidateUser clears all cached permissions for a user across all workspaces
 // and bindings (call after role changes).
+//
+// It satisfies the application-layer security.PermissionCacheInvalidator port
+// (see internal/application/ports/security/cache_invalidator.go). The
+// authorization-mutating use cases call the port; composition sets this loader
+// as the port's delegate (P10/D2 — grants apply immediately, no TTL wait, no
+// restart). Scoped by construction: only entries for this exact userID are
+// dropped — never a whole-cache flush, never another user's entries.
 func (l *DBPermissionLoader) InvalidateUser(userID string) {
+	if userID == "" {
+		return
+	}
 	l.mu.Lock()
 	for key := range l.cache {
 		if key.userID == userID {
+			delete(l.cache, key)
+		}
+	}
+	l.mu.Unlock()
+}
+
+// InvalidateBinding clears all cached permissions whose binding id matches
+// bindingID (the session-scoped cache key's bindingID = WorkspaceUser.id for a
+// staff principal). Used when an authorization change names a specific binding
+// (a workspace_user_role assign/unassign, or a role→permission grant enumerated
+// down to its bound workspace_user rows) so a re-grant is visible on the very
+// next request. Scoped by construction: only entries for this exact bindingID
+// are dropped — the same person's OTHER bindings and every other user are left
+// intact (P10/D2 audit-gate: no over-clear).
+func (l *DBPermissionLoader) InvalidateBinding(bindingID string) {
+	if bindingID == "" {
+		return
+	}
+	l.mu.Lock()
+	for key := range l.cache {
+		if key.bindingID == bindingID {
 			delete(l.cache, key)
 		}
 	}

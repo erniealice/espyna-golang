@@ -9,12 +9,20 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	securityports "github.com/erniealice/espyna-golang/internal/application/ports/security"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	clientportalgrantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_portal_grant"
+	delegateclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_client"
+	delegatesupplierpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_supplier"
 	permissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/permission"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
 	rolepermissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role_permission"
+	supplierportalgrantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier_portal_grant"
+	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
+	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
 )
 
 // CreateRolePermissionRepositories groups all repository dependencies
@@ -22,15 +30,31 @@ type CreateRolePermissionRepositories struct {
 	RolePermission rolepermissionpb.RolePermissionDomainServiceServer // Primary entity repository
 	Role           rolepb.RoleDomainServiceServer                     // Entity reference validation
 	Permission     permissionpb.PermissionDomainServiceServer         // Entity reference validation
+	// WorkspaceUserRole enumerates the bindings assigned this role so a grant can
+	// evict exactly their cached permission codes (P10/D2). Nil-safe.
+	WorkspaceUserRole workspaceuserrolepb.WorkspaceUserRoleDomainServiceServer
+	// The remaining grant-table seams let a grant's cache invalidation reach every
+	// binding kind the permission loader caches, not just workspace_user_role
+	// (CF-1): WorkspaceUser resolves the staff (kind 7) login user; the portal and
+	// delegate seams enumerate the CLIENT/SUPPLIER (portal + delegate) principals
+	// holding this role. All nil-safe (absent => that chain is skipped).
+	WorkspaceUser       workspaceuserpb.WorkspaceUserDomainServiceServer
+	ClientPortalGrant   clientportalgrantpb.ClientPortalGrantDomainServiceServer
+	SupplierPortalGrant supplierportalgrantpb.SupplierPortalGrantDomainServiceServer
+	DelegateClient      delegateclientpb.DelegateClientDomainServiceServer
+	DelegateSupplier    delegatesupplierpb.DelegateSupplierDomainServiceServer
 }
 
 // CreateRolePermissionServices groups all business service dependencies
 type CreateRolePermissionServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
+	// PermissionCacheInvalidator evicts the affected bindings' cached RBAC codes
+	// after a grant so it applies immediately (P10/D2). Nil-safe.
+	PermissionCacheInvalidator securityports.PermissionCacheInvalidator
 }
 
 // CreateRolePermissionUseCase handles the business logic for creating role permissions
@@ -66,11 +90,11 @@ func NewCreateRolePermissionUseCaseUngrouped(
 	}
 
 	services := CreateRolePermissionServices{
-		Authorizer:  authorizationService,
-		Transactor:  ports.NewNoOpTransactor(),
+		Authorizer:       authorizationService,
+		Transactor:       ports.NewNoOpTransactor(),
 		Translator:       ports.NewNoOpTranslator(),
 		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
-		IDGenerator: ports.NewNoOpIDGenerator(),
+		IDGenerator:      ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateRolePermissionUseCase(repositories, services)
@@ -109,16 +133,140 @@ func (uc *CreateRolePermissionUseCase) Execute(ctx context.Context, req *roleper
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
-	// Call repository
-	resp, err := uc.repositories.RolePermission.CreateRolePermission(ctx, req)
+	// C14 reactivate-on-create: "Remove" soft-deletes the junction (active=false),
+	// but uq_role_permission_1 (role_id, permission_id) has NO active filter — so a
+	// plain re-INSERT of a previously-removed pair collides on the still-present
+	// inactive row and 422s (a removed grant becomes one-way via the UI). When the
+	// SAME (role_id, permission_id) already exists soft-deleted, REACTIVATE it
+	// (active=true + the requested permission_type) instead of inserting a
+	// duplicate. Same class/fix as the proven sgpps assign upsert (C10): no schema
+	// change, soft-delete/audit honored (the Update adapter preserves date_created
+	// and re-stamps date_modified).
+	resp, err := uc.createOrReactivate(ctx, req)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.creation_failed", "Role-Permission creation failed")
-		return nil, fmt.Errorf("%s: %w", translatedError, err)
+		return nil, err
 	}
 
 	log.Printf("AUTHZ_CHANGE | action=grant | role_permission_id=%s", req.Data.Id)
 
+	// Post-grant: the new permission changes the effective code set of every
+	// binding assigned this role — evict exactly those bindings' cached codes so
+	// the grant is live on their next request, no TTL wait, no restart (P10/D2).
+	// Covers EVERY binding kind the loader caches (operator/staff/portal/delegate),
+	// not just workspace_user_role (CF-1).
+	invalidateRoleBindings(ctx, uc.invalidationRepos(), uc.services.PermissionCacheInvalidator, req.Data.RoleId)
+
 	return resp, nil
+}
+
+// invalidationRepos gathers the grant-table seams the cache invalidation
+// enumerates. All fields are nil-safe downstream.
+func (uc *CreateRolePermissionUseCase) invalidationRepos() roleBindingInvalidationRepos {
+	return roleBindingInvalidationRepos{
+		WorkspaceUserRole:   uc.repositories.WorkspaceUserRole,
+		WorkspaceUser:       uc.repositories.WorkspaceUser,
+		ClientPortalGrant:   uc.repositories.ClientPortalGrant,
+		SupplierPortalGrant: uc.repositories.SupplierPortalGrant,
+		DelegateClient:      uc.repositories.DelegateClient,
+		DelegateSupplier:    uc.repositories.DelegateSupplier,
+	}
+}
+
+// createOrReactivate writes the grant: it reactivates a soft-deleted
+// (role_id, permission_id) row when one exists (C14), else plain-creates.
+func (uc *CreateRolePermissionUseCase) createOrReactivate(ctx context.Context, req *rolepermissionpb.CreateRolePermissionRequest) (*rolepermissionpb.CreateRolePermissionResponse, error) {
+	inactive, err := uc.findInactiveRolePermission(ctx, req.Data.RoleId, req.Data.PermissionId)
+	if err != nil {
+		return nil, err
+	}
+	if inactive != nil {
+		updResp, uerr := uc.repositories.RolePermission.UpdateRolePermission(ctx, &rolepermissionpb.UpdateRolePermissionRequest{
+			Data: &rolepermissionpb.RolePermission{
+				Id:             inactive.GetId(),
+				RoleId:         req.Data.RoleId,
+				PermissionId:   req.Data.PermissionId,
+				PermissionType: req.Data.PermissionType,
+				Active:         true,
+			},
+		})
+		if uerr != nil {
+			translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.creation_failed", "Role-Permission creation failed")
+			return nil, fmt.Errorf("%s: %w", translatedError, uerr)
+		}
+		return reactivatedCreateResponse(updResp, inactive.GetId(), req.Data), nil
+	}
+
+	resp, cerr := uc.repositories.RolePermission.CreateRolePermission(ctx, req)
+	if cerr != nil {
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "role_permission.errors.creation_failed", "Role-Permission creation failed")
+		return nil, fmt.Errorf("%s: %w", translatedError, cerr)
+	}
+	return resp, nil
+}
+
+// findInactiveRolePermission returns the single SOFT-DELETED (active=false)
+// role_permission for the EXACT (roleID, permissionID) pair, or nil when none.
+// uq_role_permission_1 (role_id, permission_id) has no active filter, so at most
+// one row exists per pair regardless of active state.
+//
+// The List MUST carry an explicit active=false BooleanFilter: PostgresOperations.
+// List DEFAULTS to `active = true` unless the caller supplies an explicit
+// "active" filter (contrib/postgres adapter/core/operations.go List), so a
+// role_id-only query would silently exclude the soft-deleted row and this lookup
+// would fall through to the plain INSERT that collides (the exact C14 422). With
+// active=false the soft-deleted row is returned; the result is re-filtered in
+// memory (permission match, active==false) as defense-in-depth against an adapter
+// that ignores the server-side filter. Mirrors the proven sgpps findInactiveEdge.
+func (uc *CreateRolePermissionUseCase) findInactiveRolePermission(ctx context.Context, roleID, permissionID string) (*rolepermissionpb.RolePermission, error) {
+	if uc.repositories.RolePermission == nil || roleID == "" || permissionID == "" {
+		return nil, nil
+	}
+	resp, err := uc.repositories.RolePermission.ListRolePermissions(ctx, &rolepermissionpb.ListRolePermissionsRequest{
+		Filters: &commonpb.FilterRequest{
+			Filters: []*commonpb.TypedFilter{
+				{
+					Field:      "role_id",
+					FilterType: &commonpb.TypedFilter_StringFilter{StringFilter: &commonpb.StringFilter{Value: roleID, Operator: commonpb.StringOperator_STRING_EQUALS}},
+				},
+				{
+					Field:      "active",
+					FilterType: &commonpb.TypedFilter_BooleanFilter{BooleanFilter: &commonpb.BooleanFilter{Value: false}},
+				},
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil {
+		return nil, nil
+	}
+	for _, row := range resp.GetData() {
+		if row == nil || row.GetActive() {
+			continue
+		}
+		if row.GetRoleId() != roleID || row.GetPermissionId() != permissionID {
+			continue
+		}
+		return row, nil
+	}
+	return nil, nil
+}
+
+// reactivatedCreateResponse shapes a Create response from the reactivating
+// Update. Falls back to a synthesized row when the adapter echoes no data.
+func reactivatedCreateResponse(upd *rolepermissionpb.UpdateRolePermissionResponse, id string, src *rolepermissionpb.RolePermission) *rolepermissionpb.CreateRolePermissionResponse {
+	data := upd.GetData()
+	if len(data) == 0 {
+		data = []*rolepermissionpb.RolePermission{{
+			Id:             id,
+			RoleId:         src.GetRoleId(),
+			PermissionId:   src.GetPermissionId(),
+			PermissionType: src.GetPermissionType(),
+			Active:         true,
+		}}
+	}
+	return &rolepermissionpb.CreateRolePermissionResponse{Success: true, Data: data}
 }
 
 // validateInput validates the input request

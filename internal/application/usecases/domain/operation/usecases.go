@@ -83,6 +83,10 @@ import (
 	// Cross-domain dependencies: entity domain
 	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
 
+	// Cross-domain (product) dependency for the job_template output_product_id
+	// workspace guard (red-team HIGH #2).
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
+
 	// Cross-domain dependency for the OnJobPhaseCompleted hook + the
 	// MaterializeBillingEventsForJob use case (milestone-billing plan §3).
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
@@ -115,6 +119,10 @@ type OperationRepositories struct {
 	JobActivity          jobactivitypb.JobActivityDomainServiceServer
 	// JobCategory — per-workspace job taxonomy reference entity (20260714).
 	JobCategory jobcategorypb.JobCategoryDomainServiceServer
+	// Product — cross-domain (product) repo used ONLY to fail-closed validate a
+	// job_template's output_product_id against the caller's workspace (red-team
+	// HIGH #2). product.workspace_id anchors the check.
+	Product productpb.ProductDomainServiceServer
 	// JobOutcomeSummaryDocumentTemplate — report-card template binding (20260714).
 	JobOutcomeSummaryDocumentTemplate joboutcomesummarydoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer
 	// JobTemplateDocumentTemplate — sheet-family (grade-sheet) template binding (20260720).
@@ -278,7 +286,11 @@ func NewUseCases(
 	)
 
 	jobTemplateUC := jobTemplateUseCases.NewUseCases(
-		jobTemplateUseCases.JobTemplateRepositories{JobTemplate: repos.JobTemplate},
+		jobTemplateUseCases.JobTemplateRepositories{
+			JobTemplate: repos.JobTemplate,
+			JobCategory: repos.JobCategory,
+			Product:     repos.Product,
+		},
 		jobTemplateUseCases.JobTemplateServices{
 			Authorizer:       authSvc,
 			Transactor:       txSvc,
@@ -289,7 +301,11 @@ func NewUseCases(
 	)
 
 	jobTemplatePhaseUC := jobTemplatePhaseUseCases.NewUseCases(
-		jobTemplatePhaseUseCases.JobTemplatePhaseRepositories{JobTemplatePhase: repos.JobTemplatePhase},
+		jobTemplatePhaseUseCases.JobTemplatePhaseRepositories{
+			JobTemplatePhase: repos.JobTemplatePhase,
+			JobTemplate:      repos.JobTemplate,
+			ScoringScheme:    repos.ScoringScheme,
+		},
 		jobTemplatePhaseUseCases.JobTemplatePhaseServices{
 			Authorizer:       authSvc,
 			Transactor:       txSvc,
@@ -391,7 +407,13 @@ func NewUseCases(
 	)
 
 	templateTaskCriteriaUC := templateTaskCriteriaUseCases.NewUseCases(
-		templateTaskCriteriaUseCases.TemplateTaskCriteriaRepositories{TemplateTaskCriteria: repos.TemplateTaskCriteria},
+		templateTaskCriteriaUseCases.TemplateTaskCriteriaRepositories{
+			TemplateTaskCriteria: repos.TemplateTaskCriteria,
+			JobTemplateTask:      repos.JobTemplateTask,
+			JobTemplatePhase:     repos.JobTemplatePhase,
+			JobTemplate:          repos.JobTemplate,
+			OutcomeCriteria:      repos.OutcomeCriteria,
+		},
 		templateTaskCriteriaUseCases.TemplateTaskCriteriaServices{
 			Authorizer:       authSvc,
 			Transactor:       txSvc,
@@ -643,10 +665,13 @@ func NewUseCases(
 	jobTemplateRelationUC := jobTemplateRelationUseCases.NewUseCases(
 		jobTemplateRelationUseCases.JobTemplateRelationRepositories{
 			JobTemplateRelation: repos.JobTemplateRelation,
+			JobTemplate:         repos.JobTemplate,
 		},
 		jobTemplateRelationUseCases.JobTemplateRelationServices{
 			Authorizer:       authSvc,
+			Transactor:       txSvc,
 			Translator:       i18nSvc,
+			IDGenerator:      idService,
 			ActionGatekeeper: actionGate,
 		},
 	)

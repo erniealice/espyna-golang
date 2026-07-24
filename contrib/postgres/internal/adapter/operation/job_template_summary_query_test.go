@@ -59,6 +59,10 @@ func TestJobTemplateSummarySQL_TableNamesFromEntityID(t *testing.T) {
 		// client, group) triple for a section that has servicers but zero seats.
 		{"e", entityid.SubscriptionGroupProductPlanStaff}, // dd CTE, class-edge branch
 		{"m", entityid.SubscriptionGroupMember},           // dd CTE, class-edge branch
+		// v2 cutover: the class-edge branch's staff resolution LEFT JOINs the
+		// eligibility table (product_plan_staff, f13) — docs/plan/20260724-
+		// section-assignment-merged espyna.md §1b/M5.
+		{"pps", entityid.ProductPlanStaff}, // dd CTE, class-edge branch, v2 eligibility link
 	}
 	for _, m := range mustJoin {
 		if !strings.Contains(sql, " "+m.table+" "+m.alias) {
@@ -109,14 +113,18 @@ func TestJobTemplateSummarySQL_TableNamesFromEntityID(t *testing.T) {
 // shape) still produces a dd row and its jobs survive the jj⋈dd INNER join. The
 // branch:
 //   - joins sgpps e → subscription_group_member m (on the group, active) →
-//     product_plan pl (the edge's subject plan) → staff st (workspace-bound) →
-//     "user" u (LEFT, active), sourcing table names from entityid constants;
+//     product_plan pl (the edge's subject plan) → product_plan_staff pps (LEFT,
+//     the v2 eligibility link, f13) → staff st (workspace-bound, resolved via
+//     COALESCE(pps.staff_id, e.staff_id) — v2-linked preferred, legacy f10
+//     fallback for rows predating the M3 link-up, docs/plan/20260724-section-
+//     assignment-merged espyna.md §1b/M5) → "user" u (LEFT, active), sourcing
+//     table names from entityid constants;
 //   - filters role='primary' ONLY — the teacher-of-record RECORD semantic (§B):
 //     a 'primary' edge generates the class row + the Teacher/Deliverer column; an
 //     'access' edge is visibility-only (principalscope) and must NOT surface here;
 //   - binds the workspace on the edge AND the staff ($1);
 //   - projects the member-sourced (subscription_id, client_id, subscription_group_id)
-//     + edge-plan product_id so the emitted column set is byte-identical to the
+//   - edge-plan product_id so the emitted column set is byte-identical to the
 //     seat branch (jj⋈dd + collateDeliverySummaries need no change);
 //   - dedupes via UNION (not UNION ALL): a (sub, client, product, staff) pair
 //     reachable through BOTH a seat and a class edge collapses to one row.
@@ -129,7 +137,9 @@ func TestJobTemplateSummarySQL_ClassEdgeDelivererBranch(t *testing.T) {
 		entityid.SubscriptionGroupMember + " m",
 		"m.subscription_group_id = e.subscription_group_id AND m.active",
 		"pl.id = e.product_plan_id",
-		"st.id = e.staff_id AND st.workspace_id = $1",
+		"LEFT JOIN " + entityid.ProductPlanStaff + " pps", // v2 eligibility link is OPTIONAL (f13 may be unset pre-M3)
+		"pps.id = e.product_plan_staff_id",
+		"st.id = COALESCE(pps.staff_id, e.staff_id) AND st.workspace_id = $1",
 		`"` + entityid.User + `" u`,
 		"u.id = st.user_id AND u.active",
 	} {

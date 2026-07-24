@@ -355,11 +355,14 @@ func paginationBounds(p *commonpb.PaginationRequest) (limit, offset int32) {
 //	           to the job's (origin_id, client_id), so binding them to each other
 //	           is transitively identical once jj joins in.
 //	       (b) subscription_group_product_plan_staff (the class edge) ⋈
-//	           subscription_group_member ⋈ product_plan ⋈ staff ⋈ "user" (LEFT),
-//	           filtered role='primary' (teacher-of-record). This covers sections
-//	           that have class-edge servicers but zero seats (AY-2627); without it
-//	           jj⋈dd's INNER join drops every such job (C11). UNION (not UNION ALL)
+//	           subscription_group_member ⋈ product_plan ⋈ product_plan_staff
+//	           (LEFT, the v2 eligibility link) ⋈ staff ⋈ "user" (LEFT), filtered
+//	           role='primary' (teacher-of-record). This covers sections that have
+//	           class-edge servicers but zero seats (AY-2627); without it jj⋈dd's
+//	           INNER join drops every such job (C11). UNION (not UNION ALL)
 //	           dedupes a (sub, client, product, staff) pair reachable via both.
+//	           Staff resolution: COALESCE(pps.staff_id, e.staff_id) — v2 f13-linked
+//	           preferred, legacy f10 fallback for rows predating the M3 link-up.
 //
 // jj ⋈ dd on (subscription_id, client_id, output_product_id/product_id) restores
 // the original inner-join semantics (the seat's product_plan.product_id must
@@ -512,7 +515,13 @@ dd AS MATERIALIZED (
     UNION
     -- Branch (b): class-edge (sgpps) deliverers, role primary only (C11 — full
     -- rationale in the jobTemplateSummaryCTEs doc comment). Emits branch (a)'s
-    -- exact 7-column shape (member-sourced keys + the edge plan product).
+    -- exact 7-column shape (member-sourced keys + the edge plan product). Staff
+    -- resolution is v2-native (docs/plan/20260724-section-assignment-merged
+    -- espyna.md §1b/M5, consumer 2 of 2): the edge's product_plan_staff
+    -- eligibility link (f13, "pps") supplies pps.staff_id, COALESCEd with the
+    -- edge's own legacy staff_id (f10) as a fallback for rows that predate the
+    -- M3 link-up (the LEFT JOIN keeps such rows resolvable instead of dropping
+    -- them) -- the fallback retires at M7 alongside the rest of legacy f8/f9/f10.
     SELECT
         m.subscription_id        AS subscription_id,
         m.client_id              AS client_id,
@@ -526,8 +535,10 @@ dd AS MATERIALIZED (
            ON m.subscription_group_id = e.subscription_group_id AND m.active
     JOIN ` + entityid.ProductPlan + ` pl
            ON pl.id = e.product_plan_id
+    LEFT JOIN ` + entityid.ProductPlanStaff + ` pps
+           ON pps.id = e.product_plan_staff_id
     JOIN ` + entityid.Staff + ` st
-           ON st.id = e.staff_id AND st.workspace_id = $1
+           ON st.id = COALESCE(pps.staff_id, e.staff_id) AND st.workspace_id = $1
     LEFT JOIN "` + entityid.User + `" u
            ON u.id = st.user_id AND u.active
     -- CF-3: the sgpps unique is (group, product_plan, staff) — it does NOT forbid

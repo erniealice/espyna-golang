@@ -128,6 +128,15 @@ type Checker interface {
 	// rows do NOT CASCADE on delete (verified: proto FK annotations carry no
 	// cascade option), so job_template_phase rows also block deletion.
 	GetJobTemplateInUseIDs(ctx context.Context, ids []string) (map[string]bool, error)
+
+	// GetSubscriptionGroupProductPlanInUseIDs blocks deletion of a
+	// subscription_group_product_plan (THE CLASS,
+	// docs/plan/20260724-section-assignment-merged) when any ACTIVE
+	// subscription_group_product_plan_staff row references it via
+	// subscription_group_product_plan_id (f12) — an active assignment rides the
+	// class. Consumed by the centymo list gating (espyna.md §1) for the row-level
+	// Remove-guard batch check; the Delete use case runs the same guard inline.
+	GetSubscriptionGroupProductPlanInUseIDs(ctx context.Context, ids []string) (map[string]bool, error)
 }
 
 // ReferenceChecker re-exports the Checker contract so existing internal imports

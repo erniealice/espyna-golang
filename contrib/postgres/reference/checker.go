@@ -7,8 +7,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	"github.com/erniealice/espyna-golang/ports"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	"github.com/lib/pq"
 )
 
@@ -371,6 +371,28 @@ func (c *Checker) GetJobTemplateInUseIDs(ctx context.Context, ids []string) (map
 			UNION ALL
 			SELECT job_template_id AS ref_id FROM job_template_phase WHERE job_template_id = ANY($1) AND active = true
 		) AS refs`
+	return queryInUseIDs(ctx, c.db, query, ids)
+}
+
+// GetSubscriptionGroupProductPlanInUseIDs blocks deletion of a
+// subscription_group_product_plan (THE CLASS) when any ACTIVE
+// subscription_group_product_plan_staff row references it via the v2 FK
+// subscription_group_product_plan_id (f12) — plan.md §1.1/§2 ("Delete/Exclude
+// guards: refuse when active assignments exist"). This is the ONE live FK onto
+// the class row today (esqyma.md §1 migration); the "live realized course rides
+// the class" leg of the guard has no direct FK yet — courses derive from jobs
+// via the job_template_id match, not a course->class FK (plan.md §2 "Courses
+// list / spawn — Not in this plan's diff"). When the courses cutover lands a
+// direct FK, add its UNION ALL leg here rather than opening a new checker
+// method — mirrors the GetJobTemplateInUseIDs multi-referrer shape above.
+func (c *Checker) GetSubscriptionGroupProductPlanInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	if len(ids) == 0 {
+		return map[string]bool{}, nil
+	}
+	query := `
+		SELECT DISTINCT subscription_group_product_plan_id AS ref_id
+		FROM subscription_group_product_plan_staff
+		WHERE subscription_group_product_plan_id = ANY($1) AND active = true`
 	return queryInUseIDs(ctx, c.db, query, ids)
 }
 

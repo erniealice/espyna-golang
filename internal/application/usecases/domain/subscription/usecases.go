@@ -18,6 +18,7 @@ import (
 	subscriptionAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription_attribute"
 	subscriptionGroupUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription_group"
 	subscriptionGroupMemberUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription_group_member"
+	subscriptionGroupProductPlanUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription_group_product_plan"
 	subscriptionGroupProductPlanStaffUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription_group_product_plan_staff"
 	subscriptionGroupWorkspaceUserUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription_group_workspace_user"
 	subscriptionSeatUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/subscription_seat"
@@ -31,6 +32,8 @@ import (
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	clientworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_workspace_user"
+	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
+	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	productplanstaffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan_staff"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
@@ -49,6 +52,7 @@ import (
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
 	subscriptiongrouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group"
 	subscriptiongroupmemberpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_member"
+	subscriptiongroupproductplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_product_plan"
 	subscriptiongroupproductplanstaffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_product_plan_staff"
 	subscriptiongroupworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_workspace_user"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
@@ -83,9 +87,14 @@ type SubscriptionRepositories struct {
 	SubscriptionGroupMember           subscriptiongroupmemberpb.SubscriptionGroupMemberDomainServiceServer
 	SubscriptionGroupWorkspaceUser    subscriptiongroupworkspaceuserpb.SubscriptionGroupWorkspaceUserDomainServiceServer
 	SubscriptionGroupProductPlanStaff subscriptiongroupproductplanstaffpb.SubscriptionGroupProductPlanStaffDomainServiceServer
-	PriceScheduleWorkspaceUser        pricescheduleworkspaceuserpb.PriceScheduleWorkspaceUserDomainServiceServer
-	ClientWorkspaceUser               clientworkspaceuserpb.ClientWorkspaceUserDomainServiceServer // cross-domain composite-FK pre-check
-	Attribute                         attributepb.AttributeDomainServiceServer
+	// SubscriptionGroupProductPlan — THE CLASS (docs/plan/20260724-section-assignment-merged).
+	SubscriptionGroupProductPlan subscriptiongroupproductplanpb.SubscriptionGroupProductPlanDomainServiceServer
+	PriceScheduleWorkspaceUser   pricescheduleworkspaceuserpb.PriceScheduleWorkspaceUserDomainServiceServer
+	ClientWorkspaceUser          clientworkspaceuserpb.ClientWorkspaceUserDomainServiceServer // cross-domain composite-FK pre-check
+	Attribute                    attributepb.AttributeDomainServiceServer
+	// Cross-domain (operation): class-invariant + phase-scope guard anchors.
+	JobTemplate      jobtemplatepb.JobTemplateDomainServiceServer
+	JobTemplatePhase jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
 }
 
 // SubscriptionUseCases contains all subscription-related use cases.
@@ -118,6 +127,7 @@ type SubscriptionUseCases struct {
 	SubscriptionGroupMember           *subscriptionGroupMemberUseCases.UseCases
 	SubscriptionGroupWorkspaceUser    *subscriptionGroupWorkspaceUserUseCases.UseCases
 	SubscriptionGroupProductPlanStaff *subscriptionGroupProductPlanStaffUseCases.UseCases
+	SubscriptionGroupProductPlan      *subscriptionGroupProductPlanUseCases.UseCases
 	PriceScheduleWorkspaceUser        *priceScheduleWorkspaceUserUseCases.UseCases
 }
 
@@ -397,6 +407,8 @@ func NewUseCases(
 			ProductPlanStaff:                  repos.ProductPlanStaff,
 			ProductPlan:                       repos.ProductPlan,
 			SubscriptionGroup:                 repos.SubscriptionGroup,
+			SubscriptionGroupProductPlan:      repos.SubscriptionGroupProductPlan,
+			JobTemplatePhase:                  repos.JobTemplatePhase,
 		},
 		subscriptionGroupProductPlanStaffUseCases.Services{
 			Authorizer:       authSvc,
@@ -404,6 +416,26 @@ func NewUseCases(
 			Translator:       i18nSvc,
 			IDGenerator:      idService,
 			ActionGatekeeper: actionGate,
+		},
+	)
+
+	// SubscriptionGroupProductPlan — THE CLASS: full CRUD+List, the class-
+	// invariant guard (plan.md §1.2 #1-3) and the exclude-transition in-use
+	// guard (§2, reuses refChecker — same port already gating Plan/PricePlan).
+	subscriptionGroupProductPlanUC := subscriptionGroupProductPlanUseCases.NewUseCases(
+		subscriptionGroupProductPlanUseCases.Repositories{
+			SubscriptionGroupProductPlan: repos.SubscriptionGroupProductPlan,
+			ProductPlan:                  repos.ProductPlan,
+			SubscriptionGroup:            repos.SubscriptionGroup,
+			JobTemplate:                  repos.JobTemplate,
+		},
+		subscriptionGroupProductPlanUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+			ReferenceChecker: refChecker,
 		},
 	)
 
@@ -451,6 +483,7 @@ func NewUseCases(
 		SubscriptionGroupMember:           subscriptionGroupMemberUC,
 		SubscriptionGroupWorkspaceUser:    subscriptionGroupWorkspaceUserUC,
 		SubscriptionGroupProductPlanStaff: subscriptionGroupProductPlanStaffUC,
+		SubscriptionGroupProductPlan:      subscriptionGroupProductPlanUC,
 		PriceScheduleWorkspaceUser:        priceScheduleWorkspaceUserUC,
 	}
 }

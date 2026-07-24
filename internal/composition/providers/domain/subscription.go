@@ -11,6 +11,8 @@ import (
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	clientworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_workspace_user"
+	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
+	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	productplanstaffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan_staff"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
@@ -29,6 +31,7 @@ import (
 	subscriptionattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_attribute"
 	subscriptiongrouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group"
 	subscriptiongroupmemberpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_member"
+	subscriptiongroupproductplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_product_plan"
 	subscriptiongroupproductplanstaffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_product_plan_staff"
 	subscriptiongroupworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_workspace_user"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
@@ -37,21 +40,21 @@ import (
 
 // SubscriptionRepositories contains all subscription domain repositories
 type SubscriptionRepositories struct {
-	Balance               balancepb.BalanceDomainServiceServer
-	BalanceAttribute      balanceattributepb.BalanceAttributeDomainServiceServer
-	BillingEvent          billingeventpb.BillingEventDomainServiceServer
-	Client                clientpb.ClientDomainServiceServer // Cross-domain dependency
-	Invoice               invoicepb.InvoiceDomainServiceServer
-	InvoiceAttribute      invoiceattributepb.InvoiceAttributeDomainServiceServer
-	Plan                  planpb.PlanDomainServiceServer
-	PlanAttribute         planattributepb.PlanAttributeDomainServiceServer
-	PlanSettings          plansettingspb.PlanSettingsDomainServiceServer
-	PricePlan             priceplanpb.PricePlanDomainServiceServer
-	PriceSchedule         priceschedulepb.PriceScheduleDomainServiceServer
-	ProductPlan           productplanpb.ProductPlanDomainServiceServer // Cross-domain dependency (Model D)
+	Balance          balancepb.BalanceDomainServiceServer
+	BalanceAttribute balanceattributepb.BalanceAttributeDomainServiceServer
+	BillingEvent     billingeventpb.BillingEventDomainServiceServer
+	Client           clientpb.ClientDomainServiceServer // Cross-domain dependency
+	Invoice          invoicepb.InvoiceDomainServiceServer
+	InvoiceAttribute invoiceattributepb.InvoiceAttributeDomainServiceServer
+	Plan             planpb.PlanDomainServiceServer
+	PlanAttribute    planattributepb.PlanAttributeDomainServiceServer
+	PlanSettings     plansettingspb.PlanSettingsDomainServiceServer
+	PricePlan        priceplanpb.PricePlanDomainServiceServer
+	PriceSchedule    priceschedulepb.PriceScheduleDomainServiceServer
+	ProductPlan      productplanpb.ProductPlanDomainServiceServer // Cross-domain dependency (Model D)
 	// ProductPlanStaff — cross-domain (product): sgpps eligibility guard anchor.
-	ProductPlanStaff productplanstaffpb.ProductPlanStaffDomainServiceServer
-	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
+	ProductPlanStaff      productplanstaffpb.ProductPlanStaffDomainServiceServer
+	ProductPricePlan      productpriceplanpb.ProductPricePlanDomainServiceServer
 	Subscription          subscriptionpb.SubscriptionDomainServiceServer
 	SubscriptionAttribute subscriptionattributepb.SubscriptionAttributeDomainServiceServer
 	// Outsourcing-vertical seat + servicing membership
@@ -62,10 +65,16 @@ type SubscriptionRepositories struct {
 	SubscriptionGroupMember           subscriptiongroupmemberpb.SubscriptionGroupMemberDomainServiceServer
 	SubscriptionGroupWorkspaceUser    subscriptiongroupworkspaceuserpb.SubscriptionGroupWorkspaceUserDomainServiceServer
 	SubscriptionGroupProductPlanStaff subscriptiongroupproductplanstaffpb.SubscriptionGroupProductPlanStaffDomainServiceServer
-	PriceScheduleWorkspaceUser        pricescheduleworkspaceuserpb.PriceScheduleWorkspaceUserDomainServiceServer
+	// SubscriptionGroupProductPlan — THE CLASS (docs/plan/20260724-section-assignment-merged).
+	SubscriptionGroupProductPlan subscriptiongroupproductplanpb.SubscriptionGroupProductPlanDomainServiceServer
+	PriceScheduleWorkspaceUser   pricescheduleworkspaceuserpb.PriceScheduleWorkspaceUserDomainServiceServer
 	// Cross-domain (entity): composite-FK pre-check for SubscriptionWorkspaceUser create
 	ClientWorkspaceUser clientworkspaceuserpb.ClientWorkspaceUserDomainServiceServer
 	Attribute           attributepb.AttributeDomainServiceServer
+	// Cross-domain (operation): the class-invariant + phase-scope guard anchors
+	// for SubscriptionGroupProductPlan/Staff (plan.md §1.2 #2, §2.5). Best-effort.
+	JobTemplate      jobtemplatepb.JobTemplateDomainServiceServer
+	JobTemplatePhase jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
 }
 
 // NewSubscriptionRepositories creates and returns a new set of SubscriptionRepositories
@@ -207,6 +216,27 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, tableConfig *reg
 		subscriptionGroupProductPlanStaffServer = sgppsRepo.(subscriptiongroupproductplanstaffpb.SubscriptionGroupProductPlanStaffDomainServiceServer)
 	}
 
+	// SubscriptionGroupProductPlan — THE CLASS (best-effort: the table is not
+	// yet applied on every environment pre-M3, see esqyma migration
+	// 20260724000001's header — a missing table simply leaves the class UC set
+	// unresolved rather than failing the whole container boot).
+	var subscriptionGroupProductPlanServer subscriptiongroupproductplanpb.SubscriptionGroupProductPlanDomainServiceServer
+	if sgppRepo, sgppErr := repoCreator.CreateRepository(entityid.SubscriptionGroupProductPlan, conn, tableConfig.TableName(entityid.SubscriptionGroupProductPlan)); sgppErr == nil {
+		subscriptionGroupProductPlanServer = sgppRepo.(subscriptiongroupproductplanpb.SubscriptionGroupProductPlanDomainServiceServer)
+	}
+
+	// Cross-domain (operation) — class-invariant + phase-scope guard anchors
+	// (best-effort; a nil repo degrades the corresponding validation leg rather
+	// than bricking every class/class-edge write, see validation.go).
+	var jobTemplateServer jobtemplatepb.JobTemplateDomainServiceServer
+	if jtRepo, jtErr := repoCreator.CreateRepository(entityid.JobTemplate, conn, tableConfig.TableName(entityid.JobTemplate)); jtErr == nil {
+		jobTemplateServer = jtRepo.(jobtemplatepb.JobTemplateDomainServiceServer)
+	}
+	var jobTemplatePhaseServer jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
+	if jtpRepo, jtpErr := repoCreator.CreateRepository(entityid.JobTemplatePhase, conn, tableConfig.TableName(entityid.JobTemplatePhase)); jtpErr == nil {
+		jobTemplatePhaseServer = jtpRepo.(jobtemplatephasepb.JobTemplatePhaseDomainServiceServer)
+	}
+
 	var priceScheduleWorkspaceUserServer pricescheduleworkspaceuserpb.PriceScheduleWorkspaceUserDomainServiceServer
 	if pswuRepo, pswuErr := repoCreator.CreateRepository(entityid.PriceScheduleWorkspaceUser, conn, tableConfig.TableName(entityid.PriceScheduleWorkspaceUser)); pswuErr == nil {
 		priceScheduleWorkspaceUserServer = pswuRepo.(pricescheduleworkspaceuserpb.PriceScheduleWorkspaceUserDomainServiceServer)
@@ -250,8 +280,11 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, tableConfig *reg
 		SubscriptionGroupMember:           subscriptionGroupMemberServer,
 		SubscriptionGroupWorkspaceUser:    subscriptionGroupWorkspaceUserServer,
 		SubscriptionGroupProductPlanStaff: subscriptionGroupProductPlanStaffServer,
+		SubscriptionGroupProductPlan:      subscriptionGroupProductPlanServer,
 		PriceScheduleWorkspaceUser:        priceScheduleWorkspaceUserServer,
 		ClientWorkspaceUser:               clientWorkspaceUserServer,
 		Attribute:                         attributeServer,
+		JobTemplate:                       jobTemplateServer,
+		JobTemplatePhase:                  jobTemplatePhaseServer,
 	}, nil
 }

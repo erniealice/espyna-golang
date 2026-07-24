@@ -118,3 +118,7 @@ func (n *noOp) GetJobTaskInUseIDs(_ context.Context, _ []string) (map[string]boo
 func (n *noOp) GetJobTemplateInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
 	return map[string]bool{}, nil
 }
+
+func (n *noOp) GetSubscriptionGroupProductPlanInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return map[string]bool{}, nil
+}

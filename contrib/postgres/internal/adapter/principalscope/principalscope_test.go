@@ -145,15 +145,19 @@ func TestReachableSQLShape(t *testing.T) {
 		wantRefs []string // entityid table constants that must appear
 	}{
 		{"StaffReachableClientExistsSQL", StaffReachableClientExistsSQL(), []int{1, 2, 3},
-			// The class-edge tables (sgpps + member) are REQUIRED here too (CF-2): the
-			// by-id EXISTS check must carry the same 4th branch as the List seam.
-			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome, entityid.SubscriptionSeat, entityid.JobTemplate, entityid.ProductPlan, entityid.SubscriptionGroupProductPlanStaff, entityid.SubscriptionGroupMember}},
+			// The class-edge tables (sgpps + member + the v2 pps eligibility link) are
+			// REQUIRED here too (CF-2): the by-id EXISTS check must carry the same 4th
+			// branch as the List seam.
+			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome, entityid.SubscriptionSeat, entityid.JobTemplate, entityid.ProductPlan, entityid.SubscriptionGroupProductPlanStaff, entityid.SubscriptionGroupMember, entityid.ProductPlanStaff}},
 		{"StaffReachableJobExistsSQL", StaffReachableJobExistsSQL(), []int{1, 2, 3},
-			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome, entityid.SubscriptionSeat, entityid.JobTemplate, entityid.ProductPlan, entityid.SubscriptionGroupProductPlanStaff, entityid.SubscriptionGroupMember}},
+			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome, entityid.SubscriptionSeat, entityid.JobTemplate, entityid.ProductPlan, entityid.SubscriptionGroupProductPlanStaff, entityid.SubscriptionGroupMember, entityid.ProductPlanStaff}},
 		{"StaffReachableClientIDsSQL", StaffReachableClientIDsSQL(), []int{1, 2},
-			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome, entityid.SubscriptionSeat, entityid.JobTemplate, entityid.ProductPlan}},
+			// v2 cutover: the class-edge tier's staff resolution now joins the
+			// eligibility table too (StaffReachableClientIDsSQL delegates to
+			// reachableClientUnion, which carries the 4th class-edge branch).
+			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome, entityid.SubscriptionSeat, entityid.JobTemplate, entityid.ProductPlan, entityid.SubscriptionGroupProductPlanStaff, entityid.ProductPlanStaff}},
 		{"StaffReachableJobIDsSQL", StaffReachableJobIDsSQL(), []int{1, 2},
-			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome, entityid.SubscriptionSeat, entityid.JobTemplate, entityid.ProductPlan}},
+			[]string{entityid.Job, entityid.JobPhase, entityid.JobTask, entityid.TaskOutcome, entityid.SubscriptionSeat, entityid.JobTemplate, entityid.ProductPlan, entityid.SubscriptionGroupProductPlanStaff, entityid.ProductPlanStaff}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -185,17 +189,24 @@ func TestReachableSQLShape(t *testing.T) {
 
 // TestClassEdgeReachabilityBranch asserts the THIRD reachability tier — the
 // class edge (subscription_group_product_plan_staff, "sgpps") — is woven into
-// BOTH graph unions with the exact 4-table shape and is fail-closed. It runs with
-// NO live DB: it inspects the generated SQL string only.
+// BOTH graph unions with the exact 4-table shape (+ the v2 eligibility LEFT
+// JOIN) and is fail-closed. It runs with NO live DB: it inspects the generated
+// SQL string only.
 //
 //   - the class-edge JOIN chain is present (sgpps → subscription_group_member →
 //     product_plan → job), matched to the job's deliverable on
 //     jce.output_product_id = pp.product_id (the subject match) and to the member's
 //     enrollment on jce.origin_id = m.subscription_id (no job_template /
 //     subscription_group / subscription hops);
-//   - BOTH filters land on the sgpps edge — e.staff_id = $1 AND e.workspace_id = $2
-//     (plus e.active) — so an empty staff or workspace bind matches no edge and the
-//     tier yields zero rows (fail-closed); neither filter is a request-param seam.
+//   - staff resolution is v2-native (docs/plan/20260724-section-assignment-merged
+//     espyna.md §1b/M5): a LEFT JOIN to product_plan_staff (pps) resolves the
+//     edge's linked eligibility row (f13), and COALESCE(pps.staff_id,
+//     e.staff_id) = $1 falls back to the edge's own legacy staff_id (f10) for
+//     rows that predate the M3 link-up — the fallback retires at M7;
+//   - BOTH filters land on the sgpps edge — the COALESCE'd staff match = $1 AND
+//     e.workspace_id = $2 (plus e.active) — so an empty staff or workspace bind
+//     matches no edge and the tier yields zero rows (fail-closed); neither
+//     filter is a request-param seam.
 func TestClassEdgeReachabilityBranch(t *testing.T) {
 	// Reference the edge/member table constants (no bare literals) so a registry
 	// rename keeps this assertion honest.
@@ -204,7 +215,8 @@ func TestClassEdgeReachabilityBranch(t *testing.T) {
 		entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.active",
 		entityid.ProductPlan + " pp ON pp.id = e.product_plan_id",
 		"jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id",
-		"e.staff_id = $1",     // staff filter on the edge (empty ⇒ zero rows)
+		entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id", // v2 eligibility link (f13), LEFT JOIN
+		"COALESCE(pps.staff_id, e.staff_id) = $1",                              // v2-linked preferred, legacy f10 fallback (empty ⇒ zero rows)
 		"e.active",            // only active class edges reach
 		"e.workspace_id = $2", // workspace filter on the edge (empty ⇒ zero rows)
 	}
@@ -243,15 +255,17 @@ func TestClassEdgeReachabilityBranch(t *testing.T) {
 	// not-found opening it. The EXISTS shape carries the target id on $2 and the
 	// workspace bind on $3 (vs $1/$2 in the union), so assert the join chain + both
 	// edge binds ($1 staff, $3 workspace) plus the branch's own target predicate.
+	// Staff resolution mirrors the union tier: COALESCE(pps.staff_id, e.staff_id).
 	existsChain := []string{
 		entityid.SubscriptionGroupProductPlanStaff + " e",
 		entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.active",
 		entityid.ProductPlan + " pp ON pp.id = e.product_plan_id",
 		"jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id",
-		"e.staff_id = $1 AND e.active AND e.workspace_id = $3",
+		entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id",
+		"COALESCE(pps.staff_id, e.staff_id) = $1 AND e.active AND e.workspace_id = $3",
 	}
 	for name, spec := range map[string]struct {
-		sql       string
+		sql        string
 		targetPred string
 	}{
 		"StaffReachableClientExistsSQL": {StaffReachableClientExistsSQL(), "jce.client_id = $2"},

@@ -85,11 +85,18 @@ func workspaceScope(ctx context.Context) string {
 // staff is the class-edge servicer for (subscription_group_product_plan_staff,
 // "sgpps" — the UI-maintained "who services this cohort's offering" source of
 // truth, matched to the job's deliverable via product_plan.product_id ==
-// job.output_product_id). The workspace bound (belt-and-suspenders) confines the
-// graph walk to the session workspace even if an outer query's workspace
-// predicate is bypassed; the seat branch binds BOTH sides (job AND seat carry
-// their own workspace_id) because job.origin_id is plain text, not an FK. Table
-// names come from registry/entityid (no literals).
+// job.output_product_id). The class-edge staff match is v2-native
+// (docs/plan/20260724-section-assignment-merged §1b/M5): it resolves through
+// the edge's product_plan_staff eligibility link (f13, "pps") — pps.staff_id —
+// with a COALESCE fallback to the edge's own legacy staff_id (f10) for rows that
+// predate the M3 link-up (the LEFT JOIN keeps such rows reachable instead of
+// dropping them). The fallback is removed once M7 retires legacy f10; until
+// then this is the read-side of the M2 dual-write contract. The workspace bound
+// (belt-and-suspenders) confines the graph walk to the session workspace even
+// if an outer query's workspace predicate is bypassed; the seat branch binds
+// BOTH sides (job AND seat carry their own workspace_id) because job.origin_id
+// is plain text, not an FK. Table names come from registry/entityid (no
+// literals).
 func reachableClientUnion(staffP, wsP int) string {
 	s := fmt.Sprintf("$%d", staffP)
 	w := fmt.Sprintf("$%d", wsP)
@@ -112,20 +119,25 @@ func reachableClientUnion(staffP, wsP int) string {
 		" AND j3.origin_type = '" + originTypeSubscription + "'" +
 		" AND j3.workspace_id = " + w + " AND ss.workspace_id = " + w +
 		" UNION " +
-		// Class-edge tier (OPTIMIZED, 4 tables): the acting staff is the class-edge
-		// servicer (sgpps) for the job's subject. NO job_template hop —
-		// job.output_product_id is populated by spawn, so the subject matches on the
-		// job directly; NO subscription_group / subscription hops —
-		// subscription_group_member carries BOTH subscription_group_id AND
+		// Class-edge tier (OPTIMIZED, 4 tables + a v2 eligibility LEFT JOIN): the
+		// acting staff is the class-edge servicer (sgpps) for the job's subject. NO
+		// job_template hop — job.output_product_id is populated by spawn, so the
+		// subject matches on the job directly; NO subscription_group / subscription
+		// hops — subscription_group_member carries BOTH subscription_group_id AND
 		// subscription_id. Drives from the staff's OWN sgpps edges (idx_..._staff_id,
 		// a tiny starting set) and is fail-closed identically to the tiers above: an
 		// empty staff/workspace bind matches no sgpps row (both filters land on the
 		// edge), so it yields zero rows and cannot be widened by a request param.
+		// Staff resolution is v2-native: COALESCE(pps.staff_id, e.staff_id) prefers
+		// the edge's linked product_plan_staff eligibility row (f13) and falls back
+		// to the edge's own legacy staff_id (f10) only when unlinked — see the
+		// COALESCE note on this function's doc comment.
 		"SELECT jce.client_id FROM " + entityid.SubscriptionGroupProductPlanStaff + " e" +
 		" JOIN " + entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.active" +
 		" JOIN " + entityid.ProductPlan + " pp ON pp.id = e.product_plan_id" +
 		" JOIN " + entityid.Job + " jce ON jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id" +
-		" WHERE e.staff_id = " + s + " AND e.active AND e.workspace_id = " + w
+		" LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id" +
+		" WHERE COALESCE(pps.staff_id, e.staff_id) = " + s + " AND e.active AND e.workspace_id = " + w
 }
 
 // reachableJobUnion is the graph-derived set of job.id values the acting staff.id
@@ -136,10 +148,17 @@ func reachableClientUnion(staffP, wsP int) string {
 // inner-join, fail-closed), OR is the class-edge servicer (sgpps) for the job's
 // subject on the job's origin cohort (matched to the job's deliverable via
 // product_plan.product_id == job.output_product_id), within one workspace ($wsP).
-// job_phase/job_task carry no workspace_id, so the workspace bound is enforced by
-// joining job (aliased jw/jw2) on the phase's job_id; the seat branch binds BOTH
-// sides (job AND seat carry their own workspace_id) because job.origin_id is plain
-// text, not an FK. Table names come from registry/entityid (no literals).
+// The class-edge staff match is v2-native (docs/plan/20260724-section-assignment-merged
+// §1b/M5): it resolves through the edge's product_plan_staff eligibility link
+// (f13, "pps") — pps.staff_id — with a COALESCE fallback to the edge's own legacy
+// staff_id (f10) for rows that predate the M3 link-up (the LEFT JOIN keeps such
+// rows reachable instead of dropping them). The fallback is removed once M7
+// retires legacy f10; until then this is the read-side of the M2 dual-write
+// contract. job_phase/job_task carry no workspace_id, so the workspace bound is
+// enforced by joining job (aliased jw/jw2) on the phase's job_id; the seat branch
+// binds BOTH sides (job AND seat carry their own workspace_id) because
+// job.origin_id is plain text, not an FK. Table names come from registry/entityid
+// (no literals).
 func reachableJobUnion(staffP, wsP int) string {
 	s := fmt.Sprintf("$%d", staffP)
 	w := fmt.Sprintf("$%d", wsP)
@@ -162,20 +181,25 @@ func reachableJobUnion(staffP, wsP int) string {
 		" AND jw3.origin_type = '" + originTypeSubscription + "'" +
 		" AND jw3.workspace_id = " + w + " AND ss.workspace_id = " + w +
 		" UNION " +
-		// Class-edge tier (OPTIMIZED, 4 tables): the acting staff is the class-edge
-		// servicer (sgpps) for the job's subject. NO job_template hop —
-		// job.output_product_id is populated by spawn, so the subject matches on the
-		// job directly; NO subscription_group / subscription hops —
-		// subscription_group_member carries BOTH subscription_group_id AND
+		// Class-edge tier (OPTIMIZED, 4 tables + a v2 eligibility LEFT JOIN): the
+		// acting staff is the class-edge servicer (sgpps) for the job's subject. NO
+		// job_template hop — job.output_product_id is populated by spawn, so the
+		// subject matches on the job directly; NO subscription_group / subscription
+		// hops — subscription_group_member carries BOTH subscription_group_id AND
 		// subscription_id. Drives from the staff's OWN sgpps edges (idx_..._staff_id,
 		// a tiny starting set) and is fail-closed identically to the tiers above: an
 		// empty staff/workspace bind matches no sgpps row (both filters land on the
 		// edge), so it yields zero rows and cannot be widened by a request param.
+		// Staff resolution is v2-native: COALESCE(pps.staff_id, e.staff_id) prefers
+		// the edge's linked product_plan_staff eligibility row (f13) and falls back
+		// to the edge's own legacy staff_id (f10) only when unlinked — see the
+		// COALESCE note on this function's doc comment.
 		"SELECT jce.id FROM " + entityid.SubscriptionGroupProductPlanStaff + " e" +
 		" JOIN " + entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.active" +
 		" JOIN " + entityid.ProductPlan + " pp ON pp.id = e.product_plan_id" +
 		" JOIN " + entityid.Job + " jce ON jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id" +
-		" WHERE e.staff_id = " + s + " AND e.active AND e.workspace_id = " + w
+		" LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id" +
+		" WHERE COALESCE(pps.staff_id, e.staff_id) = " + s + " AND e.active AND e.workspace_id = " + w
 }
 
 // StaffScopeClause returns a SQL predicate fragment that confines a read to the
@@ -284,9 +308,12 @@ func StaffReachableJobClause(ctx context.Context, jobAlias string, nextParam int
 // The 4th (class-edge) branch MIRRORS reachableClientUnion's 4th branch exactly so
 // the by-id EXISTS check and the List row-set seam stay consistent — a teacher
 // reachable ONLY via a class edge (the AY-2627 zero-seat shape) must not get a
-// false not-found when opening the row by id (CF-2). Same 4-table join, same
-// member-sourced subscription↔job match, same deliverable match; fail-closed on an
-// empty staff/workspace bind (both land on the sgpps edge).
+// false not-found when opening the row by id (CF-2). Same 4-table join plus the
+// v2 eligibility LEFT JOIN, same member-sourced subscription↔job match, same
+// deliverable match, same COALESCE(pps.staff_id, e.staff_id) staff resolution
+// (f13-linked preferred, legacy f10 fallback for rows predating the M3 link-up —
+// removed at M7); fail-closed on an empty staff/workspace bind (both land on the
+// sgpps edge).
 func StaffReachableClientExistsSQL() string {
 	return "SELECT EXISTS(" +
 		"SELECT 1 FROM " + entityid.Job + " j" +
@@ -312,11 +339,14 @@ func StaffReachableClientExistsSQL() string {
 		// the sgpps servicer for the client's cohort offering, matched to the job's
 		// deliverable via product_plan.product_id == job.output_product_id. Both binds
 		// land on the edge ($1 staff, $3 workspace), so an empty bind yields no row.
+		// Staff resolution: COALESCE(pps.staff_id, e.staff_id) — v2-linked (f13)
+		// preferred, legacy f10 fallback for unlinked rows (removed at M7).
 		"SELECT 1 FROM " + entityid.SubscriptionGroupProductPlanStaff + " e" +
 		" JOIN " + entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.active" +
 		" JOIN " + entityid.ProductPlan + " pp ON pp.id = e.product_plan_id" +
 		" JOIN " + entityid.Job + " jce ON jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id" +
-		" WHERE e.staff_id = $1 AND e.active AND e.workspace_id = $3 AND jce.client_id = $2" +
+		" LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id" +
+		" WHERE COALESCE(pps.staff_id, e.staff_id) = $1 AND e.active AND e.workspace_id = $3 AND jce.client_id = $2" +
 		")"
 }
 
@@ -324,8 +354,10 @@ func StaffReachableClientExistsSQL() string {
 // generic dbOps by-id ReadJob path). Args order: $1 = staffID, $2 = jobID,
 // $3 = workspaceID. The 4th (class-edge) branch MIRRORS reachableJobUnion's 4th
 // branch so a class-edge-only teacher (AY-2627 zero-seat shape) does not get a
-// false not-found when opening a job by id (CF-2); fail-closed on empty
-// staff/workspace binds (both land on the sgpps edge).
+// false not-found when opening a job by id (CF-2); staff resolution is
+// COALESCE(pps.staff_id, e.staff_id) (v2 f13-linked preferred, legacy f10
+// fallback until M7); fail-closed on empty staff/workspace binds (both land on
+// the sgpps edge).
 func StaffReachableJobExistsSQL() string {
 	return "SELECT EXISTS(" +
 		"SELECT 1 FROM " + entityid.JobPhase + " jp" +
@@ -351,11 +383,14 @@ func StaffReachableJobExistsSQL() string {
 		// sgpps servicer for the job's cohort offering, matched to the job's
 		// deliverable via product_plan.product_id == job.output_product_id. Both binds
 		// land on the edge ($1 staff, $3 workspace), so an empty bind yields no row.
+		// Staff resolution: COALESCE(pps.staff_id, e.staff_id) — v2-linked (f13)
+		// preferred, legacy f10 fallback for unlinked rows (removed at M7).
 		"SELECT 1 FROM " + entityid.SubscriptionGroupProductPlanStaff + " e" +
 		" JOIN " + entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.active" +
 		" JOIN " + entityid.ProductPlan + " pp ON pp.id = e.product_plan_id" +
 		" JOIN " + entityid.Job + " jce ON jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id" +
-		" WHERE e.staff_id = $1 AND e.active AND e.workspace_id = $3 AND jce.id = $2" +
+		" LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id" +
+		" WHERE COALESCE(pps.staff_id, e.staff_id) = $1 AND e.active AND e.workspace_id = $3 AND jce.id = $2" +
 		")"
 }
 

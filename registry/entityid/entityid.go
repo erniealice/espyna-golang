@@ -202,7 +202,12 @@ const (
 	SubscriptionGroupMember           = "subscription_group_member"
 	SubscriptionGroupWorkspaceUser    = "subscription_group_workspace_user"
 	SubscriptionGroupProductPlanStaff = "subscription_group_product_plan_staff"
-	PriceScheduleWorkspaceUser        = "price_schedule_workspace_user"
+	// SubscriptionGroupProductPlan is THE CLASS (docs/plan/20260724-section-assignment-merged):
+	// a per-section, per-offering delivery instance that SubscriptionGroupProductPlanStaff
+	// re-parents onto (class x eligibility [x phase]). Subscription-domain sibling of its
+	// staff edge (plan.md §1.1b).
+	SubscriptionGroupProductPlan = "subscription_group_product_plan"
+	PriceScheduleWorkspaceUser   = "price_schedule_workspace_user"
 )
 
 // Treasury domain

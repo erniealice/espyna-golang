@@ -88,6 +88,34 @@ func (r *PostgresSubscriptionGroupProductPlanStaffRepository) UpdateSubscription
 	if err != nil {
 		return nil, err
 	}
+	// LIVE-FOUND (checkpoint C2, 2026-07-24): job_template_phase_id is a
+	// proto3 `optional string` FK column (NULLable — plan.md §2.5 "NULL = all
+	// phases"). protojson's explicit-presence rule means a caller that
+	// deliberately CLEARS the phase (a non-nil pointer to "") marshals as the
+	// JSON string `""`, never JSON `null` — proto3 has no wire/JSON
+	// representation of "explicitly null" for a scalar field, only "present"
+	// (any value, including "") or "absent" (omitted). PostgresOperations.
+	// Update() then walks the map's PRESENT keys verbatim into the SET
+	// clause, so an omitted key correctly leaves the persisted value
+	// untouched (right for a partial update that never mentioned the field),
+	// but a present `""` writes the LITERAL empty string — which the
+	// fk_subscription_group_product_plan_staff_job_template_phase_id FK
+	// constraint rejects (empty string is not NULL and matches no
+	// job_template_phase row). Confirmed live: the S3 "clear a row's phase
+	// back to All Phases" edit path (UpdateSubscriptionGroupProductPlanStaffUseCase.
+	// effectiveEdge's firstSetPtr, and the create-side reactivate-on-legacy-
+	// collision path in class_edge_v2.go / create_subscription_group_product_
+	// plan_staff.go) both hit this identically — a pre-existing gap, not
+	// introduced by either. The one place that CAN distinguish "explicitly
+	// cleared" from "untouched" is here, where the caller's ORIGINAL pointer
+	// is still in scope (unlike inside the generic map-only Update()): a
+	// non-nil pointer to "" means "write NULL", so translate it to a real Go
+	// nil in the map before handing off — the only representation
+	// PostgresOperations.Update()'s serializeValue() will pass through as SQL
+	// NULL instead of the literal empty string.
+	if req.Data.JobTemplatePhaseId != nil && req.Data.GetJobTemplatePhaseId() == "" {
+		data["job_template_phase_id"] = nil
+	}
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update subscription group product plan staff: %w", err)

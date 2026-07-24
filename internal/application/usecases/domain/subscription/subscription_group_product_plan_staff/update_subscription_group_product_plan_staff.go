@@ -9,9 +9,11 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
+	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	productplanstaffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan_staff"
 	subscriptiongrouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group"
+	sgpppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_product_plan"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_product_plan_staff"
 )
 
@@ -20,6 +22,9 @@ type UpdateSubscriptionGroupProductPlanStaffRepositories struct {
 	ProductPlanStaff                  productplanstaffpb.ProductPlanStaffDomainServiceServer
 	ProductPlan                       productplanpb.ProductPlanDomainServiceServer
 	SubscriptionGroup                 subscriptiongrouppb.SubscriptionGroupDomainServiceServer
+	// v2 class-edge anchors (espyna.md §2) — see create_subscription_group_product_plan_staff.go.
+	SubscriptionGroupProductPlan sgpppb.SubscriptionGroupProductPlanDomainServiceServer
+	JobTemplatePhase             jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
 }
 
 type UpdateSubscriptionGroupProductPlanStaffServices struct {
@@ -66,7 +71,39 @@ func (uc *UpdateSubscriptionGroupProductPlanStaffUseCase) Execute(ctx context.Co
 		if err != nil {
 			return nil, err
 		}
+		// v2 resolution on the EFFECTIVE (merged) edge — a partial update that
+		// only touches, say, role must still re-derive f8/f9/f10 from the
+		// persisted class+pps rows (espyna.md §2 dual-write).
+		if err := resolveClassEdgeV2(txCtx, uc.v2Repos(), uc.services.Translator, effective); err != nil {
+			return nil, err
+		}
+		// Echo the resolved/merged fields back onto req.Data — the object that
+		// actually gets persisted — so a partial update body still writes the
+		// correct dual-write + effective v2 anchors. Legacy f8/f9/f10 are always
+		// echoed (protojson's zero-value omission already made an omitted body
+		// field a no-op passthrough of the existing value, so this is a
+		// behavior-preserving explicit write, not a change). f12/f13/f14 are
+		// pointer/optional: only echoed when the effective merge actually
+		// resolved a non-empty value, so an edge with no v2 anchors at all stays
+		// untouched (legacy-only row).
+		req.Data.SubscriptionGroupId = effective.GetSubscriptionGroupId()
+		req.Data.ProductPlanId = effective.GetProductPlanId()
+		req.Data.StaffId = effective.GetStaffId()
+		if v := effective.GetSubscriptionGroupProductPlanId(); v != "" {
+			req.Data.SubscriptionGroupProductPlanId = &v
+		}
+		if v := effective.GetProductPlanStaffId(); v != "" {
+			req.Data.ProductPlanStaffId = &v
+		}
+		if effective.JobTemplatePhaseId != nil {
+			req.Data.JobTemplatePhaseId = effective.JobTemplatePhaseId
+		}
+
 		if err := validateEligibility(txCtx, uc.eligibilityRepos(), uc.services.Translator, wsID, effective); err != nil {
+			return nil, err
+		}
+		if err := checkDuplicateClassEdge(txCtx, uc.repositories.SubscriptionGroupProductPlanStaff, uc.services.Translator,
+			effective.GetSubscriptionGroupProductPlanId(), effective.GetProductPlanStaffId(), effective.GetJobTemplatePhaseId(), effective.GetId()); err != nil {
 			return nil, err
 		}
 		return uc.repositories.SubscriptionGroupProductPlanStaff.UpdateSubscriptionGroupProductPlanStaff(txCtx, req)
@@ -97,8 +134,20 @@ func (uc *UpdateSubscriptionGroupProductPlanStaffUseCase) eligibilityRepos() eli
 	}
 }
 
+func (uc *UpdateSubscriptionGroupProductPlanStaffUseCase) v2Repos() v2Repos {
+	return v2Repos{
+		SubscriptionGroupProductPlan: uc.repositories.SubscriptionGroupProductPlan,
+		ProductPlanStaff:             uc.repositories.ProductPlanStaff,
+		ProductPlan:                  uc.repositories.ProductPlan,
+		JobTemplatePhase:             uc.repositories.JobTemplatePhase,
+	}
+}
+
 // effectiveEdge merges the update body over the persisted row so a partial
-// update (FK omitted) still validates against the resulting edge.
+// update (FK omitted) still validates against the resulting edge. f12/f13/f14
+// are proto3 `optional` (explicit-presence pointers): a nil pointer on `in`
+// means "omitted, inherit the persisted value"; a non-nil pointer (even to an
+// empty string) means "the caller explicitly set/cleared this field" and wins.
 func (uc *UpdateSubscriptionGroupProductPlanStaffUseCase) effectiveEdge(ctx context.Context, in *pb.SubscriptionGroupProductPlanStaff) (*pb.SubscriptionGroupProductPlanStaff, error) {
 	existingResp, err := uc.repositories.SubscriptionGroupProductPlanStaff.ReadSubscriptionGroupProductPlanStaff(ctx, &pb.ReadSubscriptionGroupProductPlanStaffRequest{
 		Data: &pb.SubscriptionGroupProductPlanStaff{Id: in.GetId()},
@@ -108,12 +157,31 @@ func (uc *UpdateSubscriptionGroupProductPlanStaffUseCase) effectiveEdge(ctx cont
 	}
 	existing := existingResp.GetData()[0]
 	merged := &pb.SubscriptionGroupProductPlanStaff{
-		Id:                  in.GetId(),
-		SubscriptionGroupId: firstNonEmpty(in.GetSubscriptionGroupId(), existing.GetSubscriptionGroupId()),
-		ProductPlanId:       firstNonEmpty(in.GetProductPlanId(), existing.GetProductPlanId()),
-		StaffId:             firstNonEmpty(in.GetStaffId(), existing.GetStaffId()),
+		Id:                             in.GetId(),
+		SubscriptionGroupId:            firstNonEmpty(in.GetSubscriptionGroupId(), existing.GetSubscriptionGroupId()),
+		ProductPlanId:                  firstNonEmpty(in.GetProductPlanId(), existing.GetProductPlanId()),
+		StaffId:                        firstNonEmpty(in.GetStaffId(), existing.GetStaffId()),
+		SubscriptionGroupProductPlanId: firstNonEmptyPtr(in.SubscriptionGroupProductPlanId, existing.SubscriptionGroupProductPlanId),
+		ProductPlanStaffId:             firstNonEmptyPtr(in.ProductPlanStaffId, existing.ProductPlanStaffId),
+		JobTemplatePhaseId:             firstSetPtr(in.JobTemplatePhaseId, existing.JobTemplatePhaseId),
 	}
 	return merged, nil
+}
+
+// firstNonEmptyPtr picks `in` when present (non-nil), else `existing`.
+func firstNonEmptyPtr(in, existing *string) *string {
+	if in != nil {
+		return in
+	}
+	return existing
+}
+
+// firstSetPtr is an alias of firstNonEmptyPtr kept distinct for the
+// job_template_phase_id call site — NULL ("all phases") is a meaningful value
+// here, not an absence, so the name documents that a non-nil `in` (even
+// pointing at "") always wins over the persisted value.
+func firstSetPtr(in, existing *string) *string {
+	return firstNonEmptyPtr(in, existing)
 }
 
 func firstNonEmpty(a, b string) string {

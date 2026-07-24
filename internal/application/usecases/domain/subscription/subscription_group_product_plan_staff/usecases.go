@@ -3,9 +3,11 @@ package subscription_group_product_plan_staff
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
+	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	productplanstaffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan_staff"
 	subscriptiongrouppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group"
+	sgpppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_product_plan"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_product_plan_staff"
 )
 
@@ -27,6 +29,10 @@ type Repositories struct {
 	ProductPlanStaff  productplanstaffpb.ProductPlanStaffDomainServiceServer
 	ProductPlan       productplanpb.ProductPlanDomainServiceServer
 	SubscriptionGroup subscriptiongrouppb.SubscriptionGroupDomainServiceServer
+	// v2 class-edge anchors (docs/plan/20260724-section-assignment-merged/espyna.md
+	// §2). Optional/best-effort — see class_edge_v2.go.
+	SubscriptionGroupProductPlan sgpppb.SubscriptionGroupProductPlanDomainServiceServer
+	JobTemplatePhase             jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
 }
 
 type Services struct {
@@ -45,6 +51,8 @@ func NewUseCases(r Repositories, s Services) *UseCases {
 			ProductPlanStaff:                  r.ProductPlanStaff,
 			ProductPlan:                       r.ProductPlan,
 			SubscriptionGroup:                 r.SubscriptionGroup,
+			SubscriptionGroupProductPlan:      r.SubscriptionGroupProductPlan,
+			JobTemplatePhase:                  r.JobTemplatePhase,
 		}, CreateSubscriptionGroupProductPlanStaffServices(s)),
 		ReadSubscriptionGroupProductPlanStaff: NewReadSubscriptionGroupProductPlanStaffUseCase(ReadSubscriptionGroupProductPlanStaffRepositories{SubscriptionGroupProductPlanStaff: repo}, ReadSubscriptionGroupProductPlanStaffServices(s)),
 		UpdateSubscriptionGroupProductPlanStaff: NewUpdateSubscriptionGroupProductPlanStaffUseCase(UpdateSubscriptionGroupProductPlanStaffRepositories{
@@ -52,6 +60,8 @@ func NewUseCases(r Repositories, s Services) *UseCases {
 			ProductPlanStaff:                  r.ProductPlanStaff,
 			ProductPlan:                       r.ProductPlan,
 			SubscriptionGroup:                 r.SubscriptionGroup,
+			SubscriptionGroupProductPlan:      r.SubscriptionGroupProductPlan,
+			JobTemplatePhase:                  r.JobTemplatePhase,
 		}, UpdateSubscriptionGroupProductPlanStaffServices(s)),
 		DeleteSubscriptionGroupProductPlanStaff: NewDeleteSubscriptionGroupProductPlanStaffUseCase(DeleteSubscriptionGroupProductPlanStaffRepositories{SubscriptionGroupProductPlanStaff: repo}, DeleteSubscriptionGroupProductPlanStaffServices(s)),
 		AssignSubscriptionGroupProductPlanStaff: NewAssignSubscriptionGroupProductPlanStaffUseCase(AssignSubscriptionGroupProductPlanStaffRepositories{

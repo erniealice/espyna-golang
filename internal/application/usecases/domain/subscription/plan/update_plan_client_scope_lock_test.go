@@ -118,6 +118,9 @@ func (s *stubReferenceChecker) GetJobTaskInUseIDs(_ context.Context, _ []string)
 func (s *stubReferenceChecker) GetJobTemplateInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
 	return nil, nil
 }
+func (s *stubReferenceChecker) GetSubscriptionGroupProductPlanInUseIDs(_ context.Context, _ []string) (map[string]bool, error) {
+	return nil, nil
+}
 
 // pricePlanRepoForCascade — mock that exposes a list of child PricePlans for
 // the §3.2 cascade and captures every UpdatePricePlan call.

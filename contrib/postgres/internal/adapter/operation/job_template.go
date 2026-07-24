@@ -147,6 +147,11 @@ func (r *PostgresJobTemplateRepository) UpdateJobTemplate(ctx context.Context, r
 	convertMillisToTime(data, "dateCreated")
 	convertMillisToTime(data, "dateModified")
 
+	// protojson drops a false `active` (proto3 zero-omission), which would leave
+	// the column unwritten on this partial UPDATE — unchecking Active + Save
+	// would silently no-op. Force the field so a deactivation persists.
+	postgresCore.ForceBoolField(req.Data, data, "active")
+
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update job template: %w", err)

@@ -367,10 +367,19 @@ SELECT jp.template_phase_id,
        COUNT(DISTINCT jp.approval_status) AS distinct_statuses
 FROM ` + entityid.JobPhase + ` jp
 JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
+LEFT JOIN ` + entityid.JobTemplatePhase + ` jtp ON jtp.id = jp.template_phase_id
 WHERE j.job_template_id = $1 AND j.workspace_id = $2
   AND jp.active = true AND jp.template_phase_id IS NOT NULL
-GROUP BY jp.template_phase_id
-ORDER BY jp.template_phase_id`
+GROUP BY jp.template_phase_id, jtp.phase_order
+-- Curriculum order, NOT id order. This previously read ORDER BY
+-- jp.template_phase_id — a UUID, so the approval band came out in effectively
+-- arbitrary order and rendered "Semester 2" above "Semester 1" while the column
+-- headers (built by the columns query below, which has always ordered by
+-- jtp.phase_order) correctly read Semester 1 then Semester 2. Same sheet,
+-- two different orderings. phase_order is the authority: S1=1, S2=2.
+-- NULLS LAST so a phase whose template row is missing sorts after real ones
+-- rather than jumping to the front.
+ORDER BY jtp.phase_order NULLS LAST, jp.template_phase_id`
 
 	rows, err := a.db.QueryContext(ctx, statusSQL, jobTemplateID, workspaceID)
 	if err != nil {

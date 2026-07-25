@@ -31,11 +31,17 @@ import (
 //     comparative query test: it reconstructs the PRE-CUTOVER class-edge branch
 //     verbatim and runs it, side-by-side with the actual (current) production
 //     function, against REAL live rows — read-only, no writes — and asserts the
-//     reachable job/client sets are byte-identical. Every education1 sgpps row
-//     is currently unlinked (f13 NULL, verified 2026-07-24: 379/379 active
-//     rows), so this is an empirical, whole-table proof of case (b) — the
-//     fallback path is not just reachable in theory, it is the ENTIRE live
-//     answer today, and the two queries agree on every row.
+//     reachable job/client sets are byte-identical.
+//
+// GROUND-TRUTH CORRECTION (2026-07-25, post-M3): this file originally recorded
+// "every education1 sgpps row is unlinked (f13 NULL, 379/379)". The M3 backfill
+// has since landed and INVERTED that: 379/379 active sgpps rows now carry BOTH
+// f12 and f13, so the parity test below traverses the LINKED branch, not the
+// fallback. It still passes because the backfill set pps.staff_id equal to
+// e.staff_id in every row (0 divergent), which is exactly why it has no power to
+// discriminate a correct join from a broken one — see audit gap M5-G1. Treat its
+// green as "the cutover did not change live answers", never as "the f13 join is
+// proven correct".
 //
 // Both tests are gated on TEST_DATABASE_URL (this package's sibling idiom —
 // contrib/postgres/internal/adapter/operation/job_phase_approval_concurrency_test.go)
@@ -258,13 +264,15 @@ func legacyOnlyReachableClientUnion(staffP, wsP int) string {
 // union — the exact shape every real consumer executes — against a real,
 // dynamically-sampled staff/workspace pair on a live database — read-only
 // (SELECT only, no INSERT/UPDATE/DELETE) — and asserts the resulting job.id /
-// client.id sets are byte-identical sorted lists. Because every live
-// education1 sgpps row is unlinked today (f13 NULL, ground-truthed 2026-07-24:
-// 379/379 active rows — the M3 backfill has not run), COALESCE degrades to the
-// legacy column for 100% of live rows, so this is an empirical, whole-graph
-// proof that the cutover changed nothing observable for the CURRENT data
-// shape. Once M3 links rows (f13 set), TestClassEdgeStaffResolutionV2_COALESCESemantics
-// covers the linked/mismatched cases the live data cannot yet exercise.
+// client.id sets are byte-identical sorted lists.
+//
+// POST-M3 (2026-07-25): 379/379 active sgpps rows are now f13-linked, and the
+// backfill made pps.staff_id identical to e.staff_id in every one of them — so
+// COALESCE returns the same value down either branch and this test's green is
+// non-discriminating by construction (audit gap M5-G1). It proves the cutover
+// changed nothing observable; it does NOT prove the join column is right.
+// TestClassEdgeStaffResolutionV2_COALESCESemantics covers the divergent cases
+// live data cannot express.
 func TestClassEdgeStaffResolutionV2_LiveParityAgainstLegacyOnly(t *testing.T) {
 	db := openClassEdgeV2LiveDB(t)
 	defer db.Close()

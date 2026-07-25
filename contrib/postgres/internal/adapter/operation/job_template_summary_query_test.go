@@ -157,6 +157,21 @@ func TestJobTemplateSummarySQL_ClassEdgeDelivererBranch(t *testing.T) {
 		t.Errorf("class-edge branch must NOT filter on 'access' edges — those are visibility-only\nSQL:\n%s", sql)
 	}
 
+	// M5-G5: the eligibility-liveness gate must ride the OUTER WHERE, so a
+	// linked-but-REVOKED product_plan_staff row stops attributing its staff
+	// instead of falling through to the still-dual-written legacy f10 column.
+	// Shape assertion only — the behavioural truth table, the naive-join-fix
+	// counter-example and the live no-op proof are in
+	// job_template_summary_class_edge_eligibility_live_test.go.
+	if !strings.Contains(sql, classEdgeEligibilityLivePredicate) {
+		t.Errorf("class-edge branch missing the eligibility-liveness gate %q\nSQL:\n%s", classEdgeEligibilityLivePredicate, sql)
+	}
+	// It must NOT be pushed into the LEFT JOIN condition: there it would null the
+	// pps row out and let COALESCE re-grant the revoked staff via legacy f10.
+	if strings.Contains(sql, "pps.id = e.product_plan_staff_id AND pps.active") {
+		t.Errorf("eligibility-liveness moved into the LEFT JOIN condition — that form is a no-op against the legacy f10 fallback; keep it in the WHERE\nSQL:\n%s", sql)
+	}
+
 	// CF-3: two DIFFERENT active primary edges for one (group, product_plan) must
 	// collapse to a SINGLE deterministic pick (newest date_created, id breaks ties)
 	// so the deliverer is stable across renders and agrees with the grade-sheet's

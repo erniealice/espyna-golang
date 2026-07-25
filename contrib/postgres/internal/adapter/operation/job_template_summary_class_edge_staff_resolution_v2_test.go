@@ -284,11 +284,14 @@ func scanSummaryKeyRows(t *testing.T, db *sql.DB, stmt string, args []any) []str
 // production) FULL summary statement — via the real buildListJobTemplateSummariesSQL
 // — for a real, dynamically-sampled workspace on a live database — read-only
 // (SELECT only, no INSERT/UPDATE/DELETE) — and asserts the (template, group,
-// staff_id, staff_name, job_count) row sets are byte-identical. Every live
-// education1 sgpps row is unlinked today (f13 NULL, ground-truthed
-// 2026-07-24), so COALESCE degrades to the legacy column for 100% of live
-// rows: this is an empirical, whole-table proof that the cutover changed
-// nothing observable in the courses fold for the CURRENT data shape.
+// staff_id, staff_name, job_count) row sets are byte-identical.
+//
+// GROUND-TRUTH CORRECTION (2026-07-25, post-M3): this comment previously said
+// "every live education1 sgpps row is unlinked (f13 NULL)". M3 has landed and
+// inverted that — 379/379 active sgpps rows are f13-linked — but the backfill set
+// pps.staff_id equal to e.staff_id in all of them, so COALESCE still returns the
+// same value down either branch. This test proves the cutover changed nothing
+// observable; it is NOT a proof that the f13 join is correct (audit gap M5-G1).
 func TestJobTemplateSummary_ClassEdgeStaffResolutionV2_LiveParityAgainstLegacyOnly(t *testing.T) {
 	db := openJTSLiveDB(t)
 	defer db.Close()

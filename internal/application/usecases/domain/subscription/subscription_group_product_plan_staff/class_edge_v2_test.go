@@ -389,6 +389,342 @@ func TestCreateEdgeV2_DistinctPhase_NotADuplicate(t *testing.T) {
 	}
 }
 
+// ----- resolveClassEdgeV2 reject / fail-closed branch matrix -----------------
+//
+// W-G4 (coverage-audit-20260725.md §3): five of resolveClassEdgeV2's eight
+// reject branches had no coverage at all — class-not-found, class-not-active,
+// eligibility-not-active, phase-not-found, and both nil-repo fail-closed
+// guards; the "exactly one of f12/f13" anchor guard was likewise untested
+// (table 2.2). These cases drive the function DIRECTLY rather than through the
+// use case so each assertion pins the SPECIFIC rejection reason: a fail-closed
+// path that fails for the wrong reason is still a bug, and several of these
+// messages ("eligibility row not found" vs "eligibility row is not active")
+// are only one word apart. The use-case-level companions below re-prove the
+// same branches also stop the write (createCalls == 0).
+
+func v2data(classID, ppsID, phaseID string) *pb.SubscriptionGroupProductPlanStaff {
+	data := &pb.SubscriptionGroupProductPlanStaff{}
+	if classID != "" {
+		data.SubscriptionGroupProductPlanId = &classID
+	}
+	if ppsID != "" {
+		data.ProductPlanStaffId = &ppsID
+	}
+	if phaseID != "" {
+		data.JobTemplatePhaseId = &phaseID
+	}
+	return data
+}
+
+// repos wires the fixture's mocks into the v2Repos bundle resolveClassEdgeV2
+// actually consumes (the use case builds the same bundle from its own repo
+// struct).
+func (f *v2fixture) repos() v2Repos {
+	return v2Repos{
+		SubscriptionGroupProductPlan: f.classRepo,
+		ProductPlanStaff:             f.ppsRepo,
+		ProductPlan:                  f.planRepo,
+		JobTemplatePhase:             f.phaseRepo,
+	}
+}
+
+// v2wellFormed is the fully-valid graph every reject case below perturbs by
+// exactly one fact, so a failure names the perturbation and nothing else.
+func v2wellFormed() *v2fixture {
+	f := newV2Fixture()
+	f.classRepo.byID["class-1"] = v2class("class-1", "sg-1", "pp-1", "tmpl-1")
+	f.planRepo.byID["pp-1"] = v2plan("pp-1", "plan-1")
+	f.ppsRepo.byID["pps-1"] = v2eligibility("pps-1", "pp-1", "staff-1")
+	f.groupRepo.group = v2group("plan-1")
+	f.phaseRepo.byID["phase-1"] = v2phase("phase-1", "tmpl-1")
+	return f
+}
+
+func TestResolveClassEdgeV2_RejectBranches(t *testing.T) {
+	tr := ports.NewNoOpTranslator()
+
+	tests := []struct {
+		name string
+		// setup perturbs the well-formed fixture and returns the repo bundle,
+		// so a case can also blank out a repo to hit a fail-closed guard.
+		setup   func(f *v2fixture) v2Repos
+		data    *pb.SubscriptionGroupProductPlanStaff
+		wantErr string
+	}{
+		{
+			name:    "class anchor set without eligibility anchor",
+			setup:   func(f *v2fixture) v2Repos { return f.repos() },
+			data:    v2data("class-1", "", ""),
+			wantErr: "must be set together",
+		},
+		{
+			name:    "eligibility anchor set without class anchor",
+			setup:   func(f *v2fixture) v2Repos { return f.repos() },
+			data:    v2data("", "pps-1", ""),
+			wantErr: "must be set together",
+		},
+		{
+			name: "nil class repo fails closed",
+			setup: func(f *v2fixture) v2Repos {
+				r := f.repos()
+				r.SubscriptionGroupProductPlan = nil
+				return r
+			},
+			data:    v2data("class-1", "pps-1", ""),
+			wantErr: "class-edge validation is not configured",
+		},
+		{
+			name: "nil eligibility repo fails closed",
+			setup: func(f *v2fixture) v2Repos {
+				r := f.repos()
+				r.ProductPlanStaff = nil
+				return r
+			},
+			data:    v2data("class-1", "pps-1", ""),
+			wantErr: "class-edge validation is not configured",
+		},
+		{
+			name:    "class id unresolvable",
+			setup:   func(f *v2fixture) v2Repos { return f.repos() },
+			data:    v2data("class-MISSING", "pps-1", ""),
+			wantErr: "class not found",
+		},
+		{
+			name: "class row is inactive",
+			setup: func(f *v2fixture) v2Repos {
+				f.classRepo.byID["class-1"].Active = false
+				return f.repos()
+			},
+			data:    v2data("class-1", "pps-1", ""),
+			wantErr: "class is not active",
+		},
+		{
+			name:    "eligibility id unresolvable",
+			setup:   func(f *v2fixture) v2Repos { return f.repos() },
+			data:    v2data("class-1", "pps-MISSING", ""),
+			wantErr: "eligibility row not found",
+		},
+		{
+			name: "eligibility row is inactive",
+			setup: func(f *v2fixture) v2Repos {
+				f.ppsRepo.byID["pps-1"].Active = false
+				return f.repos()
+			},
+			data:    v2data("class-1", "pps-1", ""),
+			wantErr: "eligibility row is not active",
+		},
+		{
+			name: "eligibility offering differs from the class offering",
+			setup: func(f *v2fixture) v2Repos {
+				f.ppsRepo.byID["pps-1"].ProductPlanId = "pp-OTHER"
+				return f.repos()
+			},
+			data:    v2data("class-1", "pps-1", ""),
+			wantErr: "does not match the class's offering",
+		},
+		{
+			// plan.md §1.2 #1 compares two ids; an empty id on either side must
+			// reject rather than compare-equal into an accept.
+			name: "eligibility offering is empty",
+			setup: func(f *v2fixture) v2Repos {
+				f.ppsRepo.byID["pps-1"].ProductPlanId = ""
+				return f.repos()
+			},
+			data:    v2data("class-1", "pps-1", ""),
+			wantErr: "does not match the class's offering",
+		},
+		{
+			name: "class offering is empty",
+			setup: func(f *v2fixture) v2Repos {
+				f.classRepo.byID["class-1"].ProductPlanId = ""
+				f.ppsRepo.byID["pps-1"].ProductPlanId = ""
+				return f.repos()
+			},
+			data:    v2data("class-1", "pps-1", ""),
+			wantErr: "does not match the class's offering",
+		},
+		{
+			name: "phase set but phase repo is nil fails closed",
+			setup: func(f *v2fixture) v2Repos {
+				r := f.repos()
+				r.JobTemplatePhase = nil
+				return r
+			},
+			data:    v2data("class-1", "pps-1", "phase-1"),
+			wantErr: "phase validation is not configured",
+		},
+		{
+			name:    "phase id unresolvable",
+			setup:   func(f *v2fixture) v2Repos { return f.repos() },
+			data:    v2data("class-1", "pps-1", "phase-MISSING"),
+			wantErr: "phase not found",
+		},
+		{
+			name: "phase belongs to a foreign template",
+			setup: func(f *v2fixture) v2Repos {
+				f.phaseRepo.byID["phase-foreign"] = v2phase("phase-foreign", "tmpl-OTHER")
+				return f.repos()
+			},
+			data:    v2data("class-1", "pps-1", "phase-foreign"),
+			wantErr: "does not belong to the class's curriculum",
+		},
+		{
+			name: "phase strand variant differs from the class variant",
+			setup: func(f *v2fixture) v2Repos {
+				f.planRepo.byID["pp-1"] = v2planWithVariant("pp-1", "plan-1", "variant-music")
+				f.phaseRepo.byID["phase-va"] = v2phaseWithVariant("phase-va", "tmpl-1", "variant-visual-arts")
+				return f.repos()
+			},
+			data:    v2data("class-1", "pps-1", "phase-va"),
+			wantErr: "not compatible with the class's strand",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f := v2wellFormed()
+			repos := tc.setup(f)
+
+			err := resolveClassEdgeV2(context.Background(), repos, tr, tc.data)
+			if err == nil {
+				t.Fatalf("expected rejection %q, got nil", tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("wrong rejection reason:\n got: %q\nwant substring: %q", err.Error(), tc.wantErr)
+			}
+			// A rejected edge must leave the legacy dual-write fields untouched
+			// — a half-resolved f8/f9/f10 on a rejected payload is exactly the
+			// parity drift the dual-write exists to prevent.
+			if got := tc.data.GetSubscriptionGroupId(); got != "" {
+				t.Errorf("rejected edge dual-wrote f8 subscription_group_id = %q, want empty", got)
+			}
+			if got := tc.data.GetProductPlanId(); got != "" {
+				t.Errorf("rejected edge dual-wrote f9 product_plan_id = %q, want empty", got)
+			}
+			if got := tc.data.GetStaffId(); got != "" {
+				t.Errorf("rejected edge dual-wrote f10 staff_id = %q, want empty", got)
+			}
+		})
+	}
+}
+
+// TestResolveClassEdgeV2_WellFormed_Accepts is the positive control for the
+// matrix above: it proves v2wellFormed() really is well-formed, so every
+// rejection there is attributable to that case's single perturbation and not
+// to a broken fixture.
+func TestResolveClassEdgeV2_WellFormed_Accepts(t *testing.T) {
+	f := v2wellFormed()
+	data := v2data("class-1", "pps-1", "phase-1")
+
+	if err := resolveClassEdgeV2(context.Background(), f.repos(), ports.NewNoOpTranslator(), data); err != nil {
+		t.Fatalf("well-formed class edge rejected: %v", err)
+	}
+	if got := data.GetSubscriptionGroupId(); got != "sg-1" {
+		t.Errorf("f8 subscription_group_id = %q, want sg-1", got)
+	}
+	if got := data.GetProductPlanId(); got != "pp-1" {
+		t.Errorf("f9 product_plan_id = %q, want pp-1", got)
+	}
+	if got := data.GetStaffId(); got != "staff-1" {
+		t.Errorf("f10 staff_id = %q, want staff-1", got)
+	}
+}
+
+// TestResolveClassEdgeV2_NilProductPlanRepo_WithPhase_FailsOpen documents
+// W-G6, an ASYMMETRY, not an endorsement: the phase strand-variant check at
+// class_edge_v2.go:112 is skipped entirely when the ProductPlan repo is
+// absent, while the three sibling guards in the same function (nil sgpp, nil
+// pps, nil phase repo) all fail CLOSED. The fixture here is a genuine
+// "Music class + Visual-Arts phase" pair that the matrix case above rejects;
+// with only the ProductPlan repo removed it is ACCEPTED.
+//
+// If the owner decides this should fail closed like its siblings, this test
+// must be INVERTED (expect an error), not deleted — it exists to make the
+// decision visible rather than to bless the current behaviour.
+func TestResolveClassEdgeV2_NilProductPlanRepo_WithPhase_FailsOpen(t *testing.T) {
+	f := v2wellFormed()
+	f.planRepo.byID["pp-1"] = v2planWithVariant("pp-1", "plan-1", "variant-music")
+	f.phaseRepo.byID["phase-va"] = v2phaseWithVariant("phase-va", "tmpl-1", "variant-visual-arts")
+	repos := f.repos()
+	repos.ProductPlan = nil
+
+	data := v2data("class-1", "pps-1", "phase-va")
+	err := resolveClassEdgeV2(context.Background(), repos, ports.NewNoOpTranslator(), data)
+	if err != nil {
+		t.Fatalf("W-G6 characterization: expected the variant check to be SKIPPED with a nil ProductPlan repo, got %q "+
+			"— if the fail-open was deliberately fixed, invert this test", err.Error())
+	}
+	if got := data.GetStaffId(); got != "staff-1" {
+		t.Errorf("fail-open path still must dual-write f10 staff_id, got %q", got)
+	}
+}
+
+// ----- use-case-level companions: the reject must also stop the write --------
+
+// TestCreateEdgeV2_RejectBranches_DoNotWrite re-drives the previously
+// untested reject branches through CreateSubscriptionGroupProductPlanStaffUseCase
+// to prove the rejection actually reaches the caller and no row is created.
+// (The nil-repo guards are unreachable here — the use case always supplies
+// every repo — so they are covered directly in the matrix above.)
+func TestCreateEdgeV2_RejectBranches_DoNotWrite(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(f *v2fixture)
+		req     *pb.CreateSubscriptionGroupProductPlanStaffRequest
+		wantErr string
+	}{
+		{
+			name:    "class anchor without eligibility anchor",
+			setup:   func(f *v2fixture) {},
+			req:     &pb.CreateSubscriptionGroupProductPlanStaffRequest{Data: v2data("class-1", "", "")},
+			wantErr: "must be set together",
+		},
+		{
+			name:    "class id unresolvable",
+			setup:   func(f *v2fixture) {},
+			req:     &pb.CreateSubscriptionGroupProductPlanStaffRequest{Data: v2data("class-MISSING", "pps-1", "")},
+			wantErr: "class not found",
+		},
+		{
+			name:    "class row is inactive",
+			setup:   func(f *v2fixture) { f.classRepo.byID["class-1"].Active = false },
+			req:     &pb.CreateSubscriptionGroupProductPlanStaffRequest{Data: v2data("class-1", "pps-1", "")},
+			wantErr: "class is not active",
+		},
+		{
+			name:    "eligibility row is inactive",
+			setup:   func(f *v2fixture) { f.ppsRepo.byID["pps-1"].Active = false },
+			req:     &pb.CreateSubscriptionGroupProductPlanStaffRequest{Data: v2data("class-1", "pps-1", "")},
+			wantErr: "eligibility row is not active",
+		},
+		{
+			name:    "phase id unresolvable",
+			setup:   func(f *v2fixture) {},
+			req:     &pb.CreateSubscriptionGroupProductPlanStaffRequest{Data: v2data("class-1", "pps-1", "phase-MISSING")},
+			wantErr: "phase not found",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f := v2wellFormed()
+			tc.setup(f)
+
+			ctx := appcontext.WithWorkspaceID(context.Background(), "ws-1")
+			_, err := f.createUC().Execute(ctx, tc.req)
+			if err == nil {
+				t.Fatalf("expected rejection %q, got nil", tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("wrong rejection reason:\n got: %q\nwant substring: %q", err.Error(), tc.wantErr)
+			}
+			if f.edgeRepo.createCalls != 0 {
+				t.Errorf("create must not run on rejection, got %d calls", f.edgeRepo.createCalls)
+			}
+		})
+	}
+}
+
 func TestCreateEdgeV2_LegacyOnlyWrite_SkipsV2Resolution(t *testing.T) {
 	// No f12/f13 anchors set — a pure legacy-shaped write (the pre-v2 Assign
 	// flow) must not trigger v2 resolution and must behave exactly as before.

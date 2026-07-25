@@ -113,8 +113,30 @@ func (r *PostgresSubscriptionGroupProductPlanStaffRepository) UpdateSubscription
 	// nil in the map before handing off — the only representation
 	// PostgresOperations.Update()'s serializeValue() will pass through as SQL
 	// NULL instead of the literal empty string.
+	//
+	// ⚠ CORRECTED 2026-07-25. The first version of this fix wrote
+	//     data["job_template_phase_id"] = nil
+	// which was NON-DETERMINISTIC, not merely incomplete. protoGradingToMap
+	// emits protojson's CAMEL spelling ("jobTemplatePhaseId": ""), so adding the
+	// snake spelling left BOTH keys in the payload; PostgresOperations.Update's
+	// normalizeKeys() then canonicalizes both to the same "job_template_phase_id"
+	// and Go's randomized map iteration order decides which value survives. The
+	// clear therefore wrote SQL NULL only on some runs and the literal "" on
+	// others — the FK rejecting the "" case. Caught 2026-07-25 by
+	// TestUpdateSubscriptionGroupProductPlanStaff_PhaseNullTranslation, which
+	// asserts exactly one key canonicalizes to the column.
+	//
+	// The fix: remove EVERY spelling that canonicalizes to the column, then set
+	// exactly one. postgresCore.CamelToSnake is the same algorithm normalizeKeys
+	// uses, exported for precisely this purpose, so the two cannot drift.
 	if req.Data.JobTemplatePhaseId != nil && req.Data.GetJobTemplatePhaseId() == "" {
-		data["job_template_phase_id"] = nil
+		const phaseCol = "job_template_phase_id"
+		for k := range data {
+			if postgresCore.CamelToSnake(k) == phaseCol {
+				delete(data, k)
+			}
+		}
+		data[phaseCol] = nil
 	}
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {

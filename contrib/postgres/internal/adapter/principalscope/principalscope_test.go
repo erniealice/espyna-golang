@@ -203,6 +203,14 @@ func TestReachableSQLShape(t *testing.T) {
 //     edge's linked eligibility row (f13), and COALESCE(pps.staff_id,
 //     e.staff_id) = $1 falls back to the edge's own legacy staff_id (f10) for
 //     rows that predate the M3 link-up — the fallback retires at M7;
+//   - that fallback is gated by classEdgeEligibilityLive (audit M5-G5): it must
+//     sit IMMEDIATELY AFTER the staff match, in the WHERE and not in the LEFT
+//     JOIN condition, so a linked-but-REVOKED eligibility is denied instead of
+//     falling through to the still-dual-written legacy f10 column. The needles
+//     below splice the production constant in at exactly its production position,
+//     so moving it breaks this test. Behavioural coverage (the truth table, the
+//     naive-fix counter-example and the live no-op proof) lives in
+//     class_edge_eligibility_live_test.go — these are shape assertions only;
 //   - BOTH filters land on the sgpps edge — the COALESCE'd staff match = $1 AND
 //     e.workspace_id = $2 (plus e.active) — so an empty staff or workspace bind
 //     matches no edge and the tier yields zero rows (fail-closed); neither
@@ -216,7 +224,9 @@ func TestClassEdgeReachabilityBranch(t *testing.T) {
 		entityid.ProductPlan + " pp ON pp.id = e.product_plan_id",
 		"jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id",
 		entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id", // v2 eligibility link (f13), LEFT JOIN
-		"COALESCE(pps.staff_id, e.staff_id) = $1",                              // v2-linked preferred, legacy f10 fallback (empty ⇒ zero rows)
+		// v2-linked preferred, legacy f10 fallback (empty ⇒ zero rows), with the
+		// eligibility-liveness gate spliced in at its production position.
+		"COALESCE(pps.staff_id, e.staff_id) = $1" + classEdgeEligibilityLive,
 		"e.active",            // only active class edges reach
 		"e.workspace_id = $2", // workspace filter on the edge (empty ⇒ zero rows)
 	}
@@ -230,6 +240,13 @@ func TestClassEdgeReachabilityBranch(t *testing.T) {
 				if !strings.Contains(sql, n) {
 					t.Errorf("%s: class-edge tier missing %q\nSQL: %s", name, n, sql)
 				}
+			}
+			// The liveness gate must NOT be pushed into the LEFT JOIN condition:
+			// there it merely nulls the pps row out, and COALESCE re-grants the
+			// revoked staff through the legacy f10 fallback (proven in
+			// TestClassEdgeEligibilityLive_NaiveJoinFixIsInsufficient).
+			if strings.Contains(sql, "pps ON pps.id = e.product_plan_staff_id AND pps.active") {
+				t.Errorf("%s: eligibility-liveness moved into the LEFT JOIN condition — that form is a no-op against the legacy f10 fallback; keep it in the WHERE\nSQL: %s", name, sql)
 			}
 			// Adding the tier must NOT introduce a new positional placeholder: it
 			// reuses the existing $1 (staff) / $2 (workspace) binds, so the union's
@@ -262,7 +279,7 @@ func TestClassEdgeReachabilityBranch(t *testing.T) {
 		entityid.ProductPlan + " pp ON pp.id = e.product_plan_id",
 		"jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id",
 		entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id",
-		"COALESCE(pps.staff_id, e.staff_id) = $1 AND e.active AND e.workspace_id = $3",
+		"COALESCE(pps.staff_id, e.staff_id) = $1" + classEdgeEligibilityLive + " AND e.active AND e.workspace_id = $3",
 	}
 	for name, spec := range map[string]struct {
 		sql        string

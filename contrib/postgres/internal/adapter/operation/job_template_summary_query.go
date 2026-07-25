@@ -26,6 +26,39 @@ import (
 // token.
 const originTypeSubscriptionToken = "ORIGIN_TYPE_SUBSCRIPTION"
 
+// classEdgeEligibilityLivePredicate is the eligibility-liveness gate the dd CTE's
+// class-edge branch (b) appends to its WHERE. It is the courses-fold twin of
+// principalscope.go's classEdgeEligibilityLive (audit M5-G5, the two M5
+// consumers) and must stay in step with it.
+//
+// Branch (b) resolves the delivering staff as COALESCE(pps.staff_id, e.staff_id)
+// over a LEFT JOIN on the edge's product_plan_staff eligibility link (f13). That
+// COALESCE alone cannot distinguish two states:
+//
+//   - e.product_plan_staff_id IS NULL — no v2 link (pre-M3 rows, and any future
+//     unlinked row). The LEFT JOIN yields NULL and the legacy f10 fallback is the
+//     CORRECT answer. Preserved.
+//   - e.product_plan_staff_id IS NOT NULL AND NOT pps.active — the eligibility was
+//     REVOKED. Without this predicate the fold keeps naming that staff member as
+//     the class's teacher-of-record, because COALESCE falls through to the still
+//     dual-written legacy f10 column. Pushing "AND pps.active" into the LEFT JOIN
+//     condition does NOT fix it — it produces exactly that fall-through.
+//
+// It keys on e.product_plan_staff_id, a column of the DRIVING table that the
+// outer join can never null out. A linked-but-missing pps row yields NULL (not
+// TRUE) and is dropped: fail-closed.
+//
+// Placement is the OUTER WHERE, deliberately NOT the correlated e2 subquery that
+// picks the deterministic primary. The e2 pick rule is mirrored verbatim by
+// fayna's fetchClassEdgeTeachers; adding the predicate there would change WHICH
+// edge wins and desynchronise the two. Here it only suppresses attribution for
+// the already-picked edge. Consequence to know: dd is INNER-joined to jj, so a
+// section whose only picked primary has a revoked eligibility (and no
+// subscription_seat) drops out of the courses list rather than showing a stale
+// teacher. Zero live rows are in that state today (all 108 product_plan_staff
+// rows are active).
+const classEdgeEligibilityLivePredicate = "AND (e.product_plan_staff_id IS NULL OR pps.active)"
+
 // maxJobTemplateSummaryLimit caps a requested page size (the common
 // PaginationRequest documents "max 100"). Same cap semantics as the sibling
 // list adapters.
@@ -522,6 +555,10 @@ dd AS MATERIALIZED (
     -- edge's own legacy staff_id (f10) as a fallback for rows that predate the
     -- M3 link-up (the LEFT JOIN keeps such rows resolvable instead of dropping
     -- them) -- the fallback retires at M7 alongside the rest of legacy f8/f9/f10.
+    -- The WHERE also carries classEdgeEligibilityLivePredicate (audit M5-G5): a
+    -- LINKED-but-REVOKED eligibility (product_plan_staff_id set, pps.active
+    -- false) must NOT fall through to legacy f10 and keep attributing a staff
+    -- member who is no longer eligible to deliver this plan.
     SELECT
         m.subscription_id        AS subscription_id,
         m.client_id              AS client_id,
@@ -548,6 +585,7 @@ dd AS MATERIALIZED (
     -- duplicate primaries attributes a STABLE deliverer that agrees with the
     -- grade-sheet's class-edge teacher (same rule in fayna fetchClassEdgeTeachers).
     WHERE e.active AND e.workspace_id = $1 AND e.role = 'primary'
+      ` + classEdgeEligibilityLivePredicate + `
       AND e.id = (
           SELECT e2.id FROM ` + entityid.SubscriptionGroupProductPlanStaff + ` e2
           WHERE e2.subscription_group_id = e.subscription_group_id

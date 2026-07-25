@@ -37,6 +37,35 @@ const PrincipalTypeStaff int32 = 7
 // exactly so the seat→job join only reaches subscription-originated jobs.
 const originTypeSubscription = "ORIGIN_TYPE_SUBSCRIPTION"
 
+// classEdgeEligibilityLive is the eligibility-liveness predicate every class-edge
+// (sgpps) tier below appends, immediately after its
+// COALESCE(pps.staff_id, e.staff_id) staff resolution. It distinguishes the two
+// states the LEFT JOIN alone cannot tell apart (audit M5-G5):
+//
+//   - e.product_plan_staff_id IS NULL — the edge has NO v2 eligibility link
+//     (f13). This is the pre-M3 migration shape and the shape of any future
+//     unlinked row; the LEFT JOIN yields a NULL pps and COALESCE correctly falls
+//     back to the edge's own legacy staff_id (f10). GRANTED, unchanged.
+//   - e.product_plan_staff_id IS NOT NULL AND NOT pps.active — the edge IS linked
+//     but the eligibility has been REVOKED. Before this predicate the revocation
+//     retracted nothing, because pps.active played no part in the join at all.
+//
+// It deliberately keys on e.product_plan_staff_id (a column on the DRIVING table,
+// never nulled by the outer join) rather than on the joined pps row. Pushing
+// "AND pps.active" into the JOIN condition instead would be WRONG: an inactive
+// pps row would simply fail to match, the LEFT JOIN would null it out, and
+// COALESCE would silently fall through to the still-populated legacy f10 column —
+// re-granting exactly the staff the revocation was meant to cut off.
+//
+// A linked-but-missing pps row (dangling FK, or one that is not visible) yields
+// NULL, which is not TRUE, so the row is dropped: fail-closed, consistent with
+// every other tier here. At M7, when legacy f10 retires, the first disjunct goes
+// away and this collapses to a plain "AND pps.active" on an INNER join.
+//
+// job_template_summary_query.go's dd CTE branch (b) carries the identical
+// predicate (the other M5 consumer) — keep the two in step.
+const classEdgeEligibilityLive = " AND (e.product_plan_staff_id IS NULL OR pps.active)"
+
 // StaffRowScope reports whether the active session principal is a STAFF principal
 // and, if so, the staff.id its operational reads must be confined to.
 //
@@ -131,13 +160,16 @@ func reachableClientUnion(staffP, wsP int) string {
 		// Staff resolution is v2-native: COALESCE(pps.staff_id, e.staff_id) prefers
 		// the edge's linked product_plan_staff eligibility row (f13) and falls back
 		// to the edge's own legacy staff_id (f10) only when unlinked — see the
-		// COALESCE note on this function's doc comment.
+		// COALESCE note on this function's doc comment. classEdgeEligibilityLive
+		// then retracts a LINKED-but-REVOKED eligibility (see its own comment: the
+		// fallback must NOT rescue such a row).
 		"SELECT jce.client_id FROM " + entityid.SubscriptionGroupProductPlanStaff + " e" +
 		" JOIN " + entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.active" +
 		" JOIN " + entityid.ProductPlan + " pp ON pp.id = e.product_plan_id" +
 		" JOIN " + entityid.Job + " jce ON jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id" +
 		" LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id" +
-		" WHERE COALESCE(pps.staff_id, e.staff_id) = " + s + " AND e.active AND e.workspace_id = " + w
+		" WHERE COALESCE(pps.staff_id, e.staff_id) = " + s + classEdgeEligibilityLive +
+		" AND e.active AND e.workspace_id = " + w
 }
 
 // reachableJobUnion is the graph-derived set of job.id values the acting staff.id
@@ -193,13 +225,16 @@ func reachableJobUnion(staffP, wsP int) string {
 		// Staff resolution is v2-native: COALESCE(pps.staff_id, e.staff_id) prefers
 		// the edge's linked product_plan_staff eligibility row (f13) and falls back
 		// to the edge's own legacy staff_id (f10) only when unlinked — see the
-		// COALESCE note on this function's doc comment.
+		// COALESCE note on this function's doc comment. classEdgeEligibilityLive
+		// then retracts a LINKED-but-REVOKED eligibility (see its own comment: the
+		// fallback must NOT rescue such a row).
 		"SELECT jce.id FROM " + entityid.SubscriptionGroupProductPlanStaff + " e" +
 		" JOIN " + entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.active" +
 		" JOIN " + entityid.ProductPlan + " pp ON pp.id = e.product_plan_id" +
 		" JOIN " + entityid.Job + " jce ON jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id" +
 		" LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id" +
-		" WHERE COALESCE(pps.staff_id, e.staff_id) = " + s + " AND e.active AND e.workspace_id = " + w
+		" WHERE COALESCE(pps.staff_id, e.staff_id) = " + s + classEdgeEligibilityLive +
+		" AND e.active AND e.workspace_id = " + w
 }
 
 // StaffScopeClause returns a SQL predicate fragment that confines a read to the
@@ -340,13 +375,16 @@ func StaffReachableClientExistsSQL() string {
 		// deliverable via product_plan.product_id == job.output_product_id. Both binds
 		// land on the edge ($1 staff, $3 workspace), so an empty bind yields no row.
 		// Staff resolution: COALESCE(pps.staff_id, e.staff_id) — v2-linked (f13)
-		// preferred, legacy f10 fallback for unlinked rows (removed at M7).
+		// preferred, legacy f10 fallback for unlinked rows (removed at M7) — gated
+		// by classEdgeEligibilityLive so a REVOKED (inactive) eligibility retracts
+		// reachability instead of falling through to legacy f10.
 		"SELECT 1 FROM " + entityid.SubscriptionGroupProductPlanStaff + " e" +
 		" JOIN " + entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.active" +
 		" JOIN " + entityid.ProductPlan + " pp ON pp.id = e.product_plan_id" +
 		" JOIN " + entityid.Job + " jce ON jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id" +
 		" LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id" +
-		" WHERE COALESCE(pps.staff_id, e.staff_id) = $1 AND e.active AND e.workspace_id = $3 AND jce.client_id = $2" +
+		" WHERE COALESCE(pps.staff_id, e.staff_id) = $1" + classEdgeEligibilityLive +
+		" AND e.active AND e.workspace_id = $3 AND jce.client_id = $2" +
 		")"
 }
 
@@ -384,13 +422,16 @@ func StaffReachableJobExistsSQL() string {
 		// deliverable via product_plan.product_id == job.output_product_id. Both binds
 		// land on the edge ($1 staff, $3 workspace), so an empty bind yields no row.
 		// Staff resolution: COALESCE(pps.staff_id, e.staff_id) — v2-linked (f13)
-		// preferred, legacy f10 fallback for unlinked rows (removed at M7).
+		// preferred, legacy f10 fallback for unlinked rows (removed at M7) — gated
+		// by classEdgeEligibilityLive so a REVOKED (inactive) eligibility retracts
+		// reachability instead of falling through to legacy f10.
 		"SELECT 1 FROM " + entityid.SubscriptionGroupProductPlanStaff + " e" +
 		" JOIN " + entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.active" +
 		" JOIN " + entityid.ProductPlan + " pp ON pp.id = e.product_plan_id" +
 		" JOIN " + entityid.Job + " jce ON jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id" +
 		" LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id" +
-		" WHERE COALESCE(pps.staff_id, e.staff_id) = $1 AND e.active AND e.workspace_id = $3 AND jce.id = $2" +
+		" WHERE COALESCE(pps.staff_id, e.staff_id) = $1" + classEdgeEligibilityLive +
+		" AND e.active AND e.workspace_id = $3 AND jce.id = $2" +
 		")"
 }
 

@@ -7,6 +7,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	productplanstaffpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan_staff"
@@ -100,9 +101,19 @@ func NewAssignSubscriptionGroupProductPlanStaffUseCase(r AssignSubscriptionGroup
 
 // Execute upserts the class edge for (SubscriptionGroupID, ProductPlanID).
 //
-// Gating model: each branch delegates to the Create/Update/Delete use case,
-// which fail-closed checks its own action permission and (Create/Update) runs
-// the eligibility guard inside the write transaction. The active-edge lookup is
+// Gating model: each WRITE branch delegates to the Create/Update/Delete use
+// case, which fail-closed checks its own action permission and (Create/Update)
+// runs the eligibility guard inside the write transaction.
+//
+// The two SHORT-CIRCUIT no-op branches return before reaching any sub-use-case,
+// so since 2026-07-25 they carry their OWN explicit gate — delete for
+// nothing-to-clear, update for same-value. Before that they had none: an
+// unpermissioned principal got a SUCCESS from both, and the same-value branch
+// additionally echoed the full persisted edge row back in Edge. Found by the
+// 2026-07-25 coverage audit (finding A-G1) and pinned by
+// TestAssign_NoopBranches_Denied.
+//
+// The active-edge lookup is
 // workspace-scoped (both by the postgres List's context scoping and the
 // in-memory workspace match below), so a caller cannot address another tenant's
 // edge. The lookup and the write are not one transaction — a benign TOCTOU
@@ -127,6 +138,15 @@ func (uc *AssignSubscriptionGroupProductPlanStaffUseCase) Execute(ctx context.Co
 	// Clear: soft-deactivate the active edge (or no-op when none).
 	if req.StaffID == "" {
 		if active == nil {
+			// GATE ADDED 2026-07-25. This branch returns BEFORE uc.delete.Execute,
+			// so without its own check an unpermissioned principal reached a
+			// SUCCESS response and could probe whether an edge exists. Gate on the
+			// verb the short-circuited sub-use-case would have checked.
+			if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+				Entity: entityid.SubscriptionGroupProductPlanStaff, Action: entityid.ActionDelete,
+			}); err != nil {
+				return nil, err
+			}
 			return &AssignSubscriptionGroupProductPlanStaffResponse{Outcome: AssignOutcomeNoop}, nil
 		}
 		if _, err := uc.delete.Execute(ctx, &pb.DeleteSubscriptionGroupProductPlanStaffRequest{
@@ -141,6 +161,18 @@ func (uc *AssignSubscriptionGroupProductPlanStaffUseCase) Execute(ctx context.Co
 	if active != nil {
 		if active.GetStaffId() == req.StaffID && active.GetRole() == req.Role {
 			// Idempotent: re-saving the same value is a no-op.
+			//
+			// GATE ADDED 2026-07-25. This was the more serious of the two
+			// short-circuits: it returns BEFORE uc.update.Execute AND echoes the
+			// FULL persisted edge row back in Edge, so an unpermissioned principal
+			// received both a SUCCESS and the row's contents. Gate on the verb the
+			// short-circuited sub-use-case would have checked (update — the caller
+			// is asserting a desired state on an EXISTING edge).
+			if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+				Entity: entityid.SubscriptionGroupProductPlanStaff, Action: entityid.ActionUpdate,
+			}); err != nil {
+				return nil, err
+			}
 			return &AssignSubscriptionGroupProductPlanStaffResponse{Edge: active, Outcome: AssignOutcomeNoop}, nil
 		}
 

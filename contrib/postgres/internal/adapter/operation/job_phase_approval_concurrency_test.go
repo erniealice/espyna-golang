@@ -94,7 +94,7 @@ func lockSheet(ctx context.Context, tx *sql.Tx, s sheetFixture, lockTimeout stri
 	if err := tx.QueryRowContext(ctx, jobPhaseParentLockSQL, s.phaseID, s.templateID, s.workspace).Scan(&parent); err != nil {
 		return err
 	}
-	rows, err := tx.QueryContext(ctx, jobPhaseSheetLockSQL, s.templateID, s.phaseID, s.workspace)
+	rows, err := tx.QueryContext(ctx, jobPhaseSheetLockSQL(""), s.templateID, s.phaseID, s.workspace)
 	if err != nil {
 		return err
 	}
@@ -180,7 +180,7 @@ func TestConcurrency_CellWriteBlockedByTransition(t *testing.T) {
 
 	// pick one phase id in sheet a
 	var phaseRowID string
-	if err := db.QueryRowContext(ctx, jobPhaseSheetLockSQL+" LIMIT 1", a.templateID, a.phaseID, a.workspace).Scan(&phaseRowID, new(string), new(string)); err != nil {
+	if err := db.QueryRowContext(ctx, jobPhaseSheetLockSQL("")+" LIMIT 1", a.templateID, a.phaseID, a.workspace).Scan(&phaseRowID, new(string), new(string)); err != nil {
 		// jobPhaseSheetLockSQL already ends with FOR UPDATE OF jp; append LIMIT is
 		// invalid after FOR UPDATE. Fall back to a plain id lookup.
 		if err := db.QueryRowContext(ctx,

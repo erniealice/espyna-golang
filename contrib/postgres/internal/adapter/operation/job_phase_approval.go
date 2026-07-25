@@ -74,16 +74,18 @@ const jobPhaseParentLockSQL = `
 // ($1=template) AND binds j.workspace_id ($3, trusted). FOR UPDATE OF jp row-marks
 // ONLY job_phase; the joined job rows are read, not locked (so two transitions
 // over different phases cannot form a lock-ordering cycle on shared job rows).
-const jobPhaseSheetLockSQL = `
+func jobPhaseSheetLockSQL(groupNarrow string) string {
+	return `
 	SELECT jp.id, jp.job_id, jp.approval_status
 	FROM ` + entityid.JobPhase + ` jp
 	JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
 	WHERE jp.template_phase_id = $2
 	  AND j.job_template_id = $1
 	  AND j.workspace_id = $3
-	  AND jp.active = true
+	  AND jp.active = true` + groupNarrow + `
 	ORDER BY jp.id
 	FOR UPDATE OF jp`
+}
 
 // normalizeReturnReason trims, caps at returnReasonMaxLen, and enforces the
 // published-return reason requirement. published==true requires a non-blank
@@ -409,7 +411,50 @@ type lockedPhase struct {
 // `ORDER BY jp.id FOR UPDATE OF jp` under a trusted workspace bind. Returns the
 // locked rows in ascending id order. An empty S is a typed error (nothing to
 // transition / IDOR mismatch is indistinguishable from an empty sheet).
-func lockParentAndSheet(ctx context.Context, exec sqlexec.DBExecutor, templateID, phaseID, wsID string) ([]lockedPhase, error) {
+
+// groupNarrowPredicate returns the SQL fragment restricting a sheet set S to ONE
+// delivery group, plus the arg to append. Empty groupID returns ("", nil), so a
+// transition WITHOUT a group is byte-identical to its pre-20260725 form — the
+// whole feature is gated on the caller actually passing one.
+//
+// THE JOIN IS DELIBERATELY TIGHT: membership AND the job's originating
+// subscription (sgm_g.subscription_id = j.origin_id), matching the delivery
+// aggregate's own link — NOT bare membership. Bare membership is wrong here in a
+// way that is easy to miss: a student holds ACTIVE membership in a group for
+// every academic year they were enrolled, so a group from another year would
+// select a plausible SUBSET of this template's jobs (measured on education1:
+// 2,440 such (template, group) pairs, worst case 27 students). For a read that
+// is a wrong roster; for a WRITE it would transition the wrong students'
+// approval state. Pinning origin_id selects exactly the jobs that group's
+// subscription produced.
+//
+// The membership row is bound to the caller's workspace placeholder (wsArgN), so
+// a foreign-workspace group selects nothing rather than erroring, and
+// lockParentAndSheet's existing empty-set guard turns that into a fail-closed
+// "empty target" error. Both placeholder indexes are caller-supplied because the
+// surrounding queries number their args differently (the transition probes bind
+// workspace at $3, the read roll-up at $2).
+//
+// Shared by the WRITE path (transitions, this file) and the READ path
+// (outcome_matrix_query.go's approval roll-up) on purpose: if the two ever
+// disagreed about which jobs belong to a group, a sheet would display one set
+// and transition another.
+func groupNarrowPredicate(groupID string, groupArgN, wsArgN int) (string, []any) {
+	if groupID == "" {
+		return "", nil
+	}
+	return fmt.Sprintf(`
+			  AND EXISTS (
+			    SELECT 1 FROM `+entityid.SubscriptionGroupMember+` sgm_g
+			    WHERE sgm_g.client_id = j.client_id
+			      AND sgm_g.subscription_id = j.origin_id
+			      AND sgm_g.subscription_group_id = $%d
+			      AND sgm_g.workspace_id = $%d
+			      AND sgm_g.active = true
+			  )`, groupArgN, wsArgN), []any{groupID}
+}
+
+func lockParentAndSheet(ctx context.Context, exec sqlexec.DBExecutor, templateID, phaseID, wsID, groupID string) ([]lockedPhase, error) {
 	if templateID == "" || phaseID == "" {
 		return nil, fmt.Errorf("job_phase approval: job_template_id and job_template_phase_id are required")
 	}
@@ -423,7 +468,8 @@ func lockParentAndSheet(ctx context.Context, exec sqlexec.DBExecutor, templateID
 		return nil, fmt.Errorf("job_phase approval: lock parent template phase: %w", err)
 	}
 
-	rows, err := exec.QueryContext(ctx, jobPhaseSheetLockSQL, templateID, phaseID, wsID)
+	narrow, narrowArgs := groupNarrowPredicate(groupID, 4, 3)
+	rows, err := exec.QueryContext(ctx, jobPhaseSheetLockSQL(narrow), append([]any{templateID, phaseID, wsID}, narrowArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("job_phase approval: lock sheet set: %w", err)
 	}
@@ -450,8 +496,9 @@ func lockParentAndSheet(ctx context.Context, exec sqlexec.DBExecutor, templateID
 // enclosing academic-year price_schedule is closed. Ground-truthed against the
 // year-final-compute CLI freeze predicate. The render-gate 409 itself is P3; P2
 // ships this predicate as a reusable read and enforces it on every transition.
-func sheetHardFrozen(ctx context.Context, exec sqlexec.DBExecutor, templateID, phaseID, wsID string) (bool, error) {
-	const q = `
+func sheetHardFrozen(ctx context.Context, exec sqlexec.DBExecutor, templateID, phaseID, wsID, groupID string) (bool, error) {
+	narrow, narrowArgs := groupNarrowPredicate(groupID, 4, 3)
+	q := `
 		SELECT EXISTS (
 			SELECT 1
 			FROM ` + entityid.JobPhase + ` jp
@@ -459,7 +506,7 @@ func sheetHardFrozen(ctx context.Context, exec sqlexec.DBExecutor, templateID, p
 			WHERE jp.template_phase_id = $2
 			  AND j.job_template_id = $1
 			  AND j.workspace_id = $3
-			  AND jp.active = true
+			  AND jp.active = true` + narrow + `
 			  AND (
 			    EXISTS (
 			      SELECT 1 FROM ` + entityid.JobOutcomeSummary + ` jos
@@ -480,7 +527,7 @@ func sheetHardFrozen(ctx context.Context, exec sqlexec.DBExecutor, templateID, p
 			  )
 		)`
 	var frozen bool
-	if err := exec.QueryRowContext(ctx, q, templateID, phaseID, wsID).Scan(&frozen); err != nil {
+	if err := exec.QueryRowContext(ctx, q, append([]any{templateID, phaseID, wsID}, narrowArgs...)...).Scan(&frozen); err != nil {
 		return false, fmt.Errorf("job_phase approval: hard_frozen probe: %w", err)
 	}
 	return frozen, nil
@@ -552,37 +599,39 @@ func resolveStaffFacet(ctx context.Context, exec sqlexec.DBExecutor, wsID string
 // strictly stronger than existential reachability, so it also proves S\R=∅ (the
 // codex "reachability is evidence only, at minimum S\R=∅" bar) — a substitute who
 // merely recorded one outcome does NOT own all tasks and is correctly denied.
-func assertAllTasksOwned(ctx context.Context, exec sqlexec.DBExecutor, templateID, phaseID, wsID, facet string) error {
+func assertAllTasksOwned(ctx context.Context, exec sqlexec.DBExecutor, templateID, phaseID, wsID, facet, groupID string) error {
+	narrow, narrowArgs := groupNarrowPredicate(groupID, 5, 3)
 	// (A) any active task not owned by the facet (unassigned / blank / other staff)?
-	const unownedSQL = `
+	unownedSQL := `
 		SELECT EXISTS (
 			SELECT 1
 			FROM ` + entityid.JobPhase + ` jp
 			JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
 			JOIN ` + entityid.JobTask + ` jt ON jt.job_phase_id = jp.id AND jt.active = true
 			WHERE jp.template_phase_id = $2 AND j.job_template_id = $1 AND j.workspace_id = $3
-			  AND jp.active = true
+			  AND jp.active = true` + narrow + `
 			  AND (jt.assigned_to IS NULL OR jt.assigned_to = '' OR jt.assigned_to <> $4)
 		)`
 	var unowned bool
-	if err := exec.QueryRowContext(ctx, unownedSQL, templateID, phaseID, wsID, facet).Scan(&unowned); err != nil {
+	if err := exec.QueryRowContext(ctx, unownedSQL, append([]any{templateID, phaseID, wsID, facet}, narrowArgs...)...).Scan(&unowned); err != nil {
 		return fmt.Errorf("job_phase submit: ownership probe: %w", err)
 	}
 	if unowned {
 		return fmt.Errorf("job_phase submit: not all active tasks are assigned to the acting staff (D7 ownership) — fail closed")
 	}
 	// (B) any phase member with zero active tasks (cannot prove ownership)?
-	const emptyMemberSQL = `
+	emptyNarrow, emptyNarrowArgs := groupNarrowPredicate(groupID, 4, 3)
+	emptyMemberSQL := `
 		SELECT EXISTS (
 			SELECT 1
 			FROM ` + entityid.JobPhase + ` jp
 			JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
 			WHERE jp.template_phase_id = $2 AND j.job_template_id = $1 AND j.workspace_id = $3
-			  AND jp.active = true
+			  AND jp.active = true` + emptyNarrow + `
 			  AND NOT EXISTS (SELECT 1 FROM ` + entityid.JobTask + ` jt WHERE jt.job_phase_id = jp.id AND jt.active = true)
 		)`
 	var emptyMember bool
-	if err := exec.QueryRowContext(ctx, emptyMemberSQL, templateID, phaseID, wsID).Scan(&emptyMember); err != nil {
+	if err := exec.QueryRowContext(ctx, emptyMemberSQL, append([]any{templateID, phaseID, wsID}, emptyNarrowArgs...)...).Scan(&emptyMember); err != nil {
 		return fmt.Errorf("job_phase submit: empty-member probe: %w", err)
 	}
 	if emptyMember {
@@ -604,8 +653,9 @@ func assertAllTasksOwned(ctx context.Context, exec sqlexec.DBExecutor, templateI
 // template_task_criteria pair is one leaf, blank when no active task_outcome matches
 // BOTH the task and that criterion (t.criteria_version_id = ttc.outcome_criteria_id).
 // Surfaced in P3's confirm dialog and stamped on the transition audit event.
-func countBlankRequiredCells(ctx context.Context, exec sqlexec.DBExecutor, templateID, phaseID, wsID string) (int, error) {
-	const q = `
+func countBlankRequiredCells(ctx context.Context, exec sqlexec.DBExecutor, templateID, phaseID, wsID, groupID string) (int, error) {
+	narrow, narrowArgs := groupNarrowPredicate(groupID, 4, 3)
+	q := `
 		SELECT COUNT(*)
 		FROM ` + entityid.JobPhase + ` jp
 		JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
@@ -615,7 +665,7 @@ func countBlankRequiredCells(ctx context.Context, exec sqlexec.DBExecutor, templ
 		JOIN ` + entityid.OutcomeCriteria + ` oc
 		  ON oc.id = ttc.outcome_criteria_id AND oc.active = true
 		WHERE jp.template_phase_id = $2 AND j.job_template_id = $1 AND j.workspace_id = $3
-		  AND jp.active = true
+		  AND jp.active = true` + narrow + `
 		  AND COALESCE(ttc.required_override, oc.required) = true
 		  AND NOT EXISTS (
 		    SELECT 1 FROM ` + entityid.TaskOutcome + ` t
@@ -624,7 +674,7 @@ func countBlankRequiredCells(ctx context.Context, exec sqlexec.DBExecutor, templ
 		      AND t.active = true
 		  )`
 	var n int
-	if err := exec.QueryRowContext(ctx, q, templateID, phaseID, wsID).Scan(&n); err != nil {
+	if err := exec.QueryRowContext(ctx, q, append([]any{templateID, phaseID, wsID}, narrowArgs...)...).Scan(&n); err != nil {
 		return 0, fmt.Errorf("job_phase submit: blank-count probe: %w", err)
 	}
 	return n, nil
@@ -682,7 +732,7 @@ func bulkUpdateAndVerify(ctx context.Context, exec sqlexec.DBExecutor, locked []
 // install the audit-context middleware (which otherwise leaves LogEntry inserting
 // an empty/zero actor). A missing trusted actor also fails closed. Partition /
 // insert errors from LogEntry propagate and stay transaction-fatal.
-func (r *PostgresJobPhaseRepository) writeTransitionAudit(ctx context.Context, wsID, templateID, phaseID, permCode, useCase, oldState, newState, reason string, affected, blankCount int) error {
+func (r *PostgresJobPhaseRepository) writeTransitionAudit(ctx context.Context, wsID, templateID, phaseID, groupID, permCode, useCase, oldState, newState, reason string, affected, blankCount int) error {
 	if r.audit == nil {
 		return fmt.Errorf("job_phase approval: audit dependency is absent — refusing to transition without a durable audit event (fail closed)")
 	}
@@ -706,6 +756,15 @@ func (r *PostgresJobPhaseRepository) writeTransitionAudit(ctx context.Context, w
 	if blankCount >= 0 {
 		changes = append(changes, infraports.AuditFieldChange{
 			FieldName: "blank_required_cell_count", FieldType: 1, OldValue: "", NewValue: strconv.Itoa(blankCount),
+		})
+	}
+	// Record the narrowing. Without it a group-scoped transition is
+	// indistinguishable in the trail from a template-wide one that happened to
+	// affect the same count — which is exactly the question an auditor asks
+	// ("who submitted whose grades?").
+	if groupID != "" {
+		changes = append(changes, infraports.AuditFieldChange{
+			FieldName: "subscription_group_id", FieldType: 1, OldValue: "", NewValue: groupID,
 		})
 	}
 	return r.audit.LogEntry(ctx, &infraports.AuditLogRequest{
@@ -797,8 +856,10 @@ func (r *PostgresJobPhaseRepository) SubmitJobPhaseApproval(ctx context.Context,
 		return nil, fmt.Errorf("job_phase submit: no workspace in trusted context")
 	}
 	templateID, phaseID := req.GetJobTemplateId(), req.GetJobTemplatePhaseId()
+	// Optional delivery-group narrowing. Empty ⇒ the whole template, unchanged.
+	groupID := req.GetSubscriptionGroupId()
 
-	locked, err := lockParentAndSheet(ctx, exec, templateID, phaseID, wsID)
+	locked, err := lockParentAndSheet(ctx, exec, templateID, phaseID, wsID, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -812,7 +873,7 @@ func (r *PostgresJobPhaseRepository) SubmitJobPhaseApproval(ctx context.Context,
 		if ferr != nil {
 			return nil, ferr
 		}
-		if aerr := assertAllTasksOwned(ctx, exec, templateID, phaseID, wsID, facet); aerr != nil {
+		if aerr := assertAllTasksOwned(ctx, exec, templateID, phaseID, wsID, facet, groupID); aerr != nil {
 			return nil, aerr
 		}
 	}
@@ -820,7 +881,7 @@ func (r *PostgresJobPhaseRepository) SubmitJobPhaseApproval(ctx context.Context,
 	if err := requireUniformSource(locked, apInProgress); err != nil {
 		return nil, err
 	}
-	frozen, err := sheetHardFrozen(ctx, exec, templateID, phaseID, wsID)
+	frozen, err := sheetHardFrozen(ctx, exec, templateID, phaseID, wsID, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -828,7 +889,7 @@ func (r *PostgresJobPhaseRepository) SubmitJobPhaseApproval(ctx context.Context,
 		return nil, fmt.Errorf("job_phase submit: sheet is hard-frozen (closed schedule or authoritative final) — cannot submit")
 	}
 
-	blankCount, err := countBlankRequiredCells(ctx, exec, templateID, phaseID, wsID)
+	blankCount, err := countBlankRequiredCells(ctx, exec, templateID, phaseID, wsID, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -869,7 +930,7 @@ func (r *PostgresJobPhaseRepository) SubmitJobPhaseApproval(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	if err := r.writeTransitionAudit(ctx, wsID, templateID, phaseID, "job_phase:submit", "SubmitJobPhaseApproval", apInProgress, apForReview, "", affected, blankCount); err != nil {
+	if err := r.writeTransitionAudit(ctx, wsID, templateID, phaseID, groupID, "job_phase:submit", "SubmitJobPhaseApproval", apInProgress, apForReview, "", affected, blankCount); err != nil {
 		return nil, err
 	}
 	return &pb.SubmitJobPhaseApprovalResponse{
@@ -894,15 +955,17 @@ func (r *PostgresJobPhaseRepository) VerifyJobPhaseApproval(ctx context.Context,
 		return nil, fmt.Errorf("job_phase verify: no workspace in trusted context")
 	}
 	templateID, phaseID := req.GetJobTemplateId(), req.GetJobTemplatePhaseId()
+	// Optional delivery-group narrowing. Empty ⇒ the whole template, unchanged.
+	groupID := req.GetSubscriptionGroupId()
 
-	locked, err := lockParentAndSheet(ctx, exec, templateID, phaseID, wsID)
+	locked, err := lockParentAndSheet(ctx, exec, templateID, phaseID, wsID, groupID)
 	if err != nil {
 		return nil, err
 	}
 	if err := requireUniformSource(locked, apForReview); err != nil {
 		return nil, err
 	}
-	frozen, err := sheetHardFrozen(ctx, exec, templateID, phaseID, wsID)
+	frozen, err := sheetHardFrozen(ctx, exec, templateID, phaseID, wsID, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -918,7 +981,7 @@ func (r *PostgresJobPhaseRepository) VerifyJobPhaseApproval(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	if err := r.writeTransitionAudit(ctx, wsID, templateID, phaseID, "job_phase:verify", "VerifyJobPhaseApproval", apForReview, apVerified, "", affected, -1); err != nil {
+	if err := r.writeTransitionAudit(ctx, wsID, templateID, phaseID, groupID, "job_phase:verify", "VerifyJobPhaseApproval", apForReview, apVerified, "", affected, -1); err != nil {
 		return nil, err
 	}
 	return &pb.VerifyJobPhaseApprovalResponse{
@@ -943,15 +1006,17 @@ func (r *PostgresJobPhaseRepository) PublishJobPhaseApproval(ctx context.Context
 		return nil, fmt.Errorf("job_phase publish: no workspace in trusted context")
 	}
 	templateID, phaseID := req.GetJobTemplateId(), req.GetJobTemplatePhaseId()
+	// Optional delivery-group narrowing. Empty ⇒ the whole template, unchanged.
+	groupID := req.GetSubscriptionGroupId()
 
-	locked, err := lockParentAndSheet(ctx, exec, templateID, phaseID, wsID)
+	locked, err := lockParentAndSheet(ctx, exec, templateID, phaseID, wsID, groupID)
 	if err != nil {
 		return nil, err
 	}
 	if err := requireUniformSource(locked, apVerified); err != nil {
 		return nil, err
 	}
-	frozen, err := sheetHardFrozen(ctx, exec, templateID, phaseID, wsID)
+	frozen, err := sheetHardFrozen(ctx, exec, templateID, phaseID, wsID, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -967,7 +1032,7 @@ func (r *PostgresJobPhaseRepository) PublishJobPhaseApproval(ctx context.Context
 	if err != nil {
 		return nil, err
 	}
-	if err := r.writeTransitionAudit(ctx, wsID, templateID, phaseID, "job_phase:publish", "PublishJobPhaseApproval", apVerified, apPublished, "", affected, -1); err != nil {
+	if err := r.writeTransitionAudit(ctx, wsID, templateID, phaseID, groupID, "job_phase:publish", "PublishJobPhaseApproval", apVerified, apPublished, "", affected, -1); err != nil {
 		return nil, err
 	}
 	return &pb.PublishJobPhaseApprovalResponse{
@@ -992,8 +1057,10 @@ func (r *PostgresJobPhaseRepository) ReturnJobPhaseApproval(ctx context.Context,
 		return nil, fmt.Errorf("job_phase return: no workspace in trusted context")
 	}
 	templateID, phaseID := req.GetJobTemplateId(), req.GetJobTemplatePhaseId()
+	// Optional delivery-group narrowing. Empty ⇒ the whole template, unchanged.
+	groupID := req.GetSubscriptionGroupId()
 
-	locked, err := lockParentAndSheet(ctx, exec, templateID, phaseID, wsID)
+	locked, err := lockParentAndSheet(ctx, exec, templateID, phaseID, wsID, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -1036,7 +1103,7 @@ func (r *PostgresJobPhaseRepository) ReturnJobPhaseApproval(ctx context.Context,
 
 	// Hard-frozen blocks return entirely (a closed schedule / authoritative final
 	// needs a separate correction workflow).
-	frozen, err := sheetHardFrozen(ctx, exec, templateID, phaseID, wsID)
+	frozen, err := sheetHardFrozen(ctx, exec, templateID, phaseID, wsID, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -1063,7 +1130,7 @@ func (r *PostgresJobPhaseRepository) ReturnJobPhaseApproval(ctx context.Context,
 	// Record the ACTUAL old state (the sole captured status, or MIXED only when
 	// the locked statuses genuinely differ) — never an assumed "MIXED".
 	oldState := deriveOldState(locked)
-	if err := r.writeTransitionAudit(ctx, wsID, templateID, phaseID, "job_phase:return", "ReturnJobPhaseApproval", oldState, apInProgress, reason, affected, -1); err != nil {
+	if err := r.writeTransitionAudit(ctx, wsID, templateID, phaseID, groupID, "job_phase:return", "ReturnJobPhaseApproval", oldState, apInProgress, reason, affected, -1); err != nil {
 		return nil, err
 	}
 	return &pb.ReturnJobPhaseApprovalResponse{

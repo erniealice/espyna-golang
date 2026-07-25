@@ -102,7 +102,7 @@ func (a *PostgresOutcomeMatrixQuery) GetOutcomeMatrix(
 	// "Derive it over full S for an otherwise authorized template, not the
 	// staff-visible subset"). Independent of req.Scope, so a teacher on
 	// scope=MINE still sees the sheet's true approval state.
-	rollups, err := a.loadApprovalRollups(ctx, jobTemplateID, workspaceID)
+	rollups, err := a.loadApprovalRollups(ctx, jobTemplateID, workspaceID, req.GetSubscriptionGroupId())
 	if err != nil {
 		return nil, err
 	}
@@ -353,9 +353,17 @@ func approvalRankToStatus(rank int) jobphasepb.PhaseApprovalStatus {
 //     countBlankRequiredCells seam exactly);
 //   - hard_frozen per phase, REUSING the P2 sheetHardFrozen read verbatim
 //     (closed schedule OR active authoritative final — plan §4.4).
-func (a *PostgresOutcomeMatrixQuery) loadApprovalRollups(ctx context.Context, jobTemplateID, workspaceID string) ([]*matrixpb.PhaseApprovalRollup, error) {
+func (a *PostgresOutcomeMatrixQuery) loadApprovalRollups(ctx context.Context, jobTemplateID, workspaceID, groupID string) ([]*matrixpb.PhaseApprovalRollup, error) {
+	// Narrow every roll-up probe to the SAME delivery group the rows were narrowed
+	// to. Without this the band would describe the whole template while the grid
+	// showed one group: after a group-scoped Submit, this group's rows are
+	// FOR_REVIEW but the template's lowest rank is still IN_PROGRESS, so the badge
+	// would read "In Progress" and re-offer a Submit that has already run.
+	// Shared predicate with the transition path — display and write must agree on
+	// which jobs belong to a group. Workspace binds at $2 here.
+	narrow, narrowArgs := groupNarrowPredicate(groupID, 3, 2)
 	// (A) status-rank min/max + member count per template_phase.
-	const statusSQL = `
+	statusSQL := `
 SELECT jp.template_phase_id,
        COUNT(*) AS target_count,
        MIN(CASE jp.approval_status
@@ -369,7 +377,7 @@ FROM ` + entityid.JobPhase + ` jp
 JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
 LEFT JOIN ` + entityid.JobTemplatePhase + ` jtp ON jtp.id = jp.template_phase_id
 WHERE j.job_template_id = $1 AND j.workspace_id = $2
-  AND jp.active = true AND jp.template_phase_id IS NOT NULL
+  AND jp.active = true AND jp.template_phase_id IS NOT NULL` + narrow + `` + narrow + `
 GROUP BY jp.template_phase_id, jtp.phase_order
 -- Curriculum order, NOT id order. This previously read ORDER BY
 -- jp.template_phase_id — a UUID, so the approval band came out in effectively
@@ -381,7 +389,7 @@ GROUP BY jp.template_phase_id, jtp.phase_order
 -- rather than jumping to the front.
 ORDER BY jtp.phase_order NULLS LAST, jp.template_phase_id`
 
-	rows, err := a.db.QueryContext(ctx, statusSQL, jobTemplateID, workspaceID)
+	rows, err := a.db.QueryContext(ctx, statusSQL, append([]any{jobTemplateID, workspaceID}, narrowArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("outcome_matrix: approval roll-up status query: %w", err)
 	}
@@ -417,15 +425,15 @@ ORDER BY jtp.phase_order NULLS LAST, jp.template_phase_id`
 
 	// (B) has_data: template_phases with any active outcome under the sheet.
 	hasData := map[string]bool{}
-	const hasDataSQL = `
+	hasDataSQL := `
 SELECT DISTINCT jp.template_phase_id
 FROM ` + entityid.JobPhase + ` jp
 JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
 JOIN ` + entityid.JobTask + ` jt ON jt.job_phase_id = jp.id AND jt.active = true
 JOIN ` + entityid.TaskOutcome + ` t ON t.job_task_id = jt.id AND t.active = true
 WHERE j.job_template_id = $1 AND j.workspace_id = $2
-  AND jp.active = true AND jp.template_phase_id IS NOT NULL`
-	if err := a.scanPhaseIDSet(ctx, hasDataSQL, jobTemplateID, workspaceID, hasData); err != nil {
+  AND jp.active = true AND jp.template_phase_id IS NOT NULL` + narrow + ``
+	if err := a.scanPhaseIDSet(ctx, hasDataSQL, hasData, append([]any{jobTemplateID, workspaceID}, narrowArgs...)...); err != nil {
 		return nil, err
 	}
 
@@ -436,7 +444,7 @@ WHERE j.job_template_id = $1 AND j.workspace_id = $2
 	// the transition audit count agree (optional leaves are NOT blanks; a
 	// per-template-task required_override wins over the criterion default).
 	blankByPhase := map[string]int32{}
-	const blankSQL = `
+	blankSQL := `
 SELECT jp.template_phase_id, COUNT(*)
 FROM ` + entityid.JobPhase + ` jp
 JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
@@ -446,7 +454,7 @@ JOIN ` + entityid.TemplateTaskCriteria + ` ttc
 JOIN ` + entityid.OutcomeCriteria + ` oc
   ON oc.id = ttc.outcome_criteria_id AND oc.active = true
 WHERE j.job_template_id = $1 AND j.workspace_id = $2
-  AND jp.active = true AND jp.template_phase_id IS NOT NULL
+  AND jp.active = true AND jp.template_phase_id IS NOT NULL` + narrow + `
   AND COALESCE(ttc.required_override, oc.required) = true
   AND NOT EXISTS (
     SELECT 1 FROM ` + entityid.TaskOutcome + ` t
@@ -455,7 +463,7 @@ WHERE j.job_template_id = $1 AND j.workspace_id = $2
       AND t.active = true
   )
 GROUP BY jp.template_phase_id`
-	brows, err := a.db.QueryContext(ctx, blankSQL, jobTemplateID, workspaceID)
+	brows, err := a.db.QueryContext(ctx, blankSQL, append([]any{jobTemplateID, workspaceID}, narrowArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("outcome_matrix: approval roll-up blank-count query: %w", err)
 	}
@@ -478,7 +486,12 @@ GROUP BY jp.template_phase_id`
 		status := approvalRankToStatus(g.lowestRank)
 		// hard_frozen: reuse the P2 read verbatim (closed schedule / authoritative
 		// final), per phase, workspace-scoped.
-		frozen, ferr := sheetHardFrozen(ctx, a.db, jobTemplateID, phaseID, workspaceID)
+		// Group narrowing deliberately NOT applied (""): hard_frozen is a property
+		// of the SHEET — a closed academic year or an authoritative final — not of
+		// one group within it. Narrowing it would let a group render editable while
+		// the template it belongs to is frozen, which widens permission rather than
+		// restricting it. The roll-up stays template-grain here, as before.
+		frozen, ferr := sheetHardFrozen(ctx, a.db, jobTemplateID, phaseID, workspaceID, "")
 		if ferr != nil {
 			return nil, ferr
 		}
@@ -502,8 +515,8 @@ GROUP BY jp.template_phase_id`
 
 // scanPhaseIDSet runs a single-column template_phase_id query and marks each id
 // present in the supplied set.
-func (a *PostgresOutcomeMatrixQuery) scanPhaseIDSet(ctx context.Context, query, jobTemplateID, workspaceID string, set map[string]bool) error {
-	rows, err := a.db.QueryContext(ctx, query, jobTemplateID, workspaceID)
+func (a *PostgresOutcomeMatrixQuery) scanPhaseIDSet(ctx context.Context, query string, set map[string]bool, args ...any) error {
+	rows, err := a.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("outcome_matrix: approval roll-up set query: %w", err)
 	}
@@ -697,13 +710,13 @@ func (a *PostgresOutcomeMatrixQuery) loadRows(ctx context.Context, req *matrixpb
 	where := "WHERE j.job_template_id = $1 AND j.workspace_id = $2 AND j.active"
 	nextParam := 3
 
-	if req.SectionId != nil && req.GetSectionId() != "" {
+	if req.SubscriptionGroupId != nil && req.GetSubscriptionGroupId() != "" {
 		// workspace_id bound INSIDE the subquery too — a foreign-workspace
 		// section id must never influence the roster.
 		where += fmt.Sprintf(
 			" AND j.client_id IN (SELECT client_id FROM "+entityid.SubscriptionGroupMember+" WHERE subscription_group_id = $%d AND workspace_id = $2 AND active = true)",
 			nextParam)
-		args = append(args, req.GetSectionId())
+		args = append(args, req.GetSubscriptionGroupId())
 		nextParam++
 	}
 	if req.ProductId != nil && req.GetProductId() != "" {

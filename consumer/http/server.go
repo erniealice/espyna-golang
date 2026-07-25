@@ -536,7 +536,16 @@ func (s *Server) assembleHandler() http.Handler {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir(assetsDir))))
+	// Assets are cached but always revalidated. The shell versions index.css via
+	// ?v={{.CacheVersion}}, but that never reaches the ~50 component stylesheets it
+	// @imports bare — and with only Last-Modified on the response, browsers apply
+	// heuristic freshness and serve stale component CSS for hours. "no-cache" keeps
+	// the cache and still yields cheap 304s off Last-Modified.
+	assetFS := http.StripPrefix("/assets/", http.FileServer(http.Dir(assetsDir)))
+	mux.Handle("/assets/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		assetFS.ServeHTTP(w, r)
+	}))
 	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})

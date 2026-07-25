@@ -564,9 +564,22 @@ func NewDBUserLoader(reader UserReader, profileURLs ProfileURLs) *DBUserLoader {
 }
 
 // LoadCurrentUser returns the SidebarCurrentUser for the currently
-// authenticated request. Returns a zero-value SidebarCurrentUser when there
-// is no session, no reader, or the user is missing/inactive — the template
-// renders nothing in that case.
+// authenticated request. Returns a zero-value SidebarCurrentUser ONLY when
+// there is no session at all — the template renders nothing in that case.
+//
+// DEGRADES, NEVER DISAPPEARS. The user row is read through the permission-gated
+// Entity.User.ReadUser use case, so a principal without `user:read` (e.g. a
+// teacher, which today only renders because RBAC is in SHADOW mode) gets an
+// error back. The old behaviour returned zero here, which failed the
+// `{{if .Sidebar.CurrentUser.UserID}}` guard in sidebar01.html and made the
+// whole lower-left profile block VANISH — sidebar rendered, nothing at the
+// bottom, no way to sign out. Reading your own display name off your own
+// session is not a privileged operation, so when the gated read fails (or comes
+// back nameless) we fall back to the session identity already in ctx and still
+// render the block.
+//
+// An INACTIVE user is a different case and still returns zero: that is a
+// deliberate deny, not a failed read.
 func (l *DBUserLoader) LoadCurrentUser(ctx context.Context) types.SidebarCurrentUser {
 	userID := consumer.GetUserIDFromContext(ctx)
 	if userID == "" {
@@ -578,26 +591,86 @@ func (l *DBUserLoader) LoadCurrentUser(ctx context.Context) types.SidebarCurrent
 
 	display, err := l.reader.ReadUserDisplay(ctx, userID)
 	if err != nil {
-		log.Printf("UserLoader: failed to load user %s: %v", userID, err)
-		return types.SidebarCurrentUser{}
+		log.Printf("UserLoader: user %s read failed (%v) — falling back to session identity so the sidebar profile still renders", userID, err)
+		return l.currentUserFromSession(ctx, userID)
 	}
 	// Preserve the old `AND active = true` filter at the loader boundary:
 	// an inactive user renders no sidebar profile, same as the prior no-row case.
 	if !display.Active {
 		return types.SidebarCurrentUser{}
 	}
+	// A successful read that carries no name is still unrenderable — the
+	// template slices FirstName/LastName for the avatar initials. Fill from the
+	// session rather than emitting an empty block.
+	if display.FirstName == "" && display.LastName == "" {
+		fallback := l.currentUserFromSession(ctx, userID)
+		if display.Email != "" {
+			fallback.Email = display.Email
+		}
+		return fallback
+	}
 
-	return types.SidebarCurrentUser{
-		UserID:          userID,
-		FirstName:       display.FirstName,
-		LastName:        display.LastName,
-		Email:           display.Email,
-		ProfileURL:      l.profileURLs.Profile,
-		AccountURL:      l.profileURLs.Account,
-		BillingURL:      l.profileURLs.Billing,
-		PreferencesURL:  l.profileURLs.Preferences,
-		LogoutURL:       l.profileURLs.Logout,
-		LogoutActionURL: l.profileURLs.LogoutAction,
+	return l.withProfileURLs(types.SidebarCurrentUser{
+		UserID:    userID,
+		FirstName: display.FirstName,
+		LastName:  display.LastName,
+		Email:     display.Email,
+	})
+}
+
+// currentUserFromSession builds a display-only SidebarCurrentUser from the
+// session identity already on ctx — no DB read, no permission gate. Names are
+// derived from the session email's local part so the avatar initials and the
+// tooltip are never empty (the template slices both name fields).
+func (l *DBUserLoader) currentUserFromSession(ctx context.Context, userID string) types.SidebarCurrentUser {
+	// Same ctx key the render pipeline's InjectSessionUser reads.
+	email, _ := ctx.Value("email").(string)
+	first, last := namesFromEmail(email)
+	return l.withProfileURLs(types.SidebarCurrentUser{
+		UserID:    userID,
+		FirstName: first,
+		LastName:  last,
+		Email:     email,
+	})
+}
+
+// withProfileURLs stamps the per-app profile-menu URLs onto a SidebarCurrentUser.
+func (l *DBUserLoader) withProfileURLs(u types.SidebarCurrentUser) types.SidebarCurrentUser {
+	u.ProfileURL = l.profileURLs.Profile
+	u.AccountURL = l.profileURLs.Account
+	u.BillingURL = l.profileURLs.Billing
+	u.PreferencesURL = l.profileURLs.Preferences
+	u.LogoutURL = l.profileURLs.Logout
+	u.LogoutActionURL = l.profileURLs.LogoutAction
+	return u
+}
+
+// namesFromEmail splits an email local part into a first/last pair for display.
+// "doyoon.lee@example.com" → ("Doyoon", "Lee"); "admin@example.com" → ("Admin",
+// "User"). Both returns are guaranteed non-empty so the sidebar template's
+// `slice .FirstName 0 1` never panics.
+func namesFromEmail(email string) (string, string) {
+	local := email
+	if i := strings.IndexByte(local, '@'); i > 0 {
+		local = local[:i]
+	}
+	parts := strings.FieldsFunc(local, func(r rune) bool {
+		return r == '.' || r == '_' || r == '-' || r == '+'
+	})
+	titled := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p == "" {
+			continue
+		}
+		titled = append(titled, strings.ToUpper(p[:1])+p[1:])
+	}
+	switch len(titled) {
+	case 0:
+		return "Signed", "In"
+	case 1:
+		return titled[0], "User"
+	default:
+		return titled[0], titled[len(titled)-1]
 	}
 }
 

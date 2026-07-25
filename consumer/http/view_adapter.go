@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/erniealice/espyna-golang/consumer"
+	consumermw "github.com/erniealice/espyna-golang/consumer/http/middleware"
 	pyezarender "github.com/erniealice/pyeza-golang/render"
 	"github.com/erniealice/pyeza-golang/types"
 	"github.com/erniealice/pyeza-golang/view"
@@ -444,6 +445,50 @@ func (a *ViewAdapter) handleRender(w http.ResponseWriter, r *http.Request, resul
 	a.pipeline.InjectUserData(ctx, result.Data)
 	a.pipeline.InjectPostRotationBanner(ctx, result.Data)
 	a.pipeline.InjectUserPermissions(ctx, result.Data)
+
+	// Workspace-prefix the navigational URLs that Go VIEW CODE built from the
+	// boot-time Routes struct (types.TableRow.Href, types.TableAction.Href,
+	// header breadcrumb/subtitle links, the sidebar LogoURL, …).
+	//
+	// The composition RouteRewriter already handles the two lanes it can reach —
+	// the sidebar (rebuilt via NavResolver.WithWorkspace) and template-authored
+	// {{route}}/{{routeWith}} links (per-request route map). It cannot reach a
+	// URL a view computed in Go at Mount time; those strings are boot-time
+	// constants and were emitted BARE, so following a row action dropped out of
+	// the /w/{slug} lane and forced a session-derived workspace re-resolve
+	// (rotation + ws_csrf reissue).
+	//
+	// Runs LAST so it also covers URLs the injections above introduced (e.g.
+	// SidebarConfig.LogoURL, which comes from boot config and is therefore not
+	// rewritten by the NavResolver rebuild). PrependWorkspaceSlug is idempotent
+	// and pass-through for /action/, /auth/, /me/, /assets/, /static/, /healthz
+	// and /w/, so the already-prefixed sidebar rows are untouched.
+	//
+	// Slug source is the SERVER-PINNED URL slug (the same trusted seam the
+	// composition rewriter reads), never a client-supplied value. Outside the
+	// /w/{slug} lane the slug is empty and this whole block is skipped, so
+	// /app/* pages keep emitting bare URLs exactly as before.
+	if slug := consumermw.GetURLWorkspaceSlugFromContext(ctx); slug != "" {
+		actingAsClientID := consumermw.GetActingAsClientIDFromContext(ctx)
+		a.pipeline.RewriteNavURLs(result.Data, func(u string) string {
+			// LEGACY LANE — leave /app/* alone.
+			//
+			// PrependWorkspaceSlug STRIPS a leading /app/ before prefixing
+			// ("/app/profile" -> "/w/{slug}/profile"), which is right for a
+			// stale pre-P4 workspace route but WRONG for the handful of URLs
+			// that are genuinely still served at /app/* (the sidebar profile
+			// menu's personal.* routes: /app/profile, /app/account,
+			// /app/billing, /app/preferences — all live 200s today, while
+			// /w/{slug}/profile is not). Rewriting those would move the route
+			// SHAPE, which this pass is explicitly not allowed to do; the
+			// legacy-route migration is someone else's plan.
+			if strings.HasPrefix(u, "/app/") || u == "/app" {
+				return u
+			}
+			return consumer.PrependWorkspaceSlug(u, slug, actingAsClientID)
+		})
+	}
+
 	statusCode := result.StatusCode
 	if statusCode == 0 {
 		statusCode = http.StatusOK

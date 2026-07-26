@@ -5,6 +5,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group"
 	memberpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_member"
+	sgpppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_product_plan"
 	sgppspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_product_plan_staff"
 	sgwupb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_workspace_user"
 )
@@ -26,6 +27,7 @@ type Repositories struct {
 	// while-active-dependents-exist). Every table carrying a subscription_group_id
 	// FK. Wired by the subscription-domain initializer; nil-tolerant in the guard.
 	SubscriptionGroupMember           memberpb.SubscriptionGroupMemberDomainServiceServer
+	SubscriptionGroupProductPlan      sgpppb.SubscriptionGroupProductPlanDomainServiceServer
 	SubscriptionGroupProductPlanStaff sgppspb.SubscriptionGroupProductPlanStaffDomainServiceServer
 	SubscriptionGroupWorkspaceUser    sgwupb.SubscriptionGroupWorkspaceUserDomainServiceServer
 }
@@ -47,6 +49,7 @@ func NewUseCases(r Repositories, s Services) *UseCases {
 		DeleteSubscriptionGroup: NewDeleteSubscriptionGroupUseCase(DeleteSubscriptionGroupRepositories{
 			SubscriptionGroup: repo,
 			Member:            r.SubscriptionGroupMember,
+			Offering:          r.SubscriptionGroupProductPlan,
 			TeachingStaff:     r.SubscriptionGroupProductPlanStaff,
 			AccessGrant:       r.SubscriptionGroupWorkspaceUser,
 		}, DeleteSubscriptionGroupServices(s)),

@@ -50,6 +50,13 @@ func (uc *CreateSubscriptionGroupUseCase) enrich(data *pb.SubscriptionGroup) {
 		data.Id = uc.services.IDGenerator.GenerateID()
 	}
 	data.Active = true
+	// status is the lifecycle category, orthogonal to active. A NULL status
+	// would make the row unselectable in every picker (non-"current" renders
+	// disabled), so a new cohort always starts as "current".
+	if data.Status == nil || *data.Status == "" {
+		current := "current"
+		data.Status = &current
+	}
 	ms := now.UnixMilli()
 	s := now.Format(time.RFC3339)
 	data.DateCreated = &ms

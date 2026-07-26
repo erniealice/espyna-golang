@@ -137,6 +137,15 @@ type Checker interface {
 	// class. Consumed by the centymo list gating (espyna.md §1) for the row-level
 	// Remove-guard batch check; the Delete use case runs the same guard inline.
 	GetSubscriptionGroupProductPlanInUseIDs(ctx context.Context, ids []string) (map[string]bool, error)
+
+	// GetSubscriptionGroupInUseIDs blocks deletion of a subscription_group (THE
+	// COHORT) when any ACTIVE row in one of its four subscription_group_id FK
+	// tables references it: member (roster), product_plan (offering / class),
+	// product_plan_staff (servicing edge), workspace_user (access grant).
+	// Consumed by the centymo section-list gating for the row-level Delete-guard
+	// batch check; the Delete use case re-counts the same dependents inline
+	// (dual guard).
+	GetSubscriptionGroupInUseIDs(ctx context.Context, ids []string) (map[string]bool, error)
 }
 
 // ReferenceChecker re-exports the Checker contract so existing internal imports

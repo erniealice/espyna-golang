@@ -396,6 +396,31 @@ func (c *Checker) GetSubscriptionGroupProductPlanInUseIDs(ctx context.Context, i
 	return queryInUseIDs(ctx, c.db, query, ids)
 }
 
+// GetSubscriptionGroupInUseIDs blocks deletion of a subscription_group (THE
+// COHORT — a class section, patient panel, project team) when any ACTIVE row in
+// one of the four subscription_group_id FK tables references it: member
+// (roster), product_plan (offering / class), product_plan_staff (servicing
+// edge), workspace_user (access grant). This is the UI leg of the dual delete
+// guard — the delete use case re-counts the same dependents server-side
+// (delete_subscription_group.go), so a stale table render can never slip a
+// delete through. Multi-referrer UNION ALL shape mirrors GetJobTemplateInUseIDs.
+func (c *Checker) GetSubscriptionGroupInUseIDs(ctx context.Context, ids []string) (map[string]bool, error) {
+	if len(ids) == 0 {
+		return map[string]bool{}, nil
+	}
+	query := `
+		SELECT DISTINCT ref_id FROM (
+			SELECT subscription_group_id AS ref_id FROM subscription_group_member WHERE subscription_group_id = ANY($1) AND active = true
+			UNION ALL
+			SELECT subscription_group_id AS ref_id FROM subscription_group_product_plan WHERE subscription_group_id = ANY($1) AND active = true
+			UNION ALL
+			SELECT subscription_group_id AS ref_id FROM subscription_group_product_plan_staff WHERE subscription_group_id = ANY($1) AND active = true
+			UNION ALL
+			SELECT subscription_group_id AS ref_id FROM subscription_group_workspace_user WHERE subscription_group_id = ANY($1) AND active = true
+		) AS refs`
+	return queryInUseIDs(ctx, c.db, query, ids)
+}
+
 // queryInUseIDsWithWorkspace is like queryInUseIDs but passes a workspace_id as $2.
 // The query must accept $1 = ids array and $2 = workspace_id (text or NULL).
 func queryInUseIDsWithWorkspace(ctx context.Context, db *sql.DB, query string, ids []string, workspaceID string) (map[string]bool, error) {

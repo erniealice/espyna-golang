@@ -367,6 +367,7 @@ func NewUseCases(
 		subscriptionGroupUseCases.Repositories{
 			SubscriptionGroup:                 repos.SubscriptionGroup,
 			SubscriptionGroupMember:           repos.SubscriptionGroupMember,
+			SubscriptionGroupProductPlan:      repos.SubscriptionGroupProductPlan,
 			SubscriptionGroupProductPlanStaff: repos.SubscriptionGroupProductPlanStaff,
 			SubscriptionGroupWorkspaceUser:    repos.SubscriptionGroupWorkspaceUser,
 		},

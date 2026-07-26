@@ -13,6 +13,7 @@ import (
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group"
 	memberpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_member"
+	sgpppb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_product_plan"
 	sgppspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_product_plan_staff"
 	sgwupb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_group_workspace_user"
 )
@@ -21,9 +22,11 @@ import (
 // dependent repos consulted by the referential delete guard. A
 // subscription_group (the generic per-period COHORT — a class section, a
 // patient panel, a project team) must NOT be deletable while ACTIVE dependents
-// still reference its id. The three dependents are every table that carries a
-// subscription_group_id FK (esqyma proto grep, 2026-07-23):
+// still reference its id. The four dependents are every table that carries a
+// subscription_group_id FK (2026-07-26; subscription_group_product_plan gained
+// the FK after the original 2026-07-23 grep):
 //   - subscription_group_member                 (roster membership)
+//   - subscription_group_product_plan           (offerings / classes)
 //   - subscription_group_product_plan_staff     (servicing / class edges)
 //   - subscription_group_workspace_user         (servicing access grants)
 //
@@ -37,6 +40,7 @@ type DeleteSubscriptionGroupRepositories struct {
 	SubscriptionGroup pb.SubscriptionGroupDomainServiceServer
 
 	Member        memberpb.SubscriptionGroupMemberDomainServiceServer
+	Offering      sgpppb.SubscriptionGroupProductPlanDomainServiceServer
 	TeachingStaff sgppspb.SubscriptionGroupProductPlanStaffDomainServiceServer
 	AccessGrant   sgwupb.SubscriptionGroupWorkspaceUserDomainServiceServer
 }
@@ -91,11 +95,14 @@ func (uc *DeleteSubscriptionGroupUseCase) Execute(ctx context.Context, req *pb.D
 // a parent delete. Vertical-neutral field names; the lyngua nouns per tier.
 type dependentCounts struct {
 	members       int
+	offerings     int
 	teachingStaff int
 	accessGrants  int
 }
 
-func (d dependentCounts) total() int { return d.members + d.teachingStaff + d.accessGrants }
+func (d dependentCounts) total() int {
+	return d.members + d.offerings + d.teachingStaff + d.accessGrants
+}
 
 // groupIDFilter builds the single subscription_group_id equality filter shared by
 // every dependent List call. The postgres List operation DEFAULTS to active=true
@@ -136,6 +143,18 @@ func (uc *DeleteSubscriptionGroupUseCase) countActiveDependents(ctx context.Cont
 		for _, row := range resp.GetData() {
 			if row != nil && scopeMatch(row.GetActive(), row.GetSubscriptionGroupId(), row.GetWorkspaceId(), groupID, wsID) {
 				c.members++
+			}
+		}
+	}
+
+	if uc.repositories.Offering != nil {
+		resp, err := uc.repositories.Offering.ListSubscriptionGroupProductPlans(ctx, &sgpppb.ListSubscriptionGroupProductPlansRequest{Filters: groupIDFilter(groupID)})
+		if err != nil {
+			return c, err
+		}
+		for _, row := range resp.GetData() {
+			if row != nil && scopeMatch(row.GetActive(), row.GetSubscriptionGroupId(), row.GetWorkspaceId(), groupID, wsID) {
+				c.offerings++
 			}
 		}
 	}
@@ -184,6 +203,9 @@ func (uc *DeleteSubscriptionGroupUseCase) blockedReferencesMessage(ctx context.C
 	var clauses []string
 	if c.members > 0 {
 		clauses = append(clauses, fmt.Sprintf("%d %s", c.members, uc.noun(ctx, "subscription_group.validation.dependent_member", "member", "members", c.members)))
+	}
+	if c.offerings > 0 {
+		clauses = append(clauses, fmt.Sprintf("%d %s", c.offerings, uc.noun(ctx, "subscription_group.validation.dependent_offering", "offering", "offerings", c.offerings)))
 	}
 	if c.teachingStaff > 0 {
 		clauses = append(clauses, fmt.Sprintf("%d %s", c.teachingStaff, uc.noun(ctx, "subscription_group.validation.dependent_teaching_staff", "staff assignment", "staff assignments", c.teachingStaff)))

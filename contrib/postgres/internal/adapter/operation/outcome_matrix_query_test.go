@@ -161,9 +161,11 @@ func TestComposePhaseLabel(t *testing.T) {
 }
 
 // TestComputeCellEditable pins the editable rule, including the S8 §E empty-cell
-// guard: an EMPTY cell is editable only by the staff the task is ASSIGNED to, so a
-// merged two-teacher class cannot leak cross-strand empty-cell edits; RECORDED
-// cells keep recorder-only semantics unchanged; non-staff never edit.
+// guard and the 2026-07-26 COALESCE fallback: an EMPTY cell with an explicit
+// assignee is editable ONLY by that assignee (a per-task override — a merged
+// two-teacher class cannot leak cross-strand empty-cell edits); an UNASSIGNED
+// empty cell falls back to the class's primary sgpps edge (classEdgeOK);
+// RECORDED cells keep recorder-only semantics unchanged; non-staff never edit.
 func TestComputeCellEditable(t *testing.T) {
 	const me, other = "staff-me", "staff-other"
 
@@ -175,25 +177,32 @@ func TestComputeCellEditable(t *testing.T) {
 		assignedTo  string
 		actingStaff string
 		jobTaskID   string
+		classEdgeOK bool
 		want        bool
 	}{
-		// --- empty cells (S8 §E guard) ---
-		{"empty_assigned_to_me_editable", false, true, "", me, me, "jt-1", true},
-		{"empty_assigned_to_other_NOT_editable", false, true, "", other, me, "jt-1", false},
-		{"empty_unassigned_NOT_editable", false, true, "", "", me, "jt-1", false},
-		{"empty_no_instance_NOT_editable", false, true, "", me, me, "", false},
-		{"empty_non_staff_NOT_editable", false, false, "", me, me, "jt-1", false},
+		// --- empty cells (S8 §E guard: explicit assignee overrides) ---
+		{"empty_assigned_to_me_editable", false, true, "", me, me, "jt-1", false, true},
+		{"empty_assigned_to_other_NOT_editable", false, true, "", other, me, "jt-1", false, false},
+		{"empty_assigned_to_other_edge_does_NOT_override", false, true, "", other, me, "jt-1", true, false},
+		{"empty_no_instance_NOT_editable", false, true, "", me, me, "", false, false},
+		{"empty_non_staff_NOT_editable", false, false, "", me, me, "jt-1", false, false},
+		// --- unassigned empty cells (class-edge COALESCE fallback) ---
+		{"unassigned_with_class_edge_editable", false, true, "", "", me, "jt-1", true, true},
+		{"unassigned_no_class_edge_NOT_editable", false, true, "", "", me, "jt-1", false, false},
+		{"unassigned_no_instance_NOT_editable", false, true, "", "", me, "", true, false},
+		{"unassigned_non_staff_edge_NOT_editable", false, false, "", "", me, "jt-1", true, false},
 		// --- recorded cells (semantics unchanged: recorder-only) ---
-		{"recorded_by_me_editable", true, true, me, other, me, "jt-1", true},
-		{"recorded_by_other_NOT_editable", true, true, other, me, me, "jt-1", false},
-		{"recorded_non_staff_NOT_editable", true, false, me, me, me, "jt-1", false},
+		{"recorded_by_me_editable", true, true, me, other, me, "jt-1", false, true},
+		{"recorded_by_other_NOT_editable", true, true, other, me, me, "jt-1", false, false},
+		{"recorded_by_other_edge_does_NOT_override", true, true, other, "", me, "jt-1", true, false},
+		{"recorded_non_staff_NOT_editable", true, false, me, me, me, "jt-1", false, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := computeCellEditable(c.hasOutcome, c.staffOK, c.recordedBy, c.assignedTo, c.actingStaff, c.jobTaskID)
+			got := computeCellEditable(c.hasOutcome, c.staffOK, c.recordedBy, c.assignedTo, c.actingStaff, c.jobTaskID, c.classEdgeOK)
 			if got != c.want {
-				t.Errorf("computeCellEditable(hasOutcome=%v,staffOK=%v,recordedBy=%q,assignedTo=%q,actingStaff=%q,jobTaskID=%q) = %v, want %v",
-					c.hasOutcome, c.staffOK, c.recordedBy, c.assignedTo, c.actingStaff, c.jobTaskID, got, c.want)
+				t.Errorf("computeCellEditable(hasOutcome=%v,staffOK=%v,recordedBy=%q,assignedTo=%q,actingStaff=%q,jobTaskID=%q,classEdgeOK=%v) = %v, want %v",
+					c.hasOutcome, c.staffOK, c.recordedBy, c.assignedTo, c.actingStaff, c.jobTaskID, c.classEdgeOK, got, c.want)
 			}
 		})
 	}

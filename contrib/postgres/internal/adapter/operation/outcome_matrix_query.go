@@ -119,9 +119,12 @@ func (a *PostgresOutcomeMatrixQuery) GetOutcomeMatrix(
 
 // GetOutcomeSummaryRoster returns the STORED per-period + year-final composites
 // for every student under one job_template (20260720 export drawer P2). It reads
-// stored values VERBATIM — phase_outcome_summary.scaled_label (per job_phase) and
-// job_outcome_summary.scaled_label + is_authoritative (per job) — and NEVER
-// recomputes (D8: closed AYs are frozen/authoritative). Workspace-scoped in SQL
+// stored values VERBATIM — phase_outcome_summary.summary_score + scaled_label
+// (per job_phase, the raw composite and its transmuted output, one row so the
+// pair is never mutually inconsistent) and job_outcome_summary.scaled_label +
+// is_authoritative (per job) — and NEVER recomputes (D8: closed AYs are
+// frozen/authoritative). No year-final summary_score twin here by design
+// (20260729 criteria-total design, D5). Workspace-scoped in SQL
 // from the session identity, and row-scoped EXACTLY as the grid's loadRows:
 //   - scope=MINE/UNSPECIFIED: principalscope.StaffReachableJobClause narrows BOTH
 //     queries to the acting staff's reachable jobs (fail-closed: a non-staff
@@ -215,13 +218,23 @@ ORDER BY j.client_id, j.id, jos.date_created DESC NULLS LAST, jos.id DESC`
 		return nil, fmt.Errorf("outcome_matrix: roster year-final rows: %w", err)
 	}
 
-	// (B) Per-phase composites: the latest active phase_outcome_summary.scaled_label
-	// per job_phase, mapped to its job_template_phase (code/label/order). DISTINCT ON
+	// (B) Per-phase composites: the latest active phase_outcome_summary row per
+	// job_phase — BOTH stored values of the composite pair, summary_score (the raw
+	// composite the scoring scheme combined) and scaled_label (its transmuted
+	// output) — mapped to its job_template_phase (code/label/order). DISTINCT ON
 	// (jp.id) keeps the newest pos revision (date_created DESC). A phase entry is
 	// attached only when its job is the SAME job (A) chose for the client — a client
 	// with >1 job under the template must not mix another job's phases with this
 	// year-final (Finding 2 dedup parity: one row per client, phases + year-final
 	// from ONE job).
+	//
+	// summary_score is selected RAW — deliberately NOT COALESCE'd, unlike
+	// scaled_label just above (a "" string label is indistinguishable from an
+	// absent one and the consumer treats both as blank). For the numeric composite
+	// the two states are NOT interchangeable: a stored 0 is a real computed
+	// composite and COALESCE(...,0) would forge one for every row that has none.
+	// The scan below carries the distinction through sql.NullFloat64 into the
+	// presence-tracked proto field (20260729 criteria-total design, D4).
 	phaseSQL := `
 SELECT DISTINCT ON (jp.id)
        j.client_id,
@@ -230,7 +243,8 @@ SELECT DISTINCT ON (jp.id)
        COALESCE(jtp.code, '')          AS phase_code,
        jtp.name                        AS phase_name,
        jtp.phase_order,
-       COALESCE(pos.scaled_label, '')  AS scaled_label
+       COALESCE(pos.scaled_label, '')  AS scaled_label,
+       pos.summary_score               AS summary_score
 FROM ` + entityid.Job + ` j
 JOIN ` + entityid.JobPhase + ` jp
        ON jp.job_id = j.id AND jp.active = true AND jp.template_phase_id IS NOT NULL
@@ -248,15 +262,16 @@ ORDER BY jp.id, pos.date_created DESC NULLS LAST, pos.id DESC`
 	defer prows.Close()
 	for prows.Next() {
 		var (
-			clientID    string
-			jobID       string
-			phaseID     string
-			phaseCode   string
-			phaseName   string
-			phaseOrder  int32
-			scaledLabel string
+			clientID     string
+			jobID        string
+			phaseID      string
+			phaseCode    string
+			phaseName    string
+			phaseOrder   int32
+			scaledLabel  string
+			summaryScore sql.NullFloat64
 		)
-		if err := prows.Scan(&clientID, &jobID, &phaseID, &phaseCode, &phaseName, &phaseOrder, &scaledLabel); err != nil {
+		if err := prows.Scan(&clientID, &jobID, &phaseID, &phaseCode, &phaseName, &phaseOrder, &scaledLabel, &summaryScore); err != nil {
 			return nil, fmt.Errorf("outcome_matrix: scan roster phase: %w", err)
 		}
 		row := rowByClient[clientID]
@@ -270,13 +285,23 @@ ORDER BY jp.id, pos.date_created DESC NULLS LAST, pos.id DESC`
 			// composite stays internally consistent (phases + year-final one job).
 			continue
 		}
-		row.Phases = append(row.Phases, &matrixpb.OutcomeSummaryPhaseEntry{
+		entry := &matrixpb.OutcomeSummaryPhaseEntry{
 			JobTemplatePhaseId: phaseID,
 			Code:               phaseCode,
 			Label:              phaseName,
 			SequenceOrder:      phaseOrder,
 			ScaledLabel:        scaledLabel,
-		})
+		}
+		// Presence, not value: the optional proto field is SET only for a stored
+		// composite (including a stored 0) and left UNSET for SQL NULL, so the
+		// consumer can tell "computed zero" from "nothing computed". Assigning
+		// summaryScore.Float64 unconditionally would collapse both onto 0 —
+		// exactly the failure COALESCE was avoided for in the query above.
+		if summaryScore.Valid {
+			v := summaryScore.Float64
+			entry.SummaryScore = &v
+		}
+		row.Phases = append(row.Phases, entry)
 	}
 	if err := prows.Err(); err != nil {
 		return nil, fmt.Errorf("outcome_matrix: roster phase rows: %w", err)

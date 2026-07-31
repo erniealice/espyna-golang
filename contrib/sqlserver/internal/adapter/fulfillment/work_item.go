@@ -164,11 +164,13 @@ func (r *SQLServerFulfillmentRepository) DeleteFulfillment(ctx context.Context, 
 	return &pb.DeleteFulfillmentResponse{Success: true}, nil
 }
 
+// Columns are bare (un-aliased): GetFulfillmentListPageData sorts in the outer
+// scope `FROM enriched`, which exposes no alias `f`. The CTE projects bare names.
 var fulfillmentSortableSQLCols = []string{
-	"f.id", "f.active", "f.workspace_id", "f.revenue_id", "f.supplier_id",
-	"f.delivery_mode", "f.status", "f.provider_status", "f.provider_reference",
-	"f.delivery_cost", "f.currency", "f.expenditure_id", "f.scheduled_at",
-	"f.delivered_at", "f.date_created", "f.date_modified",
+	"id", "active", "workspace_id", "revenue_id", "supplier_id",
+	"delivery_mode", "status", "provider_status", "provider_reference",
+	"delivery_cost", "currency", "expenditure_id", "scheduled_at",
+	"delivered_at", "date_created", "date_modified",
 }
 
 // ListFulfillments lists fulfillment records with optional filters.
@@ -238,7 +240,7 @@ func (r *SQLServerFulfillmentRepository) GetFulfillmentListPageData(
 		}
 	}
 
-	orderByClause, err := sqlserverCore.BuildOrderBy(fulfillmentSortableSQLCols, req.GetSort(), "f.date_created DESC")
+	orderByClause, err := sqlserverCore.BuildOrderBy(fulfillmentSortableSQLCols, req.GetSort(), "date_created DESC")
 	if err != nil {
 		return nil, err
 	}

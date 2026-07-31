@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"slices"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -25,25 +24,29 @@ import (
 
 // collectionSortableSQLCols lists the SQL column names safe to sort by in
 // GetCollectionListPageData. Unrecognised column → loud error (A2 guard).
+// Qualified with the OUTER alias `e` (SELECT e.*, c.total FROM enriched e, counted c),
+// not the inner `tc`: the ORDER BY is applied to the enriched subquery, which
+// exposes these as e.<col>. A `tc.<col>` reference is out of scope in the outer
+// SELECT and fails with MySQL error 1054 (Unknown column).
 var collectionSortableSQLCols = []string{
-	"tc.date_created",
-	"tc.date_modified",
-	"tc.name",
-	"tc.amount",
-	"tc.status",
-	"tc.payment_date",
-	"tc.reference_number",
+	"e.date_created",
+	"e.date_modified",
+	"e.name",
+	"e.amount",
+	"e.status",
+	"e.payment_date",
+	"e.reference_number",
 }
 
 // collectionViewToSQLColMap translates view-facing sort column keys to SQL column names.
 var collectionViewToSQLColMap = map[string]string{
-	"date_created":     "tc.date_created",
-	"date_modified":    "tc.date_modified",
-	"name":             "tc.name",
-	"amount":           "tc.amount",
-	"status":           "tc.status",
-	"payment_date":     "tc.payment_date",
-	"reference_number": "tc.reference_number",
+	"date_created":     "e.date_created",
+	"date_modified":    "e.date_modified",
+	"name":             "e.name",
+	"amount":           "e.amount",
+	"status":           "e.status",
+	"payment_date":     "e.payment_date",
+	"reference_number": "e.reference_number",
 }
 
 func init() {
@@ -249,19 +252,34 @@ func (r *MySQLCollectionRepository) GetCollectionListPageData(
 		}
 	}
 
-	sortField := "tc.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Translate view-facing sort key to SQL column, then guard via BuildOrderBy
+	// (mirrors postgres event.go's ColMap + core.BuildOrderBy combination — the
+	// remap runs first so the whitelist/BuildOrderBy check operates on the
+	// SQL-side name).
+	sortColKey := "e.date_created"
+	if req.Sort != nil && len(req.Sort.Fields) > 0 && req.Sort.Fields[0].Field != "" {
+		sortColKey = req.Sort.Fields[0].Field
 	}
-	if mapped, ok := collectionViewToSQLColMap[sortField]; ok {
-		sortField = mapped
+	if mapped, ok := collectionViewToSQLColMap[sortColKey]; ok {
+		sortColKey = mapped
 	}
-	if sortField != "" && !slices.Contains(collectionSortableSQLCols, sortField) {
-		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "collection", collectionSortableSQLCols)
+
+	// The SortRequest below is synthesised non-nil with an always-populated Field,
+	// so BuildOrderBy's fallback argument is unreachable by construction; the
+	// no-sort default is carried by sortColKey/DESC above. Kept for parity with
+	// event.go and the postgres shape.
+	orderByClause, err := mysqlCore.BuildOrderBy(
+		collectionSortableSQLCols,
+		&commonpb.SortRequest{Fields: []*commonpb.SortField{{Field: sortColKey, Direction: func() commonpb.SortDirection {
+			if req.Sort != nil && len(req.Sort.Fields) > 0 {
+				return req.Sort.Fields[0].Direction
+			}
+			return commonpb.SortDirection_DESC
+		}()}}},
+		"e.date_created DESC",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("invalid sort column for collection: %w", err)
 	}
 
 	// Dialect: active = 1 (MySQL); LIKE not ILIKE; ? placeholders.
@@ -315,7 +333,7 @@ func (r *MySQLCollectionRepository) GetCollectionListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT ? OFFSET ?;
 	`
 

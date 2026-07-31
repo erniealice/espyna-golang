@@ -271,7 +271,7 @@ func (r *SQLServerExpenditureRepository) GetExpenditureListPageData(
 	// req.Sort.Fields[0].Field). The fallback is the pre-existing author-controlled
 	// default, preserved VERBATIM so the no-sort-requested page order is unchanged.
 	orderByClause, err := sqlserverCore.BuildOrderBy(
-		expenditureSortableSQLCols, req.GetSort(), "ex.date_created DESC")
+		expenditureSortableSQLCols, req.GetSort(), "date_created DESC")
 	if err != nil {
 		return nil, err
 	}

@@ -246,7 +246,7 @@ func (r *MySQLRevenueAttributeRepository) GetRevenueAttributeListPageData(
 
 	// Sort — fail-closed against the per-entity whitelist (A2 guard).
 	// mysqlCore.BuildOrderBy uses backtick quoting instead of double-quotes.
-	orderByClause, err := mysqlCore.BuildOrderBy(revenueAttributeSortableSQLCols, req.GetSort(), "ra.date_created DESC")
+	orderByClause, err := mysqlCore.BuildOrderBy(revenueAttributeSortableSQLCols, req.GetSort(), "date_created DESC")
 	if err != nil {
 		return nil, err
 	}

@@ -269,7 +269,7 @@ func (r *MySQLInventoryTransactionRepository) GetInventoryTransactionListPageDat
 
 	// Sort — fail-closed against the per-entity whitelist (A2 guard).
 	// mysqlCore.BuildOrderBy uses backtick quoting instead of double-quotes.
-	orderByClause, err := mysqlCore.BuildOrderBy(inventoryTransactionSortableSQLCols, req.GetSort(), "it.date_created DESC")
+	orderByClause, err := mysqlCore.BuildOrderBy(inventoryTransactionSortableSQLCols, req.GetSort(), "date_created DESC")
 	if err != nil {
 		return nil, err
 	}

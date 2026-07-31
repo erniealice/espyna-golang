@@ -221,7 +221,7 @@ func (r *MySQLLoanRepository) GetLoanListPageData(
 	}
 
 	orderByClause, err := mysqlCore.BuildOrderBy(
-		loanSortableSQLCols, req.GetSort(), "l.date_created DESC")
+		loanSortableSQLCols, req.GetSort(), "date_created DESC")
 	if err != nil {
 		return nil, err
 	}

@@ -250,7 +250,7 @@ func (r *SQLServerDeferredRevenueRepository) GetDeferredRevenueListPageData(
 	// req.Sort.Fields[0].Field). The fallback is the pre-existing author-controlled
 	// default, preserved VERBATIM so the no-sort-requested page order is unchanged.
 	orderByClause, err := sqlserverCore.BuildOrderBy(
-		deferredRevenueSortableSQLCols, req.GetSort(), "dr.date_created DESC")
+		deferredRevenueSortableSQLCols, req.GetSort(), "date_created DESC")
 	if err != nil {
 		return nil, err
 	}

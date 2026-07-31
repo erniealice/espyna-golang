@@ -314,16 +314,12 @@ func (r *MySQLClientRepository) GetClientListPageData(
 		}
 	}
 
-	// Default sort: name ASC matches the view layer default.
-	sortField := "name"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		} else {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard). Default
+	// name ASC matches the view layer default. An unknown sort column now errors
+	// instead of being interpolated verbatim into ORDER BY.
+	orderByClause, err := mysqlCore.BuildOrderBy(clientSortableSQLCols, req.GetSort(), "name ASC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Build filter/search WHERE clauses.
@@ -389,9 +385,9 @@ func (r *MySQLClientRepository) GetClientListPageData(
 			%s
 		)
 		SELECT * FROM enriched
-		ORDER BY %s %s
+		` + orderByClause + `
 		LIMIT ? OFFSET ?;
-	`, whereSQL, sortField, sortOrder)
+	`, whereSQL)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, queryArgs...)

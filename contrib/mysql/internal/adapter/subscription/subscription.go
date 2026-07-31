@@ -308,8 +308,19 @@ func (r *MySQLSubscriptionRepository) GetSubscriptionListPageData(ctx context.Co
 	// CROSS JOIN total_count → COUNT(*) OVER (), jsonb_build_object → JSON_OBJECT,
 	// WHERE workspace_id added.
 	//
-	// Sort is handled inline via CASE WHEN (positional ? not allowed in ORDER BY),
-	// which mirrors the postgres gold pattern exactly.
+	// Sort is handled inline via CASE WHEN. MySQL cannot bind a parameter inside
+	// this ORDER BY construction, so sortField/sortDirection are INTERPOLATED into
+	// the query text by the fmt.Sprintf below (as single-quoted literals compared
+	// against hard-coded constants) rather than bound as ? parameters.
+	//
+	// INVARIANT: sortField and sortDirection must never reach that Sprintf
+	// unclamped. sortField is clamped by the
+	// slices.Contains(subscriptionSortableSQLCols) check above, which errors out on
+	// any value outside that author-defined whitelist; sortDirection is enum-derived
+	// and can only be the literal "ASC" or "DESC". Those clamps are the ONLY thing
+	// standing between this ORDER BY and SQL injection — an unclamped value would
+	// terminate the surrounding single quotes and inject. Keep both fail-closed, and
+	// route every new interpolated token here through the same whitelist.
 	query := fmt.Sprintf(`
 		WITH
 		search_filtered AS (

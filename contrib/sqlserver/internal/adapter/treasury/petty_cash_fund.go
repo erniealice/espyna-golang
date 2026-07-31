@@ -245,7 +245,7 @@ func (r *SQLServerPettyCashFundRepository) GetPettyCashFundListPageData(
 		}
 	}
 
-	sortColKey := "pcf.date_created"
+	sortColKey := "date_created"
 	if req.Sort != nil && len(req.Sort.Fields) > 0 && req.Sort.Fields[0].Field != "" {
 		sortColKey = req.Sort.Fields[0].Field
 	}
@@ -255,15 +255,19 @@ func (r *SQLServerPettyCashFundRepository) GetPettyCashFundListPageData(
 		sortDir = req.Sort.Fields[0].Direction
 	}
 
+	// Bare (un-aliased) columns: the ORDER BY is applied in the OUTER scope
+	// (SELECT e.*, c.total FROM enriched e, counted c), which the CTE projects as
+	// bare names. A `pcf.<col>` reference is out of scope there and fails with
+	// SQL Server error 207 (Invalid column name) on EVERY sort path.
 	pettyCashFundSortableSQLCols := []string{
-		"pcf.date_created", "pcf.date_modified", "pcf.name",
-		"pcf.authorized_amount", "pcf.current_balance",
+		"date_created", "date_modified", "name",
+		"authorized_amount", "current_balance",
 	}
 
 	orderByClause, err := sqlserverCore.BuildOrderBy(
 		pettyCashFundSortableSQLCols,
 		&commonpb.SortRequest{Fields: []*commonpb.SortField{{Field: sortColKey, Direction: sortDir}}},
-		"pcf.date_created DESC",
+		"date_created DESC",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("invalid sort column for petty_cash_fund: %w", err)

@@ -219,7 +219,7 @@ func (r *SQLServerRevenueAttributeRepository) GetRevenueAttributeListPageData(
 	// req.Sort.Fields[0].Field). The fallback is the pre-existing author-controlled
 	// default, preserved VERBATIM so the no-sort-requested page order is unchanged.
 	orderByClause, err := sqlserverCore.BuildOrderBy(
-		revenueAttributeSortableSQLCols, req.GetSort(), "ra.date_created DESC")
+		revenueAttributeSortableSQLCols, req.GetSort(), "date_created DESC")
 	if err != nil {
 		return nil, err
 	}

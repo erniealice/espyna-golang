@@ -263,36 +263,41 @@ func (r *MySQLEventRepository) GetEventListPageData(
 		}
 	}
 
-	sortField := "start_date_time_utc"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	// Translate view-facing sort key to SQL column, then guard via BuildOrderBy
+	// (mirrors postgres event.go's ColMap + core.BuildOrderBy combination — the
+	// remap runs first so the whitelist/BuildOrderBy check operates on the
+	// SQL-side name).
+	sortColKey := "start_date_time_utc"
+	if req.Sort != nil && len(req.Sort.Fields) > 0 && req.Sort.Fields[0].Field != "" {
+		sortColKey = req.Sort.Fields[0].Field
+	}
+	if mapped, ok := eventViewToSQLColMap[sortColKey]; ok {
+		sortColKey = mapped
 	}
 
-	// Translate view-facing sort key to SQL column.
-	if mapped, ok := eventViewToSQLColMap[sortField]; ok {
-		sortField = mapped
-	}
-
-	// Whitelist guard: reject unsorted column not in allowlist.
-	allowed := false
-	for _, c := range eventSortableSQLCols {
-		if c == sortField {
-			allowed = true
-			break
-		}
-	}
-	if !allowed {
-		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "event", eventSortableSQLCols)
+	// A2 sort guard: reject any column not in the whitelist via core.BuildOrderBy.
+	// The SortRequest below is synthesised non-nil with an always-populated Field,
+	// so BuildOrderBy's fallback argument is unreachable by construction; the
+	// no-sort default is carried by sortColKey/ASC above. Kept as-is for parity —
+	// postgres event.go has the identical shape and the identical dead fallback.
+	orderByClause, err := mysqlCore.BuildOrderBy(
+		eventSortableSQLCols,
+		&commonpb.SortRequest{Fields: []*commonpb.SortField{{Field: sortColKey, Direction: func() commonpb.SortDirection {
+			if req.Sort != nil && len(req.Sort.Fields) > 0 {
+				return req.Sort.Fields[0].Direction
+			}
+			return commonpb.SortDirection_ASC
+		}()}}},
+		"e.start_date_time_utc ASC",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("invalid sort column for event: %w", err)
 	}
 
 	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Dialect: ILIKE → LIKE, $N → ?, active = true → active = 1
-	query := fmt.Sprintf(`
+	query := `
 		WITH enriched AS (
 			SELECT
 				e.id,
@@ -317,9 +322,9 @@ func (r *MySQLEventRepository) GetEventListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY %s %s
+		` + orderByClause + `
 		LIMIT ? OFFSET ?;
-	`, sortField, sortOrder)
+	`
 
 	rows, err := r.db.QueryContext(ctx, query,
 		workspaceID, workspaceID,

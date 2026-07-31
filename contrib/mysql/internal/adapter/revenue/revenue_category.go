@@ -246,7 +246,7 @@ func (r *MySQLRevenueCategoryRepository) GetRevenueCategoryListPageData(
 	}
 
 	orderByClause, err := mysqlCore.BuildOrderBy(
-		revenueCategorySortableSQLCols, req.GetSort(), "rc.date_created DESC")
+		revenueCategorySortableSQLCols, req.GetSort(), "date_created DESC")
 	if err != nil {
 		return nil, err
 	}

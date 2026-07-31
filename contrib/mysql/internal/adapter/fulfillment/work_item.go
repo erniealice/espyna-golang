@@ -280,7 +280,7 @@ func (r *MySQLFulfillmentRepository) GetFulfillmentListPageData(
 	}
 
 	orderByClause, err := mysqlCore.BuildOrderBy(
-		fulfillmentSortableSQLCols, req.GetSort(), "f.date_created DESC")
+		fulfillmentSortableSQLCols, req.GetSort(), "date_created DESC")
 	if err != nil {
 		return nil, err
 	}

@@ -255,7 +255,7 @@ func (r *MySQLRevenueLineItemRepository) GetRevenueLineItemListPageData(
 	}
 
 	orderByClause, err := mysqlCore.BuildOrderBy(
-		revenueLineItemSortableSQLCols, req.GetSort(), "rli.date_created DESC")
+		revenueLineItemSortableSQLCols, req.GetSort(), "date_created DESC")
 	if err != nil {
 		return nil, err
 	}

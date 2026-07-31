@@ -207,7 +207,7 @@ func (r *MySQLPettyCashFundRepository) GetPettyCashFundListPageData(
 	}
 
 	orderByClause, err := mysqlCore.BuildOrderBy(
-		pettyCashFundSortableSQLCols, req.GetSort(), "pcf.date_created DESC")
+		pettyCashFundSortableSQLCols, req.GetSort(), "date_created DESC")
 	if err != nil {
 		return nil, err
 	}

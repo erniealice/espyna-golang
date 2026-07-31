@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"slices"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -24,20 +23,25 @@ import (
 )
 
 // jobSortableSQLCols lists the SQL column names that are safe to sort by in
-// GetJobListPageData.
+// GetJobListPageData. Routed through core.BuildOrderBy (A2 guard) — an
+// unrecognised column is rejected loudly before query execution.
+// Qualified with the OUTER alias `e` (SELECT e.*, c.total FROM enriched e, counted c),
+// not the inner `j`: the ORDER BY is applied to the enriched subquery, which
+// exposes these as e.<col>. A `j.<col>` reference is out of scope in the outer
+// SELECT and fails with MySQL error 1054 (Unknown column).
 var jobSortableSQLCols = []string{
-	"j.date_created",
-	"j.date_modified",
-	"j.name",
-	"j.status",
+	"e.date_created",
+	"e.date_modified",
+	"e.name",
+	"e.status",
 }
 
 // jobViewToSQLColMap translates view-facing sort column keys to SQL column names.
 var jobViewToSQLColMap = map[string]string{
-	"date_created":  "j.date_created",
-	"date_modified": "j.date_modified",
-	"name":          "j.name",
-	"status":        "j.status",
+	"date_created":  "e.date_created",
+	"date_modified": "e.date_modified",
+	"name":          "e.name",
+	"status":        "e.status",
 }
 
 func init() {
@@ -279,27 +283,41 @@ func (r *MySQLJobRepository) GetJobListPageData(
 		}
 	}
 
-	sortField := "j.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
+	// Translate the view-facing sort key to its SQL column name, then guard via
+	// BuildOrderBy — the remap runs first so the whitelist check operates on the
+	// SQL-side name.
+	//
+	// The remapped request is passed through only when the caller actually asked
+	// for a sort; a no-sort request forwards nil so BuildOrderBy's fallback stays
+	// LIVE (parity with postgres job.go, which passes req.GetSort() directly).
+	// Synthesising an always-non-nil SortRequest would make the fallback
+	// unreachable and silently pin the unsorted default to ASC — the default has
+	// been DESC since before the sort-guard migration.
+	var sortReq *commonpb.SortRequest
+	if req.Sort != nil && len(req.Sort.Fields) > 0 && req.Sort.Fields[0].GetField() != "" {
+		sortColKey := req.Sort.Fields[0].GetField()
+		if mapped, ok := jobViewToSQLColMap[sortColKey]; ok {
+			sortColKey = mapped
 		}
+		sortReq = &commonpb.SortRequest{Fields: []*commonpb.SortField{{
+			Field:     sortColKey,
+			Direction: req.Sort.Fields[0].GetDirection(),
+		}}}
 	}
 
-	if mapped, ok := jobViewToSQLColMap[sortField]; ok {
-		sortField = mapped
-	}
-
-	// Loud-failure guard: reject any sort column not in the allowlist.
-	if sortField != "" && !slices.Contains(jobSortableSQLCols, sortField) {
-		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "job", jobSortableSQLCols)
+	// A2: Sort guard — fail-closed via core.BuildOrderBy whitelist.
+	orderByClause, err := mysqlCore.BuildOrderBy(
+		jobSortableSQLCols,
+		sortReq,
+		"e.date_created DESC",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("invalid sort column for job: %w", err)
 	}
 
 	// Dialect: $1::text IS NULL OR ... → ? (MySQL has no ::text cast; NULL check via IS NULL)
 	// searchPattern is "" when no search, and LIKE '' matches nothing, so we guard via OR.
-	query := fmt.Sprintf(`
+	query := `
 		WITH enriched AS (
 			SELECT
 				j.id,
@@ -335,9 +353,9 @@ func (r *MySQLJobRepository) GetJobListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY %s %s
+		` + orderByClause + `
 		LIMIT ? OFFSET ?;
-	`, sortField, sortOrder)
+	`
 
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, searchPattern, limit, offset)
 	if err != nil {

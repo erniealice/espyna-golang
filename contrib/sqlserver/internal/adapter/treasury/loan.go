@@ -235,22 +235,26 @@ func (r *SQLServerLoanRepository) GetLoanListPageData(
 		}
 	}
 
-	sortColKey := "l.date_created"
+	sortColKey := "date_created"
 	sortDir := commonpb.SortDirection_DESC
 	if req.Sort != nil && len(req.Sort.Fields) > 0 && req.Sort.Fields[0].Field != "" {
 		sortColKey = req.Sort.Fields[0].Field
 		sortDir = req.Sort.Fields[0].Direction
 	}
 
+	// Bare (un-aliased) columns: the ORDER BY is applied in the OUTER scope
+	// (SELECT e.*, c.total FROM enriched e, counted c), which the CTE projects as
+	// bare names. An `l.<col>` reference is out of scope there and fails with
+	// SQL Server error 207 (Invalid column name) on EVERY sort path.
 	loanSortableCols := []string{
-		"l.date_created", "l.date_modified", "l.loan_number", "l.lender_name",
-		"l.principal_amount", "l.remaining_balance", "l.status", "l.start_date", "l.maturity_date",
+		"date_created", "date_modified", "loan_number", "lender_name",
+		"principal_amount", "remaining_balance", "status", "start_date", "maturity_date",
 	}
 
 	orderByClause, err := sqlserverCore.BuildOrderBy(
 		loanSortableCols,
 		&commonpb.SortRequest{Fields: []*commonpb.SortField{{Field: sortColKey, Direction: sortDir}}},
-		"l.date_created DESC",
+		"date_created DESC",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("invalid sort column for loan: %w", err)

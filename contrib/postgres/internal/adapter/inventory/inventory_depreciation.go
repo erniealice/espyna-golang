@@ -7,13 +7,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	inventorydepreciationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_depreciation"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -37,10 +35,12 @@ func init() {
 //   - CREATE INDEX idx_inventory_depreciation_method ON inventory_depreciation(method) - Search on method
 //   - CREATE INDEX idx_inventory_depreciation_start_date ON inventory_depreciation(start_date) - Sort/filter by start_date
 //   - CREATE INDEX idx_inventory_depreciation_date_created ON inventory_depreciation(date_created DESC) - Default sorting
+//
+// Every method routes through dbOps, so the workspace decorator is always in the
+// path; the repository holds no raw *sql.DB that could bypass it.
 type PostgresInventoryDepreciationRepository struct {
 	inventorydepreciationpb.UnimplementedInventoryDepreciationDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
-	db        *sql.DB // Direct database access for complex queries (CTEs)
 	tableName string
 }
 
@@ -50,15 +50,8 @@ func NewPostgresInventoryDepreciationRepository(dbOps interfaces.DatabaseOperati
 		tableName = "inventory_depreciation" // default fallback
 	}
 
-	// Extract the underlying database connection for complex queries (CTEs)
-	var db *sql.DB
-	if pgOps, ok := dbOps.(interface{ GetDB() *sql.DB }); ok {
-		db = pgOps.GetDB()
-	}
-
 	return &PostgresInventoryDepreciationRepository{
 		dbOps:     dbOps,
-		db:        db,
 		tableName: tableName,
 	}
 }
@@ -221,315 +214,6 @@ func (r *PostgresInventoryDepreciationRepository) ListInventoryDepreciations(ctx
 
 	return &inventorydepreciationpb.ListInventoryDepreciationsResponse{
 		Data: inventoryDepreciations,
-	}, nil
-}
-
-var inventoryDepreciationSortableSQLCols = []string{
-	"id", "date_created", "date_modified", "active", "inventory_item_id",
-	"method", "cost_basis", "salvage_value", "useful_life_months",
-	"start_date", "accumulated_depreciation", "book_value",
-	"inventory_item_name",
-}
-
-// GetInventoryDepreciationListPageData retrieves inventory depreciations with advanced filtering, sorting, searching, and pagination using CTE
-// This method joins with the inventory_item table to include the parent item name
-// Supports search on depreciation method
-func (r *PostgresInventoryDepreciationRepository) GetInventoryDepreciationListPageData(
-	ctx context.Context,
-	req *inventorydepreciationpb.GetInventoryDepreciationListPageDataRequest,
-) (*inventorydepreciationpb.GetInventoryDepreciationListPageDataResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("get inventory depreciation list page data request is required")
-	}
-
-	// Build search condition
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
-	}
-
-	// Default pagination values
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		// Handle offset pagination
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
-	}
-
-	// Sort — fail-closed against the per-entity whitelist (A2 guard). The ORDER BY
-	// runs against the outer `enriched e` projection (unprefixed cols), so the
-	// whitelist + fallback are unprefixed.
-	orderByClause, err := postgresCore.BuildOrderBy(inventoryDepreciationSortableSQLCols, req.GetSort(), "date_created DESC")
-	if err != nil {
-		return nil, err
-	}
-
-	// CTE Query - Single round-trip with inventory_item join
-	query := `
-		WITH enriched AS (
-			SELECT
-				id2.id,
-				id2.date_created,
-				id2.date_modified,
-				id2.active,
-				id2.inventory_item_id,
-				id2.method,
-				id2.cost_basis,
-				id2.salvage_value,
-				id2.useful_life_months,
-				id2.start_date,
-				id2.accumulated_depreciation,
-				id2.book_value,
-				COALESCE(ii.name, '') as inventory_item_name
-			FROM ` + entityid.InventoryDepreciation + ` id2
-			LEFT JOIN ` + entityid.InventoryItem + ` ii ON id2.inventory_item_id = ii.id AND ii.active = true
-			WHERE id2.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-			       id2.method ILIKE $1 OR
-			       ii.name ILIKE $1)
-		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
-		SELECT
-			e.*,
-			COUNT(*) OVER () AS total
-		FROM enriched e
-		` + orderByClause + `
-		LIMIT $2 OFFSET $3;
-	`
-
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query inventory depreciation list page data: %w", err)
-	}
-	defer rows.Close()
-
-	var inventoryDepreciations []*inventorydepreciationpb.InventoryDepreciation
-	var totalCount int64
-
-	for rows.Next() {
-		var (
-			id                      string
-			dateCreated             time.Time
-			dateModified            time.Time
-			active                  bool
-			inventoryItemID         string
-			method                  string
-			costBasis               int64
-			salvageValue            int64
-			usefulLifeMonths        int32
-			startDate               string
-			accumulatedDepreciation int64
-			bookValue               int64
-			inventoryItemName       string
-			total                   int64
-		)
-
-		err := rows.Scan(
-			&id,
-			&dateCreated,
-			&dateModified,
-			&active,
-			&inventoryItemID,
-			&method,
-			&costBasis,
-			&salvageValue,
-			&usefulLifeMonths,
-			&startDate,
-			&accumulatedDepreciation,
-			&bookValue,
-			&inventoryItemName,
-			&total,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan inventory depreciation row: %w", err)
-		}
-
-		totalCount = total
-
-		inventoryDepreciation := &inventorydepreciationpb.InventoryDepreciation{
-			Id:                      id,
-			Active:                  active,
-			InventoryItemId:         inventoryItemID,
-			Method:                  method,
-			CostBasis:               costBasis,
-			SalvageValue:            salvageValue,
-			UsefulLifeMonths:        usefulLifeMonths,
-			StartDate:               startDate,
-			AccumulatedDepreciation: accumulatedDepreciation,
-			BookValue:               bookValue,
-		}
-
-		// Parse timestamps if provided
-		if !dateCreated.IsZero() {
-			ts := dateCreated.UnixMilli()
-			inventoryDepreciation.DateCreated = &ts
-			dcStr := dateCreated.Format(time.RFC3339)
-			inventoryDepreciation.DateCreatedString = &dcStr
-		}
-		if !dateModified.IsZero() {
-			ts := dateModified.UnixMilli()
-			inventoryDepreciation.DateModified = &ts
-			dmStr := dateModified.Format(time.RFC3339)
-			inventoryDepreciation.DateModifiedString = &dmStr
-		}
-
-		// Note: inventoryItemName is available from the join but not directly mapped
-		// to the InventoryDepreciation protobuf. Could be populated via the
-		// InventoryItem field if needed for frontend display.
-
-		inventoryDepreciations = append(inventoryDepreciations, inventoryDepreciation)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating inventory depreciation rows: %w", err)
-	}
-
-	// Calculate pagination metadata
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
-	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
-
-	return &inventorydepreciationpb.GetInventoryDepreciationListPageDataResponse{
-		InventoryDepreciationList: inventoryDepreciations,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
-	}, nil
-}
-
-// GetInventoryDepreciationItemPageData retrieves a single inventory depreciation with enhanced item page data using CTE
-// This method joins with the inventory_item table for the parent item reference
-func (r *PostgresInventoryDepreciationRepository) GetInventoryDepreciationItemPageData(
-	ctx context.Context,
-	req *inventorydepreciationpb.GetInventoryDepreciationItemPageDataRequest,
-) (*inventorydepreciationpb.GetInventoryDepreciationItemPageDataResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("get inventory depreciation item page data request is required")
-	}
-	if req.InventoryDepreciationId == "" {
-		return nil, fmt.Errorf("inventory depreciation ID is required")
-	}
-
-	// CTE Query - Single round-trip with inventory_item join
-	query := `
-		WITH enriched AS (
-			SELECT
-				id2.id,
-				id2.date_created,
-				id2.date_modified,
-				id2.active,
-				id2.inventory_item_id,
-				id2.method,
-				id2.cost_basis,
-				id2.salvage_value,
-				id2.useful_life_months,
-				id2.start_date,
-				id2.accumulated_depreciation,
-				id2.book_value,
-				COALESCE(ii.name, '') as inventory_item_name,
-				COALESCE(ii.sku, '') as inventory_item_sku
-			FROM ` + entityid.InventoryDepreciation + ` id2
-			LEFT JOIN ` + entityid.InventoryItem + ` ii ON id2.inventory_item_id = ii.id AND ii.active = true
-			WHERE id2.id = $1 AND id2.active = true
-		)
-		SELECT * FROM enriched LIMIT 1;
-	`
-
-	row := r.db.QueryRowContext(ctx, query, req.InventoryDepreciationId)
-
-	var (
-		id                      string
-		dateCreated             time.Time
-		dateModified            time.Time
-		active                  bool
-		inventoryItemID         string
-		method                  string
-		costBasis               int64
-		salvageValue            int64
-		usefulLifeMonths        int32
-		startDate               string
-		accumulatedDepreciation int64
-		bookValue               int64
-		inventoryItemName       string
-		inventoryItemSku        string
-	)
-
-	err := row.Scan(
-		&id,
-		&dateCreated,
-		&dateModified,
-		&active,
-		&inventoryItemID,
-		&method,
-		&costBasis,
-		&salvageValue,
-		&usefulLifeMonths,
-		&startDate,
-		&accumulatedDepreciation,
-		&bookValue,
-		&inventoryItemName,
-		&inventoryItemSku,
-	)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("inventory depreciation with ID '%s' not found", req.InventoryDepreciationId)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to query inventory depreciation item page data: %w", err)
-	}
-
-	inventoryDepreciation := &inventorydepreciationpb.InventoryDepreciation{
-		Id:                      id,
-		Active:                  active,
-		InventoryItemId:         inventoryItemID,
-		Method:                  method,
-		CostBasis:               costBasis,
-		SalvageValue:            salvageValue,
-		UsefulLifeMonths:        usefulLifeMonths,
-		StartDate:               startDate,
-		AccumulatedDepreciation: accumulatedDepreciation,
-		BookValue:               bookValue,
-	}
-
-	// Parse timestamps if provided
-	if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		inventoryDepreciation.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		inventoryDepreciation.DateCreatedString = &dcStr
-	}
-	if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		inventoryDepreciation.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		inventoryDepreciation.DateModifiedString = &dmStr
-	}
-
-	// Note: inventoryItemName and inventoryItemSku are available from the join
-	// but not directly mapped to the InventoryDepreciation protobuf. These could be
-	// returned via the InventoryItem field or processed separately.
-
-	return &inventorydepreciationpb.GetInventoryDepreciationItemPageDataResponse{
-		InventoryDepreciation: inventoryDepreciation,
-		Success:               true,
 	}, nil
 }
 

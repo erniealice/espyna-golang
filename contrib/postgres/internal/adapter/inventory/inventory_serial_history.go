@@ -7,13 +7,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	serialhistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/serial_history"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -39,10 +37,12 @@ func init() {
 //   - CREATE INDEX idx_inventory_serial_history_to_status ON inventory_serial_history(to_status) - Filter by to_status
 //   - CREATE INDEX idx_inventory_serial_history_reference_type ON inventory_serial_history(reference_type) - Filter by reference_type
 //   - CREATE INDEX idx_inventory_serial_history_date_created ON inventory_serial_history(date_created DESC) - Default sorting
+//
+// Every method routes through dbOps, so the workspace decorator is always in the
+// path; the repository holds no raw *sql.DB that could bypass it.
 type PostgresInventorySerialHistoryRepository struct {
 	serialhistorypb.UnimplementedInventorySerialHistoryDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
-	db        *sql.DB // Direct database access for complex queries (CTEs)
 	tableName string
 }
 
@@ -52,15 +52,8 @@ func NewPostgresInventorySerialHistoryRepository(dbOps interfaces.DatabaseOperat
 		tableName = "inventory_serial_history" // default fallback
 	}
 
-	// Extract the underlying database connection for complex queries (CTEs)
-	var db *sql.DB
-	if pgOps, ok := dbOps.(interface{ GetDB() *sql.DB }); ok {
-		db = pgOps.GetDB()
-	}
-
 	return &PostgresInventorySerialHistoryRepository{
 		dbOps:     dbOps,
-		db:        db,
 		tableName: tableName,
 	}
 }
@@ -184,300 +177,6 @@ func (r *PostgresInventorySerialHistoryRepository) ListInventorySerialHistory(ct
 
 	return &serialhistorypb.ListInventorySerialHistoryResponse{
 		Data: serialHistories,
-	}, nil
-}
-
-var inventorySerialHistorySortableSQLCols = []string{
-	"id", "date_created", "inventory_serial_id", "inventory_item_id",
-	"from_status", "to_status", "reference_type", "reference_id", "notes",
-	"changed_by", "changed_by_role", "serial_number",
-}
-
-// GetInventorySerialHistoryListPageData retrieves inventory serial history with advanced filtering, sorting, searching, and pagination using CTE
-// This method joins with the inventory_serial table to include the serial number
-// Supports search on from_status, to_status, reference_type, and notes
-func (r *PostgresInventorySerialHistoryRepository) GetInventorySerialHistoryListPageData(
-	ctx context.Context,
-	req *serialhistorypb.GetInventorySerialHistoryListPageDataRequest,
-) (*serialhistorypb.GetInventorySerialHistoryListPageDataResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("get inventory serial history list page data request is required")
-	}
-
-	// Build search condition
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
-	}
-
-	// Default pagination values
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		// Handle offset pagination
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
-	}
-
-	// Sort — fail-closed against the per-entity whitelist (A2 guard). The outer
-	// SELECT projects the enriched columns unprefixed (e.*), so the ORDER BY
-	// references unprefixed whitelist columns. An unknown column errors instead
-	// of being interpolated verbatim into ORDER BY.
-	orderByClause, err := postgresCore.BuildOrderBy(inventorySerialHistorySortableSQLCols, req.GetSort(), "date_created DESC")
-	if err != nil {
-		return nil, err
-	}
-
-	// CTE Query - Single round-trip with inventory_serial join
-	query := `
-		WITH enriched AS (
-			SELECT
-				ish.id,
-				ish.date_created,
-				ish.inventory_serial_id,
-				ish.inventory_item_id,
-				ish.from_status,
-				ish.to_status,
-				ish.reference_type,
-				ish.reference_id,
-				ish.notes,
-				ish.changed_by,
-				ish.changed_by_role,
-				COALESCE(is2.serial_number, '') as serial_number
-			FROM ` + entityid.InventorySerialHistory + ` ish
-			LEFT JOIN ` + entityid.InventorySerial + ` is2 ON ish.inventory_serial_id = is2.id AND is2.active = true
-			WHERE ($1::text IS NULL OR $1::text = '' OR
-			       ish.from_status ILIKE $1 OR
-			       ish.to_status ILIKE $1 OR
-			       ish.reference_type ILIKE $1 OR
-			       ish.notes ILIKE $1 OR
-			       is2.serial_number ILIKE $1)
-		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
-		SELECT
-			e.*,
-			COUNT(*) OVER () AS total
-		FROM enriched e
-		` + orderByClause + `
-		LIMIT $2 OFFSET $3;
-	`
-
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query inventory serial history list page data: %w", err)
-	}
-	defer rows.Close()
-
-	var serialHistories []*serialhistorypb.InventorySerialHistory
-	var totalCount int64
-
-	for rows.Next() {
-		var (
-			id                string
-			dateCreated       time.Time
-			inventorySerialID string
-			inventoryItemID   string
-			fromStatus        string
-			toStatus          string
-			referenceType     string
-			referenceID       string
-			notes             string
-			changedBy         string
-			changedByRole     string
-			serialNumber      string
-			total             int64
-		)
-
-		err := rows.Scan(
-			&id,
-			&dateCreated,
-			&inventorySerialID,
-			&inventoryItemID,
-			&fromStatus,
-			&toStatus,
-			&referenceType,
-			&referenceID,
-			&notes,
-			&changedBy,
-			&changedByRole,
-			&serialNumber,
-			&total,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan inventory serial history row: %w", err)
-		}
-
-		totalCount = total
-
-		serialHistory := &serialhistorypb.InventorySerialHistory{
-			Id:                id,
-			InventorySerialId: inventorySerialID,
-			InventoryItemId:   inventoryItemID,
-			FromStatus:        fromStatus,
-			ToStatus:          toStatus,
-			ReferenceType:     referenceType,
-			ReferenceId:       referenceID,
-			Notes:             notes,
-			ChangedBy:         changedBy,
-			ChangedByRole:     changedByRole,
-		}
-
-		// Parse timestamp if provided (no date_modified for immutable records)
-		if !dateCreated.IsZero() {
-			ts := dateCreated.UnixMilli()
-			serialHistory.DateCreated = &ts
-			dcStr := dateCreated.Format(time.RFC3339)
-			serialHistory.DateCreatedString = &dcStr
-		}
-
-		// Note: serialNumber is available from the join but not directly mapped
-		// to the InventorySerialHistory protobuf. Could be populated via the
-		// Serial field if needed for frontend display.
-
-		serialHistories = append(serialHistories, serialHistory)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating inventory serial history rows: %w", err)
-	}
-
-	// Calculate pagination metadata
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
-	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
-
-	return &serialhistorypb.GetInventorySerialHistoryListPageDataResponse{
-		InventorySerialHistoryList: serialHistories,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
-	}, nil
-}
-
-// GetInventorySerialHistoryItemPageData retrieves a single inventory serial history with enhanced item page data using CTE
-// This method joins with the inventory_serial table for the serial reference
-func (r *PostgresInventorySerialHistoryRepository) GetInventorySerialHistoryItemPageData(
-	ctx context.Context,
-	req *serialhistorypb.GetInventorySerialHistoryItemPageDataRequest,
-) (*serialhistorypb.GetInventorySerialHistoryItemPageDataResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("get inventory serial history item page data request is required")
-	}
-	if req.InventorySerialHistoryId == "" {
-		return nil, fmt.Errorf("inventory serial history ID is required")
-	}
-
-	// CTE Query - Single round-trip with inventory_serial join
-	query := `
-		WITH enriched AS (
-			SELECT
-				ish.id,
-				ish.date_created,
-				ish.inventory_serial_id,
-				ish.inventory_item_id,
-				ish.from_status,
-				ish.to_status,
-				ish.reference_type,
-				ish.reference_id,
-				ish.notes,
-				ish.changed_by,
-				ish.changed_by_role,
-				COALESCE(is2.serial_number, '') as serial_number,
-				COALESCE(ii.name, '') as inventory_item_name
-			FROM ` + entityid.InventorySerialHistory + ` ish
-			LEFT JOIN ` + entityid.InventorySerial + ` is2 ON ish.inventory_serial_id = is2.id AND is2.active = true
-			LEFT JOIN ` + entityid.InventoryItem + ` ii ON ish.inventory_item_id = ii.id AND ii.active = true
-			WHERE ish.id = $1
-		)
-		SELECT * FROM enriched LIMIT 1;
-	`
-
-	row := r.db.QueryRowContext(ctx, query, req.InventorySerialHistoryId)
-
-	var (
-		id                string
-		dateCreated       time.Time
-		inventorySerialID string
-		inventoryItemID   string
-		fromStatus        string
-		toStatus          string
-		referenceType     string
-		referenceID       string
-		notes             string
-		changedBy         string
-		changedByRole     string
-		serialNumber      string
-		inventoryItemName string
-	)
-
-	err := row.Scan(
-		&id,
-		&dateCreated,
-		&inventorySerialID,
-		&inventoryItemID,
-		&fromStatus,
-		&toStatus,
-		&referenceType,
-		&referenceID,
-		&notes,
-		&changedBy,
-		&changedByRole,
-		&serialNumber,
-		&inventoryItemName,
-	)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("inventory serial history with ID '%s' not found", req.InventorySerialHistoryId)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to query inventory serial history item page data: %w", err)
-	}
-
-	serialHistory := &serialhistorypb.InventorySerialHistory{
-		Id:                id,
-		InventorySerialId: inventorySerialID,
-		InventoryItemId:   inventoryItemID,
-		FromStatus:        fromStatus,
-		ToStatus:          toStatus,
-		ReferenceType:     referenceType,
-		ReferenceId:       referenceID,
-		Notes:             notes,
-		ChangedBy:         changedBy,
-		ChangedByRole:     changedByRole,
-	}
-
-	// Parse timestamp if provided (no date_modified for immutable records)
-	if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		serialHistory.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		serialHistory.DateCreatedString = &dcStr
-	}
-
-	// Note: serialNumber and inventoryItemName are available from the join
-	// but not directly mapped to the InventorySerialHistory protobuf. These could be
-	// returned via the Serial/InventoryItem fields or processed separately.
-
-	return &serialhistorypb.GetInventorySerialHistoryItemPageDataResponse{
-		InventorySerialHistory: serialHistory,
-		Success:                true,
 	}, nil
 }
 

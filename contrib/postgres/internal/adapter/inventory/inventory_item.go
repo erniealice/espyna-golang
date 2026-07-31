@@ -7,17 +7,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
-	"time"
 
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	inventoryitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_item"
-	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -41,10 +37,12 @@ func init() {
 //   - CREATE INDEX idx_inventory_item_name ON inventory_item(name) - Search on name field
 //   - CREATE INDEX idx_inventory_item_sku ON inventory_item(sku) - Search on sku field
 //   - CREATE INDEX idx_inventory_item_date_created ON inventory_item(date_created DESC) - Default sorting
+//
+// Every method routes through dbOps, so the workspace decorator is always in the
+// path; the repository holds no raw *sql.DB that could bypass it.
 type PostgresInventoryItemRepository struct {
 	inventoryitempb.UnimplementedInventoryItemDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
-	db        *sql.DB // Direct database access for complex queries (CTEs)
 	tableName string
 }
 
@@ -54,15 +52,8 @@ func NewPostgresInventoryItemRepository(dbOps interfaces.DatabaseOperation, tabl
 		tableName = "inventory_item" // default fallback
 	}
 
-	// Extract the underlying database connection for complex queries (CTEs)
-	var db *sql.DB
-	if pgOps, ok := dbOps.(interface{ GetDB() *sql.DB }); ok {
-		db = pgOps.GetDB()
-	}
-
 	return &PostgresInventoryItemRepository{
 		dbOps:     dbOps,
-		db:        db,
 		tableName: tableName,
 	}
 }
@@ -235,373 +226,6 @@ func (r *PostgresInventoryItemRepository) ListInventoryItems(ctx context.Context
 
 	return &inventoryitempb.ListInventoryItemsResponse{
 		Data: inventoryItems,
-	}, nil
-}
-
-// GetInventoryItemListPageData retrieves inventory items with advanced filtering, sorting, searching, and pagination using CTE
-// This method joins with the product table to include the parent product name
-func (r *PostgresInventoryItemRepository) GetInventoryItemListPageData(
-	ctx context.Context,
-	req *inventoryitempb.GetInventoryItemListPageDataRequest,
-) (*inventoryitempb.GetInventoryItemListPageDataResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("get inventory item list page data request is required")
-	}
-
-	// Default pagination values
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
-	}
-
-	// Sort with allowlist validation
-	sortAllowlist := map[string]string{
-		"product_name":  "p.name",
-		"quantity":      "ii.quantity_on_hand",
-		"status":        "ii.active",
-		"date_created":  "ii.date_created",
-		"date_modified": "ii.date_modified",
-		"sku":           "ii.sku",
-	}
-	sortCol := "ii.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		if col, ok := sortAllowlist[req.Sort.Fields[0].Field]; ok {
-			sortCol = col
-		}
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
-	}
-
-	// Build parameterized WHERE clauses via shared helper (starts at $1)
-	searchFields := []string{"p.name", "ii.sku"}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
-	if err != nil {
-		return nil, err
-	}
-
-	var whereStr string
-	if len(filterClauses) > 0 {
-		whereStr = " AND " + strings.Join(filterClauses, " AND ")
-	}
-
-	// Parameterized LIMIT/OFFSET come after filter args
-	limitIdx := nextIdx
-	offsetIdx := nextIdx + 1
-	queryArgs := append(filterArgs, limit, offset) //nolint:gocritic
-
-	// CTE Query - Single round-trip with product join for parent product name
-	query := `
-		WITH enriched AS (
-			SELECT
-				ii.id,
-				ii.date_created,
-				ii.date_modified,
-				ii.active,
-				ii.name,
-				ii.product_id,
-				ii.location_id,
-				ii.sku,
-				ii.quantity_on_hand,
-				ii.quantity_reserved,
-				ii.quantity_available,
-				ii.reorder_level,
-				ii.unit_of_measure,
-				COALESCE(p.tracking_mode, '') as tracking_mode,
-				COALESCE(p.name, '') as product_name,
-				COUNT(*) OVER() AS total_count
-			FROM ` + entityid.InventoryItem + ` ii
-			LEFT JOIN ` + entityid.Product + ` p ON ii.product_id = p.id AND p.active = true
-			WHERE ii.active = true` + whereStr + `
-		)
-		SELECT * FROM enriched
-		ORDER BY ` + sortCol + ` ` + sortOrder + fmt.Sprintf(`
-		LIMIT $%d OFFSET $%d`, limitIdx, offsetIdx)
-
-	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query inventory item list page data: %w", err)
-	}
-	defer rows.Close()
-
-	var inventoryItems []*inventoryitempb.InventoryItem
-	var totalCount int64
-
-	for rows.Next() {
-		var (
-			id                string
-			dateCreated       time.Time
-			dateModified      time.Time
-			active            bool
-			name              string
-			productID         *string
-			locationID        *string
-			sku               *string
-			quantityOnHand    float64
-			quantityReserved  float64
-			quantityAvailable float64
-			reorderLevel      *float64
-			unitOfMeasure     string
-			trackingMode      string
-			productName       string
-			total             int64
-		)
-
-		err := rows.Scan(
-			&id,
-			&dateCreated,
-			&dateModified,
-			&active,
-			&name,
-			&productID,
-			&locationID,
-			&sku,
-			&quantityOnHand,
-			&quantityReserved,
-			&quantityAvailable,
-			&reorderLevel,
-			&unitOfMeasure,
-			&trackingMode,
-			&productName,
-			&total,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan inventory item row: %w", err)
-		}
-
-		totalCount = total
-
-		inventoryItem := &inventoryitempb.InventoryItem{
-			Id:                id,
-			Active:            active,
-			Name:              name,
-			QuantityOnHand:    quantityOnHand,
-			QuantityReserved:  quantityReserved,
-			QuantityAvailable: quantityAvailable,
-			UnitOfMeasure:     unitOfMeasure,
-		}
-
-		// Handle nullable fields
-		if productID != nil {
-			inventoryItem.ProductId = productID
-			inventoryItem.Product = &productpb.Product{
-				Id:           *productID,
-				Name:         productName,
-				TrackingMode: trackingMode,
-			}
-		}
-		if locationID != nil {
-			inventoryItem.LocationId = locationID
-		}
-		if sku != nil {
-			inventoryItem.Sku = sku
-		}
-		if reorderLevel != nil {
-			inventoryItem.ReorderLevel = reorderLevel
-		}
-
-		// Parse timestamps if provided
-		if !dateCreated.IsZero() {
-			ts := dateCreated.UnixMilli()
-			inventoryItem.DateCreated = &ts
-			dcStr := dateCreated.Format(time.RFC3339)
-			inventoryItem.DateCreatedString = &dcStr
-		}
-		if !dateModified.IsZero() {
-			ts := dateModified.UnixMilli()
-			inventoryItem.DateModified = &ts
-			dmStr := dateModified.Format(time.RFC3339)
-			inventoryItem.DateModifiedString = &dmStr
-		}
-
-		inventoryItems = append(inventoryItems, inventoryItem)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating inventory item rows: %w", err)
-	}
-
-	// Calculate pagination metadata
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
-	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
-
-	return &inventoryitempb.GetInventoryItemListPageDataResponse{
-		InventoryItemList: inventoryItems,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
-	}, nil
-}
-
-// GetInventoryItemItemPageData retrieves a single inventory item with enhanced item page data using CTE
-// This method joins with the product table for the parent product reference
-func (r *PostgresInventoryItemRepository) GetInventoryItemItemPageData(
-	ctx context.Context,
-	req *inventoryitempb.GetInventoryItemItemPageDataRequest,
-) (*inventoryitempb.GetInventoryItemItemPageDataResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("get inventory item item page data request is required")
-	}
-	if req.InventoryItemId == "" {
-		return nil, fmt.Errorf("inventory item ID is required")
-	}
-
-	// CTE Query - Single round-trip with product join
-	query := `
-		WITH enriched AS (
-			SELECT
-				ii.id,
-				ii.date_created,
-				ii.date_modified,
-				ii.active,
-				ii.name,
-				ii.product_id,
-				ii.location_id,
-				ii.sku,
-				ii.quantity_on_hand,
-				ii.quantity_reserved,
-				ii.quantity_available,
-				ii.reorder_level,
-				ii.unit_of_measure,
-				COALESCE(p.tracking_mode, '') as tracking_mode,
-				ii.product_variant_id,
-				ii.notes,
-				COALESCE(p.name, '') as product_name,
-				COALESCE(p.price, 0) as product_price
-			FROM ` + entityid.InventoryItem + ` ii
-			LEFT JOIN ` + entityid.Product + ` p ON ii.product_id = p.id AND p.active = true
-			WHERE ii.id = $1 AND ii.active = true
-		)
-		SELECT * FROM enriched LIMIT 1;
-	`
-
-	row := r.db.QueryRowContext(ctx, query, req.InventoryItemId)
-
-	var (
-		id                string
-		dateCreated       time.Time
-		dateModified      time.Time
-		active            bool
-		name              string
-		productID         *string
-		locationID        *string
-		sku               *string
-		quantityOnHand    float64
-		quantityReserved  float64
-		quantityAvailable float64
-		reorderLevel      *float64
-		unitOfMeasure     string
-		trackingMode      string
-		productVariantID  *string
-		notes             *string
-		productName       string
-		productPrice      sql.NullInt64 // Model D: product.price is nullable
-	)
-
-	err := row.Scan(
-		&id,
-		&dateCreated,
-		&dateModified,
-		&active,
-		&name,
-		&productID,
-		&locationID,
-		&sku,
-		&quantityOnHand,
-		&quantityReserved,
-		&quantityAvailable,
-		&reorderLevel,
-		&unitOfMeasure,
-		&trackingMode,
-		&productVariantID,
-		&notes,
-		&productName,
-		&productPrice,
-	)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("inventory item with ID '%s' not found", req.InventoryItemId)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to query inventory item item page data: %w", err)
-	}
-
-	inventoryItem := &inventoryitempb.InventoryItem{
-		Id:                id,
-		Active:            active,
-		Name:              name,
-		QuantityOnHand:    quantityOnHand,
-		QuantityReserved:  quantityReserved,
-		QuantityAvailable: quantityAvailable,
-		UnitOfMeasure:     unitOfMeasure,
-	}
-
-	// Handle nullable fields
-	if productID != nil {
-		inventoryItem.ProductId = productID
-		inventoryItem.Product = &productpb.Product{
-			Id:           *productID,
-			Name:         productName,
-			TrackingMode: trackingMode,
-		}
-		if productPrice.Valid {
-			p := productPrice.Int64
-			inventoryItem.Product.Price = &p
-		}
-	}
-	if locationID != nil {
-		inventoryItem.LocationId = locationID
-	}
-	if sku != nil {
-		inventoryItem.Sku = sku
-	}
-	if reorderLevel != nil {
-		inventoryItem.ReorderLevel = reorderLevel
-	}
-	if productVariantID != nil {
-		inventoryItem.ProductVariantId = productVariantID
-	}
-	if notes != nil {
-		inventoryItem.Notes = notes
-	}
-
-	// Parse timestamps if provided
-	if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		inventoryItem.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		inventoryItem.DateCreatedString = &dcStr
-	}
-	if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		inventoryItem.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		inventoryItem.DateModifiedString = &dmStr
-	}
-
-	return &inventoryitempb.GetInventoryItemItemPageDataResponse{
-		InventoryItem: inventoryItem,
-		Success:       true,
 	}, nil
 }
 

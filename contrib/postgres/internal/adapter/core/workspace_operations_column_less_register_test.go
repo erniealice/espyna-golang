@@ -77,34 +77,26 @@ func TestColumnLessTenantParentJoinsAreRegisteredTables(t *testing.T) {
 	}
 }
 
-// TestInventoryItemRegisteredAsColumnLessTenant pins the W0 interim mitigation from
-// docs/plan/20260729-inventory-item-tenant-scope (rider R1).
+// TestInventoryItemGraduatedFromColumnLessRegister is the W4 counterpart of the W0
+// entry-exists assertion it replaces (docs/plan/20260729-inventory-item-tenant-scope).
 //
-// ⚠ THIS TEST IS EXPECTED TO FAIL AT W4 — that is its job. Once the additive
-// workspace_id column lands on BOTH education1 and professional1,
-// tableHasWorkspaceColumn flips true, the direct-column path takes over and BOTH
-// register entries must be removed (workspace_operations.go maintenance note).
-// Delete this test in the same change that removes them; do not "fix" it by
-// re-adding the entries.
-func TestInventoryItemRegisteredAsColumnLessTenant(t *testing.T) {
-	if !columnLessTenantTables["inventory_item"] {
-		t.Fatal("inventory_item missing from columnLessTenantTables — the column-less List shadow log and the by-id probe are both gated on this entry")
+// inventory_item now has a real workspace_id column on both databases, so
+// tableHasWorkspaceColumn returns TRUE and the decorator takes the DIRECT-column
+// path: injectWorkspaceFilter on List, the by-id ownership check on
+// Read/Update/Delete/HardDelete. Re-adding either register entry would be an active
+// regression, not a belt-and-braces addition — membership routes the table down the
+// column-less branch instead, and that branch cannot filter a List at all (a
+// StringFilter predicate cannot express a parent JOIN), so the whole-list leak the
+// column closed would silently reopen.
+//
+// The direct-column behaviour this graduation depends on is pinned separately in
+// inventory_item_workspace_shape_test.go; this test guards only the register.
+func TestInventoryItemGraduatedFromColumnLessRegister(t *testing.T) {
+	if columnLessTenantTables["inventory_item"] {
+		t.Error("inventory_item is back in columnLessTenantTables — it has a direct workspace_id column, and the column-less branch leaves List entirely unfiltered")
 	}
 
-	probe, ok := columnLessTenantParentJoins["inventory_item"]
-	if !ok {
-		t.Fatal("inventory_item missing from columnLessTenantParentJoins — without a probe scopeColumnLessByParent degrades to shadow-PASS and can never deny by id")
-	}
-
-	// product is the only reliable anchor: location reaches a workspace for 0 of
-	// the 13 live rows and product_variant has no workspace_id at all (plan §1.2).
-	if probe.fkColumn != "product_id" {
-		t.Errorf("inventory_item probe anchors on %q, want %q", probe.fkColumn, "product_id")
-	}
-	if probe.parentTable != "product" {
-		t.Errorf("inventory_item probe joins %q, want %q", probe.parentTable, "product")
-	}
-	if probe.parentWs != probe.parentAlias+".workspace_id" {
-		t.Errorf("inventory_item probe derives %q, want %q", probe.parentWs, probe.parentAlias+".workspace_id")
+	if _, ok := columnLessTenantParentJoins["inventory_item"]; ok {
+		t.Error("inventory_item is back in columnLessTenantParentJoins — the product_id parent-JOIN probe is superseded by the direct workspace_id column")
 	}
 }

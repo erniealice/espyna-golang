@@ -7,13 +7,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	inventoryattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_attribute"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -36,10 +34,12 @@ func init() {
 //   - CREATE INDEX idx_inventory_attribute_attribute_id ON inventory_attribute(attribute_id) - FK lookup
 //   - CREATE INDEX idx_inventory_attribute_active ON inventory_attribute(active) WHERE active = true - Filter active records
 //   - CREATE INDEX idx_inventory_attribute_date_created ON inventory_attribute(date_created DESC) - Default sorting
+//
+// Every method routes through dbOps, so the workspace decorator is always in the
+// path; the repository holds no raw *sql.DB that could bypass it.
 type PostgresInventoryAttributeRepository struct {
 	inventoryattributepb.UnimplementedInventoryAttributeDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
-	db        *sql.DB // Direct database access for complex queries (CTEs)
 	tableName string
 }
 
@@ -49,15 +49,8 @@ func NewPostgresInventoryAttributeRepository(dbOps interfaces.DatabaseOperation,
 		tableName = "inventory_attribute" // default fallback
 	}
 
-	// Extract the underlying database connection for complex queries (CTEs)
-	var db *sql.DB
-	if pgOps, ok := dbOps.(interface{ GetDB() *sql.DB }); ok {
-		db = pgOps.GetDB()
-	}
-
 	return &PostgresInventoryAttributeRepository{
 		dbOps:     dbOps,
-		db:        db,
 		tableName: tableName,
 	}
 }
@@ -216,278 +209,6 @@ func (r *PostgresInventoryAttributeRepository) ListInventoryAttributes(ctx conte
 
 	return &inventoryattributepb.ListInventoryAttributesResponse{
 		Data: inventoryAttributes,
-	}, nil
-}
-
-// inventoryAttributeSortableSQLCols is the fail-closed sort whitelist for
-// GetInventoryAttributeListPageData. Only columns/aliases projected by the CTE
-// SELECT are included so ORDER BY can never reference an unprojected/injected
-// identifier.
-var inventoryAttributeSortableSQLCols = []string{
-	"id", "date_created", "date_modified", "active", "inventory_item_id",
-	"attribute_id", "value", "inventory_item_name",
-}
-
-// GetInventoryAttributeListPageData retrieves inventory attributes with advanced filtering, sorting, searching, and pagination using CTE
-// This method joins with the inventory_item table to include the parent item name
-// Supports search on attribute value and inventory item name
-func (r *PostgresInventoryAttributeRepository) GetInventoryAttributeListPageData(
-	ctx context.Context,
-	req *inventoryattributepb.GetInventoryAttributeListPageDataRequest,
-) (*inventoryattributepb.GetInventoryAttributeListPageDataResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("get inventory attribute list page data request is required")
-	}
-
-	// Build search condition
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
-	}
-
-	// Default pagination values
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		// Handle offset pagination
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
-	}
-
-	// Sort — fail-closed against the per-entity whitelist (A2 guard). The default
-	// references the outer enriched projection (date_created) since the page rows
-	// are selected via "SELECT e.* FROM enriched e". An unknown sort column now
-	// errors instead of being interpolated verbatim into ORDER BY.
-	orderByClause, err := postgresCore.BuildOrderBy(inventoryAttributeSortableSQLCols, req.GetSort(), "date_created DESC")
-	if err != nil {
-		return nil, err
-	}
-
-	// CTE Query - Single round-trip with inventory_item join
-	query := `
-		WITH enriched AS (
-			SELECT
-				ia.id,
-				ia.date_created,
-				ia.date_modified,
-				ia.active,
-				ia.inventory_item_id,
-				ia.attribute_id,
-				ia.value,
-				COALESCE(ii.name, '') as inventory_item_name
-			FROM ` + entityid.InventoryAttribute + ` ia
-			LEFT JOIN ` + entityid.InventoryItem + ` ii ON ia.inventory_item_id = ii.id AND ii.active = true
-			WHERE ia.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-			       ia.value ILIKE $1 OR
-			       ii.name ILIKE $1)
-		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
-		SELECT
-			e.*,
-			COUNT(*) OVER () AS total
-		FROM enriched e
-		` + orderByClause + `
-		LIMIT $2 OFFSET $3;
-	`
-
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query inventory attribute list page data: %w", err)
-	}
-	defer rows.Close()
-
-	var inventoryAttributes []*inventoryattributepb.InventoryAttribute
-	var totalCount int64
-
-	for rows.Next() {
-		var (
-			id                string
-			dateCreated       time.Time
-			dateModified      time.Time
-			active            bool
-			inventoryItemID   string
-			attributeID       string
-			value             string
-			inventoryItemName string
-			total             int64
-		)
-
-		err := rows.Scan(
-			&id,
-			&dateCreated,
-			&dateModified,
-			&active,
-			&inventoryItemID,
-			&attributeID,
-			&value,
-			&inventoryItemName,
-			&total,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan inventory attribute row: %w", err)
-		}
-
-		totalCount = total
-
-		inventoryAttribute := &inventoryattributepb.InventoryAttribute{
-			Id:              id,
-			Active:          active,
-			InventoryItemId: inventoryItemID,
-			AttributeId:     attributeID,
-			Value:           value,
-		}
-
-		// Parse timestamps if provided
-		if !dateCreated.IsZero() {
-			ts := dateCreated.UnixMilli()
-			inventoryAttribute.DateCreated = &ts
-			dcStr := dateCreated.Format(time.RFC3339)
-			inventoryAttribute.DateCreatedString = &dcStr
-		}
-		if !dateModified.IsZero() {
-			ts := dateModified.UnixMilli()
-			inventoryAttribute.DateModified = &ts
-			dmStr := dateModified.Format(time.RFC3339)
-			inventoryAttribute.DateModifiedString = &dmStr
-		}
-
-		// Note: inventoryItemName is available from the join but not directly mapped
-		// to the InventoryAttribute protobuf. Could be populated via the
-		// InventoryItem field if needed for frontend display.
-
-		inventoryAttributes = append(inventoryAttributes, inventoryAttribute)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating inventory attribute rows: %w", err)
-	}
-
-	// Calculate pagination metadata
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
-	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
-
-	return &inventoryattributepb.GetInventoryAttributeListPageDataResponse{
-		InventoryAttributeList: inventoryAttributes,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
-	}, nil
-}
-
-// GetInventoryAttributeItemPageData retrieves a single inventory attribute with enhanced item page data using CTE
-// This method joins with the inventory_item table for the parent item reference
-func (r *PostgresInventoryAttributeRepository) GetInventoryAttributeItemPageData(
-	ctx context.Context,
-	req *inventoryattributepb.GetInventoryAttributeItemPageDataRequest,
-) (*inventoryattributepb.GetInventoryAttributeItemPageDataResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("get inventory attribute item page data request is required")
-	}
-	if req.InventoryAttributeId == "" {
-		return nil, fmt.Errorf("inventory attribute ID is required")
-	}
-
-	// CTE Query - Single round-trip with inventory_item join
-	query := `
-		WITH enriched AS (
-			SELECT
-				ia.id,
-				ia.date_created,
-				ia.date_modified,
-				ia.active,
-				ia.inventory_item_id,
-				ia.attribute_id,
-				ia.value,
-				COALESCE(ii.name, '') as inventory_item_name,
-				COALESCE(ii.sku, '') as inventory_item_sku
-			FROM ` + entityid.InventoryAttribute + ` ia
-			LEFT JOIN ` + entityid.InventoryItem + ` ii ON ia.inventory_item_id = ii.id AND ii.active = true
-			WHERE ia.id = $1 AND ia.active = true
-		)
-		SELECT * FROM enriched LIMIT 1;
-	`
-
-	row := r.db.QueryRowContext(ctx, query, req.InventoryAttributeId)
-
-	var (
-		id                string
-		dateCreated       time.Time
-		dateModified      time.Time
-		active            bool
-		inventoryItemID   string
-		attributeID       string
-		value             string
-		inventoryItemName string
-		inventoryItemSku  string
-	)
-
-	err := row.Scan(
-		&id,
-		&dateCreated,
-		&dateModified,
-		&active,
-		&inventoryItemID,
-		&attributeID,
-		&value,
-		&inventoryItemName,
-		&inventoryItemSku,
-	)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("inventory attribute with ID '%s' not found", req.InventoryAttributeId)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to query inventory attribute item page data: %w", err)
-	}
-
-	inventoryAttribute := &inventoryattributepb.InventoryAttribute{
-		Id:              id,
-		Active:          active,
-		InventoryItemId: inventoryItemID,
-		AttributeId:     attributeID,
-		Value:           value,
-	}
-
-	// Parse timestamps if provided
-	if !dateCreated.IsZero() {
-		ts := dateCreated.UnixMilli()
-		inventoryAttribute.DateCreated = &ts
-		dcStr := dateCreated.Format(time.RFC3339)
-		inventoryAttribute.DateCreatedString = &dcStr
-	}
-	if !dateModified.IsZero() {
-		ts := dateModified.UnixMilli()
-		inventoryAttribute.DateModified = &ts
-		dmStr := dateModified.Format(time.RFC3339)
-		inventoryAttribute.DateModifiedString = &dmStr
-	}
-
-	// Note: inventoryItemName and inventoryItemSku are available from the join
-	// but not directly mapped to the InventoryAttribute protobuf. These could be
-	// returned via the InventoryItem field or processed separately.
-
-	return &inventoryattributepb.GetInventoryAttributeItemPageDataResponse{
-		InventoryAttribute: inventoryAttribute,
-		Success:            true,
 	}, nil
 }
 

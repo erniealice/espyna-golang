@@ -817,9 +817,12 @@ func nowMillis() int64 { return time.Now().UnixMilli() }
 // barrier); a recompute error fails the submit (the caller returns it, so the
 // surrounding transaction rolls back). Extracted so the fail-closed/failure
 // contract is unit-testable without a database.
-func submitFreshnessBarrier(ctx context.Context, recompute func(ctx context.Context, phaseIDs, jobIDs []string) error, locked []lockedPhase) error {
+// verb names the transition in error messages ("submit", "verify") so a barrier
+// failure says which transition rolled back. Both call sites share one contract:
+// recompute on the ambient tx, post-lock/pre-flip, fail closed.
+func submitFreshnessBarrier(ctx context.Context, verb string, recompute func(ctx context.Context, phaseIDs, jobIDs []string) error, locked []lockedPhase) error {
 	if recompute == nil {
-		return fmt.Errorf("job_phase submit: summary-recompute barrier is not wired — refusing to advance a possibly-stale sheet (fail closed)")
+		return fmt.Errorf("job_phase %s: summary-recompute barrier is not wired — refusing to advance a possibly-stale sheet (fail closed)", verb)
 	}
 	phaseIDs := make([]string, 0, len(locked))
 	jobIDs := make([]string, 0, len(locked))
@@ -836,7 +839,7 @@ func submitFreshnessBarrier(ctx context.Context, recompute func(ctx context.Cont
 		jobIDs = append(jobIDs, lp.jobID)
 	}
 	if rerr := recompute(ctx, phaseIDs, jobIDs); rerr != nil {
-		return fmt.Errorf("job_phase submit: freshness-barrier recompute failed — rolling back: %w", rerr)
+		return fmt.Errorf("job_phase %s: freshness-barrier recompute failed — rolling back: %w", verb, rerr)
 	}
 	return nil
 }
@@ -912,7 +915,7 @@ func (r *PostgresJobPhaseRepository) SubmitJobPhaseApproval(ctx context.Context,
 	// A "delayed" recompute triggered by a post-submit cell save therefore never runs
 	// (the leaf write is rejected first), so it cannot overwrite these finalized
 	// summaries with stale input once approval has advanced.
-	if err := submitFreshnessBarrier(ctx, r.recompute, locked); err != nil {
+	if err := submitFreshnessBarrier(ctx, "submit", r.recompute, locked); err != nil {
 		return nil, err
 	}
 
@@ -971,6 +974,21 @@ func (r *PostgresJobPhaseRepository) VerifyJobPhaseApproval(ctx context.Context,
 	}
 	if frozen {
 		return nil, fmt.Errorf("job_phase verify: sheet is hard-frozen — cannot verify")
+	}
+
+	// Verify-time freshness barrier: re-finalize the phase then job outcome
+	// summaries for the locked sheet INSIDE this transaction, under the parent
+	// FOR UPDATE mutex, BEFORE flipping FOR_REVIEW → VERIFIED. Identical contract
+	// to the submit barrier (ambient tx, fail closed, rollback on error).
+	//
+	// Between FOR_REVIEW and VERIFIED the sheet is locked, so in the normal UI flow
+	// this recomputes the same inputs submit already finalized and is a no-op. Its
+	// value is as an ASSERTION: if anything mutated the sheet out-of-band (a direct
+	// DB write, a grade-loader/CLI run, an import), verify fails closed and rolls
+	// back rather than blessing a stale summary as verified. A verified summary is
+	// therefore provably derived from the data present at verification time.
+	if err := submitFreshnessBarrier(ctx, "verify", r.recompute, locked); err != nil {
+		return nil, err
 	}
 
 	actor := identity.Must(ctx).UserID

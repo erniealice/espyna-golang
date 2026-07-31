@@ -338,12 +338,15 @@ func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeListPageData(
 	}
 
 	toColumns := `
-		to_.id, to_.job_task_id, to_.criteria_version_id, to_.criteria_type,
-		to_.is_ad_hoc, to_.numeric_value, to_.text_value, to_.categorical_value,
-		to_.pass_fail_value, to_.determination, to_.determination_source,
+		to_.id, COALESCE(to_.job_task_id, '') AS job_task_id,
+		COALESCE(to_.criteria_version_id, '') AS criteria_version_id,
+		COALESCE(to_.criteria_type, '') AS criteria_type,
+		COALESCE(to_.is_ad_hoc, false) AS is_ad_hoc, to_.numeric_value, to_.text_value, to_.categorical_value,
+		to_.pass_fail_value, COALESCE(to_.determination, '') AS determination,
+		COALESCE(to_.determination_source, '') AS determination_source,
 		to_.determination_note, to_.auto_proposed_determination,
-		to_.recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
-		to_.attachment_ids, to_.revision_of_id, to_.revision_number,
+		COALESCE(to_.recorded_by, '') AS recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
+		COALESCE(to_.attachment_ids, '') AS attachment_ids, to_.revision_of_id, to_.revision_number,
 		to_.active, to_.date_created, to_.date_modified
 	`
 
@@ -431,12 +434,15 @@ func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeItemPageData(
 
 	query := `
 		SELECT
-			to_.id, to_.job_task_id, to_.criteria_version_id, to_.criteria_type,
-			to_.is_ad_hoc, to_.numeric_value, to_.text_value, to_.categorical_value,
-			to_.pass_fail_value, to_.determination, to_.determination_source,
+			to_.id, COALESCE(to_.job_task_id, '') AS job_task_id,
+		COALESCE(to_.criteria_version_id, '') AS criteria_version_id,
+		COALESCE(to_.criteria_type, '') AS criteria_type,
+			COALESCE(to_.is_ad_hoc, false) AS is_ad_hoc, to_.numeric_value, to_.text_value, to_.categorical_value,
+			to_.pass_fail_value, COALESCE(to_.determination, '') AS determination,
+		COALESCE(to_.determination_source, '') AS determination_source,
 			to_.determination_note, to_.auto_proposed_determination,
-			to_.recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
-			to_.attachment_ids, to_.revision_of_id, to_.revision_number,
+			COALESCE(to_.recorded_by, '') AS recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
+			COALESCE(to_.attachment_ids, '') AS attachment_ids, to_.revision_of_id, to_.revision_number,
 			to_.active, to_.date_created, to_.date_modified
 		FROM ` + entityid.TaskOutcome + ` to_
 		WHERE to_.id = $1 AND to_.active = true` + staffClause + `
@@ -473,12 +479,15 @@ func (r *PostgresTaskOutcomeRepository) ListByJobTask(
 
 	query := `
 		SELECT
-			to_.id, to_.job_task_id, to_.criteria_version_id, to_.criteria_type,
-			to_.is_ad_hoc, to_.numeric_value, to_.text_value, to_.categorical_value,
-			to_.pass_fail_value, to_.determination, to_.determination_source,
+			to_.id, COALESCE(to_.job_task_id, '') AS job_task_id,
+		COALESCE(to_.criteria_version_id, '') AS criteria_version_id,
+		COALESCE(to_.criteria_type, '') AS criteria_type,
+			COALESCE(to_.is_ad_hoc, false) AS is_ad_hoc, to_.numeric_value, to_.text_value, to_.categorical_value,
+			to_.pass_fail_value, COALESCE(to_.determination, '') AS determination,
+		COALESCE(to_.determination_source, '') AS determination_source,
 			to_.determination_note, to_.auto_proposed_determination,
-			to_.recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
-			to_.attachment_ids, to_.revision_of_id, to_.revision_number,
+			COALESCE(to_.recorded_by, '') AS recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
+			COALESCE(to_.attachment_ids, '') AS attachment_ids, to_.revision_of_id, to_.revision_number,
 			to_.active, to_.date_created, to_.date_modified
 		FROM ` + entityid.TaskOutcome + ` to_
 		WHERE to_.job_task_id = $1 AND to_.active = true` + staffClause + `
@@ -534,12 +543,15 @@ func (r *PostgresTaskOutcomeRepository) ListByJobPhase(
 
 	query := `
 		SELECT
-			to_.id, to_.job_task_id, to_.criteria_version_id, to_.criteria_type,
-			to_.is_ad_hoc, to_.numeric_value, to_.text_value, to_.categorical_value,
-			to_.pass_fail_value, to_.determination, to_.determination_source,
+			to_.id, COALESCE(to_.job_task_id, '') AS job_task_id,
+		COALESCE(to_.criteria_version_id, '') AS criteria_version_id,
+		COALESCE(to_.criteria_type, '') AS criteria_type,
+			COALESCE(to_.is_ad_hoc, false) AS is_ad_hoc, to_.numeric_value, to_.text_value, to_.categorical_value,
+			to_.pass_fail_value, COALESCE(to_.determination, '') AS determination,
+		COALESCE(to_.determination_source, '') AS determination_source,
 			to_.determination_note, to_.auto_proposed_determination,
-			to_.recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
-			to_.attachment_ids, to_.revision_of_id, to_.revision_number,
+			COALESCE(to_.recorded_by, '') AS recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
+			COALESCE(to_.attachment_ids, '') AS attachment_ids, to_.revision_of_id, to_.revision_number,
 			to_.active, to_.date_created, to_.date_modified
 		FROM ` + entityid.TaskOutcome + ` to_
 		JOIN ` + entityid.JobTask + ` jt ON to_.job_task_id = jt.id
@@ -578,12 +590,15 @@ func (r *PostgresTaskOutcomeRepository) ListByJob(
 
 	query := `
 		SELECT
-			to_.id, to_.job_task_id, to_.criteria_version_id, to_.criteria_type,
-			to_.is_ad_hoc, to_.numeric_value, to_.text_value, to_.categorical_value,
-			to_.pass_fail_value, to_.determination, to_.determination_source,
+			to_.id, COALESCE(to_.job_task_id, '') AS job_task_id,
+		COALESCE(to_.criteria_version_id, '') AS criteria_version_id,
+		COALESCE(to_.criteria_type, '') AS criteria_type,
+			COALESCE(to_.is_ad_hoc, false) AS is_ad_hoc, to_.numeric_value, to_.text_value, to_.categorical_value,
+			to_.pass_fail_value, COALESCE(to_.determination, '') AS determination,
+		COALESCE(to_.determination_source, '') AS determination_source,
 			to_.determination_note, to_.auto_proposed_determination,
-			to_.recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
-			to_.attachment_ids, to_.revision_of_id, to_.revision_number,
+			COALESCE(to_.recorded_by, '') AS recorded_by, to_.recorded_date, to_.reviewed_by, to_.reviewed_date,
+			COALESCE(to_.attachment_ids, '') AS attachment_ids, to_.revision_of_id, to_.revision_number,
 			to_.active, to_.date_created, to_.date_modified
 		FROM ` + entityid.TaskOutcome + ` to_
 		JOIN ` + entityid.JobTask + ` jt ON to_.job_task_id = jt.id

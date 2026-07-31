@@ -20,7 +20,7 @@ import (
 func TestSubmitFreshnessBarrier_FailureFailsSubmit(t *testing.T) {
 	boom := errors.New("phase summary write failed")
 	locked := []lockedPhase{{id: "p1", jobID: "j1"}, {id: "p2", jobID: "j2"}}
-	err := submitFreshnessBarrier(context.Background(),
+	err := submitFreshnessBarrier(context.Background(), "submit",
 		func(_ context.Context, _, _ []string) error { return boom }, locked)
 	if err == nil {
 		t.Fatal("a recompute failure MUST fail the submit")
@@ -36,7 +36,7 @@ func TestSubmitFreshnessBarrier_FailureFailsSubmit(t *testing.T) {
 // TestSubmitFreshnessBarrier_NilPortFailsClosed proves an unwired barrier refuses
 // the submit outright (a raw/custom repository cannot transition without it).
 func TestSubmitFreshnessBarrier_NilPortFailsClosed(t *testing.T) {
-	err := submitFreshnessBarrier(context.Background(), nil, []lockedPhase{{id: "p1", jobID: "j1"}})
+	err := submitFreshnessBarrier(context.Background(), "submit", nil, []lockedPhase{{id: "p1", jobID: "j1"}})
 	if err == nil || !strings.Contains(err.Error(), "not wired") {
 		t.Fatalf("nil recompute port must fail closed, got %v", err)
 	}
@@ -53,7 +53,7 @@ func TestSubmitFreshnessBarrier_PassesFullLockedSet(t *testing.T) {
 		{id: "p4", jobID: ""},   // empty job id excluded from the job leg
 	}
 	var gotPhases, gotJobs []string
-	err := submitFreshnessBarrier(context.Background(),
+	err := submitFreshnessBarrier(context.Background(), "verify",
 		func(_ context.Context, phaseIDs, jobIDs []string) error {
 			gotPhases = append([]string(nil), phaseIDs...)
 			gotJobs = append([]string(nil), jobIDs...)

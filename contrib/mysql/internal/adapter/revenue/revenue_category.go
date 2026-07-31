@@ -27,6 +27,20 @@ import (
 	revenuecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_category"
 )
 
+// revenueCategorySortableSQLCols is the fail-closed sort whitelist for
+// GetRevenueCategoryListPageData. It mirrors the columns projected by the
+// enriched CTE — bare names, because the ORDER BY sits on the outer
+// `FROM enriched e` scope where the `rc` alias is not visible.
+// mysqlCore.BuildOrderBy rejects anything outside this set.
+var revenueCategorySortableSQLCols = []string{
+	"name",
+	"code",
+	"description",
+	"parent_category_id",
+	"date_created",
+	"date_modified",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("mysql", entityid.RevenueCategory, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -231,13 +245,10 @@ func (r *MySQLRevenueCategoryRepository) GetRevenueCategoryListPageData(
 		}
 	}
 
-	sortField := "rc.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	orderByClause, err := mysqlCore.BuildOrderBy(
+		revenueCategorySortableSQLCols, req.GetSort(), "rc.date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Dialect: $1::text IS NULL OR ... ILIKE $1 →
@@ -265,7 +276,7 @@ func (r *MySQLRevenueCategoryRepository) GetRevenueCategoryListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT ? OFFSET ?
 	`
 

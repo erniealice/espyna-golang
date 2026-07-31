@@ -34,6 +34,25 @@ import (
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
 )
 
+// expenditureSortableSQLCols is the fail-closed sort whitelist for
+// GetExpenditureListPageData. Mirrors the enriched CTE projection (the outer
+// scope is `FROM enriched e, counted c`, so only bare projected names resolve).
+// Copied from postgres/.../expenditure/expenditure.go.
+var expenditureSortableSQLCols = []string{
+	"name",
+	"expenditure_type",
+	"expenditure_date",
+	"expenditure_date_string",
+	"total_amount",
+	"currency",
+	"status",
+	"reference_number",
+	"vendor_name",
+	"location_name",
+	"date_created",
+	"date_modified",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("mysql", entityid.Expenditure, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -266,13 +285,11 @@ func (r *MySQLExpenditureRepository) GetExpenditureListPageData(
 		}
 	}
 
-	sortField := "ex.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard).
+	// mysqlCore.BuildOrderBy uses backtick quoting instead of double-quotes.
+	orderByClause, err := mysqlCore.BuildOrderBy(expenditureSortableSQLCols, req.GetSort(), "ex.date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// 20260517 expense-run: expose `run_id` for list-row run-linkage badges.
@@ -324,7 +341,7 @@ func (r *MySQLExpenditureRepository) GetExpenditureListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT ? OFFSET ?
 	`
 

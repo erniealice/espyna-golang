@@ -166,6 +166,16 @@ func (r *MySQLPettyCashFundRepository) ListPettyCashFunds(ctx context.Context, r
 	return &pettycashfundpb.ListPettyCashFundsResponse{Success: true, Data: pcfs}, nil
 }
 
+// pettyCashFundSortableSQLCols is the fail-closed sort whitelist for
+// GetPettyCashFundListPageData. The ORDER BY runs against the outer `enriched e`
+// projection (bare CTE column names), so entries are unqualified — mirrors
+// postgres pettyCashFundSortableSQLCols. authorized_amount and current_balance
+// are centavo integers — integer sort is correct.
+var pettyCashFundSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "name",
+	"authorized_amount", "current_balance", "custodian_id", "location_id",
+}
+
 // GetPettyCashFundListPageData retrieves petty_cash_funds with pagination.
 // Dialect: $N → ?; ILIKE → LIKE; active = true → active = 1.
 func (r *MySQLPettyCashFundRepository) GetPettyCashFundListPageData(
@@ -196,13 +206,10 @@ func (r *MySQLPettyCashFundRepository) GetPettyCashFundListPageData(
 		}
 	}
 
-	sortField := "pcf.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	orderByClause, err := mysqlCore.BuildOrderBy(
+		pettyCashFundSortableSQLCols, req.GetSort(), "pcf.date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -229,7 +236,7 @@ func (r *MySQLPettyCashFundRepository) GetPettyCashFundListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT ? OFFSET ?;
 	`
 

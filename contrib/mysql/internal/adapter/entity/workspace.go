@@ -224,6 +224,10 @@ func (r *MySQLWorkspaceRepository) GetWorkspaceListPageData(
 		return nil, fmt.Errorf("get workspace list page data request is required")
 	}
 
+	if err := espynahttp.ValidateSortColumns(workspaceSortSpec, req.GetSort(), "workspace"); err != nil {
+		return nil, err
+	}
+
 	limit := int32(50)
 	offset := int32(0)
 	page := int32(1)
@@ -239,18 +243,18 @@ func (r *MySQLWorkspaceRepository) GetWorkspaceListPageData(
 		}
 	}
 
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	orderByClause, err := mysqlCore.BuildOrderBy(
+		workspaceSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Build filter/search WHERE clauses (start at idx 1 — no leading workspace_id binding for workspace table).
 	searchFields := []string{"w.name", "w.description"}
-	filterClauses, filterArgs, _ := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	filterClauses, filterArgs, _, err := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := ""
 	if len(filterClauses) > 0 {
@@ -282,9 +286,9 @@ func (r *MySQLWorkspaceRepository) GetWorkspaceListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY %s %s
+		%s
 		LIMIT ? OFFSET ?;
-	`, whereSQL, sortField, sortOrder)
+	`, whereSQL, orderByClause)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, queryArgs...)

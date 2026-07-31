@@ -279,7 +279,10 @@ func (r *MySQLRevenueRepository) GetRevenueListPageData(
 	// Build filter/search WHERE clauses.
 	// First arg (?) is workspace_id; filter builder starts at index 2 for arg count parity.
 	searchFields := []string{"rv.reference_number", "c.name"}
-	filterClauses, filterArgs, _ := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, _, err := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := "WHERE rv.active = 1 AND rv.workspace_id = ?"
 	if len(filterClauses) > 0 {

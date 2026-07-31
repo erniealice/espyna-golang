@@ -308,20 +308,23 @@ func (r *SQLServerClientRepository) GetClientListPageData(
 		}
 	}
 
-	sortField := "name"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		} else {
-			sortOrder = "ASC"
-		}
+	// A2: ValidateSortColumns above already fail-closes this request against
+	// clientSortableSQLCols; BuildOrderBy renders the fragment from the same
+	// whitelist (bracket-quoted per dot component) and appends the [id]
+	// tiebreaker OFFSET/FETCH needs for stable pages. Parity with
+	// contrib/postgres/internal/adapter/entity/client.go, which builds this same
+	// clause from the same whitelist and the same "name ASC" fallback.
+	orderByClause, err := sqlserverCore.BuildOrderBy(clientSortableSQLCols, req.GetSort(), "name ASC")
+	if err != nil {
+		return nil, err
 	}
 
 	// @p1 = workspaceID; filter/search params start at @p2.
 	searchFields := []string{"c.name", "c.internal_id", "u.first_name", "u.last_name", "u.email_address"}
-	filterClauses, filterArgs, nextIdx := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := "WHERE c.workspace_id = @p1"
 	if len(filterClauses) > 0 {
@@ -392,9 +395,9 @@ func (r *SQLServerClientRepository) GetClientListPageData(
 			%s
 		)
 		SELECT * FROM enriched
-		ORDER BY [%s] %s
+		%s
 		OFFSET @p%d ROWS FETCH NEXT @p%d ROWS ONLY;
-	`, whereSQL, sortField, sortOrder, offsetIdx, limitIdx)
+	`, whereSQL, orderByClause, offsetIdx, limitIdx)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, queryArgs...)

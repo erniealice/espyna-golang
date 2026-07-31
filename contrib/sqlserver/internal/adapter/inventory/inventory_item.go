@@ -261,7 +261,10 @@ func (r *SQLServerInventoryItemRepository) GetInventoryItemListPageData(
 
 	// Build filter/search clauses; start params at @p1 (no workspace_id predicate here — inventory_item has no workspace_id FK directly).
 	searchFields := []string{"p.name", "ii.sku"}
-	filterClauses, filterArgs, nextIdx := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	filterClauses, filterArgs, nextIdx, err := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	if err != nil {
+		return nil, err
+	}
 
 	whereStr := "WHERE ii.active = 1"
 	if len(filterClauses) > 0 {

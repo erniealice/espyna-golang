@@ -253,6 +253,10 @@ func (r *MySQLFulfillmentRepository) GetFulfillmentListPageData(
 		return nil, fmt.Errorf("get fulfillment list page data request is required")
 	}
 
+	if err := espynahttp.ValidateSortColumns(fulfillmentSortSpec, req.GetSort(), "fulfillment"); err != nil {
+		return nil, err
+	}
+
 	workspaceID := identity.Must(ctx).WorkspaceID
 
 	searchPattern := ""
@@ -275,15 +279,10 @@ func (r *MySQLFulfillmentRepository) GetFulfillmentListPageData(
 		}
 	}
 
-	sortField := "f.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		} else {
-			sortOrder = "ASC"
-		}
+	orderByClause, err := mysqlCore.BuildOrderBy(
+		fulfillmentSortableSQLCols, req.GetSort(), "f.date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Dialect: active = true → active = 1; ILIKE → LIKE; $N → ?
@@ -344,9 +343,9 @@ func (r *MySQLFulfillmentRepository) GetFulfillmentListPageData(
 			e.status_event_count,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY %s %s
+		%s
 		LIMIT ? OFFSET ?;
-	`, sortField, sortOrder)
+	`, orderByClause)
 
 	rows, err := r.db.QueryContext(ctx, query,
 		workspaceID,

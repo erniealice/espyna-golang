@@ -352,7 +352,10 @@ func (r *MySQLWorkspaceUserRepository) GetWorkspaceUserListPageData(
 	}
 
 	searchFields := []string{"u.first_name", "u.last_name", "u.email_address"}
-	filterClauses, filterArgs, _ := mysqlCore.BuildFilterWhere(filteredReqFilters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, _, err := mysqlCore.BuildFilterWhere(filteredReqFilters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	hardWhere := "wu.active = 1 AND wu.workspace_id = ?"
 	extraWhere := ""

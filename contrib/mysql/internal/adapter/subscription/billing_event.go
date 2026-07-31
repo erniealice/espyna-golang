@@ -20,6 +20,22 @@ import (
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 )
 
+// billingEventSortableSQLCols is the sort-column whitelist that
+// mysqlCore.BuildOrderBy validates GetBillingEventListPageData requests
+// against (fail-closed guard). Bare names: the ORDER BY sits on the outer
+// `SELECT * FROM counted` scope, which projects the billing_event columns
+// unqualified.
+var billingEventSortableSQLCols = []string{
+	"date_created",
+	"date_modified",
+	"status",
+	"billable_amount",
+	"sequence_label",
+	"triggered_at",
+	"billed_at",
+	"subscription_id",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("mysql", entityid.BillingEvent, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -227,20 +243,15 @@ func (r *MySQLBillingEventRepository) GetBillingEventListPageData(
 		}
 	}
 
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	orderByClause, err := mysqlCore.BuildOrderBy(
+		billingEventSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
-	// Dialect: active = true → active = 1, CROSS JOIN → COUNT(*) OVER (),
-	// sort field is author-controlled (not caller-interpolated into the SQL
-	// here — the postgres gold also does this). WHERE workspace_id added.
-	// Note: sortField is set from allowed string literals only above (enum path).
-	query := fmt.Sprintf(`
+	// Dialect: active = true → active = 1, CROSS JOIN → COUNT(*) OVER ().
+	// Sort column is whitelist-validated and quoted by mysqlCore.BuildOrderBy.
+	query := `
 		WITH base AS (
 			SELECT * FROM ` + entityid.BillingEvent + ` WHERE active = 1
 		),
@@ -248,9 +259,9 @@ func (r *MySQLBillingEventRepository) GetBillingEventListPageData(
 			SELECT b.*, COUNT(*) OVER () AS total FROM base b
 		)
 		SELECT * FROM counted
-		ORDER BY %s %s
+		` + orderByClause + `
 		LIMIT ? OFFSET ?
-	`, sortField, sortOrder)
+	`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, limit, offset)

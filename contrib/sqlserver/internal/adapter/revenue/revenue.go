@@ -313,7 +313,10 @@ func (r *SQLServerRevenueRepository) GetRevenueListPageData(
 	// Build filter/search WHERE clauses (@p1 is reserved for workspace_id, start at @p2).
 	// BuildFilterWhere emits @pN placeholders and LIKE (not ILIKE) for SQL Server.
 	searchFields := []string{"rv.reference_number", "c.name"}
-	filterClauses, filterArgs, nextIdx := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := "WHERE rv.active = 1 AND rv.workspace_id = @p1"
 	if len(filterClauses) > 0 {

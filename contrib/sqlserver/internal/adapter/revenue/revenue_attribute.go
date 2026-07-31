@@ -20,6 +20,22 @@ import (
 	revenueattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_attribute"
 )
 
+// revenueAttributeSortableSQLCols is the fail-closed sort whitelist for
+// GetRevenueAttributeListPageData (A2). It mirrors contrib/postgres/.../revenue_attribute.go's
+// whitelist because both queries ORDER BY over the SAME outer scope —
+// `SELECT * FROM enriched`, a CTE that projects BARE column names (ra.value AS value,
+// COALESCE(rv.name, empty) AS revenue_name, …). Alias-qualified entries such as
+// `ra.date_created` are NOT resolvable in that scope, so every entry here is bare.
+// sqlserverCore.BuildOrderBy rejects anything outside this set.
+var revenueAttributeSortableSQLCols = []string{
+	"revenue_id",
+	"attribute_id",
+	"value",
+	"revenue_name",
+	"date_created",
+	"date_modified",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("sqlserver", entityid.RevenueAttribute, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -198,13 +214,14 @@ func (r *SQLServerRevenueAttributeRepository) GetRevenueAttributeListPageData(
 		}
 	}
 
-	sortField := "ra.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Fail-closed ORDER BY: the caller-supplied sort column must be present in
+	// revenueAttributeSortableSQLCols or BuildOrderBy errors (no interpolation of raw
+	// req.Sort.Fields[0].Field). The fallback is the pre-existing author-controlled
+	// default, preserved VERBATIM so the no-sort-requested page order is unchanged.
+	orderByClause, err := sqlserverCore.BuildOrderBy(
+		revenueAttributeSortableSQLCols, req.GetSort(), "ra.date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -227,7 +244,7 @@ func (r *SQLServerRevenueAttributeRepository) GetRevenueAttributeListPageData(
 			       rv.name LIKE @p1)
 		)
 		SELECT * FROM enriched
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		OFFSET @p2 ROWS FETCH NEXT @p3 ROWS ONLY;
 	`
 

@@ -268,7 +268,10 @@ func (r *SQLServerJobRepository) GetJobListPageData(
 
 	// Build filter/search WHERE clauses. @p1 = workspaceID, @p2 = search. Start filter params at @p3.
 	searchFields := []string{"j.name"}
-	filterClauses, filterArgs, nextIdx := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 3)
+	filterClauses, filterArgs, nextIdx, err := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 3)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := "WHERE j.workspace_id = @p1 AND j.active = 1"
 	if len(filterClauses) > 0 {

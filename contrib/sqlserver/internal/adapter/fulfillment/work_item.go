@@ -245,7 +245,10 @@ func (r *SQLServerFulfillmentRepository) GetFulfillmentListPageData(
 
 	// @p1 = workspaceID. Filter/search start at @p2.
 	searchFields := []string{"f.status", "f.provider_reference"}
-	filterClauses, filterArgs, nextIdx := sqlserverCore.BuildFilterWhere(req.Filter, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := sqlserverCore.BuildFilterWhere(req.Filter, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := "WHERE f.active = 1 AND f.workspace_id = @p1"
 	if len(filterClauses) > 0 {

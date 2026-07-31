@@ -20,6 +20,26 @@ import (
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
 )
 
+// revenueLineItemSortableSQLCols is the fail-closed sort whitelist for
+// GetRevenueLineItemListPageData (A2). Mirrors the enriched CTE projection.
+// Copied from the postgres twin
+// (contrib/postgres/internal/adapter/revenue/revenue_line_item.go) — the entries
+// are bare because the ORDER BY sits on `SELECT * FROM enriched`, whose scope
+// exposes the CTE's projected column names, not the inner `rli` alias.
+var revenueLineItemSortableSQLCols = []string{
+	"revenue_id",
+	"product_id",
+	"description",
+	"quantity",
+	"unit_price",
+	"total_price",
+	"line_item_type",
+	"revenue_name",
+	"product_name",
+	"date_created",
+	"date_modified",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("sqlserver", entityid.RevenueLineItem, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -198,13 +218,10 @@ func (r *SQLServerRevenueLineItemRepository) GetRevenueLineItemListPageData(
 		}
 	}
 
-	sortField := "rli.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	orderByClause, err := sqlserverCore.BuildOrderBy(
+		revenueLineItemSortableSQLCols, req.GetSort(), "rli.date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	query := `
@@ -239,7 +256,7 @@ func (r *SQLServerRevenueLineItemRepository) GetRevenueLineItemListPageData(
 			       rv.name LIKE @p1)
 		)
 		SELECT * FROM enriched
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		OFFSET @p2 ROWS FETCH NEXT @p3 ROWS ONLY;
 	`
 

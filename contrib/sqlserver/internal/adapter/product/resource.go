@@ -163,6 +163,17 @@ func (r *SQLServerResourceRepository) ListResources(ctx context.Context, req *re
 	return &resourcepb.ListResourcesResponse{Data: resources}, nil
 }
 
+// resourceSortableSQLCols is the fail-closed sort whitelist for
+// GetResourceListPageData (A2). Copied from the postgres twin
+// (contrib/postgres/internal/adapter/product/resource.go:189-192); the entries are
+// bare because the ORDER BY sits on `FROM enriched e, counted c` where `counted`
+// projects only `total`, so every enriched column (and `id`, the tiebreaker)
+// resolves unambiguously without the `e.` qualifier.
+var resourceSortableSQLCols = []string{
+	"id", "active", "name", "description", "product_id",
+	"date_created", "date_modified",
+}
+
 // GetResourceListPageData retrieves resources with filtering, sorting, searching, and pagination.
 //
 // SQL Server: ILIKE → LIKE; LIMIT/OFFSET → OFFSET/FETCH; $N → @pN; active = 1.
@@ -194,20 +205,10 @@ func (r *SQLServerResourceRepository) GetResourceListPageData(
 		}
 	}
 
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
-	}
-	allowedSortFields := map[string]bool{
-		"date_created": true, "date_modified": true, "name": true,
-		"description": true, "product_id": true, "active": true,
-	}
-	if !allowedSortFields[sortField] {
-		sortField = "date_created"
+	orderByClause, err := sqlserverCore.BuildOrderBy(
+		resourceSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	if r.db == nil {
@@ -238,7 +239,7 @@ func (r *SQLServerResourceRepository) GetResourceListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY e.` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		OFFSET @p3 ROWS FETCH NEXT @p2 ROWS ONLY
 	`
 

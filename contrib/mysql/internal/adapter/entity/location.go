@@ -227,6 +227,10 @@ func (r *MySQLLocationRepository) GetLocationListPageData(
 		return nil, fmt.Errorf("request is required")
 	}
 
+	if err := espynahttp.ValidateSortColumns(locationSortSpec, req.GetSort(), "location"); err != nil {
+		return nil, err
+	}
+
 	limit := int32(50)
 	offset := int32(0)
 	page := int32(1)
@@ -242,13 +246,10 @@ func (r *MySQLLocationRepository) GetLocationListPageData(
 		}
 	}
 
-	sortField := "name"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	orderByClause, err := mysqlCore.BuildOrderBy(
+		locationSortableSQLCols, req.GetSort(), "name ASC")
+	if err != nil {
+		return nil, err
 	}
 
 	workspaceID := identity.Must(ctx).WorkspaceID
@@ -256,7 +257,10 @@ func (r *MySQLLocationRepository) GetLocationListPageData(
 	// Build filter/search WHERE clauses.
 	// First arg is workspaceID (passed twice for the IS NULL / = '' check); filter builder starts at idx 2.
 	searchFields := []string{"l.name", "l.address"}
-	filterClauses, filterArgs, _ := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, _, err := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	// Dialect: $1::text IS NULL OR $1::text = '' OR l.workspace_id = $1
 	// MySQL: (? IS NULL OR ? = '' OR l.workspace_id = ?) — three ? bindings for the same workspaceID.
@@ -306,9 +310,9 @@ func (r *MySQLLocationRepository) GetLocationListPageData(
 		)
 		SELECT e.*, c.total
 		FROM enriched e, counted c
-		ORDER BY %s %s
+		%s
 		LIMIT ? OFFSET ?;
-	`, whereSQL, sortField, sortOrder)
+	`, whereSQL, orderByClause)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, queryArgs...)

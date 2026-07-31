@@ -29,6 +29,24 @@ import (
 	deferredrevenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/deferred_revenue"
 )
 
+// deferredRevenueSortableSQLCols is the fail-closed sort whitelist for
+// GetDeferredRevenueListPageData. Mirrors the enriched CTE projection (the outer
+// scope is `FROM enriched e, counted c`, so only bare projected names resolve).
+// Copied from postgres/.../revenue/deferred_revenue.go.
+var deferredRevenueSortableSQLCols = []string{
+	"description",
+	"customer_name",
+	"total_amount",
+	"recognized_amount",
+	"remaining_amount",
+	"start_date",
+	"end_date",
+	"recognition_months",
+	"status",
+	"date_created",
+	"date_modified",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("mysql", entityid.DeferredRevenue, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -249,13 +267,11 @@ func (r *MySQLDeferredRevenueRepository) GetDeferredRevenueListPageData(
 		}
 	}
 
-	sortField := "dr.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard).
+	// mysqlCore.BuildOrderBy uses backtick quoting instead of double-quotes.
+	orderByClause, err := mysqlCore.BuildOrderBy(deferredRevenueSortableSQLCols, req.GetSort(), "dr.date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Dialect: $1::text IS NULL OR ... ILIKE $1 →
@@ -290,7 +306,7 @@ func (r *MySQLDeferredRevenueRepository) GetDeferredRevenueListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT ? OFFSET ?
 	`
 

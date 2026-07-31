@@ -246,7 +246,10 @@ func (r *MySQLCollectionRepository) GetCollectionListPageData(ctx context.Contex
 
 	// Build filter/search WHERE clauses.
 	searchFields := []string{"c.name", "c.description"}
-	filterClauses, filterArgs, _ := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, _, err := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := "WHERE c.active = 1"
 	if workspaceID != "" {

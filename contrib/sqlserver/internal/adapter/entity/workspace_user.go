@@ -341,7 +341,10 @@ func (r *SQLServerWorkspaceUserRepository) GetWorkspaceUserListPageData(
 	}
 
 	searchFields := []string{"u.first_name", "u.last_name", "u.email_address"}
-	filterClauses, filterArgs, nextIdx := sqlserverCore.BuildFilterWhere(filteredReqFilters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := sqlserverCore.BuildFilterWhere(filteredReqFilters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	// Hard WHERE: always active + workspace_id.
 	hardWhere := "wu.active = 1 AND wu.workspace_id = @p1"

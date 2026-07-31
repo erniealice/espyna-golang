@@ -270,7 +270,10 @@ func (r *SQLServerEventRepository) GetEventListPageData(
 
 	// @p1 = workspaceID. Filter/search start at @p2.
 	searchFields := []string{"e.name", "e.description"}
-	filterClauses, filterArgs, nextIdx := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := "WHERE e.active = 1 AND e.workspace_id = @p1"
 	if len(filterClauses) > 0 {

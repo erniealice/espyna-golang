@@ -275,7 +275,10 @@ func (r *MySQLInventoryItemRepository) GetInventoryItemListPageData(
 	// Build parameterized WHERE clauses via shared helper.
 	// MySQL uses ? placeholders — nextIdx is tracked but not embedded in SQL.
 	searchFields := []string{"p.name", "ii.sku"}
-	filterClauses, filterArgs, nextIdx := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	filterClauses, filterArgs, nextIdx, err := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	if err != nil {
+		return nil, err
+	}
 	_ = nextIdx
 
 	var whereStr string

@@ -280,7 +280,10 @@ func (r *MySQLAccountRepository) GetAccountListPageData(ctx context.Context, req
 	// Build filter/search WHERE clauses.
 	// workspace_id occupies first ?; filter builder starts at index 2 for parity.
 	searchFields := []string{"a.name", "a.code"}
-	filterClauses, filterArgs, _ := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, _, err := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := "WHERE a.active = 1"
 	if workspaceID != "" {

@@ -178,6 +178,16 @@ func (r *MySQLLoanRepository) ListLoans(ctx context.Context, req *loanpb.ListLoa
 	return &loanpb.ListLoansResponse{Success: true, Data: loans}, nil
 }
 
+// loanSortableSQLCols is the fail-closed sort whitelist for GetLoanListPageData.
+// The ORDER BY runs against the outer `enriched e` projection (bare CTE column
+// names), so entries are unqualified — mirrors postgres loanSortableSQLCols.
+var loanSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "loan_number",
+	"description", "loan_type", "lender_name", "principal_amount",
+	"interest_rate", "term_months", "start_date", "maturity_date",
+	"status", "remaining_balance", "account_id",
+}
+
 // GetLoanListPageData retrieves loans with pagination, filtering, sorting.
 //
 // Dialect changes: $N → ?; ILIKE → LIKE; active = true → active = 1;
@@ -210,13 +220,10 @@ func (r *MySQLLoanRepository) GetLoanListPageData(
 		}
 	}
 
-	sortField := "l.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	orderByClause, err := mysqlCore.BuildOrderBy(
+		loanSortableSQLCols, req.GetSort(), "l.date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Dialect: ? placeholders; LIKE not ILIKE; active = 1.
@@ -254,9 +261,9 @@ func (r *MySQLLoanRepository) GetLoanListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY %s %s
+		%s
 		LIMIT ? OFFSET ?;
-	`, r.tableName, sortField, sortOrder)
+	`, r.tableName, orderByClause)
 
 	queryArgs := []any{searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, limit, offset}
 	rows, err := r.db.QueryContext(ctx, query, queryArgs...)

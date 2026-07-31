@@ -19,6 +19,18 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+// inventoryTransactionSortableSQLCols is the fail-closed sort whitelist for
+// GetInventoryTransactionListPageData. Only columns/aliases projected by the CTE
+// SELECT are included (the outer scope is `FROM enriched e, counted c`, so only
+// bare projected names resolve). Copied from
+// postgres/.../inventory/inventory_transaction.go.
+var inventoryTransactionSortableSQLCols = []string{
+	"id", "date_created", "date_modified", "active", "inventory_item_id",
+	"transaction_type", "quantity", "status", "reference_type", "reference_id",
+	"from_location_id", "to_location_id", "notes", "serial_number",
+	"performed_by", "inventory_item_name",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("mysql", entityid.InventoryTransaction, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -255,13 +267,11 @@ func (r *MySQLInventoryTransactionRepository) GetInventoryTransactionListPageDat
 		}
 	}
 
-	sortField := "it.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard).
+	// mysqlCore.BuildOrderBy uses backtick quoting instead of double-quotes.
+	orderByClause, err := mysqlCore.BuildOrderBy(inventoryTransactionSortableSQLCols, req.GetSort(), "it.date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Dialect: active = true → active = 1; ILIKE → LIKE; $N → ?
@@ -299,9 +309,9 @@ func (r *MySQLInventoryTransactionRepository) GetInventoryTransactionListPageDat
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY %s %s
+		%s
 		LIMIT ? OFFSET ?;
-	`, sortField, sortOrder)
+	`, orderByClause)
 
 	rows, err := r.db.QueryContext(ctx, query,
 		searchPattern, searchPattern, searchPattern, searchPattern,

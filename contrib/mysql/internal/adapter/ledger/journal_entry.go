@@ -257,7 +257,10 @@ func (r *MySQLJournalEntryRepository) GetJournalEntryListPageData(ctx context.Co
 	}
 
 	searchFields := []string{"je.description", "je.entry_number"}
-	filterClauses, filterArgs, _ := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, _, err := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := "WHERE je.active = 1"
 	if workspaceID != "" {

@@ -231,20 +231,32 @@ func (r *SQLServerLocationRepository) GetLocationListPageData(
 		}
 	}
 
-	sortField := "name"
-	sortOrder := "ASC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_DESC {
-			sortOrder = "DESC"
-		}
+	// A2 fail-closed sort guard. Both layers are deliberate and mirror
+	// contrib/postgres/internal/adapter/entity/location.go: ValidateSortColumns
+	// gives the caller-facing error message (the same guard ListLocations uses at
+	// the top of this file), and BuildOrderBy is what actually renders the
+	// interpolated fragment — whitelist-checked and bracket-quoted per component.
+	//
+	// This method previously interpolated req.Sort.Fields[0].Field verbatim into
+	// `ORDER BY [%s] %s`. The brackets were NOT a defence: T-SQL escapes a closing
+	// bracket by doubling it, so a payload containing `]` terminates the quoted
+	// identifier and the rest is parsed as SQL. The whitelist is the defence.
+	if err := espynahttp.ValidateSortColumns(locationSortSpec, req.GetSort(), "location"); err != nil {
+		return nil, err
+	}
+	orderByClause, err := sqlserverCore.BuildOrderBy(locationSortableSQLCols, req.GetSort(), "name ASC")
+	if err != nil {
+		return nil, err
 	}
 
 	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Build filter/search WHERE clauses; @p1 is reserved for workspace_id, start at @p2.
 	searchFields := []string{"l.name", "l.address"}
-	filterClauses, filterArgs, nextIdx := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := "WHERE (@p1 = '' OR l.workspace_id = @p1)"
 	if len(filterClauses) > 0 {
@@ -293,9 +305,9 @@ func (r *SQLServerLocationRepository) GetLocationListPageData(
 			e.active, e.date_created, e.date_modified,
 			e.timezone, e.location_area_id, e.location_area_name, e.location_attributes, e.total
 		FROM enriched e
-		ORDER BY [%s] %s
+		%s
 		OFFSET @p%d ROWS FETCH NEXT @p%d ROWS ONLY;
-	`, whereSQL, sortField, sortOrder, offsetIdx, limitIdx)
+	`, whereSQL, orderByClause, offsetIdx, limitIdx)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, queryArgs...)

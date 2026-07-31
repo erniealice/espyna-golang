@@ -232,6 +232,10 @@ func (r *MySQLRoleRepository) GetRoleListPageData(
 		return nil, fmt.Errorf("get role list page data request is required")
 	}
 
+	if err := espynahttp.ValidateSortColumns(roleSortSpec, req.GetSort(), "role"); err != nil {
+		return nil, err
+	}
+
 	workspaceID := identity.Must(ctx).WorkspaceID
 
 	searchPattern := ""
@@ -254,13 +258,10 @@ func (r *MySQLRoleRepository) GetRoleListPageData(
 		}
 	}
 
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	orderByClause, err := mysqlCore.BuildOrderBy(
+		roleSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Dialect translation:
@@ -325,7 +326,7 @@ func (r *MySQLRoleRepository) GetRoleListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT ? OFFSET ?;
 	`
 

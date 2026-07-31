@@ -377,7 +377,10 @@ func (r *MySQLSupplierRepository) GetSupplierListPageData(
 	// track count parity with postgres — MySQL uses positional "?" and the
 	// returned nextIdx is used only for arg ordering, not embedded in SQL.
 	searchFields := []string{"s.name", "s.internal_id", "u.first_name", "u.last_name", "u.email_address"}
-	filterClauses, filterArgs, _ := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, _, err := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := "WHERE s.workspace_id = ?"
 	if len(filterClauses) > 0 {

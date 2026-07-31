@@ -22,6 +22,28 @@ import (
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
 )
 
+// expenditureSortableSQLCols is the fail-closed sort whitelist for
+// GetExpenditureListPageData (A2). It mirrors contrib/postgres/.../expenditure.go's
+// whitelist because both queries ORDER BY over the SAME outer scope —
+// `SELECT * FROM enriched`, a CTE that projects BARE column names (ex.name AS name,
+// COALESCE(s.name, empty) AS vendor_name, …). Alias-qualified entries such as
+// `ex.date_created` are NOT resolvable in that scope, so every entry here is bare.
+// sqlserverCore.BuildOrderBy rejects anything outside this set.
+var expenditureSortableSQLCols = []string{
+	"name",
+	"expenditure_type",
+	"expenditure_date",
+	"expenditure_date_string",
+	"total_amount",
+	"currency",
+	"status",
+	"reference_number",
+	"vendor_name",
+	"location_name",
+	"date_created",
+	"date_modified",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("sqlserver", entityid.Expenditure, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -244,19 +266,23 @@ func (r *SQLServerExpenditureRepository) GetExpenditureListPageData(
 		}
 	}
 
-	sortField := "ex.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Fail-closed ORDER BY: the caller-supplied sort column must be present in
+	// expenditureSortableSQLCols or BuildOrderBy errors (no interpolation of raw
+	// req.Sort.Fields[0].Field). The fallback is the pre-existing author-controlled
+	// default, preserved VERBATIM so the no-sort-requested page order is unchanged.
+	orderByClause, err := sqlserverCore.BuildOrderBy(
+		expenditureSortableSQLCols, req.GetSort(), "ex.date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Build filter/search WHERE clauses (@p1 is reserved for workspace_id, start at @p2).
 	// BuildFilterWhere emits @pN placeholders and LIKE (not ILIKE) for SQL Server.
 	searchFields := []string{"ex.name", "ex.reference_number", "ex.status", "s.name"}
-	filterClauses, filterArgs, nextIdx := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 	_ = searchPattern // use BuildFilterWhere for search if req.Search set; otherwise pass nil
 
 	whereSQL := "WHERE ex.active = 1 AND (@p1 IS NULL OR @p1 = '' OR ex.workspace_id = @p1)"
@@ -306,7 +332,7 @@ func (r *SQLServerExpenditureRepository) GetExpenditureListPageData(
 			%s
 		)
 		SELECT * FROM enriched
-		ORDER BY `+sortField+` `+sortOrder+`
+		`+orderByClause+`
 		OFFSET @p%d ROWS FETCH NEXT @p%d ROWS ONLY;
 	`, whereSQL, offsetIdx, limitIdx)
 

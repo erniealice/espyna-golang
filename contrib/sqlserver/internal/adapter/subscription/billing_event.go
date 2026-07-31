@@ -21,6 +21,29 @@ import (
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 )
 
+// billingEventSortableSQLCols is the sort-column whitelist core.BuildOrderBy
+// validates GetBillingEventListPageData requests against (A2 fail-closed guard,
+// replacing the previous `ORDER BY [%s]` interpolation of a clamped switch).
+//
+// Copied from contrib/postgres/internal/adapter/subscription/billing_event.go
+// with two additions — "trigger" and "job_phase_id". Both are real billing_event
+// columns and both were accepted by the switch this list replaces, so keeping
+// them is what makes the migration non-regressive; the postgres list should
+// adopt them for parity rather than this list dropping them. "trigger" is a
+// T-SQL reserved word and is safe only because BuildOrderBy bracket-quotes it.
+var billingEventSortableSQLCols = []string{
+	"date_created",
+	"date_modified",
+	"status",
+	"trigger",
+	"billable_amount",
+	"sequence_label",
+	"triggered_at",
+	"billed_at",
+	"subscription_id",
+	"job_phase_id",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("sqlserver", entityid.BillingEvent, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -213,7 +236,9 @@ func (r *SQLServerBillingEventRepository) ListBillingEvents(ctx context.Context,
 //   - active = true → active = 1.
 //   - CROSS JOIN counted → COUNT(*) OVER () window function.
 //   - LIMIT/OFFSET → ORDER BY … OFFSET @p2 ROWS FETCH NEXT @p1 ROWS ONLY.
-//   - sortField is author-controlled (validated against allowlist) before interpolation.
+//   - The sort column is whitelist-validated by core.BuildOrderBy and emitted
+//     bracket-quoted per dot component; nothing caller-supplied reaches the
+//     query text unvalidated.
 func (r *SQLServerBillingEventRepository) GetBillingEventListPageData(
 	ctx context.Context,
 	req *pb.GetBillingEventListPageDataRequest,
@@ -235,34 +260,28 @@ func (r *SQLServerBillingEventRepository) GetBillingEventListPageData(
 		}
 	}
 
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
-	}
-
-	// Validate sort column against allowlist to prevent SQL injection.
-	switch sortField {
-	case "date_created", "status", "trigger", "subscription_id", "job_phase_id":
-		// ok
-	default:
-		sortField = "date_created"
+	// A2: route the caller-supplied sort column through the fail-closed whitelist
+	// helper. This replaces a switch that silently CLAMPED an unrecognised column
+	// to date_created; an unknown column is now an error, matching the postgres
+	// twin and the rest of this tree. The switch's five accepted columns are all
+	// carried in billingEventSortableSQLCols, so no previously-working sort
+	// regresses. The fragment applies to the `base` alias, whose columns are
+	// billing_event's own, so the bare [id] tiebreaker resolves unambiguously.
+	orderByClause, err := sqlserverCore.BuildOrderBy(billingEventSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, fmt.Errorf("invalid sort for billing event list: %w", err)
 	}
 
 	// SQL Server: CROSS JOIN counted → COUNT(*) OVER (); LIMIT/OFFSET → OFFSET/FETCH.
-	// sortField is author-controlled (validated above) — safe to interpolate.
 	query := fmt.Sprintf(`
 		WITH base AS (
 			SELECT * FROM ` + entityid.BillingEvent + ` WHERE active = 1
 		)
 		SELECT b.*, COUNT(*) OVER () AS total
 		FROM base b
-		ORDER BY [%s] %s
+		%s
 		OFFSET @p2 ROWS FETCH NEXT @p1 ROWS ONLY;
-	`, sortField, sortOrder)
+	`, orderByClause)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, limit, offset)

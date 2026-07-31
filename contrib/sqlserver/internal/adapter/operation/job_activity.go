@@ -241,9 +241,12 @@ func (r *SQLServerJobActivityRepository) GetJobActivityListPageData(ctx context.
 	}
 
 	// @p1 = workspaceID; offset/limit are last two params after any filter args.
-	filterClauses, filterArgs, nextIdx := sqlserverCore.BuildFilterWhere(
+	filterClauses, filterArgs, nextIdx, err := sqlserverCore.BuildFilterWhere(
 		req.GetFilters(), req.GetSearch(), []string{"j.name", "ja.description"}, 2,
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := "WHERE ja.workspace_id = @p1 AND ja.active = 1"
 	if len(filterClauses) > 0 {

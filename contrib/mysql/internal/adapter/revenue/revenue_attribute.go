@@ -27,6 +27,19 @@ import (
 	revenueattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_attribute"
 )
 
+// revenueAttributeSortableSQLCols is the fail-closed sort whitelist for
+// GetRevenueAttributeListPageData. Mirrors the enriched CTE projection (the outer
+// scope is `FROM enriched e, counted c`, so only bare projected names resolve).
+// Copied from postgres/.../revenue/revenue_attribute.go.
+var revenueAttributeSortableSQLCols = []string{
+	"revenue_id",
+	"attribute_id",
+	"value",
+	"revenue_name",
+	"date_created",
+	"date_modified",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("mysql", entityid.RevenueAttribute, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -231,13 +244,11 @@ func (r *MySQLRevenueAttributeRepository) GetRevenueAttributeListPageData(
 		}
 	}
 
-	sortField := "ra.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Sort — fail-closed against the per-entity whitelist (A2 guard).
+	// mysqlCore.BuildOrderBy uses backtick quoting instead of double-quotes.
+	orderByClause, err := mysqlCore.BuildOrderBy(revenueAttributeSortableSQLCols, req.GetSort(), "ra.date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Dialect: $1::text IS NULL OR ... ILIKE $1 →
@@ -266,7 +277,7 @@ func (r *MySQLRevenueAttributeRepository) GetRevenueAttributeListPageData(
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		LIMIT ? OFFSET ?
 	`
 

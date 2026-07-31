@@ -20,6 +20,27 @@ import (
 	deferredrevenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/deferred_revenue"
 )
 
+// deferredRevenueSortableSQLCols is the fail-closed sort whitelist for
+// GetDeferredRevenueListPageData (A2). It mirrors contrib/postgres/.../deferred_revenue.go's
+// whitelist because both queries ORDER BY over the SAME outer scope —
+// `SELECT * FROM enriched`, a CTE that projects BARE column names (dr.description AS
+// description, …). Alias-qualified entries such as `dr.date_created` are NOT resolvable
+// in that scope, so every entry here is bare. sqlserverCore.BuildOrderBy rejects
+// anything outside this set.
+var deferredRevenueSortableSQLCols = []string{
+	"description",
+	"customer_name",
+	"total_amount",
+	"recognized_amount",
+	"remaining_amount",
+	"start_date",
+	"end_date",
+	"recognition_months",
+	"status",
+	"date_created",
+	"date_modified",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("sqlserver", entityid.DeferredRevenue, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -224,13 +245,14 @@ func (r *SQLServerDeferredRevenueRepository) GetDeferredRevenueListPageData(
 		}
 	}
 
-	sortField := "dr.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Fail-closed ORDER BY: the caller-supplied sort column must be present in
+	// deferredRevenueSortableSQLCols or BuildOrderBy errors (no interpolation of raw
+	// req.Sort.Fields[0].Field). The fallback is the pre-existing author-controlled
+	// default, preserved VERBATIM so the no-sort-requested page order is unchanged.
+	orderByClause, err := sqlserverCore.BuildOrderBy(
+		deferredRevenueSortableSQLCols, req.GetSort(), "dr.date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// SQL Server: @p1 = search, @p2 = offset, @p3 = limit.
@@ -261,7 +283,7 @@ func (r *SQLServerDeferredRevenueRepository) GetDeferredRevenueListPageData(
 			       dr.customer_name LIKE @p1)
 		)
 		SELECT * FROM enriched
-		ORDER BY `+sortField+` `+sortOrder+`
+		`+orderByClause+`
 		OFFSET @p2 ROWS FETCH NEXT @p3 ROWS ONLY;
 	`, r.tableName)
 

@@ -160,6 +160,16 @@ func (r *SQLServerCollectionAttributeRepository) ListCollectionAttributes(ctx co
 	return &collectionattributepb.ListCollectionAttributesResponse{Data: cas}, nil
 }
 
+// collectionAttributeSortableSQLCols is the fail-closed sort whitelist for
+// GetCollectionAttributeListPageData (A2). Copied from the postgres twin
+// (contrib/postgres/internal/adapter/product/collection_attribute.go:216-218);
+// the entries are bare because the ORDER BY sits on `FROM enriched e, counted c`
+// where `counted` projects only `total`, so every enriched column (and `id`, the
+// tiebreaker) resolves unambiguously without the `e.` qualifier.
+var collectionAttributeSortableSQLCols = []string{
+	"id", "collection_id", "attribute_id", "value", "date_created", "date_modified",
+}
+
 // GetCollectionAttributeListPageData retrieves collection attributes with filtering,
 // sorting, searching, and pagination.
 //
@@ -192,20 +202,10 @@ func (r *SQLServerCollectionAttributeRepository) GetCollectionAttributeListPageD
 		}
 	}
 
-	sortField := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
-	}
-	allowedSortFields := map[string]bool{
-		"date_created": true, "date_modified": true, "collection_id": true,
-		"attribute_id": true, "value": true,
-	}
-	if !allowedSortFields[sortField] {
-		sortField = "date_created"
+	orderByClause, err := sqlserverCore.BuildOrderBy(
+		collectionAttributeSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	if r.db == nil {
@@ -234,7 +234,7 @@ func (r *SQLServerCollectionAttributeRepository) GetCollectionAttributeListPageD
 			e.*,
 			c.total
 		FROM enriched e, counted c
-		ORDER BY e.` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		OFFSET @p3 ROWS FETCH NEXT @p2 ROWS ONLY
 	`
 

@@ -329,7 +329,10 @@ func (r *MySQLClientRepository) GetClientListPageData(
 	// Build filter/search WHERE clauses.
 	// First arg (?) is workspace_id; filter builder starts at index 2 (for parity with postgres).
 	searchFields := []string{"c.name", "c.internal_id", "u.first_name", "u.last_name", "u.email_address"}
-	filterClauses, filterArgs, _ := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, _, err := mysqlCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := "WHERE c.workspace_id = ?"
 	if len(filterClauses) > 0 {

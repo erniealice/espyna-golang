@@ -391,7 +391,10 @@ func (r *SQLServerSupplierRepository) GetSupplierListPageData(
 	// Build filter/search WHERE clauses (@p1 is reserved for workspace_id, start at @p2).
 	// BuildFilterWhere emits @pN placeholders and LIKE (not ILIKE) for SQL Server.
 	searchFields := []string{"s.name", "s.internal_id", "u.first_name", "u.last_name", "u.email_address"}
-	filterClauses, filterArgs, nextIdx := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := "WHERE s.workspace_id = @p1"
 	if len(filterClauses) > 0 {

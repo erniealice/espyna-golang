@@ -273,7 +273,10 @@ func (r *SQLServerAccountRepository) GetAccountListPageData(ctx context.Context,
 	}
 
 	searchFields := []string{"a.name", "a.code"}
-	filterClauses, filterArgs, nextIdx := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	whereStr := " AND a.workspace_id = @p1"
 	if len(filterClauses) > 0 {

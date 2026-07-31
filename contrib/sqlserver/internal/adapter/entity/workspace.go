@@ -235,7 +235,10 @@ func (r *SQLServerWorkspaceRepository) GetWorkspaceListPageData(
 	}
 
 	searchFields := []string{"w.name", "w.description"}
-	filterClauses, filterArgs, nextIdx := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	filterClauses, filterArgs, nextIdx, err := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	if err != nil {
+		return nil, err
+	}
 
 	whereSQL := ""
 	if len(filterClauses) > 0 {

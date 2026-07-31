@@ -222,7 +222,10 @@ func (r *SQLServerJournalEntryRepository) GetJournalEntryListPageData(ctx contex
 	}
 
 	searchFields := []string{"je.description", "je.entry_number"}
-	filterClauses, filterArgs, nextIdx := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := sqlserverCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	if err != nil {
+		return nil, err
+	}
 
 	whereStr := " AND je.workspace_id = @p1"
 	if len(filterClauses) > 0 {

@@ -10,7 +10,7 @@ import (
 )
 
 // BuildFilterWhere constructs parameterized WHERE clauses from proto filter/search requests.
-// Returns (clauses, args, nextParamIndex). Caller joins clauses with " AND ".
+// Returns (clauses, args, nextParamIndex, error). Caller joins clauses with " AND ".
 // searchFields specifies which columns to LIKE-search against.
 //
 // SQL Server differences from the postgres gold standard (filter_builder.go):
@@ -23,23 +23,56 @@ import (
 //     postgres ::date / ::timestamp casts.
 //
 // This function is used by entity CTE adapters to avoid duplicating filter logic.
+//
+// Injection guard: filter VALUES are always bound via @pN placeholders, but the
+// filter FIELD names are interpolated into the query text. Every field is
+// therefore validated through ValidateSQLIdent and the whole call fails closed
+// on the first non-identifier field (callers must propagate the error — a
+// silently dropped filter would widen the result set). Belt-and-braces, each
+// validated identifier is additionally bracket-quoted per dot-component via
+// quoteSortIdent (`alias.col` → [alias].[col]) before interpolation.
+//
+// KNOWN GAP — the fail-closed guarantee above covers INVALID IDENTIFIERS ONLY, not
+// every possible dropped filter. Four inputs still fall through and emit no clause,
+// which widens the result set (fail-open):
+//
+//   - *commonpb.TypedFilter_RangeFilter — a real oneof variant (esqyma
+//     pkg/schema/v1/domain/common/filter.pb.go) with no case in the type switch
+//     below.
+//   - DATE_BETWEEN with a nil/empty RangeEnd.
+//   - StatusFilter / ListFilter with zero Values.
+//
+// These are NOT a sqlserver regression: contrib/postgres and contrib/mysql
+// filter_builder.go have the identical seven cases and the identical empty-value
+// guards, so closing the gap must be done across all three dialects at once or it
+// becomes the cross-dialect drift this port exists to remove. Tracked in
+// docs/plan/20260728-sql-injection-dialect-parity/progress.md § "Known parity gap —
+// silent filter drops (W2 → W3/W4)". Do not restate this as "no silent drop anywhere".
 func BuildFilterWhere(
 	filters *commonpb.FilterRequest,
 	search *commonpb.SearchRequest,
 	searchFields []string,
 	startIdx int,
-) (clauses []string, args []any, nextIdx int) {
+) (clauses []string, args []any, nextIdx int, err error) {
 	nextIdx = startIdx
 
 	// Search — LIKE OR block across declared search fields.
 	// SQL Server's default CI collation makes plain LIKE case-insensitive, matching
 	// postgres ILIKE behaviour without an explicit COLLATE clause.
+	//
+	// searchFields is an author-controlled literal slice at every call site (never
+	// request-derived), but validate each anyway so the function stays
+	// self-defending if a future caller ever wires a dynamic column in. The search
+	// TEXT is bound as @pN.
 	if search != nil && search.Query != "" && len(searchFields) > 0 {
 		query := "%" + search.Query + "%"
 		var likeClauses []string
 		for _, col := range searchFields {
+			if err := ValidateSQLIdent(col); err != nil {
+				return nil, nil, startIdx, fmt.Errorf("search field: %w", err)
+			}
 			args = append(args, query)
-			likeClauses = append(likeClauses, fmt.Sprintf("%s LIKE @p%d", col, nextIdx))
+			likeClauses = append(likeClauses, fmt.Sprintf("%s LIKE @p%d", quoteSortIdent(col), nextIdx))
 			nextIdx++
 		}
 		clauses = append(clauses, "("+strings.Join(likeClauses, " OR ")+")")
@@ -49,6 +82,11 @@ func BuildFilterWhere(
 	if filters != nil {
 		for _, filter := range filters.Filters {
 			field := filter.Field
+			if err := ValidateSQLIdent(field); err != nil {
+				return nil, nil, startIdx, fmt.Errorf("filter field: %w", err)
+			}
+			// Belt-and-braces: regex-validated above AND quoted per component here.
+			field = quoteSortIdent(field)
 
 			switch ft := filter.FilterType.(type) {
 			case *commonpb.TypedFilter_StringFilter:
@@ -191,5 +229,5 @@ func BuildFilterWhere(
 		}
 	}
 
-	return clauses, args, nextIdx
+	return clauses, args, nextIdx, nil
 }

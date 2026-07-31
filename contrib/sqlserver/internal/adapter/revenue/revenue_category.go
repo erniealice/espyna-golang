@@ -20,6 +20,22 @@ import (
 	revenuecategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_category"
 )
 
+// revenueCategorySortableSQLCols is the fail-closed sort whitelist for
+// GetRevenueCategoryListPageData (A2). It mirrors contrib/postgres/.../revenue_category.go's
+// whitelist because both queries ORDER BY over the SAME outer scope —
+// `SELECT * FROM enriched`, a CTE that projects BARE column names (rc.name AS name, …).
+// Alias-qualified entries such as `rc.date_created` are NOT resolvable in that scope,
+// so every entry here is bare. sqlserverCore.BuildOrderBy rejects anything outside
+// this set.
+var revenueCategorySortableSQLCols = []string{
+	"name",
+	"code",
+	"description",
+	"parent_category_id",
+	"date_created",
+	"date_modified",
+}
+
 func init() {
 	registry.RegisterRepositoryFactory("sqlserver", entityid.RevenueCategory, func(conn any, tableName string) (any, error) {
 		db, ok := conn.(*sql.DB)
@@ -198,13 +214,14 @@ func (r *SQLServerRevenueCategoryRepository) GetRevenueCategoryListPageData(
 		}
 	}
 
-	sortField := "rc.date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	// Fail-closed ORDER BY: the caller-supplied sort column must be present in
+	// revenueCategorySortableSQLCols or BuildOrderBy errors (no interpolation of raw
+	// req.Sort.Fields[0].Field). The fallback is the pre-existing author-controlled
+	// default, preserved VERBATIM so the no-sort-requested page order is unchanged.
+	orderByClause, err := sqlserverCore.BuildOrderBy(
+		revenueCategorySortableSQLCols, req.GetSort(), "rc.date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// SQL Server: @p1 = searchPattern, @p2 = offset, @p3 = limit
@@ -230,7 +247,7 @@ func (r *SQLServerRevenueCategoryRepository) GetRevenueCategoryListPageData(
 			       rc.description LIKE @p1)
 		)
 		SELECT * FROM enriched
-		ORDER BY ` + sortField + ` ` + sortOrder + `
+		` + orderByClause + `
 		OFFSET @p2 ROWS FETCH NEXT @p3 ROWS ONLY;
 	`
 

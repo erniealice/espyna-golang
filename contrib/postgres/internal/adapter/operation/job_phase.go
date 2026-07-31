@@ -410,7 +410,25 @@ func (r *PostgresJobPhaseRepository) DeleteJobPhase(ctx context.Context, req *pb
 	}, nil
 }
 
-// ListJobPhases lists job phase records with optional filters
+// ListJobPhases lists job phase records with optional filters and an optional
+// delivery-group narrow (req.subscription_group_id).
+//
+// The narrow is OPT-IN and OFF by default: an absent/empty group id runs the
+// pre-20260731 path unchanged. When it IS set, the listing is restricted to the
+// phases whose owning job belongs to that group via the existing
+// groupNarrowPredicate, and any state in which the narrow could not be APPLIED
+// returns an error rather than a quietly unnarrowed success (see
+// narrowPhasesToGroup).
+//
+// ⚠ CALLER CONTRACT FOR PAGED READS. The narrow is applied to the page, AFTER
+// LIMIT/OFFSET — it filters what the page returned, it does not change which
+// rows the page selected. So under a narrow a SHORT PAGE IS NOT EXHAUSTION: a
+// full 100-row page may yield 3 in-group rows, and a paging loop that breaks on
+// `len(batch) < limit` would stop mid-sheet and silently under-read. A paged
+// caller MUST drive its loop from the UNNARROWED page size (page until an
+// unnarrowed page comes back short, or page a bounded id set to exhaustion),
+// never from the narrowed row count. ListJobPhasesResponse carries no pagination
+// block, so the adapter cannot signal this — it is the caller's obligation.
 func (r *PostgresJobPhaseRepository) ListJobPhases(ctx context.Context, req *pb.ListJobPhasesRequest) (*pb.ListJobPhasesResponse, error) {
 	var params *interfaces.ListParams
 	// Forward Filters, Pagination AND Sort. The M8 row-cap fix forwarded
@@ -457,10 +475,135 @@ func (r *PostgresJobPhaseRepository) ListJobPhases(ctx context.Context, req *pb.
 		return nil, err
 	}
 
+	// Delivery-group narrow (20260731, strictly additive). ABSENT or EMPTY
+	// subscription_group_id takes NO branch: the ListParams built above, the
+	// dbOps.List call, the workspace ancestry filter and the response are the
+	// byte-identical pre-change path — not one extra query, not one changed arg.
+	// Only a caller that explicitly sets the field pays for, or is affected by,
+	// the narrow. Nothing in the tree sets it yet.
+	if groupID := req.GetSubscriptionGroupId(); groupID != "" {
+		scoped, err = r.narrowPhasesToGroup(ctx, scoped, groupID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &pb.ListJobPhasesResponse{
 		Success: true,
 		Data:    scoped,
 	}, nil
+}
+
+// jobGroupNarrowProbeSQL builds the job-grain probe that applies the EXISTING
+// delivery-group narrow (groupNarrowPredicate, job_phase_approval.go:442 — shared
+// verbatim with the four approval transitions and the outcome-matrix roll-up, so
+// a read can never disagree with a write about which jobs belong to a group).
+//
+// The probe runs at JOB grain, not phase grain, because group membership is a
+// property of the job's (client_id, origin_id) pair — exactly what the predicate
+// keys on. That also dedupes: a job with twelve phases costs one probed id.
+//
+// Placeholders: $1 = job id array, $2 = trusted workspace (bound BOTH to
+// j.workspace_id and, through the predicate's wsArgN, to sgm_g.workspace_id),
+// $3 = the group id appended by the predicate. Returns ok=false when the
+// predicate declined to emit — the caller MUST fail closed rather than run the
+// residual unnarrowed query, which is the R-1 fail-open this seam exists to make
+// unrepresentable.
+//
+// Deliberately absent: any jp.active / status term. The narrow narrows by GROUP
+// and by nothing else, so it can never quietly change a caller's activity or
+// lifecycle semantics.
+func jobGroupNarrowProbeSQL(groupID string) (query string, narrowArgs []any, ok bool) {
+	narrow, narrowArgs := groupNarrowPredicate(groupID, 3, 2)
+	if narrow == "" {
+		return "", nil, false
+	}
+	return `SELECT j.id FROM ` + entityid.Job + ` j
+			WHERE j.id = ANY($1)
+			  AND j.workspace_id = $2` + narrow, narrowArgs, true
+}
+
+// narrowPhasesToGroup restricts an already-listed, already-workspace-scoped phase
+// set to ONE delivery group. It mirrors filterPhasesByWorkspace's shape (one
+// batched job probe on the ambient executor) with ONE deliberate divergence:
+//
+//	filterPhasesByWorkspace PASSES THROUGH when the context carries no trusted
+//	workspace. A narrow must NOT. The predicate binds sgm_g.workspace_id, so
+//	without a trusted workspace there is nothing to bind it to, and passing
+//	through would return the UNNARROWED set under a success response — the
+//	caller would read "the group has these phases" from a set that was never
+//	narrowed. That is the R-1 fail-open (docs/plan/20260729-report-card-render-
+//	gate-group-grain/progress.md). Every path here that cannot APPLY the narrow
+//	returns an error instead, so on this adapter "narrow not applied" is not a
+//	representable success state — see the report's requirement-4 answer.
+//
+// A phase whose owning job cannot be resolved or proven in-group is dropped
+// (fail closed), never kept.
+func (r *PostgresJobPhaseRepository) narrowPhasesToGroup(ctx context.Context, phases []*pb.JobPhase, groupID string) ([]*pb.JobPhase, error) {
+	if groupID == "" {
+		// Unreachable from ListJobPhases (which tests the field first), and kept
+		// unreachable on purpose: an empty group must never silently mean "no
+		// narrow" on a seam whose caller asked for one.
+		return nil, fmt.Errorf("job_phase list: group narrow requested with an empty subscription_group_id (fail closed)")
+	}
+	id, ok := identity.FromContext(ctx)
+	if !ok || id == nil || id.WorkspaceID == "" {
+		return nil, fmt.Errorf("job_phase list: group narrow requires a trusted workspace in context — refusing to return an unnarrowed set (fail closed)")
+	}
+	if len(phases) == 0 {
+		// The narrow of an empty set is empty. No probe, and no fail-open risk:
+		// there is nothing that could have been wrongly kept.
+		return []*pb.JobPhase{}, nil
+	}
+
+	seen := make(map[string]struct{}, len(phases))
+	jobIDs := make([]string, 0, len(phases))
+	for _, p := range phases {
+		if p == nil || p.JobId == "" {
+			continue
+		}
+		if _, dup := seen[p.JobId]; dup {
+			continue
+		}
+		seen[p.JobId] = struct{}{}
+		jobIDs = append(jobIDs, p.JobId)
+	}
+	if len(jobIDs) == 0 {
+		// No resolvable owning job on any row → group membership is unprovable →
+		// fail closed (same disposition as the workspace ancestry probe).
+		return []*pb.JobPhase{}, nil
+	}
+
+	query, narrowArgs, ok := jobGroupNarrowProbeSQL(groupID)
+	if !ok {
+		return nil, fmt.Errorf("job_phase list: group narrow predicate declined to emit — refusing to run the unnarrowed residual (fail closed)")
+	}
+	args := append([]any{pq.Array(jobIDs), id.WorkspaceID}, narrowArgs...)
+
+	inGroup := make(map[string]bool, len(jobIDs))
+	rows, err := r.readExecutor(ctx).QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("job_phase list: group narrow probe: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var jid string
+		if err := rows.Scan(&jid); err != nil {
+			return nil, fmt.Errorf("job_phase list: scan group narrow: %w", err)
+		}
+		inGroup[jid] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("job_phase list: iterate group narrow: %w", err)
+	}
+
+	out := make([]*pb.JobPhase, 0, len(phases))
+	for _, p := range phases {
+		if p != nil && inGroup[p.JobId] {
+			out = append(out, p)
+		}
+	}
+	return out, nil
 }
 
 // filterPhasesByWorkspace drops phases whose owning job is not in the trusted

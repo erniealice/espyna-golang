@@ -75,6 +75,27 @@ var columnLessTenantTables = map[string]bool{
 	"petty_cash_fund":          true,
 	"petty_cash_replenishment": true,
 	"petty_cash_voucher":       true,
+	// inventory_item has no workspace_id column and was absent from this map, so it
+	// received NEITHER the shadow log on the column-less List NOR the by-id
+	// parent-JOIN probe every other column-less tenant table gets: generic
+	// List/Read/Update/Delete/HardDelete all fell straight through to the inner op
+	// with no tenant predicate and no signal. That is the live cross-tenant IDOR on
+	// /inventory/list/{location} and /inventory/detail/{id} (mounted identically in
+	// service-admin and school-admin) — NOT the hand-written CTE pair in
+	// inventory/inventory_item.go, which is unreachable dead code. The 2026-05-30
+	// hardening pass never saw it: its needsMigration list was ledger/treasury only.
+	// Owning workspace is derived via the product_id → product.workspace_id probe
+	// below. See docs/plan/20260729-inventory-item-tenant-scope/plan.md §1 (C5/C6).
+	//
+	// INTERIM (that plan's W0 / rider R1): this entry buys measurement plus a by-id
+	// enforce-able verdict while the additive workspace_id migration is in flight.
+	// The proto + migration are already authored (esqyma 8839053) but the DDL is not
+	// yet applied to either database, so tableHasWorkspaceColumn is still FALSE and
+	// this branch is what actually runs today. REMOVE this entry (and the probe
+	// below) at W4, once the column exists on BOTH education1 and professional1 —
+	// per the maintenance note above, and note the process must also be restarted
+	// for the cached information_schema lookup to flip.
+	"inventory_item": true,
 	// proto-only (no baseline DDL) — listed for forward-completeness, runtime no-op:
 	"collection_schedule":   true,
 	"disbursement_schedule": true,
@@ -170,6 +191,27 @@ var columnLessTenantParentJoins = map[string]parentJoinProbe{
 	"loan": {
 		fkColumn: "account_id", childAlias: "c", parentAlias: "p",
 		parentTable: "account", joinCond: "c.account_id = p.id", parentWs: "p.workspace_id",
+	},
+	// inventory_item.product_id → product.workspace_id. `product` is the ONLY
+	// reliable anchor of the three candidate FKs (plan §1.2):
+	//   - product_id       → product.workspace_id     ✅ every product row carries it
+	//   - location_id      → location.workspace_id    ❌ 2 of 6 location rows have it,
+	//                                                    and 0 of the 13 live items
+	//                                                    reach a workspace through it
+	//   - product_variant_id → product_variant        ❌ dead end, no workspace_id
+	//                                                    (would need two hops)
+	// ⚠ inventory_item declares NO foreign-key constraints at all (baseline.sql has
+	// only inventory_item_pkey) and product_id is a bare NULLABLE text, so a NULL or
+	// dangling anchor is a real possibility here in a way it is not for the FK-backed
+	// ledger entries above. Such a row is fail-closed-EXCLUDED by the NULL-anchor
+	// semantics documented above: shadow-DENY today, an actual 404 under
+	// AUTHZ_ENFORCE. Accepted — there are 0 orphans on either DB right now (13/13
+	// items on professional1 resolve to a workspace via product; education1 has 0
+	// rows) — but it is the standing hazard of a JOIN-only scope, and the reason the
+	// durable fix is the additive workspace_id column, not this probe.
+	"inventory_item": {
+		fkColumn: "product_id", childAlias: "c", parentAlias: "p",
+		parentTable: "product", joinCond: "c.product_id = p.id", parentWs: "p.workspace_id",
 	},
 }
 

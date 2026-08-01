@@ -2,6 +2,7 @@ package infrastructure
 
 import (
 	"context"
+	"time"
 
 	dbpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/database"
 )
@@ -44,6 +45,47 @@ type PoolSizer interface {
 	// effective value applied to the driver (e.g., *sql.DB.SetMaxOpenConns),
 	// not the raw env value.
 	MaxConns() int
+}
+
+// PoolStats is a driver-neutral snapshot of a bounded connection pool's
+// health, mirroring database/sql.DBStats without leaking the driver type
+// through the port.
+//
+// The load-bearing fields are WaitCount and WaitDuration: they grow only when
+// a caller had to block waiting for a connection — i.e. when pool saturation
+// was observed. Saturation says callers reached the configured cap, not why:
+// an undersized cap, slow queries, lock contention, a slow server or a leaked
+// transaction all produce it, so correlate with query/lock latency before
+// raising a cap. A pool whose WaitCount stays ≈0 under peak load is not
+// cap-bound.
+//
+// All counters are cumulative process totals (mirroring database/sql.DBStats).
+// Note that WaitCount increments when a wait begins while WaitDuration is
+// added when it ends, so a wait spanning two samples splits unevenly across
+// intervals; the cumulative totals remain exact.
+type PoolStats struct {
+	MaxOpen int // pool cap (max simultaneously open connections)
+	Open    int // currently established connections
+	InUse   int // connections executing work right now
+	Idle    int // warm connections awaiting reuse
+
+	WaitCount    int64         // cumulative callers that blocked waiting for a connection
+	WaitDuration time.Duration // cumulative time callers spent blocked
+
+	MaxIdleClosed     int64 // connections closed because the idle count cap was exceeded
+	MaxIdleTimeClosed int64 // connections pruned by the max idle-time policy
+	MaxLifetimeClosed int64 // connections rotated out by the max lifetime policy
+}
+
+// PoolStatser is an optional capability for DatabaseProviders that maintain a
+// bounded connection pool, sibling to PoolSizer. Observability surfaces
+// (debug endpoints, health checks, load investigations) type-assert their
+// provider to this interface; providers without a pool concept simply do not
+// implement it.
+type PoolStatser interface {
+	// PoolStats returns a point-in-time snapshot of the pool. Implementations
+	// must be safe to call concurrently with query traffic.
+	PoolStats() PoolStats
 }
 
 // RepositoryProvider defines the simplified contract for data source providers

@@ -591,16 +591,69 @@ func resolveStaffFacet(ctx context.Context, exec sqlexec.DBExecutor, wsID string
 	return facet, nil
 }
 
-// assertAllTasksOwned enforces the D7 strict ownership contract over the FULL
-// sheet: every active job_task under every phase member has assigned_to == facet,
-// AND every phase member has at least one active task. Universal ownership is
-// strictly stronger than existential reachability, so it also proves S\R=∅ (the
-// codex "reachability is evidence only, at minimum S\R=∅" bar) — a substitute who
-// merely recorded one outcome does NOT own all tasks and is correctly denied.
-func assertAllTasksOwned(ctx context.Context, exec sqlexec.DBExecutor, templateID, phaseID, wsID, facet, groupID string) error {
-	narrow, narrowArgs := groupNarrowPredicate(groupID, 5, 3)
-	// (A) any active task not owned by the facet (unassigned / blank / other staff)?
-	unownedSQL := `
+// classEdgeOwnedSQL returns the class-edge ownership EXISTS fragment of the
+// 2026-07-26 COALESCE model (owner decision, plan 20260726-grade-cell-edit-guard
+// §3): the acting staff facet holds an ACTIVE PRIMARY
+// subscription_group_product_plan_staff edge on the client's CURRENT section's
+// class for the job's output product — member(client, active, workspace-bound) →
+// subscription_group.status='current' → class (active, workspace-bound) →
+// product_plan.product_id = j.output_product_id → sgpps edge (active,
+// role='primary', staff = facet, workspace-bound, f14 NULL or PHASE-ORDER
+// matched). Phase-scoped edges (f14, the G10 rotation) match by phase ORDER, not
+// id: a deportment sibling template's phases carry different ids from the
+// academic template's phases the edge was scoped to, but the same order.
+//
+// The fragment MIRRORS the outcome_matrix cells query's classEdgeExpr
+// (outcome_matrix_query.go, the cell-edit guard) term for term — the submit gate
+// and the cell-edit guard must never disagree about who owns an unassigned task
+// (the Q-VAR variant axis is explicitly deferred by the plan; do not add terms
+// here first). Only the placeholder indexes differ, so both are caller-supplied.
+// Correlates on the outer aliases j (job) and jp (job_phase).
+//
+// A LEGACY job (output_product_id NULL — AY 25-26, out of the class model per
+// the plan) can never match: pp.product_id = j.output_product_id is never true
+// against NULL, so legacy tasks stay ownable ONLY via explicit assigned_to.
+func classEdgeOwnedSQL(facetArgN, wsArgN int) string {
+	return fmt.Sprintf(`EXISTS (
+			SELECT 1
+			FROM `+entityid.SubscriptionGroupMember+` m
+			JOIN `+entityid.SubscriptionGroup+` sg
+			       ON sg.id = m.subscription_group_id AND sg.status = 'current'
+			JOIN `+entityid.SubscriptionGroupProductPlan+` c
+			       ON c.subscription_group_id = m.subscription_group_id AND c.active AND c.workspace_id = $%[2]d
+			JOIN `+entityid.ProductPlan+` pp
+			       ON pp.id = c.product_plan_id AND pp.product_id = j.output_product_id
+			JOIN `+entityid.SubscriptionGroupProductPlanStaff+` e
+			       ON e.subscription_group_product_plan_id = c.id AND e.active AND e.role = 'primary'
+			      AND e.staff_id = $%[1]d AND e.workspace_id = $%[2]d
+			      AND (e.job_template_phase_id IS NULL OR EXISTS (
+			             SELECT 1
+			             FROM `+entityid.JobTemplatePhase+` ep, `+entityid.JobTemplatePhase+` jpp
+			             WHERE ep.id = e.job_template_phase_id
+			               AND jpp.id = jp.template_phase_id
+			               AND ep.phase_order = jpp.phase_order
+			           ))
+			WHERE m.client_id = j.client_id AND m.active AND m.workspace_id = $%[2]d
+		)`, facetArgN, wsArgN)
+}
+
+// taskUnownedProbeSQL builds the D7 ownership probe: does ANY active task in the
+// sheet scope fail the COALESCE ownership rule? Extracted so the shape suite can
+// pin the two-leg structure without a database. narrow is the optional
+// group-narrow predicate (placeholders $5/$3 — the facet already holds $4).
+//
+// owned = (assigned_to present AND assigned_to = facet)          — per-task OVERRIDE,
+//         binds ALONE when present: an edge never trumps someone
+//         else's explicit assignment (design §E multi-strand guard)
+//      OR (assigned_to absent  AND classEdgeOwnedSQL matches)    — the class edge governs
+//
+// The COALESCE() forms keep the predicate TWO-VALUED: with a raw
+// `jt.assigned_to = $4` a NULL assigned_to would make the NOT(...) collapse to
+// SQL NULL and silently drop the row from the unowned probe — fail OPEN. facet
+// is never empty (resolveStaffFacet fails closed), so COALESCE(assigned_to,'')
+// can never equal it on the override leg.
+func taskUnownedProbeSQL(narrow string) string {
+	return `
 		SELECT EXISTS (
 			SELECT 1
 			FROM ` + entityid.JobPhase + ` jp
@@ -608,14 +661,38 @@ func assertAllTasksOwned(ctx context.Context, exec sqlexec.DBExecutor, templateI
 			JOIN ` + entityid.JobTask + ` jt ON jt.job_phase_id = jp.id AND jt.active = true
 			WHERE jp.template_phase_id = $2 AND j.job_template_id = $1 AND j.workspace_id = $3
 			  AND jp.active = true` + narrow + `
-			  AND (jt.assigned_to IS NULL OR jt.assigned_to = '' OR jt.assigned_to <> $4)
+			  AND NOT (
+			    (COALESCE(jt.assigned_to, '') <> '' AND jt.assigned_to = $4)
+			    OR (COALESCE(jt.assigned_to, '') = '' AND ` + classEdgeOwnedSQL(4, 3) + `)
+			  )
 		)`
+}
+
+// assertAllTasksOwned enforces the D7 submit-ownership contract over the FULL
+// sheet under the 2026-07-26 COALESCE model (owner decision, re-confirmed
+// verbatim 2026-08-01: "it should still work even though assigned_to is empty …
+// via the subscription group product plan staff coalesce"): every active
+// job_task under every phase member must be OWNED by the acting staff facet —
+// explicit assigned_to (when present) is a per-task override that alone
+// decides; otherwise the class edge governs (the 20260726 migration
+// deliberately cleared 11,490 assigned_to values, so a raw assigned_to == facet
+// check is unsatisfiable on current-AY data). Additionally every phase member
+// must have at least one active task. Universal ownership is strictly stronger
+// than existential reachability, so it still proves S\R=∅ (the codex
+// "reachability is evidence only, at minimum S\R=∅" bar) — a substitute who
+// merely recorded one outcome owns nothing and is correctly denied. FAIL-CLOSED
+// preserved: no override AND no matching edge → deny.
+func assertAllTasksOwned(ctx context.Context, exec sqlexec.DBExecutor, templateID, phaseID, wsID, facet, groupID string) error {
+	narrow, narrowArgs := groupNarrowPredicate(groupID, 5, 3)
+	// (A) any active task not owned by the facet (assigned to someone else, or
+	// unassigned with no governing class edge)?
+	unownedSQL := taskUnownedProbeSQL(narrow)
 	var unowned bool
 	if err := exec.QueryRowContext(ctx, unownedSQL, append([]any{templateID, phaseID, wsID, facet}, narrowArgs...)...).Scan(&unowned); err != nil {
 		return fmt.Errorf("job_phase submit: ownership probe: %w", err)
 	}
 	if unowned {
-		return fmt.Errorf("job_phase submit: not all active tasks are assigned to the acting staff (D7 ownership) — fail closed")
+		return fmt.Errorf("job_phase submit: not every active task is owned by the acting staff (D7 ownership: explicit assignment or primary class edge) — fail closed")
 	}
 	// (B) any phase member with zero active tasks (cannot prove ownership)?
 	emptyNarrow, emptyNarrowArgs := groupNarrowPredicate(groupID, 4, 3)

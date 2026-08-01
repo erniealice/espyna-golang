@@ -3,8 +3,10 @@ package outcome_completion
 import (
 	"context"
 	"errors"
+	"log"
 	"sort"
 
+	"github.com/erniealice/espyna-golang/internal/application/ports/security"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/shared/identity"
@@ -28,6 +30,20 @@ const (
 	principalKindOperatorStaff int32 = 2
 	principalKindStaff         int32 = 7
 )
+
+// deniedErr classifies a fail-closed refusal as a typed authorization error
+// (*security.AuthorizationError, re-exported as ports.AuthorizationError) so
+// consumers can distinguish an AUTHORIZATION deny from a data/infrastructure
+// failure with errors.As and render the designed DENIED state — never a
+// benign "nothing assigned" empty state (skeptic F2, T-9). The original
+// cause (when present) stays in the chain via errors.Join.
+func deniedErr(code security.AuthorizationErrorCode, msg string, cause error) error {
+	ae := security.NewAuthorizationError(code, msg, "")
+	if cause == nil {
+		return ae
+	}
+	return errors.Join(ae, cause)
+}
 
 // CategoryPeriodCount is ONE flat repository row: the completion + approval
 // counts for a single (category, phase_order) slice of the current-window
@@ -129,34 +145,45 @@ func (uc *GetOutcomeCompletionSummaryUseCase) Execute(
 	ctx context.Context,
 	req *ocpb.GetOutcomeCompletionSummaryRequest,
 ) (*ocpb.GetOutcomeCompletionSummaryResponse, error) {
-	// Gate 1 (Action): the dedicated Q7 capability. Fail-closed on
-	// missing/insufficient permission; nil gatekeeper denies.
-	if err := uc.actionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+	// Gate 1 (Action): the dedicated Q7 capability, checked on the STRICT
+	// (deny-capable) path — a missing grant denies even when AUTHZ_ENFORCE is
+	// off, so this read can never inherit shadow mode's allow-on-deny
+	// (skeptic F1). Fail-closed on missing/insufficient permission; nil
+	// gatekeeper denies. Denies are typed (*security.AuthorizationError) so
+	// the view can render the designed DENIED card, not an empty state.
+	if err := uc.actionGatekeeper.CheckStrict(ctx, &actiongate.CheckActionRequest{
 		Entity: permissionSubject,
 		Action: entityid.ActionRead,
 	}); err != nil {
-		return nil, err
+		return nil, deniedErr(security.AuthErrCodePermissionDenied,
+			"outcome_completion:read denied", err)
 	}
 
 	// Identity from ctx, never the wire (Q-EIB-BRIDGE). Fail-closed: no
 	// identity, or a kind this read does not define (incl. kind 0), denies.
 	id, err := identity.Require(ctx)
 	if err != nil {
-		return nil, err
+		return nil, deniedErr(security.AuthErrCodeUserNotAuthenticated,
+			"no request identity in context", err)
 	}
 	switch id.PrincipalType {
 	case principalKindOperatorOwner, principalKindOperatorStaff, principalKindStaff:
 		// defined kinds — proceed
 	default:
-		return nil, errors.New("authorization denied: principal kind not permitted for this read")
+		return nil, deniedErr(security.AuthErrCodePermissionDenied,
+			"principal kind not permitted for this read", nil)
 	}
 
-	// Workspace scope: prefer the SESSION workspace (unspoofable); the wire
-	// workspace_id is only a fallback for identity-bearing contexts that did
-	// not resolve a workspace. An empty scope matches no row (fail-closed).
+	// Workspace scope: the SESSION workspace ONLY (§A-1.4 — the aggregate is
+	// scoped exclusively from session context). The wire workspace_id is
+	// IGNORED — never read, not even as a fallback — and a session that has
+	// not resolved a workspace is denied fail-closed rather than allowed to
+	// read at any caller-influenced scope (skeptic S2-F2: a kind-1/2 session
+	// with an empty workspace must not become a cross-tenant read).
 	workspaceID := id.WorkspaceID
-	if workspaceID == "" && req != nil {
-		workspaceID = req.GetWorkspaceId()
+	if workspaceID == "" {
+		return nil, deniedErr(security.AuthErrCodeWorkspaceAccessDenied,
+			"session carries no resolved workspace scope", nil)
 	}
 
 	resp := &ocpb.GetOutcomeCompletionSummaryResponse{
@@ -167,6 +194,10 @@ func (uc *GetOutcomeCompletionSummaryUseCase) Execute(
 	}
 
 	if uc.repositories.OutcomeCompletion == nil {
+		// Legitimate for non-postgres builds; logged so a failed initializer
+		// type assertion is observable and never silently blank (T-9 shape —
+		// skeptic F4).
+		log.Printf("outcome_completion: summary repository not wired — returning zero-valued response (non-postgres build or failed initializer assertion)")
 		return resp, nil
 	}
 

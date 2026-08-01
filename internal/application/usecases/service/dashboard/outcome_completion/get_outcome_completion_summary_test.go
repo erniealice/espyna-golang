@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/erniealice/espyna-golang/internal/application/ports/security"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/shared/identity"
@@ -148,6 +149,88 @@ func TestSessionWorkspaceWins(t *testing.T) {
 	}
 }
 
+// TestEmptySessionWorkspaceDenies — §A-1.4 hard-deny (skeptic S2-F2): a
+// session that resolved NO workspace is denied fail-closed; the wire
+// workspace_id must NEVER be read as a fallback (a kind-1/2 session with an
+// empty workspace would otherwise become a caller-chosen cross-tenant read
+// at workspace grain).
+func TestEmptySessionWorkspaceDenies(t *testing.T) {
+	repo := &fakeRepo{}
+	uc := newUC(repo, gate(theCode))
+	if _, err := uc.Execute(ctxWithKind(principalKindOperatorOwner, "own-1", ""), req("ws-attacker")); err == nil {
+		t.Fatalf("empty session workspace must deny — wire workspace_id must not be honoured")
+	}
+	if repo.called {
+		t.Errorf("empty-workspace session must not reach the repository")
+	}
+}
+
+// TestDeniesAreTypedAuthorizationErrors — every fail-closed refusal carries a
+// *security.AuthorizationError in its chain (errors.As) so the consuming view
+// can render the designed DENIED card instead of a benign empty state
+// (skeptic F2 / T-9 observability).
+func TestDeniesAreTypedAuthorizationErrors(t *testing.T) {
+	cases := []struct {
+		name string
+		ctx  context.Context
+		g    *actiongate.ActionGatekeeper
+	}{
+		{"gate deny", ctxWithKind(principalKindStaff, "staff-1", "ws-1"), gate()},
+		{"no identity", contextutil.WithUserID(context.Background(), "user-1"), gate(theCode)},
+		{"kind 0", ctxWithKind(0, "", "ws-1"), gate(theCode)},
+		{"undefined kind", ctxWithKind(3, "client-1", "ws-1"), gate(theCode)},
+		{"empty workspace", ctxWithKind(principalKindStaff, "staff-1", ""), gate(theCode)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			uc := newUC(&fakeRepo{}, tc.g)
+			_, err := uc.Execute(tc.ctx, req("ws-1"))
+			if err == nil {
+				t.Fatalf("%s must deny", tc.name)
+			}
+			var ae *security.AuthorizationError
+			if !errors.As(err, &ae) {
+				t.Errorf("%s: deny must be a typed *security.AuthorizationError, got %v", tc.name, err)
+			}
+		})
+	}
+}
+
+// strictFakeAuthorizer models the rbac adapter in SHADOW mode: HasPermission
+// allows everything (shadow allow-on-deny) while HasPermissionStrict returns
+// the REAL verdict. The strict gate must consult the strict path, so a
+// missing grant denies even though the shadow path would allow (skeptic F1).
+type strictFakeAuthorizer struct{ strictAllowed map[string]bool }
+
+func (f *strictFakeAuthorizer) IsEnabled() bool { return true }
+func (f *strictFakeAuthorizer) HasPermission(_ context.Context, _ string, _ string) (bool, error) {
+	return true, nil // shadow mode: would-be deny is allowed
+}
+func (f *strictFakeAuthorizer) HasPermissionStrict(_ context.Context, _ string, permission string) (bool, error) {
+	return f.strictAllowed[permission], nil
+}
+
+// TestShadowModeDeniesViaStrictPath — the Q7 gate is NOT shadow-bypassable:
+// with a shadow-allowing authorizer that strictly lacks the code, Execute
+// denies and never reaches the repository.
+func TestShadowModeDeniesViaStrictPath(t *testing.T) {
+	repo := &fakeRepo{}
+	g := actiongate.NewActionGatekeeper(&strictFakeAuthorizer{strictAllowed: map[string]bool{}}, nil)
+	uc := newUC(repo, g)
+	if _, err := uc.Execute(ctxWithKind(principalKindStaff, "staff-1", "ws-1"), req("ws-1")); err == nil {
+		t.Fatalf("shadow-mode allow-on-deny must not bypass the strict gate")
+	}
+	if repo.called {
+		t.Errorf("strictly denied principal must not reach the repository")
+	}
+	// And the strictly GRANTED principal still passes.
+	g2 := actiongate.NewActionGatekeeper(&strictFakeAuthorizer{strictAllowed: map[string]bool{theCode: true}}, nil)
+	uc2 := newUC(&fakeRepo{}, g2)
+	if _, err := uc2.Execute(ctxWithKind(principalKindStaff, "staff-1", "ws-1"), req("ws-1")); err != nil {
+		t.Fatalf("strictly granted principal must pass: %v", err)
+	}
+}
+
 // TestNilRepoDegrades — a permitted read with no registered adapter (mock /
 // non-postgres builds) returns a zero-valued successful response, no panic.
 func TestNilRepoDegrades(t *testing.T) {
@@ -278,13 +361,13 @@ func TestEmptyPersonaAssembly(t *testing.T) {
 	}
 }
 
-// TestRotationTeacherAssembly — the A1 worked example (storybook-findings
+// TestRotationStaffAssembly — the A1 worked example (storybook-findings
 // F2, Florie-shaped): a phase-scoped Semester-2 rotation teacher. The adapter
 // (most-specific-wins SQL) returns ONLY her phase-2 cells for the rotation
 // category — the use case must NOT re-synthesize the sibling semester: the
 // category total equals the phase-true denominator (3,806-shape), never the
 // job-grain 4,868, and no phase-1 slice appears.
-func TestRotationTeacherAssembly(t *testing.T) {
+func TestRotationStaffAssembly(t *testing.T) {
 	rows := []CategoryPeriodCount{
 		// Her non-rotation classes span both semesters…
 		{CategoryID: "cat-a", CategoryName: "Category A", HasSlice: true, PhaseOrder: 1,

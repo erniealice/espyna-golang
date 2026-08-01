@@ -105,6 +105,69 @@ func (g *ActionGatekeeper) Check(ctx context.Context, req *CheckActionRequest) e
 	return nil
 }
 
+// deniableAuthorizer is the OPTIONAL deny-capable slice of the RBAC
+// authorizer (implemented by rbac.PermissionAuthorizer). HasPermissionStrict
+// returns the REAL allow/deny verdict independent of shadow mode: a would-be
+// deny stays a deny even when AUTHZ_ENFORCE is off, so a strict check can
+// never inherit shadow mode's allow-on-deny. Declared locally (structural
+// assertion) so this package stays a leaf without importing the adapter.
+type deniableAuthorizer interface {
+	HasPermissionStrict(ctx context.Context, userID, permission string) (bool, error)
+}
+
+// CheckStrict verifies the permission with a DENY-CAPABLE verdict: when the
+// authorizer exposes HasPermissionStrict (the rbac adapter's shadow-immune
+// path used by the job-phase approval transitions), a missing grant denies
+// even in SHADOW mode. Authorizers without the strict path fall back to
+// Check's HasPermission semantics (which are shadow-capable) — reads that
+// must never be shadow-bypassable should be wired with a strict-capable
+// authorizer. All of Check's fail-closed guards apply identically.
+func (g *ActionGatekeeper) CheckStrict(ctx context.Context, req *CheckActionRequest) error {
+	if g == nil {
+		log.Println("WARNING: ActionGatekeeper is nil — denying by default")
+		return errors.New("authorization denied: action gatekeeper not configured")
+	}
+	if req == nil {
+		log.Println("WARNING: CheckActionRequest is nil — denying by default")
+		return errors.New("authorization denied: nil action request")
+	}
+	if req.Entity == "" || req.Action == "" {
+		log.Printf("WARNING: CheckActionRequest has empty Entity=%q or Action=%q — denying", req.Entity, req.Action)
+		return errors.New("authorization denied: entity and action are required")
+	}
+	if g.authorizer == nil {
+		log.Println("WARNING: Authorizer is nil — denying by default")
+		return errors.New(g.translate(ctx, "common.errors.authorization_failed", "Authorization not configured"))
+	}
+
+	sa, strict := g.authorizer.(deniableAuthorizer)
+	if !strict {
+		// No deny-capable path on this authorizer (mock/noop builds) — the
+		// regular gate is the best available verdict.
+		return g.Check(ctx, req)
+	}
+	if !g.authorizer.IsEnabled() {
+		return nil
+	}
+
+	userID, err := contextutil.RequireUserIDFromContext(ctx)
+	if err != nil {
+		return errors.New(g.translate(ctx, "common.errors.authorization_failed", "Authorization failed"))
+	}
+
+	permission := entityid.EntityPermission(req.Entity, req.Action)
+	hasPerm, err := sa.HasPermissionStrict(ctx, userID, permission)
+	if err != nil {
+		log.Printf("AUTHZ_ERROR | strict | user=%s | permission=%s | error=%v", userID, permission, err)
+		return errors.New(g.translate(ctx, "common.errors.authorization_failed", "Authorization failed"))
+	}
+	if !hasPerm {
+		log.Printf("AUTHZ_DENIED | strict | user=%s | permission=%s", userID, permission)
+		return errors.New(g.translate(ctx, "common.errors.permission_denied", "Permission denied"))
+	}
+	return nil
+}
+
 func (g *ActionGatekeeper) translate(ctx context.Context, key, defaultMsg string) string {
 	if g.translator == nil {
 		return defaultMsg

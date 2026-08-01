@@ -30,6 +30,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/job"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/ledger"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/location"
+	outcomecompletion "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/outcome_completion"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/payroll"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/product"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/schedule"
@@ -117,6 +118,13 @@ type Deps struct {
 	JobActivity       job.JobActivityDashboardRepository
 	JobActivityRecent job.JobActivityRecentRepository
 
+	// OutcomeCompletion — persona-aware home dashboard aggregate
+	// (docs/plan/20260801-persona-home-dashboard Phase 2, Q3/Q5/Q7 LOCKED
+	// 2026-08-01 incl. the §4.3 amendment banner). Satisfied by the postgres
+	// job adapter (contrib/postgres/.../operation/outcome_completion_dashboard.go);
+	// nil under non-postgres builds — the use case tolerates a nil repository.
+	OutcomeCompletion outcomecompletion.OutcomeCompletionSummaryRepository
+
 	// Product — Wave B P1.C.11 LANDED 2026-05-21. Absorbs the previously
 	// flat `product.UseCases.Dashboard *GetServiceDashboardPageDataUseCase`
 	// field at `usecases/product/usecases.go:78` (removed in the same commit).
@@ -160,6 +168,11 @@ type DashboardUseCases struct {
 	Job         *job.UseCases         // P1.C.9 LANDED 2026-05-21 (source aggregate `operation`)
 	Product     *product.UseCases     // P1.C.11 LANDED 2026-05-21
 	Fulfillment *fulfillment.UseCases // P1.C.12 LANDED 2026-05-21
+
+	// OutcomeCompletion — persona-aware home dashboard aggregate (plan
+	// 20260801-persona-home-dashboard Phase 2; source aggregate `operation`,
+	// service-read candidate — no entityid/table).
+	OutcomeCompletion *outcomecompletion.UseCases
 }
 
 // NewDashboardUseCases wires every landed candidate from grouped
@@ -227,5 +240,9 @@ func NewDashboardUseCases(deps *Deps) *DashboardUseCases {
 		Fulfillment: fulfillment.NewUseCases(&fulfillment.Deps{
 			Fulfillment: deps.Fulfillment,
 		}), // Wave C P1.C.12 LANDED 2026-05-21
+		OutcomeCompletion: outcomecompletion.NewUseCases(&outcomecompletion.Deps{
+			OutcomeCompletion: deps.OutcomeCompletion,
+			ActionGatekeeper:  deps.ActionGatekeeper,
+		}), // 20260801 persona-home-dashboard Phase 2
 	}
 }

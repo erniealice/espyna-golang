@@ -15,6 +15,7 @@ import (
 	jobdash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/job"
 	ledgerdash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/ledger"
 	locationdash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/location"
+	ocdash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/outcome_completion"
 	payrolldash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/payroll"
 	productdash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/product"
 	treasurydash "github.com/erniealice/espyna-golang/internal/application/usecases/service/dashboard/treasury"
@@ -212,6 +213,15 @@ func initServiceDashboard(
 		if operationRepos.Job != nil {
 			if q, ok := operationRepos.Job.(jobdash.JobDashboardRepository); ok {
 				dashboardDeps.Job = q
+			}
+			// 20260801 persona-home-dashboard Phase 2 — the outcome-completion
+			// aggregate rides on the SAME postgres job adapter (source
+			// aggregate `operation`, service-read candidate). If the assertion
+			// fails the dep stays nil and the use case degrades to a
+			// zero-valued response. Q-SDM-DASHBOARD-COMPILE-ASSERTIONS guard:
+			// contrib/postgres/internal/adapter/operation/outcome_completion_dashboard.go.
+			if q, ok := operationRepos.Job.(ocdash.OutcomeCompletionSummaryRepository); ok {
+				dashboardDeps.OutcomeCompletion = q
 			}
 		}
 		if operationRepos.JobActivity != nil {

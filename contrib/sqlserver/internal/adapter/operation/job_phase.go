@@ -13,11 +13,11 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 )
@@ -182,6 +182,19 @@ func (r *SQLServerJobPhaseRepository) DeleteJobPhase(ctx context.Context, req *p
 
 // ListJobPhases lists job phase records with optional filters.
 func (r *SQLServerJobPhaseRepository) ListJobPhases(ctx context.Context, req *pb.ListJobPhasesRequest) (*pb.ListJobPhasesResponse, error) {
+	// Delivery-group narrow (request field 5) is NOT implemented on this
+	// provider: this method forwards neither the group predicate nor
+	// pagination, so honoring the field silently would hand back an unnarrowed
+	// (and possibly page-capped) set under Success: true — the caller would
+	// read "this group's phases" from a set that was never narrowed. Refuse
+	// explicitly instead (defense in depth; the group-scoped consumer resolves
+	// its gate through a provider-registered rollup port that this build never
+	// publishes, so it fails closed before reaching here). An absent/empty
+	// field takes the unchanged legacy path below.
+	if req.GetSubscriptionGroupId() != "" {
+		return nil, fmt.Errorf("job_phase list: subscription_group narrow is not implemented on this provider — refusing to return an unnarrowed set (fail closed)")
+	}
+
 	var params *interfaces.ListParams
 	if req != nil && req.Filters != nil {
 		params = &interfaces.ListParams{Filters: req.Filters}
@@ -291,7 +304,7 @@ func (r *SQLServerJobPhaseRepository) GetJobPhaseListPageData(
 				jp.name,
 				jp.phase_order,
 				jp.status
-			FROM ` + entityid.JobPhase + ` jp
+			FROM `+entityid.JobPhase+` jp
 			%s
 		),
 		counted AS (

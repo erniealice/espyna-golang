@@ -11,7 +11,9 @@
 // implements it and self-registers via the outcome-matrix registry factory; the
 // composition initializer resolves that factory into this aggregate. On
 // mock/non-postgres builds the port is nil and Execute degrades to an empty,
-// successful response.
+// successful response — EXCEPT GetPhaseApprovalGateRollup, which deliberately
+// ERRORS on a nil port (a render-gate input must be unprovable, never
+// empty-success; see get_phase_approval_gate_rollup.go).
 //
 // Apps reach it via uc.Service.OutcomeMatrix.GetOutcomeMatrix.Execute(ctx, req).
 package outcome_matrix
@@ -23,12 +25,15 @@ import (
 
 // UseCases aggregates every outcome-matrix service use case.
 type UseCases struct {
-	GetOutcomeMatrix        *GetOutcomeMatrixUseCase
-	GetOutcomeSummaryRoster *GetOutcomeSummaryRosterUseCase
+	GetOutcomeMatrix           *GetOutcomeMatrixUseCase
+	GetOutcomeSummaryRoster    *GetOutcomeSummaryRosterUseCase
+	GetPhaseApprovalGateRollup *GetPhaseApprovalGateRollupUseCase
 }
 
 // Repositories groups infrastructure dependencies. Query may be nil when no
-// provider is registered — the use cases degrade gracefully (empty response).
+// provider is registered — the matrix/roster use cases degrade gracefully
+// (empty response), but GetPhaseApprovalGateRollup ERRORS (fail-closed gate
+// input — see get_phase_approval_gate_rollup.go).
 type Repositories struct {
 	Query query
 }
@@ -53,6 +58,13 @@ func NewUseCases(repositories Repositories, services Services) *UseCases {
 		GetOutcomeSummaryRoster: NewGetOutcomeSummaryRosterUseCase(
 			GetOutcomeSummaryRosterRepositories{Query: repositories.Query},
 			GetOutcomeSummaryRosterServices{
+				Translator:       services.Translator,
+				ActionGatekeeper: services.ActionGatekeeper,
+			},
+		),
+		GetPhaseApprovalGateRollup: NewGetPhaseApprovalGateRollupUseCase(
+			GetPhaseApprovalGateRollupRepositories{Query: repositories.Query},
+			GetPhaseApprovalGateRollupServices{
 				Translator:       services.Translator,
 				ActionGatekeeper: services.ActionGatekeeper,
 			},

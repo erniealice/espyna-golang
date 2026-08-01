@@ -61,17 +61,14 @@ func TestRequireUniformSource(t *testing.T) {
 }
 
 func TestNormalizeReturnReason(t *testing.T) {
-	if _, err := normalizeReturnReason("   ", true); err == nil {
-		t.Fatal("published return with blank reason must error")
+	if r := normalizeReturnReason("   "); r != "" {
+		t.Fatalf("blank reason must normalize to empty (optional in every state), got %q", r)
 	}
-	if r, err := normalizeReturnReason("  ", false); err != nil || r != "" {
-		t.Fatalf("non-published blank reason: got (%q,%v)", r, err)
-	}
-	if r, _ := normalizeReturnReason("  hi  ", true); r != "hi" {
+	if r := normalizeReturnReason("  hi  "); r != "hi" {
 		t.Fatalf("reason not trimmed: %q", r)
 	}
 	long := strings.Repeat("x", returnReasonMaxLen+50)
-	if r, _ := normalizeReturnReason(long, true); len(r) != returnReasonMaxLen {
+	if r := normalizeReturnReason(long); len(r) != returnReasonMaxLen {
 		t.Fatalf("reason not capped: len=%d", len(r))
 	}
 }

@@ -9,11 +9,12 @@ import (
 
 // ReturnJobPhaseApprovalUseCase is the mixed-state normalizer: it locks a
 // recognized sheet with >= 1 non-IN_PROGRESS row and normalizes ALL of S back to
-// IN_PROGRESS (plan §4.2 / codex "Exact E1 mixed-state recovery"). A non-blank
-// reason is required if any locked row is or was PUBLISHED; the return is blocked
-// entirely when the sheet is hard-frozen. All of this is enforced by the adapter
-// inside the locked transaction; the use case gates job_phase:return and passes
-// the (optional) reason through unchanged.
+// IN_PROGRESS (plan §4.2 / codex "Exact E1 mixed-state recovery"). The reason is
+// optional in every state (the published-return non-blank rule was retired
+// 2026-08-01, owner decision); the return is still blocked entirely when the
+// sheet is hard-frozen. Enforcement lives in the adapter inside the locked
+// transaction; the use case gates job_phase:return and passes the (optional)
+// reason through unchanged.
 type ReturnJobPhaseApprovalUseCase struct {
 	repositories transitionRepositories
 	services     transitionServices

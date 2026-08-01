@@ -87,18 +87,16 @@ func jobPhaseSheetLockSQL(groupNarrow string) string {
 	FOR UPDATE OF jp`
 }
 
-// normalizeReturnReason trims, caps at returnReasonMaxLen, and enforces the
-// published-return reason requirement. published==true requires a non-blank
-// reason (codex "Published-return and lock overlay contract").
-func normalizeReturnReason(raw string, published bool) (string, error) {
+// normalizeReturnReason trims and caps at returnReasonMaxLen. The reason is
+// optional in every state (owner decision 2026-08-01 — the former
+// published-return non-blank requirement is retired); returned_by/returned_at
+// remain the audit record, and a supplied reason is still stored.
+func normalizeReturnReason(raw string) string {
 	reason := strings.TrimSpace(raw)
 	if len(reason) > returnReasonMaxLen {
 		reason = reason[:returnReasonMaxLen]
 	}
-	if published && reason == "" {
-		return "", fmt.Errorf("job_phase return: a return involving a published phase requires a non-blank reason")
-	}
-	return reason, nil
+	return reason
 }
 
 // approvalExecutorProvider is the narrow type-assertion used to obtain the
@@ -1085,39 +1083,17 @@ func (r *PostgresJobPhaseRepository) ReturnJobPhaseApproval(ctx context.Context,
 
 	// Return is the mixed-state normalizer: require >= 1 non-IN_PROGRESS row.
 	anyAdvanced := false
-	anyPublished := false
 	for _, lp := range locked {
 		if lp.approvalStatus != apInProgress {
 			anyAdvanced = true
-		}
-		if lp.approvalStatus == apPublished {
-			anyPublished = true
+			break
 		}
 	}
 	if !anyAdvanced {
 		return nil, fmt.Errorf("job_phase return: sheet is already fully IN_PROGRESS — nothing to return")
 	}
 
-	// A row that is or WAS published (published_by stamped) also requires a reason.
-	// Probe published_by so a return of a since-mixed sheet whose published rows
-	// were normalized still requires the reason.
-	if !anyPublished {
-		const wasPublishedSQL = `
-			SELECT EXISTS (
-				SELECT 1 FROM ` + entityid.JobPhase + ` jp
-				JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
-				WHERE jp.template_phase_id = $2 AND j.job_template_id = $1 AND j.workspace_id = $3
-				  AND jp.active = true AND jp.published_by IS NOT NULL
-			)`
-		if err := exec.QueryRowContext(ctx, wasPublishedSQL, templateID, phaseID, wsID).Scan(&anyPublished); err != nil {
-			return nil, fmt.Errorf("job_phase return: was-published probe: %w", err)
-		}
-	}
-
-	reason, err := normalizeReturnReason(req.GetReason(), anyPublished)
-	if err != nil {
-		return nil, err
-	}
+	reason := normalizeReturnReason(req.GetReason())
 
 	// Hard-frozen blocks return entirely (a closed schedule / authoritative final
 	// needs a separate correction workflow).

@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -47,7 +48,8 @@ func lcConfig() *PostgresConfig {
 	return &PostgresConfig{
 		Host: "127.0.0.1", Port: "1", Name: "lifecycle", User: "lifecycle",
 		SSLMode: "disable", MaxConns: lcPoolMaxConns, MaxIdleConns: lcPoolMaxConns,
-		StatementTimeoutSeconds: 30, LockTimeoutSeconds: 10, IdleTxTimeoutSeconds: 60,
+		StatementTimeout: timeoutFromSeconds(30), LockTimeout: timeoutFromSeconds(10),
+		IdleTxTimeout: timeoutFromSeconds(60),
 	}
 }
 
@@ -281,6 +283,94 @@ func TestMonitorPoolReturnsWhenStopIsClosed(t *testing.T) {
 	case <-returned:
 	case <-time.After(5 * time.Second):
 		t.Fatal("monitorPool did not return after stop was closed")
+	}
+}
+
+// TestSaturationLineReportsIndependentIntervalFacts pins the LOW-1 fix.
+// database/sql increments WaitCount when a wait STARTS and adds to
+// WaitDuration only when a wait ENDS, so the two interval deltas describe
+// different populations: a wait spanning two samples contributes its start to
+// the first and its whole duration to the second. The line must therefore
+// (a) emit whenever EITHER delta is non-zero — the old gate on the count delta
+// alone silently swallowed the completion interval and its duration —
+// (b) state the two deltas as independent facts with no causal pairing, and
+// (c) always carry the exact cumulative snapshot.
+func TestSaturationLineReportsIndependentIntervalFacts(t *testing.T) {
+	snap := func(count int64, dur time.Duration) sql.DBStats {
+		return sql.DBStats{
+			MaxOpenConnections: 4, OpenConnections: 4, InUse: 4,
+			WaitCount: count, WaitDuration: dur,
+		}
+	}
+
+	cases := []struct {
+		name  string
+		prev  sql.DBStats
+		cur   sql.DBStats
+		emit  bool
+		needs []string
+	}{
+		{
+			name: "quiet interval emits nothing",
+			prev: snap(3, 9*time.Second), cur: snap(3, 9*time.Second),
+			emit: false,
+		},
+		{
+			name: "fresh pool emits nothing",
+			prev: sql.DBStats{}, cur: sql.DBStats{},
+			emit: false,
+		},
+		{
+			name: "wait starts but has not finished",
+			prev: snap(0, 0), cur: snap(1, 0),
+			emit: true,
+			needs: []string{
+				"1 wait(s) started", "0s of wait time accrued",
+				"cumulative 1 wait(s) totalling 0s",
+			},
+		},
+		{
+			name: "spanning wait completes with no new wait (the formerly swallowed interval)",
+			prev: snap(1, 0), cur: snap(1, 5*time.Second),
+			emit: true,
+			needs: []string{
+				"0 wait(s) started", "5s of wait time accrued",
+				"cumulative 1 wait(s) totalling 5s",
+			},
+		},
+		{
+			name: "both counters move in one interval",
+			prev: snap(1, 5*time.Second), cur: snap(4, 6*time.Second),
+			emit: true,
+			needs: []string{
+				"3 wait(s) started", "1s of wait time accrued",
+				"cumulative 4 wait(s) totalling 6s",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := saturationLine(tc.prev, tc.cur)
+			if !tc.emit {
+				if got != "" {
+					t.Fatalf("saturationLine = %q, want no line", got)
+				}
+				return
+			}
+			if got == "" {
+				t.Fatal("saturationLine = \"\", want a warning line")
+			}
+			for _, need := range tc.needs {
+				if !strings.Contains(got, need) {
+					t.Errorf("line is missing %q: %s", need, got)
+				}
+			}
+			// No causal pairing: the historical sentence tied the two interval
+			// counters together as "N caller(s) waited D".
+			if strings.Contains(got, "caller(s) waited") {
+				t.Errorf("line still pairs the two interval counters causally: %s", got)
+			}
+		})
 	}
 }
 

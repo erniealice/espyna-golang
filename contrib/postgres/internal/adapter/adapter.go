@@ -122,6 +122,11 @@ func warnDeprecatedTableNameEnvVars() {
 //	> maxTimeoutSeconds → configuration error (unit-mistake guard: someone who
 //	                      supplied milliseconds to a _SECONDS key is told so
 //	                      instead of silently getting a multi-hour timeout)
+//
+// The typed proto surface has NO disabled encoding: proto3's int32 zero means
+// "unset → environment fallback", an explicit disable travels as a typed mark
+// (see resolvedTimeout / stmtTimeoutDisabledMarks), and every negative proto
+// value is a hard error at Initialize.
 const (
 	maxTimeoutSeconds = 3600
 
@@ -138,19 +143,71 @@ const (
 	maxMaxConnections     = 10_000
 )
 
-// timeoutDisabledSentinel encodes an operator's explicit "0 = disabled" choice
-// through a proto3 int32 field, where a literal 0 is indistinguishable from
-// "never set". Only this file writes it (buildFromEnv / transformConfig) and
-// only this file reads it (resolveProtoTimeout) — it is never *interpreted*
-// outside the adapter, though the proto transformConfig returns does carry it
-// to the registry's transformer contract, so a config dump can legitimately
-// show statement_timeout_seconds: -1 meaning "disabled".
+// resolvedTimeout is the typed carrier for one session timeout after strict
+// resolution: "disabled" is an explicit flag, never an in-band integer.
 //
-// Consequence worth knowing (in-band sentinel, unavoidable): a typed-config
-// writer outside this file that sets the proto field to -1 for some other
-// reason is read as "disabled" rather than rejected, whereas every other
-// negative value is a hard error. All in-repo writers are sentinel-aware.
-const timeoutDisabledSentinel int32 = -1
+// History (codex MED-1): this adapter once encoded "disabled" as -1 in the
+// proto's int32 statement_timeout_seconds field. That collided with the public
+// DatabaseConfigAdapter bridge, whose getInt32 silently narrows int/int64/
+// float64 — on a 64-bit platform int64(math.MaxInt64) narrows to exactly -1 —
+// so an overflowed typed config could silently DISABLE the statement timeout
+// instead of failing. A truncating writer can produce ANY int32, so no in-band
+// magic value is collision-free; the disabled state therefore travels only in
+// this struct (plus the statement-timeout mark, see stmtTimeoutDisabledMarks),
+// populated exclusively by the strict env/raw-map parser's explicit-"0"
+// channel. Every negative value on the proto path is a hard validation error
+// at Initialize (see resolveProtoTimeout).
+type resolvedTimeout struct {
+	seconds  int  // 1..maxTimeoutSeconds when enabled; 0 otherwise
+	disabled bool // the operator explicitly chose 0 = disabled
+}
+
+// timeoutFromSeconds converts an already-validated seconds value from the
+// strict parser (0..maxTimeoutSeconds) into its typed form: 0 — the parser's
+// explicit-disable channel — becomes the disabled flag.
+func timeoutFromSeconds(seconds int) resolvedTimeout {
+	if seconds == 0 {
+		return resolvedTimeout{disabled: true}
+	}
+	return resolvedTimeout{seconds: seconds}
+}
+
+// enabled reports whether this timeout should be applied to the session. The
+// zero value (no seconds, no explicit disable) reports false, so an unresolved
+// struct fails safe by emitting no session option at all.
+func (t resolvedTimeout) enabled() bool { return !t.disabled && t.seconds > 0 }
+
+// stmtTimeoutDisabledMarks carries "statement timeout explicitly disabled"
+// across the proto hand-off, keyed by the exact *dbpb.PostgreSQLConfig pointer
+// one of THIS FILE's config builders produced (buildFromEnv, transformConfig).
+// proto3's int32 cannot express the state (0 there means "unset") and no
+// numeric encoding is safe from a truncating bridge, so the mark rides out of
+// band. Only this file writes it, only resolvePostgresConfig reads it, and it
+// is honored only while the marked proto's field is still 0.
+//
+// Entries are written at config-build time (boot-scoped, a handful of
+// pointers) and never deleted: dropping a mark on first read would make a
+// retried Initialize resolve the same proto differently.
+//
+// Identity caveat: the mark rides on pointer identity. A caller that clones
+// the proto between transform and Initialize loses it, and the clone's zero
+// field then resolves through the env/default channel — the timeout comes
+// back ON (fail-closed), never silently off.
+var stmtTimeoutDisabledMarks sync.Map // *dbpb.PostgreSQLConfig -> struct{}
+
+// markStatementTimeoutDisabled records the operator's explicit "0" for the
+// statement timeout against the proto being built. The caller must leave the
+// proto's StatementTimeoutSeconds field at 0.
+func markStatementTimeoutDisabled(pg *dbpb.PostgreSQLConfig) {
+	stmtTimeoutDisabledMarks.Store(pg, struct{}{})
+}
+
+// statementTimeoutDisabledMark reports whether pg carries the typed disabled
+// mark set by this file's own config builders.
+func statementTimeoutDisabledMark(pg *dbpb.PostgreSQLConfig) bool {
+	_, ok := stmtTimeoutDisabledMarks.Load(pg)
+	return ok
+}
 
 // ErrAlreadyInitialized is returned by Initialize when the adapter already
 // holds a live pool (D-4). The lifecycle is single-shot per live instance:
@@ -253,30 +310,32 @@ func rawMapSeconds(m map[string]any, key string) (value int, present bool, err e
 	return rawMapInt(m, key, "seconds", 0, maxTimeoutSeconds)
 }
 
-// encodeTimeoutSeconds narrows an already-validated seconds value (0..3600)
-// into the proto's int32 field, mapping an explicit 0 to the disabled sentinel.
-func encodeTimeoutSeconds(seconds int) int32 {
-	if seconds == 0 {
-		return timeoutDisabledSentinel
-	}
-	return int32(seconds)
-}
-
-// resolveProtoTimeout resolves one timeout from the typed proto config, falling
-// back to its environment knob when the proto carries no value. Precedence:
-// typed config wins when it says anything at all (including "disabled"); the
-// environment knob is consulted only for the proto's zero value.
-func resolveProtoTimeout(protoKey, envKey string, protoVal int32, defaultValue int) (int, error) {
+// resolveProtoTimeout resolves one timeout from the typed proto config,
+// falling back to its environment knob when the proto carries no value
+// (proto3 zero). The proto int32 has NO disabled encoding: an explicit
+// disable travels as the typed mark this file's own builders set (see
+// stmtTimeoutDisabledMarks), which the caller checks before calling here.
+// Any negative value — including the exact -1 a truncating int64-to-int32
+// bridge produces on overflow — is a hard validation error naming the field,
+// never a silent disable.
+func resolveProtoTimeout(protoKey, envKey string, protoVal int32, defaultValue int) (resolvedTimeout, error) {
 	switch {
-	case protoVal == timeoutDisabledSentinel:
-		return 0, nil
 	case protoVal == 0:
-		return lookupSecondsEnv(envKey, defaultValue)
-	case protoVal < 0 || int(protoVal) > maxTimeoutSeconds:
-		return 0, fmt.Errorf("postgresql: %s is out of range: %d seconds; allowed range 0-%d seconds (0 disables)",
+		seconds, err := lookupSecondsEnv(envKey, defaultValue)
+		if err != nil {
+			return resolvedTimeout{}, err
+		}
+		return timeoutFromSeconds(seconds), nil
+	case protoVal < 0:
+		return resolvedTimeout{}, fmt.Errorf(
+			"postgresql: %s is invalid: %d seconds; negative values are rejected on the typed-config path (an int64-to-int32 narrowing overflow can arrive as -1) — allowed range 1-%d seconds, or an explicit 0 on the environment/raw-map surface to disable",
+			protoKey, protoVal, maxTimeoutSeconds)
+	case int(protoVal) > maxTimeoutSeconds:
+		return resolvedTimeout{}, fmt.Errorf(
+			"postgresql: %s is out of range: %d seconds; allowed range 1-%d seconds (an explicit 0 on the environment/raw-map surface disables)",
 			protoKey, protoVal, maxTimeoutSeconds)
 	default:
-		return int(protoVal), nil
+		return timeoutFromSeconds(int(protoVal)), nil
 	}
 }
 
@@ -305,20 +364,28 @@ func buildFromEnv() (ports.DatabaseProvider, error) {
 		return nil, fmt.Errorf("postgresql: DATABASE_POSTGRES_USER is required")
 	}
 
+	pgProto := &dbpb.PostgreSQLConfig{
+		Host:           host,
+		Port:           port,
+		Database:       name,
+		Username:       user,
+		Password:       password,
+		SslMode:        sslMode,
+		MaxConnections: int32(maxConns),
+	}
+	if statementTimeoutSecs == 0 {
+		// Explicit env "0": the proto field cannot say "disabled" (its 0 means
+		// unset), so the state travels as the typed mark instead.
+		markStatementTimeoutDisabled(pgProto)
+	} else {
+		pgProto.StatementTimeoutSeconds = int32(statementTimeoutSecs)
+	}
+
 	protoConfig := &dbpb.DatabaseProviderConfig{
 		Provider: dbpb.DatabaseProvider_DATABASE_PROVIDER_POSTGRESQL,
 		Enabled:  true,
 		Config: &dbpb.DatabaseProviderConfig_Postgresql{
-			Postgresql: &dbpb.PostgreSQLConfig{
-				Host:                    host,
-				Port:                    port,
-				Database:                name,
-				Username:                user,
-				Password:                password,
-				SslMode:                 sslMode,
-				MaxConnections:          int32(maxConns),
-				StatementTimeoutSeconds: encodeTimeoutSeconds(statementTimeoutSecs),
-			},
+			Postgresql: pgProto,
 		},
 	}
 
@@ -405,8 +472,12 @@ func transformConfig(rawConfig map[string]any) (*dbpb.DatabaseProviderConfig, er
 
 	if v, present, err := rawMapSeconds(rawConfig, "statement_timeout_seconds"); err != nil {
 		return nil, err
+	} else if present && v == 0 {
+		// Explicit raw-map 0: leave the proto field unset and carry "disabled"
+		// as the typed mark — the int32 has no disabled encoding.
+		markStatementTimeoutDisabled(pgConfig)
 	} else if present {
-		pgConfig.StatementTimeoutSeconds = encodeTimeoutSeconds(v)
+		pgConfig.StatementTimeoutSeconds = int32(v)
 	}
 
 	protoConfig.Config = &dbpb.DatabaseProviderConfig_Postgresql{
@@ -455,21 +526,23 @@ type PostgresAdapter struct {
 }
 
 // PostgresConfig holds the resolved, already-validated PostgreSQL settings.
-// Every numeric field here has passed the strict parser: timeouts are 0
-// (disabled) to maxTimeoutSeconds, MaxIdleConns is 1..MaxConns.
+// Every numeric field here has passed the strict parser: MaxIdleConns is
+// 1..MaxConns, and each timeout is a resolvedTimeout carrying its disabled
+// state as an explicit typed flag (1..maxTimeoutSeconds when enabled) — never
+// an in-band integer a config bridge could collide with.
 type PostgresConfig struct {
-	Host                    string
-	Port                    string
-	Name                    string
-	User                    string
-	Password                string
-	SSLMode                 string
-	MaxConns                int
-	MaxIdleConns            int
-	StatementTimeoutSeconds int
-	LockTimeoutSeconds      int
-	IdleTxTimeoutSeconds    int
-	MigrationsPath          string
+	Host             string
+	Port             string
+	Name             string
+	User             string
+	Password         string
+	SSLMode          string
+	MaxConns         int
+	MaxIdleConns     int
+	StatementTimeout resolvedTimeout
+	LockTimeout      resolvedTimeout
+	IdleTxTimeout    resolvedTimeout
+	MigrationsPath   string
 }
 
 // NewPostgresAdapter creates a new PostgreSQL database adapter.
@@ -529,24 +602,31 @@ func resolvePostgresConfig(pgProto *dbpb.PostgreSQLConfig) (*PostgresConfig, err
 		cfg.MaxIdleConns = int(mi)
 	}
 
-	statementTimeout, err := resolveProtoTimeout("statement_timeout_seconds", envStatementTimeout,
-		pgProto.GetStatementTimeoutSeconds(), defaultStatementTimeoutSeconds)
-	if err != nil {
-		return nil, err
+	if statementTimeoutDisabledMark(pgProto) && pgProto.GetStatementTimeoutSeconds() == 0 {
+		// Typed disabled channel: this file's own builder recorded an explicit
+		// operator "0" for this exact proto. Honored only while the field is
+		// still 0, so a later mutation of the proto wins over a stale mark.
+		cfg.StatementTimeout = resolvedTimeout{disabled: true}
+	} else {
+		statementTimeout, err := resolveProtoTimeout("statement_timeout_seconds", envStatementTimeout,
+			pgProto.GetStatementTimeoutSeconds(), defaultStatementTimeoutSeconds)
+		if err != nil {
+			return nil, err
+		}
+		cfg.StatementTimeout = statementTimeout
 	}
-	cfg.StatementTimeoutSeconds = statementTimeout
 
-	lockTimeout, err := lookupSecondsEnv(envLockTimeout, defaultLockTimeoutSeconds)
+	lockTimeoutSeconds, err := lookupSecondsEnv(envLockTimeout, defaultLockTimeoutSeconds)
 	if err != nil {
 		return nil, err
 	}
-	cfg.LockTimeoutSeconds = lockTimeout
+	cfg.LockTimeout = timeoutFromSeconds(lockTimeoutSeconds)
 
-	idleTxTimeout, err := lookupSecondsEnv(envIdleTxTimeout, defaultIdleTxTimeoutSeconds)
+	idleTxTimeoutSeconds, err := lookupSecondsEnv(envIdleTxTimeout, defaultIdleTxTimeoutSeconds)
 	if err != nil {
 		return nil, err
 	}
-	cfg.IdleTxTimeoutSeconds = idleTxTimeout
+	cfg.IdleTxTimeout = timeoutFromSeconds(idleTxTimeoutSeconds)
 
 	return cfg, nil
 }
@@ -580,23 +660,24 @@ func pgKV(key, value string) string {
 
 // sessionOptions renders the startup `options` payload carrying the three
 // per-session timeouts, converting the validated seconds values to
-// PostgreSQL's millisecond units. A timeout configured as 0 is disabled and is
-// simply omitted; when all three are disabled the payload is empty and the
-// caller drops the `options` keyword entirely.
+// PostgreSQL's millisecond units. A timeout whose typed carrier is disabled
+// (or unresolved — the zero value fails safe) is simply omitted; when all
+// three are omitted the payload is empty and the caller drops the `options`
+// keyword entirely.
 //
 // These are connection-session DEFAULTS, not enforced boundaries: they are the
 // initial value of each GUC on every physical pooled connection, and any
 // consumer holding the raw *sql.DB (see GetConnection) can SET past them.
 func sessionOptions(cfg *PostgresConfig) string {
 	var opts []string
-	if cfg.StatementTimeoutSeconds > 0 {
-		opts = append(opts, fmt.Sprintf("-c statement_timeout=%d", cfg.StatementTimeoutSeconds*1000))
+	if cfg.StatementTimeout.enabled() {
+		opts = append(opts, fmt.Sprintf("-c statement_timeout=%d", cfg.StatementTimeout.seconds*1000))
 	}
-	if cfg.IdleTxTimeoutSeconds > 0 {
-		opts = append(opts, fmt.Sprintf("-c idle_in_transaction_session_timeout=%d", cfg.IdleTxTimeoutSeconds*1000))
+	if cfg.IdleTxTimeout.enabled() {
+		opts = append(opts, fmt.Sprintf("-c idle_in_transaction_session_timeout=%d", cfg.IdleTxTimeout.seconds*1000))
 	}
-	if cfg.LockTimeoutSeconds > 0 {
-		opts = append(opts, fmt.Sprintf("-c lock_timeout=%d", cfg.LockTimeoutSeconds*1000))
+	if cfg.LockTimeout.enabled() {
+		opts = append(opts, fmt.Sprintf("-c lock_timeout=%d", cfg.LockTimeout.seconds*1000))
 	}
 	return strings.Join(opts, " ")
 }
@@ -622,11 +703,11 @@ func buildDSN(cfg *PostgresConfig) string {
 }
 
 // secondsLabel renders a timeout for the boot log: "disabled" or "<n>s".
-func secondsLabel(seconds int) string {
-	if seconds <= 0 {
+func secondsLabel(t resolvedTimeout) string {
+	if !t.enabled() {
 		return "disabled"
 	}
-	return strconv.Itoa(seconds) + "s"
+	return strconv.Itoa(t.seconds) + "s"
 }
 
 // Initialize sets up the PostgreSQL connection.
@@ -681,8 +762,8 @@ func (a *PostgresAdapter) Initialize(config *dbpb.DatabaseProviderConfig) error 
 
 	log.Printf("✅ PostgreSQL adapter connected to %s:%s/%s (pool max=%d idle=%d, statement_timeout=%s lock_timeout=%s idle_in_transaction_session_timeout=%s)",
 		pgConfig.Host, pgConfig.Port, pgConfig.Name, pgConfig.MaxConns, pgConfig.MaxIdleConns,
-		secondsLabel(pgConfig.StatementTimeoutSeconds), secondsLabel(pgConfig.LockTimeoutSeconds),
-		secondsLabel(pgConfig.IdleTxTimeoutSeconds))
+		secondsLabel(pgConfig.StatementTimeout), secondsLabel(pgConfig.LockTimeout),
+		secondsLabel(pgConfig.IdleTxTimeout))
 	return nil
 }
 
@@ -767,41 +848,53 @@ func (a *PostgresAdapter) PoolStats() ports.PoolStats {
 	}
 }
 
-// monitorPool logs a pool line whenever callers had to wait for a connection
-// since the previous sample — i.e. when pool saturation was observed. A wait
-// means callers reached the configured cap and blocked; the cause may be an
-// undersized cap, but equally slow queries, lock contention, a slow server or
-// leaked transactions, so this signal must be correlated with query/lock
-// latency before any cap is raised.
+// saturationLine renders the pool-saturation warning for one sampling
+// interval, or "" when the interval carried no saturation signal.
 //
-// Both the interval delta and the cumulative totals come from a single
-// db.Stats() snapshot, and the baseline advances from that same snapshot, so
-// the cumulative figures are always exact even though the interval split of a
-// wait spanning two samples is approximate (database/sql increments WaitCount
-// when a wait begins but adds WaitDuration only when it ends).
+// The two interval deltas are deliberately INDEPENDENT facts: database/sql
+// increments WaitCount when a wait STARTS but adds to WaitDuration only when
+// the wait ENDS, so the deltas describe different populations — a wait
+// spanning samples contributes its start to one interval and its whole
+// duration to a later one. The line therefore reports "waits started" and
+// "wait time accrued" separately, with no causal pairing, and emits whenever
+// EITHER moved (the previous gate on the count delta alone silently swallowed
+// the interval in which a spanning wait completed, losing its duration). The
+// exact cumulative snapshot is always part of the line.
+func saturationLine(prev, cur sql.DBStats) string {
+	started := cur.WaitCount - prev.WaitCount
+	accrued := cur.WaitDuration - prev.WaitDuration
+	if started <= 0 && accrued <= 0 {
+		return ""
+	}
+	return fmt.Sprintf(
+		"WARN postgresql pool saturation observed: cumulative %d wait(s) totalling %s (open=%d inUse=%d idle=%d cap=%d); this interval: %d wait(s) started, %s of wait time accrued (independent counters: a wait is counted when it starts, its duration is added when it ends)",
+		cur.WaitCount, cur.WaitDuration,
+		cur.OpenConnections, cur.InUse, cur.Idle, cur.MaxOpenConnections,
+		started, accrued)
+}
+
+// monitorPool samples the pool once a minute and logs a saturation line
+// whenever either wait counter moved since the previous sample — see
+// saturationLine for the interval semantics. A wait means callers reached the
+// configured cap and blocked; the cause may be an undersized cap, but equally
+// slow queries, lock contention, a slow server or leaked transactions, so this
+// signal must be correlated with query/lock latency before any cap is raised.
 //
 // Runs until stop is closed (adapter Close, which joins this goroutine).
 func monitorPool(db *sql.DB, stop <-chan struct{}) {
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
-	var lastWaitCount int64
-	var lastWaitDuration time.Duration
+	var prev sql.DBStats
 	for {
 		select {
 		case <-stop:
 			return
 		case <-ticker.C:
-			s := db.Stats()
-			deltaCount := s.WaitCount - lastWaitCount
-			deltaDuration := s.WaitDuration - lastWaitDuration
-			lastWaitCount = s.WaitCount
-			lastWaitDuration = s.WaitDuration
-			if deltaCount <= 0 {
-				continue
+			cur := db.Stats()
+			if line := saturationLine(prev, cur); line != "" {
+				log.Print(line)
 			}
-			log.Printf("WARN postgresql pool saturation observed: %d caller(s) waited %s for a connection in the last interval; cumulative %d wait(s) totalling %s (open=%d inUse=%d idle=%d cap=%d)",
-				deltaCount, deltaDuration, s.WaitCount, s.WaitDuration,
-				s.OpenConnections, s.InUse, s.Idle, s.MaxOpenConnections)
+			prev = cur
 		}
 	}
 }

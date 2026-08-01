@@ -320,7 +320,7 @@ func TestBuildDSNRoundTripsHostileValues(t *testing.T) {
 			cfg: &PostgresConfig{
 				Host: "db.internal", Port: "5432", Name: "app", User: "app",
 				Password: dsnUnicodeHostile, SSLMode: "require",
-				StatementTimeoutSeconds: 30, LockTimeoutSeconds: 10, IdleTxTimeoutSeconds: 60,
+				StatementTimeout: timeoutFromSeconds(30), LockTimeout: timeoutFromSeconds(10), IdleTxTimeout: timeoutFromSeconds(60),
 			},
 		},
 		{
@@ -347,7 +347,7 @@ func TestBuildDSNRoundTripsHostileValues(t *testing.T) {
 			name: "timeouts present",
 			cfg: &PostgresConfig{
 				Host: "h", Port: "5432", Name: "d", User: "u", Password: "p", SSLMode: "disable",
-				StatementTimeoutSeconds: 30, LockTimeoutSeconds: 10, IdleTxTimeoutSeconds: 60,
+				StatementTimeout: timeoutFromSeconds(30), LockTimeout: timeoutFromSeconds(10), IdleTxTimeout: timeoutFromSeconds(60),
 			},
 		},
 	}
@@ -447,9 +447,9 @@ func TestSessionOptions(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := sessionOptions(&PostgresConfig{
-				StatementTimeoutSeconds: tc.statement,
-				LockTimeoutSeconds:      tc.lock,
-				IdleTxTimeoutSeconds:    tc.idleTx,
+				StatementTimeout: timeoutFromSeconds(tc.statement),
+				LockTimeout:      timeoutFromSeconds(tc.lock),
+				IdleTxTimeout:    timeoutFromSeconds(tc.idleTx),
 			})
 			if got != tc.want {
 				t.Errorf("sessionOptions = %q, want %q", got, tc.want)
@@ -475,7 +475,7 @@ func TestBuildDSNDropsOptionsWhenAllTimeoutsDisabled(t *testing.T) {
 func TestBuildDSNCarriesOptionsAsOneValue(t *testing.T) {
 	dsn := buildDSN(&PostgresConfig{
 		Host: "h", Port: "1", Name: "d", User: "u", SSLMode: "disable",
-		StatementTimeoutSeconds: 30, LockTimeoutSeconds: 10, IdleTxTimeoutSeconds: 60,
+		StatementTimeout: timeoutFromSeconds(30), LockTimeout: timeoutFromSeconds(10), IdleTxTimeout: timeoutFromSeconds(60),
 	})
 	if !strings.Contains(dsn, `options='-c statement_timeout=30000 -c idle_in_transaction_session_timeout=60000 -c lock_timeout=10000'`) {
 		t.Errorf("options payload not quoted as a single value: %s", dsn)
@@ -493,10 +493,20 @@ func TestBuildDSNCarriesOptionsAsOneValue(t *testing.T) {
 }
 
 func TestSecondsLabel(t *testing.T) {
-	cases := map[int]string{0: "disabled", -1: "disabled", 1: "1s", 30: "30s", maxTimeoutSeconds: "3600s"}
-	for seconds, want := range cases {
-		if got := secondsLabel(seconds); got != want {
-			t.Errorf("secondsLabel(%d) = %q, want %q", seconds, got, want)
+	cases := []struct {
+		name string
+		in   resolvedTimeout
+		want string
+	}{
+		{"explicit disabled", timeoutFromSeconds(0), "disabled"},
+		{"zero value fails safe", resolvedTimeout{}, "disabled"},
+		{"one second", timeoutFromSeconds(1), "1s"},
+		{"thirty seconds", timeoutFromSeconds(30), "30s"},
+		{"ceiling", timeoutFromSeconds(maxTimeoutSeconds), "3600s"},
+	}
+	for _, tc := range cases {
+		if got := secondsLabel(tc.in); got != tc.want {
+			t.Errorf("%s: secondsLabel = %q, want %q", tc.name, got, tc.want)
 		}
 	}
 }
@@ -540,7 +550,7 @@ func TestBuildDSNIsInertToTheRealDriver(t *testing.T) {
 		return &PostgresConfig{
 			Host: "db.internal", Port: "5432", Name: "app", User: "app",
 			Password: "pw", SSLMode: "require",
-			StatementTimeoutSeconds: 30, LockTimeoutSeconds: 10, IdleTxTimeoutSeconds: 60,
+			StatementTimeout: timeoutFromSeconds(30), LockTimeout: timeoutFromSeconds(10), IdleTxTimeout: timeoutFromSeconds(60),
 		}
 	}
 
@@ -590,9 +600,9 @@ func TestBuildDSNKeepsSSLModeAndOptionsUnderInjection(t *testing.T) {
 	for _, sep := range unicodeSpaceSeparators {
 		cfg := &PostgresConfig{
 			Host: "db.internal", Port: "5432", Name: "app", User: "app",
-			SSLMode:                 "require",
-			Password:                "pw" + sep.value + "sslmode=disable" + sep.value + "options=",
-			StatementTimeoutSeconds: 30, LockTimeoutSeconds: 10, IdleTxTimeoutSeconds: 60,
+			SSLMode:          "require",
+			Password:         "pw" + sep.value + "sslmode=disable" + sep.value + "options=",
+			StatementTimeout: timeoutFromSeconds(30), LockTimeout: timeoutFromSeconds(10), IdleTxTimeout: timeoutFromSeconds(60),
 		}
 		dsn := buildDSN(cfg)
 		fields, _, err := parseKeywordValueDSN(dsn)

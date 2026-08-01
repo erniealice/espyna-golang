@@ -329,12 +329,34 @@ func TestTransformConfigStatementTimeoutShapes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			want := int32(tc.want)
+			pg := proto.GetPostgresql()
 			if tc.want == 0 {
-				want = timeoutDisabledSentinel
+				// An explicit 0 has no in-band proto encoding: the field stays
+				// unset and "disabled" travels as the typed mark.
+				if got := pg.GetStatementTimeoutSeconds(); got != 0 {
+					t.Fatalf("explicit 0 must leave the proto field unset, got %d", got)
+				}
+				if !statementTimeoutDisabledMark(pg) {
+					t.Fatal("explicit 0 did not set the typed disabled mark")
+				}
+				// The typed channel must win at resolution even when the
+				// environment says otherwise.
+				cfgCleanEnv(t)
+				cfgSetEnv(t, envStatementTimeout, "77")
+				cfg, rerr := resolvePostgresConfig(pg)
+				if rerr != nil {
+					t.Fatalf("resolve of a disabled-marked proto: %v", rerr)
+				}
+				if !cfg.StatementTimeout.disabled || cfg.StatementTimeout.enabled() {
+					t.Errorf("raw-map 0 resolved to %+v, want the typed disabled state", cfg.StatementTimeout)
+				}
+				return
 			}
-			if got := proto.GetPostgresql().GetStatementTimeoutSeconds(); got != want {
-				t.Errorf("StatementTimeoutSeconds = %d, want %d", got, want)
+			if got := pg.GetStatementTimeoutSeconds(); got != int32(tc.want) {
+				t.Errorf("StatementTimeoutSeconds = %d, want %d", got, tc.want)
+			}
+			if statementTimeoutDisabledMark(pg) {
+				t.Error("a non-zero timeout must not carry the disabled mark")
 			}
 		})
 	}
@@ -401,12 +423,12 @@ func TestResolveStatementTimeoutPrecedence(t *testing.T) {
 		{name: "proto unset, env malformed errors", protoVal: 0, env: strptr("nope"), wantErr: true},
 		{name: "proto unset, env out of range errors", protoVal: 0, env: strptr("3601"), wantErr: true},
 		{name: "proto value wins over env", protoVal: 45, env: strptr("77"), want: 45},
-		{name: "proto disabled sentinel wins over env", protoVal: timeoutDisabledSentinel, env: strptr("77"), want: 0},
+		{name: "proto -1 (former sentinel, bridge-overflow shape) errors", protoVal: -1, env: strptr("77"), wantErr: true},
 		{name: "proto upper boundary", protoVal: maxTimeoutSeconds, want: maxTimeoutSeconds},
 		{name: "proto past ceiling errors", protoVal: maxTimeoutSeconds + 1, wantErr: true},
-		{name: "proto max int32 errors", protoVal: math.MaxInt32, wantErr: true},
-		{name: "proto negative (not the sentinel) errors", protoVal: -2, wantErr: true},
-		{name: "proto min int32 errors", protoVal: math.MinInt32, wantErr: true},
+		{name: "proto max int32 (large-positive overflow shape) errors", protoVal: math.MaxInt32, wantErr: true},
+		{name: "proto negative errors", protoVal: -2, wantErr: true},
+		{name: "proto min int32 (truncation shape) errors", protoVal: math.MinInt32, wantErr: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -431,8 +453,11 @@ func TestResolveStatementTimeoutPrecedence(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if cfg.StatementTimeoutSeconds != tc.want {
-				t.Errorf("StatementTimeoutSeconds = %d, want %d", cfg.StatementTimeoutSeconds, tc.want)
+			if got := rtSeconds(cfg.StatementTimeout); got != tc.want {
+				t.Errorf("StatementTimeout = %+v (%ds), want %d", cfg.StatementTimeout, got, tc.want)
+			}
+			if tc.want == 0 && !cfg.StatementTimeout.disabled {
+				t.Errorf("want the explicit typed disabled state, got %+v", cfg.StatementTimeout)
 			}
 		})
 	}
@@ -440,14 +465,23 @@ func TestResolveStatementTimeoutPrecedence(t *testing.T) {
 
 func strptr(s string) *string { return &s }
 
+// rtSeconds flattens a resolvedTimeout for table assertions: disabled (or
+// unresolved) is 0, enabled is its seconds value.
+func rtSeconds(t resolvedTimeout) int {
+	if !t.enabled() {
+		return 0
+	}
+	return t.seconds
+}
+
 func TestResolveEnvOnlyTimeouts(t *testing.T) {
 	knobs := []struct {
 		env     string
 		def     int
 		extract func(*PostgresConfig) int
 	}{
-		{envLockTimeout, defaultLockTimeoutSeconds, func(c *PostgresConfig) int { return c.LockTimeoutSeconds }},
-		{envIdleTxTimeout, defaultIdleTxTimeoutSeconds, func(c *PostgresConfig) int { return c.IdleTxTimeoutSeconds }},
+		{envLockTimeout, defaultLockTimeoutSeconds, func(c *PostgresConfig) int { return rtSeconds(c.LockTimeout) }},
+		{envIdleTxTimeout, defaultIdleTxTimeoutSeconds, func(c *PostgresConfig) int { return rtSeconds(c.IdleTxTimeout) }},
 	}
 	for _, knob := range knobs {
 		t.Run(knob.env, func(t *testing.T) {
@@ -645,21 +679,129 @@ func TestBuildFromEnvRejectsBadConfigBeforeDialing(t *testing.T) {
 	}
 }
 
-func TestEncodeTimeoutSecondsRoundTrip(t *testing.T) {
-	for _, seconds := range []int{0, 1, 30, maxTimeoutSeconds} {
-		encoded := encodeTimeoutSeconds(seconds)
-		if seconds == 0 && encoded != timeoutDisabledSentinel {
-			t.Errorf("encodeTimeoutSeconds(0) = %d, want the disabled sentinel %d", encoded, timeoutDisabledSentinel)
-		}
-		cfgCleanEnv(t)
-		cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", StatementTimeoutSeconds: encoded})
-		if err != nil {
-			t.Fatalf("resolve(encode(%d)): %v", seconds, err)
-		}
-		if cfg.StatementTimeoutSeconds != seconds {
-			t.Errorf("resolve(encode(%d)) = %d, want %d", seconds, cfg.StatementTimeoutSeconds, seconds)
-		}
+// TestProtoPathNegativeIsHardError pins the MED-1 fix: the proto int32 carries
+// no disabled encoding, so every negative value arriving on the typed-config
+// path — including the exact -1 that a truncating int64-to-int32 bridge (such
+// as DatabaseConfigAdapter's getInt32) produces from an overflowed
+// int64(math.MaxInt64) — is a hard error naming the field. Nothing on the
+// proto path can silently disable the statement timeout.
+func TestProtoPathNegativeIsHardError(t *testing.T) {
+	overflowedMax := int64(math.MaxInt64)           // narrows to -1
+	overflowedPastInt32 := int64(math.MaxInt32) + 1 // narrows to math.MinInt32
+
+	cases := []struct {
+		name string
+		val  int32
+	}{
+		{"minus one (the former in-band sentinel)", -1},
+		{"int64 max truncated by a narrowing bridge", int32(overflowedMax)},
+		{"one past int32 max truncated", int32(overflowedPastInt32)},
+		{"min int32", math.MinInt32},
+		{"minus two", -2},
 	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfgCleanEnv(t)
+			cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", StatementTimeoutSeconds: tc.val})
+			if err == nil {
+				t.Fatalf("resolvePostgresConfig(%d) = %+v, want a hard error — a negative proto value silently disabled the timeout", tc.val, cfg.StatementTimeout)
+			}
+			if !strings.Contains(err.Error(), "statement_timeout_seconds") {
+				t.Errorf("error does not name the field: %v", err)
+			}
+		})
+	}
+
+	// Large-positive overflow shape: a truncation that lands positive but past
+	// the ceiling must also be a hard error, never a huge silent timeout.
+	t.Run("large positive overflow shape", func(t *testing.T) {
+		cfgCleanEnv(t)
+		if cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", StatementTimeoutSeconds: math.MaxInt32}); err == nil {
+			t.Fatalf("= %+v, want a hard error", cfg.StatementTimeout)
+		} else if !strings.Contains(err.Error(), "statement_timeout_seconds") {
+			t.Errorf("error does not name the field: %v", err)
+		}
+	})
+
+	// The whole path through Initialize: the hard error surfaces there and is
+	// a validation rejection, not a dial failure.
+	t.Run("Initialize rejects the bridge-collision shape", func(t *testing.T) {
+		cfgCleanEnv(t)
+		a := NewPostgresAdapter()
+		err := a.Initialize(&dbpb.DatabaseProviderConfig{
+			Enabled: true,
+			Config: &dbpb.DatabaseProviderConfig_Postgresql{
+				Postgresql: &dbpb.PostgreSQLConfig{
+					Host: "127.0.0.1", Port: "1", Database: "d", Username: "u",
+					StatementTimeoutSeconds: -1,
+				},
+			},
+		})
+		if err == nil {
+			t.Fatal("Initialize accepted a -1 statement timeout")
+		}
+		if !strings.Contains(err.Error(), "statement_timeout_seconds") {
+			t.Errorf("error does not name the field: %v", err)
+		}
+	})
+}
+
+// TestTypedDisabledSurvivesTheProtoHandOff replaces the retired -1 sentinel
+// round trip: an explicit operator "0" (raw map or environment) reaches the
+// resolved config as the TYPED disabled state, while the proto's int32 field
+// never encodes it.
+func TestTypedDisabledSurvivesTheProtoHandOff(t *testing.T) {
+	t.Run("raw-map 0 via transformConfig", func(t *testing.T) {
+		cfgCleanEnv(t)
+		proto, err := transformConfig(cfgRawWith("statement_timeout_seconds", 0))
+		if err != nil {
+			t.Fatalf("transformConfig: %v", err)
+		}
+		pg := proto.GetPostgresql()
+		if pg.GetStatementTimeoutSeconds() != 0 {
+			t.Fatalf("proto field = %d, want 0 (no in-band disabled encoding)", pg.GetStatementTimeoutSeconds())
+		}
+		cfgSetEnv(t, envStatementTimeout, "77") // env must NOT win over the typed mark
+		cfg, err := resolvePostgresConfig(pg)
+		if err != nil {
+			t.Fatalf("resolvePostgresConfig: %v", err)
+		}
+		if !cfg.StatementTimeout.disabled {
+			t.Errorf("raw-map 0 resolved to %+v, want typed disabled", cfg.StatementTimeout)
+		}
+	})
+
+	t.Run("env 0 still disables", func(t *testing.T) {
+		cfgCleanEnv(t)
+		cfgSetEnv(t, envStatementTimeout, "0")
+		cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h"})
+		if err != nil {
+			t.Fatalf("resolvePostgresConfig: %v", err)
+		}
+		if !cfg.StatementTimeout.disabled {
+			t.Errorf("env 0 resolved to %+v, want typed disabled", cfg.StatementTimeout)
+		}
+		want := fmt.Sprintf("-c idle_in_transaction_session_timeout=%d -c lock_timeout=%d",
+			defaultIdleTxTimeoutSeconds*1000, defaultLockTimeoutSeconds*1000)
+		if got := sessionOptions(cfg); got != want {
+			t.Errorf("disabled statement timeout still reached the session options: %q", got)
+		}
+	})
+
+	t.Run("positive values still travel in-band", func(t *testing.T) {
+		cfgCleanEnv(t)
+		proto, err := transformConfig(cfgRawWith("statement_timeout_seconds", 45))
+		if err != nil {
+			t.Fatalf("transformConfig: %v", err)
+		}
+		cfg, err := resolvePostgresConfig(proto.GetPostgresql())
+		if err != nil {
+			t.Fatalf("resolvePostgresConfig: %v", err)
+		}
+		if rtSeconds(cfg.StatementTimeout) != 45 || cfg.StatementTimeout.disabled {
+			t.Errorf("= %+v, want enabled 45s", cfg.StatementTimeout)
+		}
+	})
 }
 
 // TestNoSilentSubstitution is the D-2 invariant in one place: for every

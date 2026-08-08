@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	"github.com/erniealice/espyna-golang/shared/database/model"
-	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
-	"github.com/erniealice/espyna-golang/shared/database/operations"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/database/model"
+	"github.com/erniealice/espyna-golang/shared/database/operations"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
@@ -122,7 +122,15 @@ func (m *MySQLOperations) Create(ctx context.Context, tableName string, data map
 	// RETURNING to surface a DB-generated key — we SELECT back by this id.
 	now := time.Now().UTC()
 	if existing, ok := data["id"]; !ok || existing == nil || existing == "" {
-		data["id"] = generateUUID()
+		newID, err := generateUUID()
+		if err != nil {
+			return nil, model.NewDatabaseError(
+				fmt.Sprintf("failed to generate id: %v", err),
+				"MYSQL_ID_GENERATION_FAILED",
+				500,
+			)
+		}
+		data["id"] = newID
 	}
 	id := fmt.Sprintf("%v", data["id"])
 	data["active"] = true
@@ -1269,10 +1277,15 @@ func normalizeValue(v any) any {
 	}
 }
 
-// generateUUID generates an application-side UUID. MySQL has no RETURNING, so
+// generateUUID generates an application-side UUIDv7 (time-ordered — matches
+// the platform id policy; never a random v4 id). MySQL has no RETURNING, so
 // Create assigns the id up front and SELECTs the row back by it.
-func generateUUID() string {
-	return uuid.NewString()
+func generateUUID() (string, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return "", err
+	}
+	return id.String(), nil
 }
 
 // RunWithTransaction executes a function within a database transaction.

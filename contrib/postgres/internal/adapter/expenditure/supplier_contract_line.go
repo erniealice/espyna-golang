@@ -192,19 +192,9 @@ func (r *PostgresSupplierContractLineRepository) GetSupplierContractLineListPage
 		return nil, fmt.Errorf("get supplier contract line list page data request is required")
 	}
 
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if paginationErr != nil {
+		return nil, fmt.Errorf("bounded pagination: %w", paginationErr)
 	}
 
 	orderBy, err := postgresCore.BuildOrderBy(supplierContractLineSortableSQLCols, req.GetSort(), "line_number ASC")

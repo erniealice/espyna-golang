@@ -228,24 +228,14 @@ func (r *PostgresPettyCashVoucherRepository) GetPettyCashVoucherListPageData(
 		return nil, fmt.Errorf("get petty_cash_voucher list page data request is required")
 	}
 
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
+	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if err != nil {
+		return nil, err
 	}
 
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, err
 	}
 
 	// Sort — fail-closed against the per-entity whitelist (A2 guard). The outer

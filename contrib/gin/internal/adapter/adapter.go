@@ -20,6 +20,7 @@ import (
 	ginmiddleware "github.com/erniealice/espyna-golang/contrib/gin/internal/adapter/middleware"
 	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
+	"github.com/erniealice/espyna-golang/shared/httperror"
 )
 
 // =============================================================================
@@ -239,9 +240,10 @@ func (a *GinAdapter) createGinHandler(route *routing.Route) gin.HandlerFunc {
 		// Execute handler
 		resp, err := route.Handler.Execute(ctx, req)
 		if err != nil {
-			c.JSON(500, gin.H{
-				"error":      "Handler execution failed",
-				"details":    err.Error(),
+			status, message := httperror.Classify(err)
+			log.Printf("handler execution error: %v", err)
+			c.JSON(status, gin.H{
+				"error":      message,
 				"route_name": route.Metadata.Name,
 			})
 			return

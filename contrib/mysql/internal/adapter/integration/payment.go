@@ -70,7 +70,13 @@ func (r *MySQLIntegrationPaymentRepository) LogWebhook(ctx context.Context, req 
 
 	id := data.ExecutionId
 	if id == "" {
-		id = uuid.New().String()
+		// UUIDv7 keeps webhook-log ids on the platform id policy (time-ordered,
+		// index-friendly) — never a random v4 id.
+		newID, err := uuid.NewV7()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate webhook log id: %w", err)
+		}
+		id = newID.String()
 	}
 
 	now := time.Now()

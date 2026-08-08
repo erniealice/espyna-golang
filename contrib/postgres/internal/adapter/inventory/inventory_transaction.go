@@ -13,7 +13,6 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	inventorytransactionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_transaction"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -43,6 +42,21 @@ type PostgresInventoryTransactionRepository struct {
 	dbOps     interfaces.DatabaseOperation
 	db        *sql.DB // Direct database access for complex queries (CTEs)
 	tableName string
+}
+
+// directWorkspaceResolver is the capability required by raw adapter queries.
+// It proves a selected workspace and that the joined owner table has the
+// workspace_id column before the query is allowed to run.
+type directWorkspaceResolver interface {
+	RequireDirectWorkspace(context.Context, string) (string, error)
+}
+
+func requireInventoryWorkspace(ctx context.Context, dbOps interfaces.DatabaseOperation) (string, error) {
+	resolver, ok := dbOps.(directWorkspaceResolver)
+	if !ok {
+		return "", fmt.Errorf("inventory repository requires direct workspace capability")
+	}
+	return resolver.RequireDirectWorkspace(ctx, entityid.InventoryItem)
 }
 
 // NewPostgresInventoryTransactionRepository creates a new PostgreSQL inventory transaction repository
@@ -261,26 +275,15 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionListPage
 	}
 
 	// Build search condition
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
+	searchPattern, searchErr := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if searchErr != nil {
+		return nil, fmt.Errorf("bounded search: %w", searchErr)
 	}
 
 	// Default pagination values
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		// Handle offset pagination
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if paginationErr != nil {
+		return nil, fmt.Errorf("bounded pagination: %w", paginationErr)
 	}
 
 	// Sort — fail-closed against the per-entity whitelist (A2 guard). The default
@@ -292,45 +295,15 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionListPage
 		return nil, err
 	}
 
-	// CTE Query - Single round-trip with inventory_item join
-	query := `
-		WITH enriched AS (
-			SELECT
-				it.id,
-				it.date_created,
-				it.date_modified,
-				it.active,
-				it.inventory_item_id,
-				it.transaction_type,
-				it.quantity,
-				it.status,
-				it.reference_type,
-				it.reference_id,
-				it.from_location_id,
-				it.to_location_id,
-				it.notes,
-				it.serial_number,
-				it.performed_by,
-				COALESCE(ii.name, '') as inventory_item_name
-			FROM ` + entityid.InventoryTransaction + ` it
-			LEFT JOIN ` + entityid.InventoryItem + ` ii ON it.inventory_item_id = ii.id AND ii.active = true
-			WHERE it.active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR
-			       it.transaction_type ILIKE $1 OR
-			       it.status ILIKE $1 OR
-			       ii.name ILIKE $1)
-		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
-		SELECT
-			e.*,
-			COUNT(*) OVER () AS total
-		FROM enriched e
-		` + orderByClause + `
-		LIMIT $2 OFFSET $3;
-	`
+	workspaceID, err := requireInventoryWorkspace(ctx, r.dbOps)
+	if err != nil {
+		return nil, err
+	}
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	// CTE Query - Single round-trip with inventory_item join
+	query := inventoryTransactionListPageDataSQL(orderByClause)
+
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query inventory transaction list page data: %w", err)
 	}
@@ -464,21 +437,8 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionListPage
 	}, nil
 }
 
-// GetInventoryTransactionItemPageData retrieves a single inventory transaction with enhanced item page data using CTE
-// This method joins with the inventory_item table for the parent item reference
-func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionItemPageData(
-	ctx context.Context,
-	req *inventorytransactionpb.GetInventoryTransactionItemPageDataRequest,
-) (*inventorytransactionpb.GetInventoryTransactionItemPageDataResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("get inventory transaction item page data request is required")
-	}
-	if req.InventoryTransactionId == "" {
-		return nil, fmt.Errorf("inventory transaction ID is required")
-	}
-
-	// CTE Query - Single round-trip with inventory_item join
-	query := `
+func inventoryTransactionListPageDataSQL(orderByClause string) string {
+	return `
 		WITH enriched AS (
 			SELECT
 				it.id,
@@ -496,16 +456,49 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionItemPage
 				it.notes,
 				it.serial_number,
 				it.performed_by,
-				COALESCE(ii.name, '') as inventory_item_name,
-				COALESCE(ii.sku, '') as inventory_item_sku
+				COALESCE(ii.name, '') as inventory_item_name
 			FROM ` + entityid.InventoryTransaction + ` it
 			LEFT JOIN ` + entityid.InventoryItem + ` ii ON it.inventory_item_id = ii.id AND ii.active = true
-			WHERE it.id = $1 AND it.active = true
+			WHERE it.active = true
+			  AND ii.workspace_id = $4
+			  AND ($1::text IS NULL OR $1::text = '' OR
+			       it.transaction_type ILIKE $1 OR
+			       it.status ILIKE $1 OR
+			       ii.name ILIKE $1)
 		)
-		SELECT * FROM enriched LIMIT 1;
+		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
+		-- same scan as the page rows (the prior counted CTE forced a second scan).
+		SELECT
+			e.*,
+			COUNT(*) OVER () AS total
+		FROM enriched e
+		` + orderByClause + `
+		LIMIT $2 OFFSET $3;
 	`
+}
 
-	row := r.db.QueryRowContext(ctx, query, req.InventoryTransactionId)
+// GetInventoryTransactionItemPageData retrieves a single inventory transaction with enhanced item page data using CTE
+// This method joins with the inventory_item table for the parent item reference
+func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionItemPageData(
+	ctx context.Context,
+	req *inventorytransactionpb.GetInventoryTransactionItemPageDataRequest,
+) (*inventorytransactionpb.GetInventoryTransactionItemPageDataResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("get inventory transaction item page data request is required")
+	}
+	if req.InventoryTransactionId == "" {
+		return nil, fmt.Errorf("inventory transaction ID is required")
+	}
+
+	workspaceID, err := requireInventoryWorkspace(ctx, r.dbOps)
+	if err != nil {
+		return nil, err
+	}
+
+	// CTE Query - Single round-trip with inventory_item join
+	query := inventoryTransactionItemPageDataSQL()
+
+	row := r.db.QueryRowContext(ctx, query, req.InventoryTransactionId, workspaceID)
 
 	var (
 		id                string
@@ -527,7 +520,7 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionItemPage
 		inventoryItemSku  string
 	)
 
-	err := row.Scan(
+	err = row.Scan(
 		&id,
 		&dateCreated,
 		&dateModified,
@@ -609,6 +602,37 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionItemPage
 	}, nil
 }
 
+func inventoryTransactionItemPageDataSQL() string {
+	return `
+		WITH enriched AS (
+			SELECT
+				it.id,
+				it.date_created,
+				it.date_modified,
+				it.active,
+				it.inventory_item_id,
+				it.transaction_type,
+				it.quantity,
+				it.status,
+				it.reference_type,
+				it.reference_id,
+				it.from_location_id,
+				it.to_location_id,
+				it.notes,
+				it.serial_number,
+				it.performed_by,
+				COALESCE(ii.name, '') as inventory_item_name,
+				COALESCE(ii.sku, '') as inventory_item_sku
+			FROM ` + entityid.InventoryTransaction + ` it
+			LEFT JOIN ` + entityid.InventoryItem + ` ii ON it.inventory_item_id = ii.id AND ii.active = true
+			WHERE it.id = $1
+			  AND it.active = true
+			  AND ii.workspace_id = $2
+		)
+		SELECT * FROM enriched LIMIT 1;
+	`
+}
+
 // GetInventoryMovementsListPageData retrieves inventory movements with joined product/variant/item
 // data and supports dateFrom, dateTo, location_id, transaction_type, and full-text search filters.
 // CRITICAL: Always filters by workspace_id for multi-tenancy (via inventory_item.workspace_id).
@@ -620,13 +644,19 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryMovementsListPageDa
 		return nil, fmt.Errorf("get inventory movements list page data request is required")
 	}
 
-	workspaceID := identity.Must(ctx).WorkspaceID
+	workspaceID, err := requireInventoryWorkspace(ctx, r.dbOps)
+	if err != nil {
+		return nil, err
+	}
 
 	dateFrom := req.GetDateFrom()
 	dateTo := req.GetDateTo()
 	locationID := req.GetLocationId()
 	txType := req.GetTransactionType()
-	search := req.GetSearch()
+	searchPattern, err := inventoryMovementsSearchPattern(req.GetSearch())
+	if err != nil {
+		return nil, fmt.Errorf("bounded search: %w", err)
+	}
 
 	// A12: Apply LIMIT/OFFSET for pagination safety. The proto contract for this
 	// request/response has no Pagination field, so we apply a large but finite
@@ -638,41 +668,9 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryMovementsListPageDa
 		inventoryMovementsOffset = int32(0)
 	)
 
-	query := `
-		SELECT it.id,
-		       COALESCE(TO_CHAR(it.transaction_date AT TIME ZONE 'UTC', 'YYYY-MM-DD'), '') AS transaction_date,
-		       it.transaction_type,
-		       it.quantity,
-		       COALESCE(ii.name, '')          AS item_name,
-		       COALESCE(ii.location_id, '')   AS location_id,
-		       COALESCE(ii.sku, '')            AS item_sku,
-		       COALESCE(pv.sku, '')            AS variant_sku,
-		       COALESCE(p.name, '')            AS product_name,
-		       it.serial_number,
-		       it.reference_type,
-		       it.reference_id,
-		       it.performed_by
-		FROM ` + entityid.InventoryTransaction + ` it
-		LEFT JOIN ` + entityid.InventoryItem + ` ii ON it.inventory_item_id = ii.id
-		LEFT JOIN ` + entityid.ProductVariant + ` pv ON ii.product_variant_id = pv.id
-		LEFT JOIN ` + entityid.Product + ` p ON pv.product_id = p.id
-		WHERE it.active = true
-		  AND ($1 = '' OR ii.workspace_id = $1)
-		  AND ($2 = '' OR it.transaction_date >= $2::timestamptz)
-		  AND ($3 = '' OR it.transaction_date <= ($3::date + interval '1 day')::timestamptz)
-		  AND ($4 = '' OR ii.location_id = $4)
-		  AND ($5 = '' OR it.transaction_type = $5)
-		  AND ($6 = '' OR (
-		       p.name ILIKE '%' || $6 || '%'
-		    OR pv.sku ILIKE '%' || $6 || '%'
-		    OR ii.sku ILIKE '%' || $6 || '%'
-		    OR ii.name ILIKE '%' || $6 || '%'
-		  ))
-		ORDER BY it.transaction_date DESC
-		LIMIT $7 OFFSET $8
-	`
+	query := inventoryMovementsListPageDataSQL()
 
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, dateFrom, dateTo, locationID, txType, search, inventoryMovementsLimit, inventoryMovementsOffset)
+	rows, err := r.db.QueryContext(ctx, query, workspaceID, dateFrom, dateTo, locationID, txType, searchPattern, inventoryMovementsLimit, inventoryMovementsOffset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query inventory movements: %w", err)
 	}
@@ -737,6 +735,46 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryMovementsListPageDa
 		Data:    result,
 		Success: true,
 	}, nil
+}
+
+func inventoryMovementsSearchPattern(search string) (string, error) {
+	return postgresCore.BoundedContainsPattern(search)
+}
+
+func inventoryMovementsListPageDataSQL() string {
+	return `
+		SELECT it.id,
+		       COALESCE(TO_CHAR(it.transaction_date AT TIME ZONE 'UTC', 'YYYY-MM-DD'), '') AS transaction_date,
+		       it.transaction_type,
+		       it.quantity,
+		       COALESCE(ii.name, '')          AS item_name,
+		       COALESCE(ii.location_id, '')   AS location_id,
+		       COALESCE(ii.sku, '')            AS item_sku,
+		       COALESCE(pv.sku, '')            AS variant_sku,
+		       COALESCE(p.name, '')            AS product_name,
+		       it.serial_number,
+		       it.reference_type,
+		       it.reference_id,
+		       it.performed_by
+		FROM ` + entityid.InventoryTransaction + ` it
+		LEFT JOIN ` + entityid.InventoryItem + ` ii ON it.inventory_item_id = ii.id
+		LEFT JOIN ` + entityid.ProductVariant + ` pv ON ii.product_variant_id = pv.id
+		LEFT JOIN ` + entityid.Product + ` p ON pv.product_id = p.id
+		WHERE it.active = true
+		  AND ii.workspace_id = $1
+		  AND ($2 = '' OR it.transaction_date >= $2::timestamptz)
+		  AND ($3 = '' OR it.transaction_date <= ($3::date + interval '1 day')::timestamptz)
+		  AND ($4 = '' OR ii.location_id = $4)
+		  AND ($5 = '' OR it.transaction_type = $5)
+		  AND ($6 = '' OR (
+		       p.name ILIKE $6 ESCAPE '\'
+		    OR pv.sku ILIKE $6 ESCAPE '\'
+		    OR ii.sku ILIKE $6 ESCAPE '\'
+		    OR ii.name ILIKE $6 ESCAPE '\'
+		  ))
+		ORDER BY it.transaction_date DESC
+		LIMIT $7 OFFSET $8
+	`
 }
 
 // NewInventoryTransactionRepository creates a new PostgreSQL inventory transaction repository (old-style constructor)

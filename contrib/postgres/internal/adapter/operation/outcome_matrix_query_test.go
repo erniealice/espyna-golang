@@ -134,6 +134,36 @@ func TestApprovalRankToStatus(t *testing.T) {
 	}
 }
 
+// TestBuildApprovalRollupSQL pins the one-read roll-up shape. The group
+// predicate must appear exactly once: duplicating it changes placeholder/arg
+// cardinality and previously made the status branch disagree with the other
+// roll-ups. Hard freeze intentionally reads full_sheet, not scoped_sheet, so a
+// selected group cannot make a frozen template appear editable.
+func TestBuildApprovalRollupSQL(t *testing.T) {
+	const narrow = "\n  AND /* group-narrow-sentinel */ true"
+	query := buildApprovalRollupSQL(narrow)
+
+	if got := strings.Count(query, narrow); got != 1 {
+		t.Fatalf("group predicate appears %d times, want exactly once", got)
+	}
+	for _, fragment := range []string{
+		"WITH full_sheet AS MATERIALIZED",
+		"scoped_sheet AS MATERIALIZED",
+		"status_rollup AS",
+		"data_rollup AS",
+		"blank_rollup AS",
+		"frozen_rollup AS",
+		"FROM full_sheet fs",
+	} {
+		if !strings.Contains(query, fragment) {
+			t.Errorf("one-read approval roll-up is missing %q", fragment)
+		}
+	}
+	if strings.Contains(query, "FROM scoped_sheet fs") {
+		t.Error("hard freeze must remain template-grain over full_sheet")
+	}
+}
+
 // TestComposePhaseLabel pins the phase-header parenthetical (S8 §3): a phase with
 // a sub-deliverable variant renders "NAME (VARIANT_NAME)"; a phase with no variant
 // (NULL / blank) renders the bare NAME. Single composition site (adapter).

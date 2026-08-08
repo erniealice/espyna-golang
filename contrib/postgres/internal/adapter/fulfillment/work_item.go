@@ -12,12 +12,12 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/fulfillment"
 )
@@ -248,24 +248,14 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
 	workspaceID := identity.Must(ctx).WorkspaceID
 
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
+	searchPattern, searchErr := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if searchErr != nil {
+		return nil, fmt.Errorf("bounded search: %w", searchErr)
 	}
 
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if paginationErr != nil {
+		return nil, fmt.Errorf("bounded pagination: %w", paginationErr)
 	}
 
 	// Sort — fail-closed against the per-entity whitelist (A2 guard). The outer
@@ -791,7 +781,7 @@ func (r *PostgresFulfillmentRepository) TransitionStatus(
 
 	// Read current status for from_status
 	var fromStatus sql.NullString
-	err = tx.QueryRowContext(ctx, `SELECT status FROM ` + entityid.Fulfillment + ` WHERE id = $1 AND active = true FOR UPDATE`, req.FulfillmentId).Scan(&fromStatus)
+	err = tx.QueryRowContext(ctx, `SELECT status FROM `+entityid.Fulfillment+` WHERE id = $1 AND active = true FOR UPDATE`, req.FulfillmentId).Scan(&fromStatus)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("fulfillment with ID '%s' not found", req.FulfillmentId)
 	}
@@ -835,7 +825,7 @@ func (r *PostgresFulfillmentRepository) TransitionStatus(
 	}
 
 	_, err = tx.ExecContext(ctx,
-		`INSERT INTO ` + entityid.FulfillmentStatusEvent + `
+		`INSERT INTO `+entityid.FulfillmentStatusEvent+`
 			(fulfillment_id, from_status, to_status, provider_status, provider_reference, triggered_by_id, reason, occurred_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
 		req.FulfillmentId,

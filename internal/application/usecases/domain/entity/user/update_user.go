@@ -4,13 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
+	"google.golang.org/protobuf/proto"
 )
 
 // UpdateUserRepositories groups all repository dependencies
@@ -20,9 +22,9 @@ type UpdateUserRepositories struct {
 
 // UpdateUserServices groups all business service dependencies
 type UpdateUserServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 	// AuthService syncs an email change to the IdP (firebase: UpdateUser{Email},
 	// which prevents lockout/account-takeover; password/mock no-op since the DB
@@ -56,8 +58,8 @@ func NewUpdateUserUseCaseUngrouped(userRepo userpb.UserDomainServiceServer) *Upd
 	}
 
 	services := UpdateUserServices{
-		Authorizer: nil,
-		Transactor: ports.NewNoOpTransactor(),
+		Authorizer:       nil,
+		Transactor:       ports.NewNoOpTransactor(),
 		Translator:       ports.NewNoOpTranslator(),
 		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
@@ -89,30 +91,43 @@ func (uc *UpdateUserUseCase) Execute(ctx context.Context, req *userpb.UpdateUser
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.email_required", "User email is required [DEFAULT]"))
 	}
 
-	// Read the current row first, ALWAYS, for two reasons:
-	//  1. PRESERVE the password hash — a field update that carries an empty
-	//     PasswordHash must NOT blank the credential. The edit form (and most
-	//     callers) send no password on a plain edit, so without this an innocuous
-	//     "change the name" edit would wipe the user's password (login lockout).
-	//     Never blank a credential via a field update.
-	//  2. Detect an email change so we can sync it to the IdP (firebase) after the
-	//     DB write, to avoid login lockout / account takeover.
-	emailChanged := false
+	// Read the current row first and abort if missing, so that sensitive fields
+	// come only from trusted data and email-sync decisions reflect real state.
 	existing, readErr := uc.repositories.User.ReadUser(ctx, &userpb.ReadUserRequest{
 		Data: &userpb.User{Id: req.Data.Id},
 	})
-	if readErr == nil && existing != nil && len(existing.GetData()) > 0 {
-		cur := existing.GetData()[0]
-		if req.Data.GetPasswordHash() == "" && cur.GetPasswordHash() != "" {
-			req.Data.PasswordHash = cur.GetPasswordHash()
-		}
-		if uc.services.AuthService != nil && cur.GetEmailAddress() != req.Data.EmailAddress {
-			emailChanged = true
-		}
+	if readErr != nil {
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.errors.update_failed", "User update failed [DEFAULT]")
+		return nil, fmt.Errorf("%s: %w", translatedError, readErr)
 	}
 
+	if existing == nil || len(existing.GetData()) == 0 || existing.GetData()[0] == nil {
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.errors.not_found", "User with ID \"{userId}\" not found [DEFAULT]")
+		translatedError = strings.ReplaceAll(translatedError, "{userId}", req.Data.Id)
+		return nil, errors.New(translatedError)
+	}
+
+	current := existing.GetData()[0]
+	if current.GetId() == "" {
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.errors.not_found", "User with ID \"{userId}\" not found [DEFAULT]")
+		translatedError = strings.ReplaceAll(translatedError, "{userId}", req.Data.Id)
+		return nil, errors.New(translatedError)
+	}
+
+	updateReq := proto.Clone(req).(*userpb.UpdateUserRequest)
+	updateData := updateReq.GetData()
+
+	updateData.PasswordHash = current.GetPasswordHash()
+	updateData.PasswordResetToken = current.PasswordResetToken
+	updateData.PasswordResetExpires = current.PasswordResetExpires
+	updateData.FailedLoginAttempts = current.FailedLoginAttempts
+	updateData.LockedUntil = current.LockedUntil
+
+	// Detect an email change so we can sync it to the provider (IdP) after DB write.
+	emailChanged := current.GetEmailAddress() != updateData.GetEmailAddress()
+
 	// Call repository
-	resp, err := uc.repositories.User.UpdateUser(ctx, req)
+	resp, err := uc.repositories.User.UpdateUser(ctx, updateReq)
 	if err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.errors.update_failed", "User update failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
@@ -126,5 +141,6 @@ func (uc *UpdateUserUseCase) Execute(ctx context.Context, req *userpb.UpdateUser
 		}
 	}
 
+	resp.Data = redactPublicUserResponseData(resp.Data)
 	return resp, nil
 }

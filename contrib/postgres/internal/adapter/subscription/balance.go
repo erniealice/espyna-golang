@@ -7,11 +7,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
+	"strings"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
@@ -24,6 +27,47 @@ type PostgresBalanceRepository struct {
 	balancepb.UnimplementedBalanceDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
 	tableName string
+}
+
+// SupportsBalanceServerPagination reports that this repository can execute
+// balance list-page filtering, sorting, and pagination in PostgreSQL.
+func (r *PostgresBalanceRepository) SupportsBalanceServerPagination() bool {
+	return true
+}
+
+type balanceExecutorProvider interface {
+	GetExecutor(context.Context) sqlexec.DBExecutor
+}
+
+var balanceListFilterFieldMap = map[string]string{
+	"amount":          "b.amount",
+	"client_id":       "b.client_id",
+	"subscription_id": "b.subscription_id",
+	"currency":        "b.currency",
+	"balance_type":    "b.balance_type",
+	"active":          "b.active",
+	"date_created":    "b.date_created",
+	"date_modified":   "b.date_modified",
+}
+
+var balanceListSortableColumns = []string{
+	"amount",
+	"client_id",
+	"subscription_id",
+	"currency",
+	"balance_type",
+	"date_created",
+	"date_modified",
+}
+
+type balanceListQueries struct {
+	countSQL  string
+	dataSQL   string
+	countArgs []any
+	dataArgs  []any
+	limit     int32
+	offset    int32
+	page      int32
 }
 
 func init() {
@@ -205,100 +249,38 @@ func (r *PostgresBalanceRepository) ListBalances(ctx context.Context, req *balan
 	}, nil
 }
 
-// GetBalanceListPageData retrieves balance list with enhanced data and filtering
-// Uses CTE pattern with JOINs to subscription and client tables
-// Supports filtering by: subscription_id, client_id, active status
-// TODO: Add unit tests for GetBalanceListPageData
-// TODO: Add integration tests with various filter combinations
-// TODO: Test pagination edge cases
+// GetBalanceListPageData returns one real database page. Balance has no direct
+// workspace_id column, so the mandatory tenant anchor is the joined subscription;
+// client enrichment is independently constrained to the same workspace. Search,
+// filters, and sort identifiers are adapter-owned allowlists, while every value is
+// bound. Count and data reads share the active transaction executor when present.
 func (r *PostgresBalanceRepository) GetBalanceListPageData(ctx context.Context, req *balancepb.GetBalanceListPageDataRequest) (*balancepb.GetBalanceListPageDataResponse, error) {
-	// Input validation
 	if req == nil {
 		return nil, fmt.Errorf("request is required")
 	}
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("balance list workspace: %w", err)
+	}
+	queries, err := buildBalanceListQueries(req, requestIdentity.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	executorProvider, ok := r.dbOps.(balanceExecutorProvider)
+	if !ok {
+		return nil, fmt.Errorf("balance list requires a transaction-aware PostgreSQL executor")
+	}
+	exec := executorProvider.GetExecutor(ctx)
 
-	// Build query with CTE pattern for joining related entities
-	// Performance notes:
-	// - Add index on balance.subscription_id (foreign key)
-	// - Add index on balance.active for filtering
-	// - Add index on balance.date_created for sorting
-	// - Subscription and client tables should have indexes on their id columns
-	query := `
-		WITH enriched AS (
-			SELECT
-				b.id,
-				b.amount,
-				b.date_created,
-				b.date_modified,
-				b.active,
-				b.client_id,
-				b.subscription_id,
-				b.currency,
-				b.balance_type,
-				row_to_json(s.*) as subscription_data,
-				row_to_json(c.*) as client_data
-			FROM ` + entityid.Balance + ` b
-			LEFT JOIN ` + entityid.Subscription + ` s ON b.subscription_id = s.id
-			LEFT JOIN ` + entityid.Client + ` c ON b.client_id = c.id
-			WHERE b.active = true
-	`
-
-	var args []any
-	argCount := 0
-
-	// A1: scope to the caller's workspace. The balance table has no workspace_id
-	// column of its own (verified against the baseline schema); tenancy is
-	// inherited through its subscription FK, so the predicate scopes on the
-	// joined subscription's workspace_id. Empty wsID = service-to-service call →
-	// no scoping. This consumes $1 before the dynamic filters below.
-	wsID := identity.Must(ctx).WorkspaceID
-	argCount++
-	query += fmt.Sprintf(" AND ($%d::text = '' OR s.workspace_id = $%d::text)", argCount, argCount)
-	args = append(args, wsID)
-
-	// Apply optional filters
-	if req.Filters != nil && len(req.Filters.Filters) > 0 {
-		for _, filter := range req.Filters.Filters {
-			switch filter.Field {
-			case "subscription_id":
-				if filter.GetStringFilter() != nil {
-					argCount++
-					query += fmt.Sprintf(" AND b.subscription_id = $%d", argCount)
-					args = append(args, filter.GetStringFilter().Value)
-				}
-			case "client_id":
-				if filter.GetStringFilter() != nil {
-					argCount++
-					query += fmt.Sprintf(" AND b.client_id = $%d", argCount)
-					args = append(args, filter.GetStringFilter().Value)
-				}
-			case "active":
-				if filter.GetBooleanFilter() != nil {
-					argCount++
-					query += fmt.Sprintf(" AND b.active = $%d", argCount)
-					args = append(args, filter.GetBooleanFilter().Value)
-				}
-			case "balance_type":
-				if filter.GetStringFilter() != nil {
-					argCount++
-					query += fmt.Sprintf(" AND b.balance_type = $%d", argCount)
-					args = append(args, filter.GetStringFilter().Value)
-				}
-			}
-		}
+	var totalItems int64
+	if err := exec.QueryRowContext(ctx, queries.countSQL, queries.countArgs...).Scan(&totalItems); err != nil {
+		return nil, fmt.Errorf("failed to count balance list: %w", err)
+	}
+	if totalItems > math.MaxInt32 {
+		return nil, fmt.Errorf("balance list total exceeds response capacity: %d", totalItems)
 	}
 
-	// Close the CTE and select from it
-	query += `
-		)
-		SELECT * FROM enriched
-		ORDER BY date_created DESC
-	`
-
-	// Execute query using raw database access
-	// Note: This bypasses dbOps.List() to use custom CTE query
-	db := r.dbOps.(*postgresCore.PostgresOperations).GetDB()
-	rows, err := db.QueryContext(ctx, query, args...)
+	rows, err := exec.QueryContext(ctx, queries.dataSQL, queries.dataArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute balance list query: %w", err)
 	}
@@ -308,19 +290,17 @@ func (r *PostgresBalanceRepository) GetBalanceListPageData(ctx context.Context, 
 	var balances []*balancepb.Balance
 	for rows.Next() {
 		var (
-			id                 string
-			amount             int64
-			dateCreated        sql.NullInt64
-			dateCreatedString  sql.NullString
-			dateModified       sql.NullInt64
-			dateModifiedString sql.NullString
-			active             bool
-			clientID           string
-			subscriptionID     string
-			currency           string
-			balanceType        string
-			subscriptionData   []byte
-			clientData         []byte
+			id               string
+			amount           int64
+			dateCreated      sql.NullInt64
+			dateModified     sql.NullInt64
+			active           bool
+			clientID         string
+			subscriptionID   string
+			currency         string
+			balanceType      string
+			subscriptionData []byte
+			clientData       []byte
 		)
 
 		err := rows.Scan(
@@ -354,14 +334,8 @@ func (r *PostgresBalanceRepository) GetBalanceListPageData(ctx context.Context, 
 		if dateCreated.Valid {
 			balance.DateCreated = &dateCreated.Int64
 		}
-		if dateCreatedString.Valid {
-			balance.DateCreatedString = &dateCreatedString.String
-		}
 		if dateModified.Valid {
 			balance.DateModified = &dateModified.Int64
-		}
-		if dateModifiedString.Valid {
-			balance.DateModifiedString = &dateModifiedString.String
 		}
 
 		// Unmarshal subscription data if present
@@ -383,16 +357,17 @@ func (r *PostgresBalanceRepository) GetBalanceListPageData(ctx context.Context, 
 		return nil, fmt.Errorf("error iterating balance rows: %w", err)
 	}
 
-	// For now, return simple pagination metadata
-	// TODO: Implement proper pagination with limit/offset support
-	currentPage := int32(1)
-	totalPages := int32(1)
+	totalPages := int32(0)
+	if totalItems > 0 {
+		totalPages = int32((totalItems + int64(queries.limit) - 1) / int64(queries.limit))
+	}
+	currentPage := queries.page
 	pagination := &commonpb.PaginationResponse{
-		TotalItems:  int32(len(balances)),
+		TotalItems:  int32(totalItems),
 		CurrentPage: &currentPage,
 		TotalPages:  &totalPages,
-		HasNext:     false,
-		HasPrev:     false,
+		HasNext:     currentPage < totalPages,
+		HasPrev:     currentPage > 1,
 	}
 
 	return &balancepb.GetBalanceListPageDataResponse{
@@ -403,62 +378,111 @@ func (r *PostgresBalanceRepository) GetBalanceListPageData(ctx context.Context, 
 	}, nil
 }
 
-// GetBalanceItemPageData retrieves a single balance with enhanced related data
-// Uses CTE pattern with JOINs to subscription and client tables
-// TODO: Add unit tests for GetBalanceItemPageData
-// TODO: Test with missing/null related entities
-// TODO: Verify proper error handling for not found cases
+func buildBalanceListQueries(req *balancepb.GetBalanceListPageDataRequest, workspaceID string) (*balanceListQueries, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request is required")
+	}
+	if workspaceID == "" {
+		return nil, fmt.Errorf("balance list workspace is required")
+	}
+
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, fmt.Errorf("bounded balance pagination: %w", err)
+	}
+	clauses, filterArgs, nextArg, err := postgresCore.BuildFilterWhereMapped(
+		req.GetFilters(),
+		req.GetSearch(),
+		balanceListFilterFieldMap,
+		[]string{"b.currency", "b.balance_type"},
+		2,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("bounded balance filters/search: %w", err)
+	}
+	orderBy, err := postgresCore.BuildOrderBy(balanceListSortableColumns, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, fmt.Errorf("bounded balance sort: %w", err)
+	}
+
+	fromWhere := ` FROM ` + entityid.Balance + ` b
+		JOIN ` + entityid.Subscription + ` s
+		  ON s.id = b.subscription_id AND s.workspace_id = $1
+		LEFT JOIN ` + entityid.Client + ` c
+		  ON c.id = b.client_id AND c.workspace_id = $1
+		WHERE b.active = true`
+	if len(clauses) > 0 {
+		fromWhere += " AND " + strings.Join(clauses, " AND ")
+	}
+
+	countArgs := make([]any, 0, 1+len(filterArgs))
+	countArgs = append(countArgs, workspaceID)
+	countArgs = append(countArgs, filterArgs...)
+	dataArgs := append([]any(nil), countArgs...)
+	dataArgs = append(dataArgs, limit, offset)
+
+	return &balanceListQueries{
+		countSQL: "SELECT COUNT(*)" + fromWhere,
+		dataSQL: `WITH enriched AS (
+		SELECT
+			b.id,
+			b.amount,
+			b.date_created,
+			b.date_modified,
+			b.active,
+			b.client_id,
+			b.subscription_id,
+			b.currency,
+			b.balance_type,
+			row_to_json(s.*) AS subscription_data,
+			row_to_json(c.*) AS client_data` + fromWhere + `
+		)
+		SELECT * FROM enriched ` + orderBy +
+			fmt.Sprintf(" LIMIT $%d OFFSET $%d", nextArg, nextArg+1),
+		countArgs: countArgs,
+		dataArgs:  dataArgs,
+		limit:     limit,
+		offset:    offset,
+		page:      page,
+	}, nil
+}
+
+// GetBalanceItemPageData retrieves one balance through the same mandatory
+// subscription workspace anchor as the list query.
 func (r *PostgresBalanceRepository) GetBalanceItemPageData(ctx context.Context, req *balancepb.GetBalanceItemPageDataRequest) (*balancepb.GetBalanceItemPageDataResponse, error) {
-	// Input validation
 	if req == nil || req.BalanceId == "" {
 		return nil, fmt.Errorf("balance ID is required")
 	}
-
-	// Build query with CTE pattern for joining related entities
-	query := `
-		WITH enriched AS (
-			SELECT
-				b.id,
-				b.amount,
-				b.date_created,
-				b.date_modified,
-				b.active,
-				b.client_id,
-				b.subscription_id,
-				b.currency,
-				b.balance_type,
-				row_to_json(s.*) as subscription_data,
-				row_to_json(c.*) as client_data
-			FROM ` + entityid.Balance + ` b
-			LEFT JOIN ` + entityid.Subscription + ` s ON b.subscription_id = s.id
-			LEFT JOIN ` + entityid.Client + ` c ON b.client_id = c.id
-			WHERE b.id = $1 AND b.active = true
-		)
-		SELECT * FROM enriched
-		LIMIT 1
-	`
-
-	// Execute query using raw database access
-	db := r.dbOps.(*postgresCore.PostgresOperations).GetDB()
-	row := db.QueryRowContext(ctx, query, req.BalanceId)
-
-	var (
-		id                 string
-		amount             int64
-		dateCreated        sql.NullInt64
-		dateCreatedString  sql.NullString
-		dateModified       sql.NullInt64
-		dateModifiedString sql.NullString
-		active             bool
-		clientID           string
-		subscriptionID     string
-		currency           string
-		balanceType        string
-		subscriptionData   []byte
-		clientData         []byte
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("balance item workspace: %w", err)
+	}
+	executorProvider, ok := r.dbOps.(balanceExecutorProvider)
+	if !ok {
+		return nil, fmt.Errorf("balance item requires a transaction-aware PostgreSQL executor")
+	}
+	row := executorProvider.GetExecutor(ctx).QueryRowContext(
+		ctx,
+		balanceItemPageDataSQL(),
+		req.BalanceId,
+		requestIdentity.WorkspaceID,
 	)
 
-	err := row.Scan(
+	var (
+		id               string
+		amount           int64
+		dateCreated      sql.NullInt64
+		dateModified     sql.NullInt64
+		active           bool
+		clientID         string
+		subscriptionID   string
+		currency         string
+		balanceType      string
+		subscriptionData []byte
+		clientData       []byte
+	)
+
+	err = row.Scan(
 		&id,
 		&amount,
 		&dateCreated,
@@ -487,22 +511,13 @@ func (r *PostgresBalanceRepository) GetBalanceItemPageData(ctx context.Context, 
 		Currency:       currency,
 		BalanceType:    balanceType,
 	}
-
-	// Handle nullable fields
 	if dateCreated.Valid {
 		balance.DateCreated = &dateCreated.Int64
-	}
-	if dateCreatedString.Valid {
-		balance.DateCreatedString = &dateCreatedString.String
 	}
 	if dateModified.Valid {
 		balance.DateModified = &dateModified.Int64
 	}
-	if dateModifiedString.Valid {
-		balance.DateModifiedString = &dateModifiedString.String
-	}
 
-	// Unmarshal subscription data if present
 	if len(subscriptionData) > 0 {
 		var subscriptionMap map[string]any
 		if err := json.Unmarshal(subscriptionData, &subscriptionMap); err == nil {
@@ -518,6 +533,33 @@ func (r *PostgresBalanceRepository) GetBalanceItemPageData(ctx context.Context, 
 		Balance: balance,
 		Success: true,
 	}, nil
+}
+
+func balanceItemPageDataSQL() string {
+	return `
+		WITH enriched AS (
+			SELECT
+				b.id,
+				b.amount,
+				b.date_created,
+				b.date_modified,
+				b.active,
+				b.client_id,
+				b.subscription_id,
+				b.currency,
+				b.balance_type,
+				row_to_json(s.*) as subscription_data,
+				row_to_json(c.*) as client_data
+			FROM ` + entityid.Balance + ` b
+			JOIN ` + entityid.Subscription + ` s
+			  ON s.id = b.subscription_id AND s.workspace_id = $2
+			LEFT JOIN ` + entityid.Client + ` c
+			  ON c.id = b.client_id AND c.workspace_id = $2
+			WHERE b.id = $1 AND b.active = true
+		)
+		SELECT * FROM enriched
+		LIMIT 1
+	`
 }
 
 // NewBalanceRepository creates a new PostgreSQL balance repository (old-style constructor)

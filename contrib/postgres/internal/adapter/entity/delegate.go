@@ -260,27 +260,14 @@ func (r *PostgresDelegateRepository) ListDelegates(ctx context.Context, req *del
 // This method uses CTEs (Common Table Expressions) to optimize query performance by loading all data in a single query
 // TODO: Add unit tests for GetDelegateListPageData
 func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context, req *delegatepb.GetDelegateListPageDataRequest) (*delegatepb.GetDelegateListPageDataResponse, error) {
-	// Extract pagination parameters with defaults
-	limit := int32(20)
-	page := int32(1)
-	if req.Pagination != nil && req.Pagination.Limit > 0 {
-		limit = req.Pagination.Limit
-		if limit > 100 {
-			limit = 100 // Cap at 100 items per page
-		}
-		if req.Pagination.GetOffset() != nil {
-			page = req.Pagination.GetOffset().Page
-			if page < 1 {
-				page = 1
-			}
-		}
+	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 20)
+	if paginationErr != nil {
+		return nil, fmt.Errorf("bounded pagination: %w", paginationErr)
 	}
-	offset := (page - 1) * limit
 
-	// Extract search query
-	searchQuery := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchQuery = "%" + req.Search.Query + "%"
+	searchQuery, searchErr := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if searchErr != nil {
+		return nil, fmt.Errorf("bounded search: %w", searchErr)
 	}
 
 	// Extract sort parameters with defaults

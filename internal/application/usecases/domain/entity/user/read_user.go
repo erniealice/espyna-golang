@@ -8,8 +8,8 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 )
 
@@ -20,9 +20,9 @@ type ReadUserRepositories struct {
 
 // ReadUserServices groups all business service dependencies
 type ReadUserServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -52,8 +52,8 @@ func NewReadUserUseCaseUngrouped(userRepo userpb.UserDomainServiceServer) *ReadU
 	}
 
 	services := ReadUserServices{
-		Authorizer: nil,
-		Transactor: ports.NewNoOpTransactor(),
+		Authorizer:       nil,
+		Transactor:       ports.NewNoOpTransactor(),
 		Translator:       ports.NewNoOpTranslator(),
 		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
@@ -120,6 +120,7 @@ func (uc *ReadUserUseCase) executeCore(ctx context.Context, req *userpb.ReadUser
 		return nil, errors.New(translatedError)
 	}
 
+	resp.Data = redactPublicUserResponseData(resp.Data)
 	return resp, nil
 }
 

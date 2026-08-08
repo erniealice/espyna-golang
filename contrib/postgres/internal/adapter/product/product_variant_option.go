@@ -240,26 +240,15 @@ func (r *PostgresProductVariantOptionRepository) GetProductVariantOptionListPage
 	}
 
 	// Build search condition
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
+	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if err != nil {
+		return nil, err
 	}
 
 	// Default pagination values
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		// Handle offset pagination
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, err
 	}
 
 	// Sort — fail-closed against the per-entity whitelist (A2 guard). The default

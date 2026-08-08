@@ -220,19 +220,13 @@ func (r *PostgresWorkspaceUserRoleRepository) GetWorkspaceUserRoleListPageData(c
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
+	searchPattern, searchErr := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if searchErr != nil {
+		return nil, fmt.Errorf("bounded search: %w", searchErr)
 	}
-	limit, offset, page := int32(50), int32(0), int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil && offsetPag.Page > 0 {
-			page = offsetPag.Page
-			offset = (page - 1) * limit
-		}
+	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if paginationErr != nil {
+		return nil, fmt.Errorf("bounded pagination: %w", paginationErr)
 	}
 	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
 	// caller-supplied sort column through core.BuildOrderBy so an unknown column

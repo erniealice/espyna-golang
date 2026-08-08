@@ -10,9 +10,9 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	supplierproductplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_product_plan"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -176,18 +176,13 @@ func (r *PostgresSupplierProductPlanRepository) GetSupplierProductPlanListPageDa
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
+	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if err != nil {
+		return nil, err
 	}
-	limit, offset := int32(50), int32(0)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if op := req.Pagination.GetOffset(); op != nil && op.Page > 0 {
-			offset = (op.Page - 1) * limit
-		}
+	limit, offset, _, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, err
 	}
 	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
 	// caller-supplied sort column through core.BuildOrderBy so an unknown column
@@ -197,7 +192,7 @@ func (r *PostgresSupplierProductPlanRepository) GetSupplierProductPlanListPageDa
 		return nil, err
 	}
 	query := fmt.Sprintf(`SELECT id, name, active, supplier_plan_id, product_id, product_variant_id, date_created, date_modified
-	          FROM ` + entityid.SupplierProductPlan + `
+	          FROM `+entityid.SupplierProductPlan+`
 	          WHERE active = true
 	            AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1)
 	          %s LIMIT $2 OFFSET $3`, orderByClause)

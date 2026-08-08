@@ -10,9 +10,10 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	supplierplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_plan"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -21,8 +22,12 @@ import (
 type PostgresSupplierPlanRepository struct {
 	supplierplanpb.UnimplementedSupplierPlanDomainServiceServer
 	dbOps     interfaces.DatabaseOperation
-	db        *sql.DB
 	tableName string
+}
+
+type supplierPlanDirectWorkspaceExecutor interface {
+	RequireDirectWorkspace(context.Context, string) (string, error)
+	GetExecutor(context.Context) sqlexec.DBExecutor
 }
 
 func init() {
@@ -41,13 +46,8 @@ func NewPostgresSupplierPlanRepository(dbOps interfaces.DatabaseOperation, table
 	if tableName == "" {
 		tableName = "supplier_plan"
 	}
-	var db *sql.DB
-	if pgOps, ok := dbOps.(interface{ GetDB() *sql.DB }); ok {
-		db = pgOps.GetDB()
-	}
 	return &PostgresSupplierPlanRepository{
 		dbOps:     dbOps,
-		db:        db,
 		tableName: tableName,
 	}
 }
@@ -164,22 +164,33 @@ var supplierPlanSortableSQLCols = []string{
 	"date_created", "date_modified",
 }
 
+func supplierPlanListPageSQL(orderByClause string) string {
+	return `SELECT id, name, description, active, supplier_id, date_created, date_modified
+	          FROM ` + entityid.SupplierPlan + `
+	          WHERE active = true
+	            AND workspace_id = $4
+	            AND ($1::text IS NULL OR $1::text = '' OR
+	                 name ILIKE $1 ESCAPE '\' OR
+	                 description ILIKE $1 ESCAPE '\')
+	          ` + orderByClause + ` LIMIT $2 OFFSET $3`
+}
+
+const supplierPlanItemPageSQL = `SELECT id, name, description, active, supplier_id, date_created, date_modified
+	          FROM ` + entityid.SupplierPlan + `
+	          WHERE id = $1
+	            AND workspace_id = $2`
+
 func (r *PostgresSupplierPlanRepository) GetSupplierPlanListPageData(ctx context.Context, req *supplierplanpb.GetSupplierPlanListPageDataRequest) (*supplierplanpb.GetSupplierPlanListPageDataResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
+	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if err != nil {
+		return nil, err
 	}
-	limit, offset := int32(50), int32(0)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if op := req.Pagination.GetOffset(); op != nil && op.Page > 0 {
-			offset = (op.Page - 1) * limit
-		}
+	limit, offset, _, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, err
 	}
 	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
 	// caller-supplied sort column through core.BuildOrderBy so an unknown column
@@ -188,12 +199,15 @@ func (r *PostgresSupplierPlanRepository) GetSupplierPlanListPageData(ctx context
 	if err != nil {
 		return nil, err
 	}
-	query := `SELECT id, name, description, active, supplier_id, date_created, date_modified
-	          FROM ` + entityid.SupplierPlan + `
-	          WHERE active = true
-	            AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1)
-	          ` + orderByClause + ` LIMIT $2 OFFSET $3`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	directOps, ok := r.dbOps.(supplierPlanDirectWorkspaceExecutor)
+	if !ok {
+		return nil, fmt.Errorf("supplier_plan repository requires direct workspace capability")
+	}
+	workspaceID, err := directOps.RequireDirectWorkspace(ctx, entityid.SupplierPlan)
+	if err != nil {
+		return nil, fmt.Errorf("require supplier plan workspace: %w", err)
+	}
+	rows, err := directOps.GetExecutor(ctx).QueryContext(ctx, supplierPlanListPageSQL(orderByClause), searchPattern, limit, offset, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -232,9 +246,15 @@ func (r *PostgresSupplierPlanRepository) GetSupplierPlanItemPageData(ctx context
 	if req == nil || req.SupplierPlanId == "" {
 		return nil, fmt.Errorf("supplier plan ID required")
 	}
-	query := `SELECT id, name, description, active, supplier_id, date_created, date_modified
-	          FROM ` + entityid.SupplierPlan + ` WHERE id = $1`
-	row := r.db.QueryRowContext(ctx, query, req.SupplierPlanId)
+	directOps, ok := r.dbOps.(supplierPlanDirectWorkspaceExecutor)
+	if !ok {
+		return nil, fmt.Errorf("supplier_plan repository requires direct workspace capability")
+	}
+	workspaceID, err := directOps.RequireDirectWorkspace(ctx, entityid.SupplierPlan)
+	if err != nil {
+		return nil, fmt.Errorf("require supplier plan workspace: %w", err)
+	}
+	row := directOps.GetExecutor(ctx).QueryRowContext(ctx, supplierPlanItemPageSQL, req.SupplierPlanId, workspaceID)
 	var id, name, supplierID string
 	var description sql.NullString
 	var active bool
@@ -268,23 +288,32 @@ func (r *PostgresSupplierPlanRepository) SearchSupplierPlansByName(ctx context.C
 	if req == nil {
 		return nil, fmt.Errorf("search supplier plans by name request is required")
 	}
-	limit := int32(20)
-	if req.GetLimit() > 0 {
-		limit = req.GetLimit()
+	pattern, err := postgresCore.BoundedContainsPattern(req.GetQuery())
+	if err != nil {
+		return nil, fmt.Errorf("bounded supplier plan name search: %w", err)
+	}
+	limit, err := postgresCore.BoundedQueryLimit(req.GetLimit(), 20, 100)
+	if err != nil {
+		return nil, fmt.Errorf("bounded supplier plan name limit: %w", err)
+	}
+	directOps, ok := r.dbOps.(supplierPlanDirectWorkspaceExecutor)
+	if !ok {
+		return nil, fmt.Errorf("supplier_plan repository requires direct workspace capability")
+	}
+	workspaceID, err := directOps.RequireDirectWorkspace(ctx, entityid.SupplierPlan)
+	if err != nil {
+		return nil, fmt.Errorf("require supplier plan workspace: %w", err)
 	}
 	query := `
 		SELECT id, name
 		FROM ` + entityid.SupplierPlan + `
 		WHERE active = true
-			AND ($1::text = '' OR name ILIKE $1)
+			AND workspace_id = $3
+			AND ($1::text = '' OR name ILIKE $1 ESCAPE '\')
 		ORDER BY name ASC
 		LIMIT $2
 	`
-	pattern := ""
-	if req.Query != "" {
-		pattern = "%" + req.Query + "%"
-	}
-	rows, err := r.db.QueryContext(ctx, query, pattern, limit)
+	rows, err := directOps.GetExecutor(ctx).QueryContext(ctx, query, pattern, limit, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search supplier plans by name: %w", err)
 	}

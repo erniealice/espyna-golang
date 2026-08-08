@@ -111,6 +111,25 @@ func NewAuthAdapterFromContainer(container *Container) *AuthAdapter {
 		}
 	}
 
+	// If the auth provider mints entity ids (e.g. the password adapter creating
+	// user rows on registration), inject the container's IDGenerator so those
+	// ids follow the platform id policy (CONFIG_ID_PROVIDER, e.g. google_uuidv7)
+	// instead of an adapter-local uuid call. Same duck-typed seam as
+	// SetOperations above; the GetIDService unwrap mirrors the composition
+	// layer's own idiom (core/usecases.go getServices).
+	type idGeneratorSettable interface {
+		SetIDGenerator(gen ports.IDGenerator)
+	}
+	if settable, ok := provider.(idGeneratorSettable); ok {
+		if idProvider := container.GetIDProvider(); idProvider != nil {
+			if wrapper, ok := idProvider.(interface{ GetIDService() ports.IDGenerator }); ok {
+				if svc := wrapper.GetIDService(); svc != nil {
+					settable.SetIDGenerator(svc)
+				}
+			}
+		}
+	}
+
 	// Get auth service from provider
 	service := provider.GetAuthService()
 

@@ -68,6 +68,40 @@ func TestMust_panics_on_empty_context(t *testing.T) {
 	Must(context.Background())
 }
 
+func TestRequireWorkspace(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		ctx     context.Context
+		wantID  string
+		wantErr error
+	}{
+		{name: "missing identity", ctx: context.Background(), wantErr: ErrIdentityNotInContext},
+		{name: "preselection identity", ctx: WithRequestIdentity(context.Background(), &RequestIdentity{UserID: "user-1"}), wantErr: ErrWorkspaceNotSelected},
+		{name: "selected workspace", ctx: WithRequestIdentity(context.Background(), &RequestIdentity{UserID: "user-1", WorkspaceID: "workspace-1"}), wantID: "workspace-1"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := RequireWorkspace(tc.ctx)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("RequireWorkspace() error = %v, want %v", err, tc.wantErr)
+			}
+			if tc.wantErr != nil {
+				if got != nil {
+					t.Fatalf("RequireWorkspace() identity = %#v, want nil", got)
+				}
+				return
+			}
+			if got == nil || got.WorkspaceID != tc.wantID {
+				t.Fatalf("RequireWorkspace() identity = %#v, want workspace %q", got, tc.wantID)
+			}
+		})
+	}
+}
+
 func TestMust_panics_on_nil_identity(t *testing.T) {
 	t.Parallel()
 

@@ -13,10 +13,10 @@ import (
 	"strconv"
 	"time"
 
-	dbinterfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
+	dbinterfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -116,6 +116,7 @@ type PasswordAuthAdapter struct {
 	ops             dbinterfaces.DatabaseOperation
 	passwordService *PasswordService
 	sessionService  *SessionService
+	idGenerator     ports.IDGenerator
 	resetSecret     string
 	enabled         bool
 	maxAttempts     int
@@ -170,6 +171,32 @@ func (a *PasswordAuthAdapter) SetOperations(ops dbinterfaces.DatabaseOperation) 
 	a.ops = ops
 	a.passwordService = NewPasswordService()
 	a.sessionService = NewSessionService(ops)
+	a.sessionService.idGen = a.idGenerator
+}
+
+// SetIDGenerator injects the platform IDGenerator so user and session ids
+// minted here follow the configured id policy (CONFIG_ID_PROVIDER, e.g.
+// google_uuidv7). Mirrors the SetOperations injection seam — the container
+// wires it in consumer.NewAuthAdapterFromContainer.
+func (a *PasswordAuthAdapter) SetIDGenerator(gen ports.IDGenerator) {
+	a.idGenerator = gen
+	if a.sessionService != nil {
+		a.sessionService.idGen = gen
+	}
+}
+
+// newUserID mints an id for a newly registered user. It prefers the injected
+// platform IDGenerator (uuidv7 under CONFIG_ID_PROVIDER=google_uuidv7) and
+// falls back to a direct UUIDv7 — it never mints a random (v4) UUID.
+func (a *PasswordAuthAdapter) newUserID() (string, error) {
+	if a.idGenerator != nil && a.idGenerator.IsEnabled() {
+		return a.idGenerator.GenerateID(), nil
+	}
+	id, err := uuid.NewV7()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate user id: %w", err)
+	}
+	return id.String(), nil
 }
 
 // GetAuthService returns the authentication service (returns itself).
@@ -312,7 +339,10 @@ func (a *PasswordAuthAdapter) Register(ctx context.Context, email, password, fir
 		return "", err
 	}
 
-	userID := uuid.New().String()
+	userID, err := a.newUserID()
+	if err != nil {
+		return "", err
+	}
 	_, err = a.ops.Create(ctx, "user", map[string]any{
 		"id":            userID,
 		"email_address": email,

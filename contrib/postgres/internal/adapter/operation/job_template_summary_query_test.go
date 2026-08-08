@@ -7,7 +7,9 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 	summarypb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/job_template_summary"
 
@@ -57,7 +59,7 @@ func TestJobTemplateSummarySQL_TableNamesFromEntityID(t *testing.T) {
 		// dd CTE, class-edge (sgpps) branch (C11): the class edge itself + a
 		// SECOND subscription_group_member alias (m) that carries the (subscription,
 		// client, group) triple for a section that has servicers but zero seats.
-		{"e", entityid.SubscriptionGroupProductPlanStaff}, // dd CTE, class-edge branch
+		{"e", entityid.SubscriptionGroupProductPlanStaff}, // class_primary_edges CTE
 		{"m", entityid.SubscriptionGroupMember},           // dd CTE, class-edge branch
 		// v2 cutover: the class-edge branch's staff resolution LEFT JOINs the
 		// eligibility table (product_plan_staff, f13) — docs/plan/20260724-
@@ -122,7 +124,8 @@ func TestJobTemplateSummarySQL_TableNamesFromEntityID(t *testing.T) {
 //   - filters role='primary' ONLY — the teacher-of-record RECORD semantic (§B):
 //     a 'primary' edge generates the class row + the Teacher/Deliverer column; an
 //     'access' edge is visibility-only (principalscope) and must NOT surface here;
-//   - binds the workspace on the edge AND the staff ($1);
+//   - picks newest primary edges set-wise in class_primary_edges, then binds
+//     the staff ($1);
 //   - projects the member-sourced (subscription_id, client_id, subscription_group_id)
 //   - edge-plan product_id so the emitted column set is byte-identical to the
 //     seat branch (jj⋈dd + collateDeliverySummaries need no change);
@@ -131,7 +134,7 @@ func TestJobTemplateSummarySQL_TableNamesFromEntityID(t *testing.T) {
 func TestJobTemplateSummarySQL_ClassEdgeDelivererBranch(t *testing.T) {
 	sql := fullSummarySQL()
 
-	// The class-edge join chain, each ON clause sourced off the sgpps edge (e).
+	// The class-edge join chain, each ON clause sourced off the picked edge (e).
 	for _, frag := range []string{
 		entityid.SubscriptionGroupProductPlanStaff + " e",
 		entityid.SubscriptionGroupMember + " m",
@@ -148,16 +151,18 @@ func TestJobTemplateSummarySQL_ClassEdgeDelivererBranch(t *testing.T) {
 		}
 	}
 
-	// role='primary' RECORD filter + workspace bind on the edge (§B/§E). The
-	// visibility-only 'access' role must NEVER surface as a class row here.
-	if !strings.Contains(sql, "WHERE e.active AND e.workspace_id = $1 AND e.role = 'primary'") {
-		t.Errorf("class-edge branch missing the active/workspace/role='primary' WHERE\nSQL:\n%s", sql)
+	// role='primary' RECORD filter + workspace bind are applied while selecting
+	// primary edges. The visibility-only 'access' role must NEVER surface here.
+	if !strings.Contains(sql, "class_primary_edges AS MATERIALIZED") ||
+		!strings.Contains(sql, "WHERE e.active AND e.workspace_id = $1 AND e.role = 'primary'") {
+		t.Errorf("class-primary CTE missing active/workspace/role='primary' selection\nSQL:\n%s", sql)
 	}
 	if strings.Contains(sql, "role = 'access'") || strings.Contains(sql, "role='access'") {
 		t.Errorf("class-edge branch must NOT filter on 'access' edges — those are visibility-only\nSQL:\n%s", sql)
 	}
 
-	// M5-G5: the eligibility-liveness gate must ride the OUTER WHERE, so a
+	// M5-G5: the eligibility-liveness gate must ride the dd WHERE after the
+	// class-primary pick, so a
 	// linked-but-REVOKED product_plan_staff row stops attributing its staff
 	// instead of falling through to the still-dual-written legacy f10 column.
 	// Shape assertion only — the behavioural truth table, the naive-join-fix
@@ -175,19 +180,33 @@ func TestJobTemplateSummarySQL_ClassEdgeDelivererBranch(t *testing.T) {
 	// CF-3: two DIFFERENT active primary edges for one (group, product_plan) must
 	// collapse to a SINGLE deterministic pick (newest date_created, id breaks ties)
 	// so the deliverer is stable across renders and agrees with the grade-sheet's
-	// class-edge teacher. A correlated ORDER BY … LIMIT 1 keyed on
-	// (subscription_group_id, product_plan_id) enforces it — without a NEW
-	// placeholder (it reuses $1).
+	// class-edge teacher. DISTINCT ON does this set-wise; do not restore a
+	// per-row correlated pick.
 	for _, frag := range []string{
-		"e.id = (",
-		"e2.subscription_group_id = e.subscription_group_id",
-		"e2.product_plan_id = e.product_plan_id",
-		"ORDER BY e2.date_created DESC, e2.id DESC",
-		"LIMIT 1",
+		"class_primary_edges AS MATERIALIZED",
+		"SELECT DISTINCT ON (e.subscription_group_id, e.product_plan_id)",
+		"ORDER BY e.subscription_group_id, e.product_plan_id,",
+		"e.date_created DESC, e.id DESC",
+		"FROM class_primary_edges e",
 	} {
 		if !strings.Contains(sql, frag) {
 			t.Errorf("class-edge branch missing CF-3 deterministic-pick fragment %q\nSQL:\n%s", frag, sql)
 		}
+	}
+	for _, forbidden := range []string{
+		"e.id = (\n          SELECT e2.id",
+		"e2.subscription_group_id = e.subscription_group_id",
+	} {
+		if strings.Contains(sql, forbidden) {
+			t.Errorf("class-primary selection must be set-oriented, found correlated pick %q\nSQL:\n%s", forbidden, sql)
+		}
+	}
+	// The CTE selects the newest primary edge without eligibility filtering. The
+	// gate remains in dd, after FROM class_primary_edges e, so a newest revoked
+	// edge suppresses rather than falls back to an older primary.
+	if !strings.Contains(sql, "FROM class_primary_edges e") ||
+		strings.Contains(sql, "WHERE e.active AND e.workspace_id = $1 AND e.role = 'primary'\n      "+classEdgeEligibilityLivePredicate) {
+		t.Errorf("eligibility gate must be applied after, not within, class-primary selection\nSQL:\n%s", sql)
 	}
 
 	// The branch projects the member-sourced keys (m.*) + the edge-plan product so
@@ -213,11 +232,11 @@ func TestJobTemplateSummarySQL_ClassEdgeDelivererBranch(t *testing.T) {
 	// reaches memberships through subscription_group_member (m), NOT by attributing
 	// the whole cohort to the edge. It also must not join subscription_seat inside
 	// the class-edge branch (that branch exists precisely for the zero-seat shape).
-	if !strings.Contains(sql, entityid.SubscriptionGroupProductPlanStaff+" e\n") {
-		t.Errorf("sgpps must be the class-edge branch's driving table (aliased e)\nSQL:\n%s", sql)
+	if !strings.Contains(sql, "FROM class_primary_edges e\n") {
+		t.Errorf("picked class-primary edges must drive the class-edge branch (aliased e)\nSQL:\n%s", sql)
 	}
 
-	// Workspace-scoping of the class edge is explicit ($1); the member m is scoped
+	// Workspace-scoping of the class edge is explicit in class_primary_edges ($1); the member m is scoped
 	// transitively (globally-unique group FK + the workspace-bound edge + the outer
 	// sg join re-gate), so a bind there is neither required nor present.
 	if !strings.Contains(sql, "e.workspace_id = $1") {
@@ -350,20 +369,213 @@ func TestJobTemplateSummarySQL_FiltersAndPagination(t *testing.T) {
 		if !strings.Contains(stmt, "j.origin_type = 'ORIGIN_TYPE_SUBSCRIPTION'") {
 			t.Errorf("subscription origin-type predicate missing:\n%s", stmt)
 		}
-		// COUNT(DISTINCT) now counts the jj CTE's job_id (was j.id pre-rewrite).
-		if !strings.Contains(stmt, "COUNT(DISTINCT jj.job_id)") {
+		// COUNT(DISTINCT) is computed at the response row grain before the
+		// deliverer arrays are joined, so staff never multiplies a roster count.
+		if !strings.Contains(stmt, "COUNT(DISTINCT job_id) AS job_count") {
 			t.Errorf("DISTINCT job count missing:\n%s", stmt)
+		}
+		for _, frag := range []string{
+			"delivery AS MATERIALIZED",
+			"delivery_staff AS (",
+			"ARRAY_AGG(staff_id ORDER BY staff_name, staff_id) AS staff_ids",
+			"ARRAY_AGG(staff_name ORDER BY staff_name, staff_id) AS staff_names",
+		} {
+			if !strings.Contains(stmt, frag) {
+				t.Errorf("summary-grain delivery fold missing %q:\n%s", frag, stmt)
+			}
 		}
 		// The LOCKED view order (group name, template name) — since R7 P4 the
 		// sort sits ABOVE the base wrapper, keyed through base's output aliases
 		// (same key semantics as the pre-P4 `sg.name, jj.template_name`).
-		if !strings.Contains(stmt, "ORDER BY base.subscription_group_name, base.job_template_name") {
+		if !strings.Contains(stmt, "ORDER BY selected_rows.subscription_group_name") &&
+			!strings.Contains(stmt, "ORDER BY subscription_group_name ASC NULLS FIRST, job_template_name ASC") {
 			t.Errorf("locked ORDER BY (group, template) prefix missing:\n%s", stmt)
 		}
-		// Deterministic DELIVERER order: the per-template staff rows must be
-		// ordered so collateDeliverySummaries folds them in a stable sequence.
-		if !strings.Contains(stmt, "ORDER BY base.subscription_group_name, base.job_template_name, base.staff_name, base.staff_id") {
-			t.Errorf("deterministic deliverer ORDER BY tail (staff_name, staff_id) missing:\n%s", stmt)
+		if !strings.Contains(stmt, "subscription_group_id ASC NULLS FIRST, job_template_id ASC,") {
+			t.Errorf("stable summary-row ORDER BY tie-breakers missing:\n%s", stmt)
+		}
+	})
+}
+
+func TestJobTemplateSummarySQL_ServerPageContract(t *testing.T) {
+	t.Run("category_search_sort_and_exact_page_are_bound", func(t *testing.T) {
+		stmt, args, err := buildListJobTemplateSummariesRequestSQL(
+			"ws-1", "JOB_STATUS_ACTIVE", "", 20, 40,
+			jobTemplateSummaryQueryOptions{
+				jobCategoryID: "cat-1",
+				search: &commonpb.SearchRequest{
+					Query:   "50%_\\",
+					Options: &commonpb.SearchOptions{SearchFields: []string{"name", "deliverer"}},
+				},
+				sort: &commonpb.SortRequest{Fields: []*commonpb.SortField{{
+					Field: "group", Direction: commonpb.SortDirection_DESC, NullOrder: commonpb.NullOrder_NULLS_LAST,
+				}}},
+			},
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("build request SQL: %v", err)
+		}
+		for _, fragment := range []string{
+			"job_category_id = $3",
+			"job_template_name)::text, '') ILIKE $4 ESCAPE '\\'",
+			"array_to_string(staff_names, ' '))::text, '') ILIKE $4 ESCAPE '\\'",
+			"ORDER BY subscription_group_name DESC NULLS LAST",
+			"LIMIT $5 OFFSET $6",
+		} {
+			if !strings.Contains(stmt, fragment) {
+				t.Errorf("request SQL missing %q\nSQL:\n%s", fragment, stmt)
+			}
+		}
+		assertArgs(t, args, []any{"ws-1", "JOB_STATUS_ACTIVE", "cat-1", "%50\\%\\_\\\\%", int32(20), int32(40)})
+	})
+
+	t.Run("metadata_precedes_selection_and_page", func(t *testing.T) {
+		stmt, _, err := buildListJobTemplateSummariesRequestSQL(
+			"ws-1", "JOB_STATUS_ACTIVE", "", 20, 0,
+			jobTemplateSummaryQueryOptions{jobCategoryID: "cat-1"}, nil,
+		)
+		if err != nil {
+			t.Fatalf("build request SQL: %v", err)
+		}
+		countsAt := strings.Index(stmt, "category_counts AS MATERIALIZED")
+		selectedAt := strings.Index(stmt, "selected_rows AS MATERIALIZED")
+		pageAt := strings.Index(stmt, "page_base AS MATERIALIZED")
+		if countsAt < 0 || selectedAt <= countsAt || pageAt <= selectedAt {
+			t.Fatalf("category counts must precede selected rows and page\nSQL:\n%s", stmt)
+		}
+		for _, fragment := range []string{
+			"(SELECT COUNT(*) FROM selected_rows) AS total_items",
+			"'summary_count', category_counts.summary_count",
+			"FROM metadata\nLEFT JOIN page_enriched ON TRUE",
+		} {
+			if !strings.Contains(stmt, fragment) {
+				t.Errorf("metadata SQL missing %q\nSQL:\n%s", fragment, stmt)
+			}
+		}
+	})
+
+	t.Run("fallback_is_explicit_active_only_and_category_wide", func(t *testing.T) {
+		active, _, err := buildListJobTemplateSummariesRequestSQL(
+			"ws-1", "JOB_STATUS_ACTIVE", "", 20, 0,
+			jobTemplateSummaryQueryOptions{includeTemplateFallback: true}, nil,
+		)
+		if err != nil {
+			t.Fatalf("build active fallback SQL: %v", err)
+		}
+		for _, fragment := range []string{
+			"fallback_base AS MATERIALIZED",
+			"FROM " + entityid.JobTemplate + " jt",
+			"jt.workspace_id = $1 AND jt.active",
+			"base.job_category_id IS NOT DISTINCT FROM jt.job_category_id",
+			"true                   AS template_grain_fallback",
+		} {
+			if !strings.Contains(active, fragment) {
+				t.Errorf("active fallback SQL missing %q\nSQL:\n%s", fragment, active)
+			}
+		}
+
+		for name, statusGroup := range map[string][2]string{
+			"non_active_status": {"JOB_STATUS_COMPLETED", ""},
+			"group_narrowed":    {"JOB_STATUS_ACTIVE", "group-1"},
+		} {
+			t.Run(name, func(t *testing.T) {
+				stmt, _, err := buildListJobTemplateSummariesRequestSQL(
+					"ws-1", statusGroup[0], statusGroup[1], 20, 0,
+					jobTemplateSummaryQueryOptions{includeTemplateFallback: true}, nil,
+				)
+				if err != nil {
+					t.Fatalf("build SQL: %v", err)
+				}
+				if strings.Contains(stmt, "fallback_base AS MATERIALIZED") {
+					t.Fatalf("%s must not add template fallback\nSQL:\n%s", name, stmt)
+				}
+			})
+		}
+	})
+
+	t.Run("unknown_request_fields_fail_closed", func(t *testing.T) {
+		_, _, err := buildListJobTemplateSummariesRequestSQL(
+			"ws-1", "JOB_STATUS_ACTIVE", "", 20, 0,
+			jobTemplateSummaryQueryOptions{sort: &commonpb.SortRequest{Fields: []*commonpb.SortField{{Field: "name; DROP TABLE job"}}}}, nil,
+		)
+		if err == nil || !strings.Contains(err.Error(), "unknown summary sort field") {
+			t.Fatalf("sort injection error = %v", err)
+		}
+
+		_, _, err = buildListJobTemplateSummariesRequestSQL(
+			"ws-1", "JOB_STATUS_ACTIVE", "", 20, 0,
+			jobTemplateSummaryQueryOptions{search: &commonpb.SearchRequest{
+				Query: "x", Options: &commonpb.SearchOptions{SearchFields: []string{"secret_column"}},
+			}}, nil,
+		)
+		if err == nil || !strings.Contains(err.Error(), "unknown summary search field") {
+			t.Fatalf("search field error = %v", err)
+		}
+	})
+}
+
+func TestJobTemplateSummaryPaginationBounds(t *testing.T) {
+	t.Run("nil_and_zero_limit_remain_unpaginated", func(t *testing.T) {
+		for _, p := range []*commonpb.PaginationRequest{nil, {Limit: 0}} {
+			limit, offset, err := paginationBounds(p)
+			if err != nil || limit != 0 || offset != 0 {
+				t.Fatalf("paginationBounds(%+v) = (%d,%d,%v), want (0,0,nil)", p, limit, offset, err)
+			}
+		}
+	})
+
+	t.Run("requested_limit_is_clamped_on_a_copy", func(t *testing.T) {
+		p := &commonpb.PaginationRequest{
+			Limit: 500,
+			Method: &commonpb.PaginationRequest_Offset{
+				Offset: &commonpb.OffsetPagination{Page: 2},
+			},
+		}
+		limit, offset, err := paginationBounds(p)
+		if err != nil || limit != maxJobTemplateSummaryLimit || offset != maxJobTemplateSummaryLimit {
+			t.Fatalf("paginationBounds() = (%d,%d,%v), want (%d,%d,nil)", limit, offset, err, maxJobTemplateSummaryLimit, maxJobTemplateSummaryLimit)
+		}
+		if p.GetLimit() != 500 {
+			t.Fatalf("paginationBounds mutated caller limit to %d", p.GetLimit())
+		}
+	})
+
+	t.Run("oversized_offset_is_rejected", func(t *testing.T) {
+		p := &commonpb.PaginationRequest{
+			Limit: 100,
+			Method: &commonpb.PaginationRequest_Offset{
+				Offset: &commonpb.OffsetPagination{Page: 10_002},
+			},
+		}
+		if _, _, err := paginationBounds(p); err == nil || !strings.Contains(err.Error(), "offset exceeds maximum") {
+			t.Fatalf("paginationBounds() error = %v, want oversized-offset rejection", err)
+		}
+	})
+
+	t.Run("cursor_mode_is_rejected", func(t *testing.T) {
+		p := &commonpb.PaginationRequest{
+			Limit: 20,
+			Method: &commonpb.PaginationRequest_Cursor{
+				Cursor: &commonpb.CursorPagination{Token: "offset:0"},
+			},
+		}
+		if _, _, err := paginationBounds(p); err == nil || !strings.Contains(err.Error(), "cursor pagination is not supported") {
+			t.Fatalf("paginationBounds() error = %v, want cursor rejection", err)
+		}
+	})
+
+	t.Run("service_wraps_rejection_before_query", func(t *testing.T) {
+		ctx := identity.WithRequestIdentity(context.Background(), &identity.RequestIdentity{WorkspaceID: "ws-1"})
+		req := &summarypb.ListJobTemplateSummariesRequest{Pagination: &commonpb.PaginationRequest{
+			Limit: 20,
+			Method: &commonpb.PaginationRequest_Cursor{
+				Cursor: &commonpb.CursorPagination{Token: "offset:0"},
+			},
+		}}
+		_, err := (&PostgresJobTemplateSummaryQuery{}).ListJobTemplateSummaries(ctx, req)
+		if err == nil || !strings.Contains(err.Error(), "job_template_summary: pagination:") {
+			t.Fatalf("ListJobTemplateSummaries() error = %v, want wrapped pagination rejection", err)
 		}
 	})
 }
@@ -382,14 +594,11 @@ func TestJobTemplateSummarySQL_JobCategoryProjection(t *testing.T) {
 	if !strings.Contains(sql, "jt.job_category_id AS job_category_id") {
 		t.Errorf("jj CTE missing jt.job_category_id projection\nSQL:\n%s", sql)
 	}
-	// Carried through the outer SELECT AND appended to GROUP BY — both jj-qualified,
-	// so jj.job_category_id must appear at least twice.
-	if n := strings.Count(sql, "jj.job_category_id"); n < 2 {
-		t.Errorf("want jj.job_category_id in BOTH the outer SELECT and GROUP BY (count=%d)\nSQL:\n%s", n, sql)
-	}
-	// GROUP BY specifically carries the category on the op.name tail.
-	if !strings.Contains(sql, "op.name, jj.job_category_id") {
-		t.Errorf("GROUP BY missing jj.job_category_id (must ride the op.name tail)\nSQL:\n%s", sql)
+	// It is carried into delivery and the summary-grain counts GROUP BY.
+	for _, frag := range []string{"jj.job_category_id             AS job_category_id", "job_category_id, COUNT(DISTINCT job_id) AS job_count"} {
+		if !strings.Contains(sql, frag) {
+			t.Errorf("category missing summary-grain carry %q\nSQL:\n%s", frag, sql)
+		}
 	}
 
 	// ZERO new joins: the category column-add must NOT join the job_category table
@@ -406,7 +615,7 @@ func TestJobTemplateSummarySQL_JobCategoryProjection(t *testing.T) {
 			t.Errorf("category add disturbed the MATERIALIZED plan pin %q\nSQL:\n%s", cte, sql)
 		}
 	}
-	if !strings.Contains(sql, "ORDER BY base.subscription_group_name, base.job_template_name, base.staff_name, base.staff_id") {
+	if !strings.Contains(sql, "ORDER BY subscription_group_name ASC NULLS FIRST, job_template_name ASC,") {
 		t.Errorf("category add changed the LOCKED ORDER BY\nSQL:\n%s", sql)
 	}
 }
@@ -597,53 +806,100 @@ func TestCollateDeliverySummaries(t *testing.T) {
 	})
 }
 
-// TestJobTemplateSummarySQL_ApprovalPreaggregate locks the R7 P4 courses-chip
-// preaggregate (plan 20260718-phase-approval-workflow §4.5 + the 20260719-
-// report-cards-landing §3.5 grain amendment): statement 2 computes BOTH the
-// TEMPLATE-WIDE roll-up (ta — proto fields 14-17, the courses row) AND the
-// GROUP+TEMPLATE roll-up (ga — proto fields 18-21, the R9 Phase-B cell) in ONE
-// statement; no-data sheets are EXCLUDED from every aggregate (D3/Q-R9-1);
-// raw job_phase/job_task/task_outcome rows are confined to the pa CTE (never
-// the delivery aggregate); the W-A1 category projection, the MATERIALIZED pins
-// and the LOCKED ORDER BY are untouched.
-func TestJobTemplateSummarySQL_ApprovalPreaggregate(t *testing.T) {
-	sql := fullSummarySQL()
-
-	t.Run("single_statement_with_all_preaggregate_ctes", func(t *testing.T) {
-		// Still ONE SQL statement (the courses page keeps statement count == 2:
-		// tab-support + this) — no statement separator anywhere.
-		if strings.Contains(sql, ";") {
-			t.Errorf("statement must remain a single SQL statement (no ';')\nSQL:\n%s", sql)
-		}
-		for _, cte := range []string{"pa AS (", "tp AS (", "ta AS (", "ga AS ("} {
-			if !strings.Contains(sql, cte) {
-				t.Errorf("missing approval preaggregate CTE %q\nSQL:\n%s", cte, sql)
-			}
-		}
-		// jj/dd MATERIALIZED pins survive (P1 plan pin untouched).
-		for _, cte := range []string{"jj AS MATERIALIZED", "dd AS MATERIALIZED"} {
-			if !strings.Contains(sql, cte) {
-				t.Errorf("preaggregate add disturbed the MATERIALIZED plan pin %q\nSQL:\n%s", cte, sql)
-			}
+func TestSummaryRowDeliveryDecodingAndPagination(t *testing.T) {
+	t.Run("ordered_sql_arrays_decode_to_one_complete_row", func(t *testing.T) {
+		row := summaryFromScanRow(summaryScanRow{
+			templateID: "template-1", groupID: "group-1", jobCount: 28,
+			deliverers: deliveryPairs([]string{"staff-b", "staff-a"}, []string{"B. Teacher", "A. Teacher"}),
+		})
+		if got := row.GetDeliverers(); len(got) != 2 || got[0].GetStaffId() != "staff-b" || got[1].GetStaffName() != "A. Teacher" {
+			t.Fatalf("ordered delivery decode = %+v, want SQL order preserved", got)
 		}
 	})
 
-	t.Run("sourced_from_scoped_jj", func(t *testing.T) {
-		// pa MUST read FROM jj (the scoped job set incl. the STAFF splice), so
-		// STAFF and admin see a chip over the same job scope as the row.
-		if n := strings.Count(sql, "FROM jj"); n < 2 {
-			t.Errorf("want pa sourced FROM jj in addition to the outer SELECT (FROM jj count=%d)\nSQL:\n%s", n, sql)
+	t.Run("mismatched_sql_arrays_fail_closed", func(t *testing.T) {
+		if got := deliveryPairs([]string{"staff-a"}, nil); got != nil {
+			t.Fatalf("mismatched delivery arrays = %+v, want nil", got)
 		}
-		// The pa join chain: phases of jj's jobs, active + template-backed only.
+	})
+
+	t.Run("same_template_in_two_groups_remains_two_page_units", func(t *testing.T) {
+		rows := []*summarypb.JobTemplateSummary{
+			{JobTemplateId: "template-1", SubscriptionGroupId: "group-a"},
+			{JobTemplateId: "template-1", SubscriptionGroupId: "group-b"},
+		}
+		page, hasNext := trimSummaryPage(rows, 1)
+		if len(page) != 1 || page[0].GetSubscriptionGroupId() != "group-a" || !hasNext {
+			t.Fatalf("summary-grain page = %+v, hasNext=%v; want first group only + next", page, hasNext)
+		}
+	})
+
+	t.Run("limit_plus_one_sets_has_next_only_for_extra_complete_row", func(t *testing.T) {
+		one := []*summarypb.JobTemplateSummary{{JobTemplateId: "one"}}
+		if page, hasNext := trimSummaryPage(one, 1); len(page) != 1 || hasNext {
+			t.Fatalf("exact page = %+v, hasNext=%v; want no next", page, hasNext)
+		}
+		two := append(one, &summarypb.JobTemplateSummary{JobTemplateId: "two"})
+		if page, hasNext := trimSummaryPage(two, 1); len(page) != 1 || !hasNext || page[0].GetJobTemplateId() != "one" {
+			t.Fatalf("extra summary row = %+v, hasNext=%v; want first row + next", page, hasNext)
+		}
+	})
+}
+
+// TestJobTemplateSummarySQL_ApprovalPreaggregate locks the page-first approval
+// plan: base rows are selected before approval work, then ta and ga are computed
+// at their respective template and (template, group) grains without task/outcome
+// join fanout.
+func TestJobTemplateSummarySQL_ApprovalPreaggregate(t *testing.T) {
+	sql := fullSummarySQL()
+
+	t.Run("page_base_precedes_candidate_approval_work", func(t *testing.T) {
+		if strings.Contains(sql, ";") {
+			t.Errorf("statement must remain a single SQL statement (no ';')\nSQL:\n%s", sql)
+		}
+		for _, cte := range []string{"page_base AS MATERIALIZED", "candidate_templates AS (", "candidate_groups AS (", "data_phases AS MATERIALIZED", "template_phase AS (", "ta AS MATERIALIZED (", "group_phase AS (", "ga AS MATERIALIZED ("} {
+			if !strings.Contains(sql, cte) {
+				t.Errorf("missing page-first approval CTE %q\nSQL:\n%s", cte, sql)
+			}
+		}
+		// The page-base estimate can be far lower than its actual row count. These
+		// final rollup fences prevent PostgreSQL from inlining and re-running their
+		// GroupAggregates once per page row.
+		if strings.Contains(sql, "ta AS (") || strings.Contains(sql, "ga AS (") {
+			t.Errorf("final approval rollups must remain MATERIALIZED planner fences\nSQL:\n%s", sql)
+		}
+		if strings.Index(sql, "page_base AS MATERIALIZED") > strings.Index(sql, "candidate_templates AS (") {
+			t.Errorf("candidate approvals must follow page_base\nSQL:\n%s", sql)
+		}
+	})
+
+	t.Run("candidate_grains_and_set_oriented_data_phase_seam", func(t *testing.T) {
 		for _, frag := range []string{
-			"jp.job_id = jj.job_id AND jp.active AND jp.template_phase_id IS NOT NULL",
-			"tox.job_task_id = tk.id AND tox.active",
-			"tk.job_phase_id = jp.id AND tk.active",
+			"SELECT DISTINCT job_template_id AS template_id FROM page_base",
+			"SELECT DISTINCT job_template_id AS template_id, subscription_group_id AS group_id FROM page_base",
+			"FROM candidate_templates ct\n    JOIN jj ON jj.template_id = ct.template_id",
+			"FROM candidate_groups cg\n    JOIN jj ON jj.template_id = cg.template_id",
+			"gm.subscription_group_id = cg.group_id",
 			"gm.subscription_id = jj.subscription_id AND gm.client_id = jj.client_id",
+			"data_phases AS MATERIALIZED (\n    SELECT DISTINCT tk.job_phase_id",
+			"FROM " + entityid.JobTask + " tk\n    JOIN " + entityid.TaskOutcome + " tox ON tox.job_task_id = tk.id AND tox.active",
+			"BOOL_OR(data_phases.job_phase_id IS NOT NULL) AS has_data",
 		} {
 			if !strings.Contains(sql, frag) {
-				t.Errorf("pa CTE missing fragment %q\nSQL:\n%s", frag, sql)
+				t.Errorf("candidate approval CTE missing %q\nSQL:\n%s", frag, sql)
 			}
+		}
+		if n := strings.Count(sql, "LEFT JOIN data_phases ON data_phases.job_phase_id = jp.id"); n != 2 {
+			t.Errorf("want exactly two phase-grain joins to data_phases, got %d\nSQL:\n%s", n, sql)
+		}
+		if strings.Contains(sql, "EXISTS (") {
+			t.Errorf("approval phases must not contain correlated EXISTS probes\nSQL:\n%s", sql)
+		}
+		if n := strings.Count(sql, "FROM "+entityid.JobTask+" tk"); n != 1 {
+			t.Errorf("job_task must be scanned once in data_phases, got %d\nSQL:\n%s", n, sql)
+		}
+		if n := strings.Count(sql, "JOIN "+entityid.TaskOutcome+" tox"); n != 1 {
+			t.Errorf("task_outcome must be scanned once in data_phases, got %d\nSQL:\n%s", n, sql)
 		}
 	})
 
@@ -664,25 +920,11 @@ func TestJobTemplateSummarySQL_ApprovalPreaggregate(t *testing.T) {
 				t.Errorf("outer SELECT missing approval column %q\nSQL:\n%s", col, sql)
 			}
 		}
-		// Joined ONLY AFTER the delivery aggregation (codex-tandem: "join that
-		// one-row/template result only after delivery aggregation") — the base
-		// wrapper carries the finished delivery grain; ta keys by the template,
-		// ga by (template, THIS row's group). Never raw job_phase in the
-		// delivery join.
-		if !strings.Contains(sql, "base AS (") {
-			t.Errorf("delivery aggregation must be wrapped as the base CTE\nSQL:\n%s", sql)
+		if !strings.Contains(sql, "FROM page_base\n    LEFT JOIN ta\n           ON ta.template_id = page_base.job_template_id") {
+			t.Errorf("ta must join final page rows on template_id\nSQL:\n%s", sql)
 		}
-		if !strings.Contains(sql, "LEFT JOIN ta\n       ON ta.template_id = base.job_template_id") {
-			t.Errorf("ta must LEFT JOIN base on template_id AFTER aggregation\nSQL:\n%s", sql)
-		}
-		if !strings.Contains(sql, "LEFT JOIN ga\n       ON ga.template_id = base.job_template_id AND ga.group_id = base.subscription_group_id") {
-			t.Errorf("ga must LEFT JOIN base on (template_id, group_id) AFTER aggregation\nSQL:\n%s", sql)
-		}
-		// The pre-aggregation delivery FROM must NOT touch ta/ga (join-after
-		// contract): base's GROUP BY still ends at the W-A1 category tail.
-		if strings.Contains(sql, "GROUP BY jj.template_id") && !strings.Contains(sql,
-			"ps.id, ps.name, jj.output_product_id, op.name, jj.job_category_id\n)") {
-			t.Errorf("base GROUP BY must end at the W-A1 12-key tail (no ta/ga keys)\nSQL:\n%s", sql)
+		if !strings.Contains(sql, "LEFT JOIN ga\n           ON ga.template_id = page_base.job_template_id AND ga.group_id = page_base.subscription_group_id") {
+			t.Errorf("ga must join final page rows on (template_id, group_id)\nSQL:\n%s", sql)
 		}
 	})
 
@@ -703,41 +945,33 @@ func TestJobTemplateSummarySQL_ApprovalPreaggregate(t *testing.T) {
 				t.Errorf("want %d occurrences (ta+ga) of %q, got %d\nSQL:\n%s", w.n, w.frag, n, sql)
 			}
 		}
-		// has_data comes from the matrix roll-up's exact task_outcome seam.
-		if !strings.Contains(sql, "BOOL_OR(tox.job_task_id IS NOT NULL) AS has_data") {
-			t.Errorf("pa missing the has_data outcome seam\nSQL:\n%s", sql)
+		if n := strings.Count(sql, "BOOL_OR(data_phases.job_phase_id IS NOT NULL) AS has_data"); n != 2 {
+			t.Errorf("want two set-oriented has_data seams (template + group), got %d\nSQL:\n%s", n, sql)
 		}
 	})
 
 	t.Run("rank_case_mirrors_matrix_rollup", func(t *testing.T) {
 		// The exact ladder-rank CASE (unknown → 1, fail-conservative), used for
-		// both MIN and MAX at the pa grain.
+		// both MIN and MAX at template_phase and group_phase grains.
 		for _, tok := range []string{
 			"WHEN 'PHASE_APPROVAL_STATUS_IN_PROGRESS' THEN 1",
 			"WHEN 'PHASE_APPROVAL_STATUS_FOR_REVIEW'  THEN 2",
 			"WHEN 'PHASE_APPROVAL_STATUS_VERIFIED'    THEN 3",
 			"WHEN 'PHASE_APPROVAL_STATUS_PUBLISHED'   THEN 4",
 		} {
-			if n := strings.Count(sql, tok); n != 2 { // MIN + MAX
-				t.Errorf("want rank CASE token %q twice (MIN+MAX), got %d\nSQL:\n%s", tok, n, sql)
+			if n := strings.Count(sql, tok); n != 4 { // MIN + MAX × two grains
+				t.Errorf("want rank CASE token %q four times, got %d\nSQL:\n%s", tok, n, sql)
 			}
 		}
 	})
 
-	t.Run("group_collapse_before_template_rollup", func(t *testing.T) {
-		// tp collapses pa across groups to the R7 sheet grain (ALL rows of one
-		// (template, template_phase)) BEFORE ta rolls to one row/template — a
-		// multi-group sheet's cross-group divergence stays sheet-mixed and a job
-		// in 2 groups cannot double-count a phase.
-		if !strings.Contains(sql, "GROUP BY template_id, template_phase_id") {
-			t.Errorf("tp must collapse pa to (template, template_phase)\nSQL:\n%s", sql)
-		}
-		// ga keeps the group axis and drops only ungrouped (NULL) slices.
-		if !strings.Contains(sql, "WHERE group_id IS NOT NULL") {
-			t.Errorf("ga must exclude the NULL (ungrouped) slice\nSQL:\n%s", sql)
-		}
-		if !strings.Contains(sql, "GROUP BY template_id, group_id") {
-			t.Errorf("ga must roll to (template, group)\nSQL:\n%s", sql)
+	t.Run("pagination_is_inside_page_base", func(t *testing.T) {
+		stmt, _ := buildListJobTemplateSummariesSQL("ws-1", "", "", 25, 0, nil)
+		pageStart := strings.Index(stmt, "page_base AS MATERIALIZED")
+		approvalStart := strings.Index(stmt, "candidate_templates AS (")
+		limit := strings.Index(stmt, "LIMIT $2 OFFSET $3")
+		if pageStart < 0 || limit < pageStart || limit > approvalStart {
+			t.Errorf("LIMIT must be inside page_base before approval CTEs\nSQL:\n%s", stmt)
 		}
 	})
 
@@ -747,10 +981,10 @@ func TestJobTemplateSummarySQL_ApprovalPreaggregate(t *testing.T) {
 		if !strings.Contains(sql, "jt.job_category_id AS job_category_id") {
 			t.Errorf("W-A1 jj category projection disturbed\nSQL:\n%s", sql)
 		}
-		if !strings.Contains(sql, "op.name, jj.job_category_id") {
-			t.Errorf("W-A1 GROUP BY category tail disturbed\nSQL:\n%s", sql)
+		if !strings.Contains(sql, "job_category_id, COUNT(DISTINCT job_id) AS job_count") {
+			t.Errorf("W-A1 category summary-grain count disturbed\nSQL:\n%s", sql)
 		}
-		if !strings.Contains(sql, "ORDER BY base.subscription_group_name, base.job_template_name, base.staff_name, base.staff_id") {
+		if !strings.Contains(sql, "ORDER BY subscription_group_name ASC NULLS FIRST, job_template_name ASC,") {
 			t.Errorf("preaggregate add changed the LOCKED ORDER BY keys\nSQL:\n%s", sql)
 		}
 	})
@@ -770,7 +1004,7 @@ func TestJobTemplateSummarySQL_ApprovalPreaggregate(t *testing.T) {
 // P4 evidence run (TEST_DATABASE_URL; optional TEST_STAFF_ID pins the STAFF
 // persona). It proves, against the live schema:
 //   - grain parity: the preaggregate LEFT joins add ZERO rows — no duplicate
-//     (template, group, staff, schedule, product) tuple exists for admin OR
+//     (template, group, schedule, product) tuple exists for admin OR
 //     STAFF (the join keys are unique per collapsed CTE row);
 //   - both grains obey their containment invariants (group ⊆ template);
 //   - the no-data denominator exclusion (phase_count counts only data-bearing
@@ -797,7 +1031,7 @@ func TestJobTemplateSummaryDB_ApprovalPreaggregate(t *testing.T) {
 
 	countRows := func(t *testing.T, stmt string, args []any) (n int, dupes int) {
 		t.Helper()
-		rows, err := db.QueryContext(ctx, `SELECT COUNT(*), COUNT(*) - COUNT(DISTINCT (job_template_id, subscription_group_id, staff_id, price_schedule_id, output_product_id)) FROM (`+stmt+`) q`, args...)
+		rows, err := db.QueryContext(ctx, `SELECT COUNT(*), COUNT(*) - COUNT(DISTINCT (job_template_id, subscription_group_id, price_schedule_id, output_product_id)) FROM (`+stmt+`) q`, args...)
 		if err != nil {
 			t.Fatalf("count query: %v", err)
 		}
@@ -835,9 +1069,8 @@ func TestJobTemplateSummaryDB_ApprovalPreaggregate(t *testing.T) {
 			if s.GetGroupPhaseCount() > s.GetPhaseCount() {
 				t.Errorf("template %s: group_phase_count %d > phase_count %d", s.GetJobTemplateId(), s.GetGroupPhaseCount(), s.GetPhaseCount())
 			}
-			if s.GetGroupPublishedCount() > s.GetPublishedCount() {
-				t.Errorf("template %s: group_published_count %d > published_count %d", s.GetJobTemplateId(), s.GetGroupPublishedCount(), s.GetPublishedCount())
-			}
+			// Published counts intentionally have no monotonic relation: a group
+			// sheet can be fully published while its template-wide phase is not.
 			// Template lowest = MIN over groups ⇒ when the group slice bears data,
 			// its lowest can never rank BELOW the template-wide lowest.
 			if gr, tr := int(s.GetGroupLowestStatus()), int(s.GetLowestStatus()); gr > 0 && tr > 0 && gr < tr {
@@ -987,6 +1220,287 @@ FROM sheets GROUP BY template_id`
 		}
 		t.Logf("EXPLAIN (ANALYZE, BUFFERS) admin statement:\n%s", plan.String())
 	})
+}
+
+// TestJobTemplateSummaryDB_ExplainShapes records non-executing planner shapes
+// for the complete compatibility request and the bounded first page. It is a
+// cheap diagnostic companion to the ANALYZE gate above: a pathological plan can
+// be inspected without waiting for its execution or weakening read-only guards.
+func TestJobTemplateSummaryDB_ExplainShapes(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	var workspaceID string
+	if err := db.QueryRowContext(ctx,
+		`SELECT workspace_id FROM `+entityid.Job+` GROUP BY workspace_id ORDER BY COUNT(*) DESC LIMIT 1`,
+	).Scan(&workspaceID); err != nil {
+		t.Fatalf("resolve workspace: %v", err)
+	}
+
+	for _, tc := range []struct {
+		name  string
+		limit int32
+	}{
+		{name: "unpaginated"},
+		{name: "first_page_100", limit: 100},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			stmt, args := buildListJobTemplateSummariesSQL(workspaceID, "", "", tc.limit, 0, nil)
+			rows, err := db.QueryContext(ctx, "EXPLAIN (VERBOSE, COSTS, FORMAT TEXT) "+stmt, args...)
+			if err != nil {
+				t.Fatalf("EXPLAIN shape: %v", err)
+			}
+			defer rows.Close()
+			var plan strings.Builder
+			for rows.Next() {
+				var line string
+				if err := rows.Scan(&line); err != nil {
+					t.Fatalf("scan EXPLAIN shape: %v", err)
+				}
+				plan.WriteString(line)
+				plan.WriteByte('\n')
+			}
+			if err := rows.Err(); err != nil {
+				t.Fatalf("EXPLAIN shape rows: %v", err)
+			}
+			t.Logf("%s planner shape:\n%s", tc.name, plan.String())
+		})
+	}
+}
+
+// TestJobTemplateSummaryDB_PagedExplain captures the actual plan for the
+// status-filtered first Courses page. It is gated by TEST_DATABASE_URL; callers
+// must supply PGOPTIONS with a read-only transaction and suitable timeouts.
+func TestJobTemplateSummaryDB_PagedExplain(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	var workspaceID string
+	if err := db.QueryRowContext(ctx,
+		`SELECT workspace_id FROM `+entityid.Job+` GROUP BY workspace_id ORDER BY COUNT(*) DESC LIMIT 1`,
+	).Scan(&workspaceID); err != nil {
+		t.Fatalf("resolve workspace: %v", err)
+	}
+
+	stmt, args := buildListJobTemplateSummariesSQL(workspaceID, "JOB_STATUS_ACTIVE", "", 100, 0, nil)
+	rows, err := db.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) "+stmt, args...)
+	if err != nil {
+		t.Fatalf("paged EXPLAIN: %v", err)
+	}
+	defer rows.Close()
+
+	var plan strings.Builder
+	for rows.Next() {
+		var line string
+		if err := rows.Scan(&line); err != nil {
+			t.Fatalf("scan paged EXPLAIN line: %v", err)
+		}
+		plan.WriteString(line)
+		plan.WriteByte('\n')
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("paged EXPLAIN rows: %v", err)
+	}
+	t.Logf("paged Courses EXPLAIN (ANALYZE, BUFFERS):\n%s", plan.String())
+}
+
+// TestJobTemplateSummaryDB_PagedPerformance is the PERF-01 acceptance probe:
+// one bounded page must contain complete response-grain rows, expose truthful
+// next-page metadata, and finish inside the read-only session budget. Absolute
+// timing is logged as development evidence rather than asserted as a flaky unit
+// threshold; the plan artifact is compared with the frozen baseline.
+func TestJobTemplateSummaryDB_PagedPerformance(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	var workspaceID string
+	if err := db.QueryRowContext(ctx,
+		`SELECT workspace_id FROM `+entityid.Job+` GROUP BY workspace_id ORDER BY COUNT(*) DESC LIMIT 1`,
+	).Scan(&workspaceID); err != nil {
+		t.Fatalf("resolve workspace: %v", err)
+	}
+	ctx = identity.WithRequestIdentity(ctx, &identity.RequestIdentity{WorkspaceID: workspaceID})
+	req := &summarypb.ListJobTemplateSummariesRequest{
+		Status: "JOB_STATUS_ACTIVE",
+		Pagination: &commonpb.PaginationRequest{
+			Limit: 100,
+			Method: &commonpb.PaginationRequest_Offset{
+				Offset: &commonpb.OffsetPagination{Page: 1},
+			},
+		},
+	}
+
+	started := time.Now()
+	resp, err := NewPostgresJobTemplateSummaryQuery(db).ListJobTemplateSummaries(ctx, req)
+	if err != nil {
+		t.Fatalf("bounded Courses page: %v", err)
+	}
+	elapsed := time.Since(started)
+	if len(resp.GetSummaries()) != 100 {
+		t.Fatalf("bounded Courses page rows = %d, want 100", len(resp.GetSummaries()))
+	}
+	if resp.GetPagination() == nil || !resp.GetPagination().GetHasNext() || resp.GetPagination().GetCurrentPage() != 1 {
+		t.Fatalf("bounded Courses pagination = %+v, want page 1 with has_next", resp.GetPagination())
+	}
+	t.Logf("bounded Courses page: rows=%d elapsed=%s", len(resp.GetSummaries()), elapsed)
+}
+
+// TestJobTemplateSummaryDB_ServerPageMetadata proves the one-round-trip
+// metadata contract against live data, including zero-row and out-of-range
+// pages where a window-only count would disappear. It is SELECT-only and uses
+// the same read-only TEST_DATABASE_URL gate as the performance probe.
+func TestJobTemplateSummaryDB_ServerPageMetadata(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+
+	ctx := context.Background()
+	var workspaceID string
+	if err := db.QueryRowContext(ctx,
+		`SELECT workspace_id FROM `+entityid.Job+` GROUP BY workspace_id ORDER BY COUNT(*) DESC LIMIT 1`,
+	).Scan(&workspaceID); err != nil {
+		t.Fatalf("resolve workspace: %v", err)
+	}
+	ctx = identity.WithRequestIdentity(ctx, &identity.RequestIdentity{WorkspaceID: workspaceID})
+	query := NewPostgresJobTemplateSummaryQuery(db)
+	page := func(number int32) *commonpb.PaginationRequest {
+		return &commonpb.PaginationRequest{
+			Limit: 25,
+			Method: &commonpb.PaginationRequest_Offset{
+				Offset: &commonpb.OffsetPagination{Page: number},
+			},
+		}
+	}
+	call := func(t *testing.T, req *summarypb.ListJobTemplateSummariesRequest) *summarypb.ListJobTemplateSummariesResponse {
+		t.Helper()
+		resp, err := query.ListJobTemplateSummaries(ctx, req)
+		if err != nil {
+			t.Fatalf("ListJobTemplateSummaries: %v", err)
+		}
+		return resp
+	}
+	countsMap := func(rows []*summarypb.JobCategorySummaryCount) map[string]int32 {
+		out := make(map[string]int32, len(rows))
+		for _, row := range rows {
+			out[row.GetJobCategoryId()] = row.GetSummaryCount()
+		}
+		return out
+	}
+
+	base := call(t, &summarypb.ListJobTemplateSummariesRequest{
+		Status: "JOB_STATUS_ACTIVE", Pagination: page(1),
+	})
+	if base.GetPagination() == nil || base.GetPagination().GetTotalItems() <= 25 || base.GetPagination().GetTotalPages() <= 1 {
+		t.Fatalf("base pagination = %+v, want exact multi-page totals", base.GetPagination())
+	}
+	baseCounts := countsMap(base.GetJobCategoryCounts())
+	var countSum int32
+	var selectedCategory string
+	for categoryID, count := range baseCounts {
+		countSum += count
+		if selectedCategory == "" && count > 0 {
+			selectedCategory = categoryID
+		}
+	}
+	if countSum != base.GetPagination().GetTotalItems() {
+		t.Fatalf("category count sum = %d, total_items = %d", countSum, base.GetPagination().GetTotalItems())
+	}
+	if selectedCategory == "" {
+		t.Fatal("base response has no populated category")
+	}
+
+	selected := selectedCategory
+	categoryResp := call(t, &summarypb.ListJobTemplateSummariesRequest{
+		Status: "JOB_STATUS_ACTIVE", JobCategoryId: &selected, Pagination: page(1),
+	})
+	if got, want := categoryResp.GetPagination().GetTotalItems(), baseCounts[selectedCategory]; got != want {
+		t.Fatalf("selected category total_items = %d, want badge count %d", got, want)
+	}
+	if got := countsMap(categoryResp.GetJobCategoryCounts()); len(got) != len(baseCounts) {
+		t.Fatalf("selected category badges = %v, want status-universe %v", got, baseCounts)
+	} else {
+		for categoryID, want := range baseCounts {
+			if got[categoryID] != want {
+				t.Fatalf("selected category badge %q = %d, want %d", categoryID, got[categoryID], want)
+			}
+		}
+	}
+	for _, summary := range categoryResp.GetSummaries() {
+		if summary.GetJobCategoryId() != selectedCategory {
+			t.Fatalf("selected category returned %q row", summary.GetJobCategoryId())
+		}
+	}
+
+	noMatch := call(t, &summarypb.ListJobTemplateSummariesRequest{
+		Status: "JOB_STATUS_ACTIVE", Pagination: page(1),
+		Search: &commonpb.SearchRequest{Query: "__ichizen_summary_no_match_7f80c2__"},
+	})
+	if len(noMatch.GetSummaries()) != 0 || noMatch.GetPagination().GetTotalItems() != 0 {
+		t.Fatalf("no-match response rows=%d pagination=%+v", len(noMatch.GetSummaries()), noMatch.GetPagination())
+	}
+	if got := countsMap(noMatch.GetJobCategoryCounts()); len(got) != len(baseCounts) {
+		t.Fatalf("no-match badges = %v, want status-universe %v", got, baseCounts)
+	}
+
+	outOfRangePage := base.GetPagination().GetTotalPages() + 2
+	outOfRange := call(t, &summarypb.ListJobTemplateSummariesRequest{
+		Status: "JOB_STATUS_ACTIVE", Pagination: page(outOfRangePage),
+	})
+	if len(outOfRange.GetSummaries()) != 0 || outOfRange.GetPagination().GetTotalItems() != base.GetPagination().GetTotalItems() {
+		t.Fatalf("out-of-range rows=%d pagination=%+v, want empty rows with retained total %d",
+			len(outOfRange.GetSummaries()), outOfRange.GetPagination(), base.GetPagination().GetTotalItems())
+	}
+
+	includeFallback := true
+	fallback := call(t, &summarypb.ListJobTemplateSummariesRequest{
+		Status: "JOB_STATUS_ACTIVE", IncludeTemplateFallback: &includeFallback, Pagination: page(1),
+	})
+	for _, summary := range fallback.GetSummaries() {
+		if !summary.GetTemplateGrainFallback() {
+			continue
+		}
+		if summary.GetSubscriptionGroupId() != "" || summary.GetJobCount() != 0 || len(summary.GetDeliverers()) != 0 {
+			t.Fatalf("fallback row leaked delivery grain: %+v", summary)
+		}
+	}
+}
+
+// TestJobTemplateSummaryDB_ComponentTimings uses projection pruning to isolate
+// which page components dominate the source-owned query. It is diagnostic only:
+// every subtest executes the same bounded statement and changes only the outer
+// aggregate that forces delivery arrays and/or approval columns to be evaluated.
+func TestJobTemplateSummaryDB_ComponentTimings(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+	ctx := context.Background()
+	var workspaceID string
+	if err := db.QueryRowContext(ctx,
+		`SELECT workspace_id FROM `+entityid.Job+` GROUP BY workspace_id ORDER BY COUNT(*) DESC LIMIT 1`,
+	).Scan(&workspaceID); err != nil {
+		t.Fatalf("resolve workspace: %v", err)
+	}
+	stmt, args := buildListJobTemplateSummariesSQL(workspaceID, "JOB_STATUS_ACTIVE", "", 100, 0, nil)
+
+	for _, tc := range []struct {
+		name       string
+		projection string
+	}{
+		{name: "row_grain", projection: "COUNT(*)"},
+		{name: "delivery_arrays", projection: "COALESCE(SUM(cardinality(staff_ids) + cardinality(staff_names)), 0)"},
+		{name: "approvals", projection: "COALESCE(SUM(phase_count + group_phase_count), 0)"},
+		{name: "arrays_and_approvals", projection: "COALESCE(SUM(cardinality(staff_ids) + phase_count + group_phase_count), 0)"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			started := time.Now()
+			var value int64
+			if err := db.QueryRowContext(ctx, "SELECT "+tc.projection+" FROM ("+stmt+") q", args...).Scan(&value); err != nil {
+				t.Fatalf("component query: %v", err)
+			}
+			t.Logf("component=%s value=%d elapsed=%s", tc.name, value, time.Since(started))
+		})
+	}
 }
 
 func assertArgs(t *testing.T, got, want []any) {

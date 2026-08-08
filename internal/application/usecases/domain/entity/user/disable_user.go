@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
@@ -11,6 +12,7 @@ import (
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
+	"google.golang.org/protobuf/proto"
 )
 
 // DisableUserRepositories groups all repository dependencies.
@@ -64,10 +66,27 @@ func (uc *DisableUserUseCase) Execute(ctx context.Context, req *userpb.DisableUs
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.id_required", "User ID is required [DEFAULT]"))
 	}
 
+	// Read existing user and preserve trusted profile fields.
+	existing, err := uc.repositories.User.ReadUser(ctx, &userpb.ReadUserRequest{
+		Data: &userpb.User{Id: req.GetUserId()},
+	})
+	if err != nil {
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.errors.disable_failed", "User disable failed [DEFAULT]")
+		return nil, fmt.Errorf("%s: %w", translatedError, err)
+	}
+	if existing == nil || len(existing.GetData()) == 0 || existing.GetData()[0] == nil || existing.GetData()[0].GetId() == "" {
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.errors.not_found", "User with ID \"{userId}\" not found [DEFAULT]")
+		translatedError = strings.ReplaceAll(translatedError, "{userId}", req.GetUserId())
+		return nil, errors.New(translatedError)
+	}
+
+	updateData := proto.Clone(existing.GetData()[0]).(*userpb.User)
+	updateData.Active = false
+
 	// Set the global active flag to false — this is the authoritative effect
 	// (the per-request user.active guard rejects the user on the next request).
 	if _, err := uc.repositories.User.UpdateUser(ctx, &userpb.UpdateUserRequest{
-		Data: &userpb.User{Id: req.GetUserId(), Active: false},
+		Data: updateData,
 	}); err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.errors.disable_failed", "User disable failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)

@@ -265,27 +265,14 @@ func (r *PostgresSubscriptionRepository) ListSubscriptions(ctx context.Context, 
 // This method uses CTEs (Common Table Expressions) to optimize query performance by loading all data in a single query
 // TODO: Add unit tests for GetSubscriptionListPageData
 func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context.Context, req *subscriptionpb.GetSubscriptionListPageDataRequest) (*subscriptionpb.GetSubscriptionListPageDataResponse, error) {
-	// Extract pagination parameters with defaults
-	limit := int32(20)
-	page := int32(1)
-	if req.Pagination != nil && req.Pagination.Limit > 0 {
-		limit = req.Pagination.Limit
-		if limit > 100 {
-			limit = 100 // Cap at 100 items per page
-		}
-		if req.Pagination.GetOffset() != nil {
-			page = req.Pagination.GetOffset().Page
-			if page < 1 {
-				page = 1
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 20)
+	if err != nil {
+		return nil, fmt.Errorf("bounded subscription pagination: %w", err)
 	}
-	offset := (page - 1) * limit
 
-	// Extract search query
-	searchQuery := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchQuery = "%" + req.Search.Query + "%"
+	searchQuery, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if err != nil {
+		return nil, fmt.Errorf("bounded subscription search: %w", err)
 	}
 
 	// Extract client_id, price_plan_id, and active filters
@@ -794,37 +781,49 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 // If req.ClientIds is non-empty the count is restricted to those clients.
 // Workspace isolation is applied automatically from context.
 func (r *PostgresSubscriptionRepository) CountActiveByClientIds(ctx context.Context, req *subscriptionpb.CountActiveByClientIdsRequest) (*subscriptionpb.CountActiveByClientIdsResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("count active subscriptions request is required")
+	}
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("count active subscriptions: %w", err)
+	}
+	clientIDs, err := postgresCore.BoundedQueryIDs(req.GetClientIds())
+	if err != nil {
+		return nil, fmt.Errorf("count active subscriptions: invalid client IDs: %w", err)
+	}
+
 	db, ok := r.dbOps.(interface{ GetDB() *sql.DB })
 	if !ok {
 		return nil, fmt.Errorf("database operations does not support raw SQL queries")
 	}
-
-	wsID := identity.Must(ctx).WorkspaceID
+	dbConn := db.GetDB()
+	if dbConn == nil {
+		return nil, fmt.Errorf("database operations returned a nil PostgreSQL connection")
+	}
 
 	var (
 		rows *sql.Rows
-		err  error
 	)
 
-	clientIDs := req.GetClientIds()
 	if len(clientIDs) > 0 {
-		rows, err = db.GetDB().QueryContext(ctx,
+		rows, err = dbConn.QueryContext(ctx,
 			`SELECT client_id, COUNT(*)::int AS cnt
 			   FROM `+entityid.Subscription+`
 			  WHERE active = TRUE
-			    AND ($1::text = '' OR workspace_id = $1::text)
-			    AND client_id = ANY($2)
+			    AND workspace_id = $1::text
+			    AND client_id = ANY($2::text[])
 			  GROUP BY client_id`,
-			wsID, pq.Array(clientIDs),
+			requestIdentity.WorkspaceID, pq.Array(clientIDs),
 		)
 	} else {
-		rows, err = db.GetDB().QueryContext(ctx,
+		rows, err = dbConn.QueryContext(ctx,
 			`SELECT client_id, COUNT(*)::int AS cnt
 			   FROM `+entityid.Subscription+`
 			  WHERE active = TRUE
-			    AND ($1::text = '' OR workspace_id = $1::text)
+			    AND workspace_id = $1::text
 			  GROUP BY client_id`,
-			wsID,
+			requestIdentity.WorkspaceID,
 		)
 	}
 	if err != nil {

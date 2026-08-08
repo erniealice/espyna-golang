@@ -6,10 +6,10 @@ import (
 	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	balancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance"
 )
@@ -18,10 +18,17 @@ type GetBalanceListPageDataRepositories struct {
 	Balance balancepb.BalanceDomainServiceServer
 }
 
+// balanceServerPaginationRepository is implemented only by repositories that
+// can apply balance list-page semantics at the data source.
+type balanceServerPaginationRepository interface {
+	GetBalanceListPageData(context.Context, *balancepb.GetBalanceListPageDataRequest) (*balancepb.GetBalanceListPageDataResponse, error)
+	SupportsBalanceServerPagination() bool
+}
+
 type GetBalanceListPageDataServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -103,6 +110,10 @@ func (uc *GetBalanceListPageDataUseCase) executeCore(
 	ctx context.Context,
 	req *balancepb.GetBalanceListPageDataRequest,
 ) (*balancepb.GetBalanceListPageDataResponse, error) {
+	if repository, ok := uc.repositories.Balance.(balanceServerPaginationRepository); ok && repository.SupportsBalanceServerPagination() {
+		return repository.GetBalanceListPageData(ctx, req)
+	}
+
 	// First, get all balances from the repository
 	listReq := &balancepb.ListBalancesRequest{}
 	listResp, err := uc.repositories.Balance.ListBalances(ctx, listReq)

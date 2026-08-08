@@ -46,7 +46,7 @@ func NewListJobListTabSupportUseCase(
 	return &ListJobListTabSupportUseCase{repositories: repositories, services: services}
 }
 
-// Execute runs the tab-support read.
+// Execute runs the complete tab-support read.
 //
 //	(a) Two INDEPENDENT ActionGatekeeper.Check calls (job_category:list,
 //	    job_template:list). Check fails closed (nil receiver DENIES), so a
@@ -66,6 +66,21 @@ func (uc *ListJobListTabSupportUseCase) Execute(ctx context.Context) (*ports.Job
 		Entity: entityid.JobTemplate,
 		Action: entityid.ActionList,
 	}) == nil
+	return uc.execute(ctx, includeCategories, includeTemplates)
+}
+
+// ExecuteCategoriesOnly runs the tab-support read needed by consumers that only
+// render categories. It keeps the category-list authorization gate while
+// intentionally avoiding the template gate and query branch.
+func (uc *ListJobListTabSupportUseCase) ExecuteCategoriesOnly(ctx context.Context) (*ports.JobListTabSupportResponse, error) {
+	includeCategories := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.JobCategory,
+		Action: entityid.ActionList,
+	}) == nil
+	return uc.execute(ctx, includeCategories, false)
+}
+
+func (uc *ListJobListTabSupportUseCase) execute(ctx context.Context, includeCategories, includeTemplates bool) (*ports.JobListTabSupportResponse, error) {
 
 	if !includeCategories && !includeTemplates {
 		// Both kinds denied (or a nil/mis-wired gatekeeper) — empty response, the

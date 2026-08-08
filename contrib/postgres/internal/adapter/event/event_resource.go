@@ -240,26 +240,15 @@ func (r *PostgresEventResourceRepository) GetEventResourceListPageData(
 	workspaceID := identity.Must(ctx).WorkspaceID
 
 	// Build search condition
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
+	searchPattern, searchErr := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if searchErr != nil {
+		return nil, fmt.Errorf("bounded search: %w", searchErr)
 	}
 
 	// Default pagination values
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		// Handle offset pagination
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if paginationErr != nil {
+		return nil, fmt.Errorf("bounded pagination: %w", paginationErr)
 	}
 
 	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the

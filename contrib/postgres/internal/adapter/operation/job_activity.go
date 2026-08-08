@@ -225,19 +225,9 @@ func (r *PostgresJobActivityRepository) GetJobActivityListPageData(ctx context.C
 	// A1: workspace predicate.
 	workspaceID := identity.Must(ctx).WorkspaceID
 
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req != nil && req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, fmt.Errorf("invalid list pagination: %w", err)
 	}
 
 	// A2: sort guard — fail-closed via core.BuildOrderBy whitelist.

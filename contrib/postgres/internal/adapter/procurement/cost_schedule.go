@@ -10,9 +10,9 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	costschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/cost_schedule"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -176,18 +176,13 @@ func (r *PostgresCostScheduleRepository) GetCostScheduleListPageData(ctx context
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
+	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if err != nil {
+		return nil, err
 	}
-	limit, offset := int32(50), int32(0)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if op := req.Pagination.GetOffset(); op != nil && op.Page > 0 {
-			offset = (op.Page - 1) * limit
-		}
+	limit, offset, _, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, err
 	}
 	// Sort — fail-closed against the per-entity whitelist (A2 guard). An unknown
 	// sort column now errors instead of being interpolated verbatim into ORDER BY.

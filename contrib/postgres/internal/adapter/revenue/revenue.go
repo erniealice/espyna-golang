@@ -39,6 +39,29 @@ var revenueSortableSQLCols = []string{
 	"revenue_date_string",
 }
 
+var revenueFilterFieldMap = map[string]string{
+	"id":                    "rv.id",
+	"active":                "rv.active",
+	"name":                  "rv.name",
+	"client_id":             "rv.client_id",
+	"revenue_date":          "rv.revenue_date",
+	"revenue_date_string":   "rv.revenue_date_string",
+	"due_date":              "rv.due_date",
+	"due_date_string":       "rv.due_date_string",
+	"total_amount":          "rv.total_amount",
+	"currency":              "rv.currency",
+	"status":                "rv.status",
+	"reference_number":      "rv.reference_number",
+	"notes":                 "rv.notes",
+	"revenue_category_id":   "rv.revenue_category_id",
+	"location_id":           "rv.location_id",
+	"payment_term_id":       "rv.payment_term_id",
+	"subscription_id":       "rv.subscription_id",
+	"advance_collection_id": "rv.advance_collection_id",
+	"date_created":          "rv.date_created",
+	"date_modified":         "rv.date_modified",
+}
+
 // revenueViewToSQLColMap translates view-facing sort column keys to SQL column
 // names. Columns absent from the map pass through unchanged.
 var revenueViewToSQLColMap = map[string]string{}
@@ -331,20 +354,9 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
 	workspaceID := identity.Must(ctx).WorkspaceID
 
-	// Default pagination values
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, fmt.Errorf("get revenue list page data: invalid pagination: %w", err)
 	}
 
 	// Sort with allowlist validation (A2 — core.BuildOrderBy is the fail-closed
@@ -358,9 +370,11 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 
 	// Build parameterized WHERE clauses via shared helper ($1 is reserved for workspace_id, start at $2)
 	searchFields := []string{"rv.reference_number", "c.name"}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMapped(
+		req.Filters, req.Search, revenueFilterFieldMap, searchFields, 2,
+	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get revenue list page data: invalid filter/search: %w", err)
 	}
 
 	var whereStr string

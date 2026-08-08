@@ -5,10 +5,16 @@ package operation
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"math"
+	"strings"
+
+	"github.com/lib/pq"
 
 	summarypb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/job_template_summary"
 
+	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
 	internalregistry "github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	"github.com/erniealice/espyna-golang/registry/entityid"
@@ -48,14 +54,14 @@ const originTypeSubscriptionToken = "ORIGIN_TYPE_SUBSCRIPTION"
 // outer join can never null out. A linked-but-missing pps row yields NULL (not
 // TRUE) and is dropped: fail-closed.
 //
-// Placement is the OUTER WHERE, deliberately NOT the correlated e2 subquery that
-// picks the deterministic primary. The e2 pick rule is mirrored verbatim by
-// fayna's fetchClassEdgeTeachers; adding the predicate there would change WHICH
-// edge wins and desynchronise the two. Here it only suppresses attribution for
-// the already-picked edge. Consequence to know: dd is INNER-joined to jj, so a
-// section whose only picked primary has a revoked eligibility (and no
-// subscription_seat) drops out of the courses list rather than showing a stale
-// teacher. Zero live rows are in that state today (all 108 product_plan_staff
+// Placement is the OUTER WHERE, deliberately NOT the class_primary_edges CTE
+// that picks the deterministic primary. Its DISTINCT ON pick rule is mirrored
+// verbatim by fayna's fetchClassEdgeTeachers; adding the predicate there would
+// change WHICH edge wins and desynchronise the two. Here it only suppresses
+// attribution for the already-picked edge. Consequence to know: dd is
+// INNER-joined to jj, so a section whose only picked primary has a revoked
+// eligibility (and no subscription_seat) drops out of the courses list rather
+// than showing a stale teacher. Zero live rows are in that state today (all 108 product_plan_staff
 // rows are active).
 const classEdgeEligibilityLivePredicate = "AND (e.product_plan_staff_id IS NULL OR pps.active)"
 
@@ -63,6 +69,37 @@ const classEdgeEligibilityLivePredicate = "AND (e.product_plan_staff_id IS NULL 
 // PaginationRequest documents "max 100"). Same cap semantics as the sibling
 // list adapters.
 const maxJobTemplateSummaryLimit int32 = 100
+
+var jobTemplateSummarySortExpressions = map[string]string{
+	"name":      "job_template_name",
+	"group":     "subscription_group_name",
+	"deliverer": "array_to_string(staff_names, ', ')",
+	"items":     "job_count",
+	"schedule":  "price_schedule_name",
+}
+
+var jobTemplateSummarySearchExpressions = map[string]string{
+	"name":      "job_template_name",
+	"group":     "subscription_group_name",
+	"deliverer": "array_to_string(staff_names, ' ')",
+	"items":     "job_count::text",
+	"schedule":  "price_schedule_name",
+}
+
+var defaultJobTemplateSummarySearchFields = []string{"name", "group", "deliverer", "items", "schedule"}
+
+type jobTemplateSummaryQueryOptions struct {
+	jobCategoryID           string
+	search                  *commonpb.SearchRequest
+	sort                    *commonpb.SortRequest
+	priceScheduleActive     bool
+	includeTemplateFallback bool
+}
+
+type jobCategorySummaryCountJSON struct {
+	JobCategoryID string `json:"job_category_id"`
+	SummaryCount  int64  `json:"summary_count"`
+}
 
 // init self-registers the postgres job-template-summary query with the
 // composition-root factory registry (mirrors operation/outcome_matrix_query.go).
@@ -128,7 +165,10 @@ func (a *PostgresJobTemplateSummaryQuery) ListJobTemplateSummaries(
 	}
 	workspaceID := id.WorkspaceID
 
-	limit, offset := paginationBounds(req.GetPagination())
+	limit, offset, err := paginationBounds(req.GetPagination())
+	if err != nil {
+		return nil, fmt.Errorf("job_template_summary: pagination: %w", err)
+	}
 
 	// The principalscope clause is spliced by the pure builder at the correct
 	// placeholder index (the builder computes the start param and calls this fn).
@@ -140,10 +180,21 @@ func (a *PostgresJobTemplateSummaryQuery) ListJobTemplateSummaries(
 		return principalscope.StaffReachableJobClause(ctx, "j", startParam)
 	}
 
-	stmt, args := buildListJobTemplateSummariesSQL(
+	stmt, args, err := buildListJobTemplateSummariesRequestSQL(
 		workspaceID, req.GetStatus(), req.GetSubscriptionGroupId(),
-		limit, offset, scopeFn,
+		limit, offset,
+		jobTemplateSummaryQueryOptions{
+			jobCategoryID:           req.GetJobCategoryId(),
+			search:                  req.GetSearch(),
+			sort:                    req.GetSort(),
+			priceScheduleActive:     req.GetPriceScheduleActive(),
+			includeTemplateFallback: req.GetIncludeTemplateFallback(),
+		},
+		scopeFn,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("job_template_summary: request query: %w", err)
+	}
 
 	rows, err := a.db.QueryContext(ctx, stmt, args...)
 	if err != nil {
@@ -151,18 +202,19 @@ func (a *PostgresJobTemplateSummaryQuery) ListJobTemplateSummaries(
 	}
 	defer rows.Close()
 
-	// The aggregate yields ONE row per (template, staff): a merged, multi-
-	// deliverer template (one deliverer per delivered phase — each holds an active
-	// subscription_seat whose product_plan matches the template's umbrella output
-	// product at umbrella grain) produces >1 row. Scan raw rows, then collate them
-	// into one summary per template carrying all deliverers (collateDeliverySummaries).
+	// Metadata is repeated beside every result row. The final SQL is anchored on
+	// its singleton metadata CTE and LEFT JOINs page rows, so an empty or
+	// out-of-range page still yields one row with exact totals/category counts.
 	var scanned []summaryScanRow
+	var totalItems int64
+	var categoryCountsJSON []byte
+	metadataSeen := false
 	for rows.Next() {
 		var (
-			templateID, templateName string
-			groupID, groupName       string
-			staffID, staffName       string
-			jobCount                 int32
+			templateID, templateName sql.NullString
+			groupID, groupName       sql.NullString
+			staffIDs, staffNames     []string
+			jobCount                 sql.NullInt64
 			priceScheduleID          sql.NullString
 			priceScheduleName        sql.NullString
 			outputProductID          sql.NullString
@@ -178,72 +230,146 @@ func (a *PostgresJobTemplateSummaryQuery) ListJobTemplateSummaries(
 			// template (fields 18-21) grains. Counts/mixed are COALESCEd in SQL; the
 			// lowest ranks stay NULLable (NULL = zero data-bearing sheets → the enum
 			// UNSPECIFIED via approvalRankToStatus, the neutral not-started default).
-			publishedCount, phaseCount           int32
+			publishedCount, phaseCount           sql.NullInt64
 			lowestRank                           sql.NullInt64
-			mixedAttention                       bool
-			groupPublishedCount, groupPhaseCount int32
+			mixedAttention                       sql.NullBool
+			groupPublishedCount, groupPhaseCount sql.NullInt64
 			groupLowestRank                      sql.NullInt64
-			groupMixedAttention                  bool
+			groupMixedAttention                  sql.NullBool
+			templateGrainFallback                sql.NullBool
+			rowTotalItems                        int64
+			rowCategoryCountsJSON                []byte
 		)
 		if err := rows.Scan(
 			&templateID, &templateName,
 			&groupID, &groupName,
-			&staffID, &staffName,
+			pq.Array(&staffIDs), pq.Array(&staffNames),
 			&jobCount,
 			&priceScheduleID, &priceScheduleName,
 			&outputProductID, &outputProductName,
 			&jobCategoryID,
 			&publishedCount, &phaseCount, &lowestRank, &mixedAttention,
 			&groupPublishedCount, &groupPhaseCount, &groupLowestRank, &groupMixedAttention,
+			&templateGrainFallback,
+			&rowTotalItems, &rowCategoryCountsJSON,
 		); err != nil {
 			return nil, fmt.Errorf("job_template_summary: scan: %w", err)
 		}
+		if !metadataSeen {
+			totalItems = rowTotalItems
+			categoryCountsJSON = append([]byte(nil), rowCategoryCountsJSON...)
+			metadataSeen = true
+		} else if rowTotalItems != totalItems || string(rowCategoryCountsJSON) != string(categoryCountsJSON) {
+			return nil, fmt.Errorf("job_template_summary: inconsistent repeated metadata")
+		}
+		if !templateID.Valid {
+			continue
+		}
+		jobCount32, err := summaryCountInt32("job_count", jobCount)
+		if err != nil {
+			return nil, err
+		}
+		publishedCount32, err := summaryCountInt32("published_count", publishedCount)
+		if err != nil {
+			return nil, err
+		}
+		phaseCount32, err := summaryCountInt32("phase_count", phaseCount)
+		if err != nil {
+			return nil, err
+		}
+		groupPublishedCount32, err := summaryCountInt32("group_published_count", groupPublishedCount)
+		if err != nil {
+			return nil, err
+		}
+		groupPhaseCount32, err := summaryCountInt32("group_phase_count", groupPhaseCount)
+		if err != nil {
+			return nil, err
+		}
 		scanned = append(scanned, summaryScanRow{
-			templateID: templateID, templateName: templateName,
-			groupID: groupID, groupName: groupName,
-			staffID: staffID, staffName: staffName,
-			jobCount:            jobCount,
-			priceScheduleID:     priceScheduleID.String,
-			priceScheduleName:   priceScheduleName.String,
-			outputProductID:     outputProductID.String,
-			outputProductName:   outputProductName.String,
-			jobCategoryID:       jobCategoryID.String,
-			publishedCount:      publishedCount,
-			phaseCount:          phaseCount,
-			lowestRank:          nullRankToInt(lowestRank),
-			mixedAttention:      mixedAttention,
-			groupPublishedCount: groupPublishedCount,
-			groupPhaseCount:     groupPhaseCount,
-			groupLowestRank:     nullRankToInt(groupLowestRank),
-			groupMixedAttention: groupMixedAttention,
+			templateID: templateID.String, templateName: templateName.String,
+			groupID: groupID.String, groupName: groupName.String,
+			deliverers:            deliveryPairs(staffIDs, staffNames),
+			jobCount:              jobCount32,
+			priceScheduleID:       priceScheduleID.String,
+			priceScheduleName:     priceScheduleName.String,
+			outputProductID:       outputProductID.String,
+			outputProductName:     outputProductName.String,
+			jobCategoryID:         jobCategoryID.String,
+			publishedCount:        publishedCount32,
+			phaseCount:            phaseCount32,
+			lowestRank:            nullRankToInt(lowestRank),
+			mixedAttention:        mixedAttention.Bool,
+			groupPublishedCount:   groupPublishedCount32,
+			groupPhaseCount:       groupPhaseCount32,
+			groupLowestRank:       nullRankToInt(groupLowestRank),
+			groupMixedAttention:   groupMixedAttention.Bool,
+			templateGrainFallback: templateGrainFallback.Bool,
 		})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("job_template_summary: rows: %w", err)
 	}
 
-	summaries := collateDeliverySummaries(scanned)
+	if !metadataSeen {
+		return nil, fmt.Errorf("job_template_summary: query returned no metadata row")
+	}
+	if totalItems < 0 || totalItems > math.MaxInt32 {
+		return nil, fmt.Errorf("job_template_summary: total_items %d exceeds response capacity", totalItems)
+	}
+
+	summaries := make([]*summarypb.JobTemplateSummary, 0, len(scanned))
+	for _, row := range scanned {
+		summaries = append(summaries, summaryFromScanRow(row))
+	}
+
+	var categoryCountRows []jobCategorySummaryCountJSON
+	if err := json.Unmarshal(categoryCountsJSON, &categoryCountRows); err != nil {
+		return nil, fmt.Errorf("job_template_summary: category counts metadata: %w", err)
+	}
+	categoryCounts := make([]*summarypb.JobCategorySummaryCount, 0, len(categoryCountRows))
+	for _, count := range categoryCountRows {
+		if count.SummaryCount < 0 || count.SummaryCount > math.MaxInt32 {
+			return nil, fmt.Errorf("job_template_summary: category %q count %d exceeds response capacity", count.JobCategoryID, count.SummaryCount)
+		}
+		categoryCounts = append(categoryCounts, &summarypb.JobCategorySummaryCount{
+			JobCategoryId: count.JobCategoryID,
+			SummaryCount:  int32(count.SummaryCount),
+		})
+	}
 
 	resp := &summarypb.ListJobTemplateSummariesResponse{
-		Summaries: summaries,
-		Success:   true,
+		Summaries:         summaries,
+		Success:           true,
+		JobCategoryCounts: categoryCounts,
 	}
 	if p := req.GetPagination(); p != nil && limit > 0 {
 		page := int32(1)
 		if off := p.GetOffset(); off != nil && off.GetPage() > 1 {
 			page = off.GetPage()
 		}
+		totalPages := int32(0)
+		if totalItems > 0 {
+			totalPages = int32((totalItems + int64(limit) - 1) / int64(limit))
+		}
 		resp.Pagination = &commonpb.PaginationResponse{
+			TotalItems:  int32(totalItems),
 			CurrentPage: &page,
-			HasNext:     int32(len(summaries)) == limit,
+			TotalPages:  &totalPages,
+			HasNext:     page < totalPages,
 			HasPrev:     page > 1,
 		}
 	}
 	return resp, nil
 }
 
-// summaryScanRow is one raw (template, staff) aggregate row before deliverer
-// collation.
+func trimSummaryPage(summaries []*summarypb.JobTemplateSummary, limit int32) ([]*summarypb.JobTemplateSummary, bool) {
+	if limit > 0 && int32(len(summaries)) > limit {
+		return summaries[:limit], true
+	}
+	return summaries, false
+}
+
+// summaryScanRow is one SQL response-grain aggregate row.
 type summaryScanRow struct {
 	templateID, templateName string
 	groupID, groupName       string
@@ -254,6 +380,7 @@ type summaryScanRow struct {
 	outputProductID          string
 	outputProductName        string
 	jobCategoryID            string // "" when the template's job_category FK is NULL (→ Uncategorized bucket)
+	deliverers               []*summarypb.Deliverer
 	// R7 P4 approval preaggregate. Ranks are the SQL ladder ranks (1..4); 0 =
 	// NULL = zero data-bearing sheets (→ PhaseApprovalStatus UNSPECIFIED).
 	// The template-wide quadruple is functionally determined by templateID; the
@@ -265,6 +392,50 @@ type summaryScanRow struct {
 	groupPublishedCount, groupPhaseCount int32
 	groupLowestRank                      int
 	groupMixedAttention                  bool
+	templateGrainFallback                bool
+}
+
+// deliveryPairs joins the two ordered SQL arrays into the response deliverers.
+// The arrays are produced by the same ARRAY_AGG ORDER BY expression; reject a
+// malformed unequal pair fail-closed rather than inventing an attribution.
+func deliveryPairs(ids, names []string) []*summarypb.Deliverer {
+	if len(ids) != len(names) {
+		return nil
+	}
+	out := make([]*summarypb.Deliverer, 0, len(ids))
+	for i := range ids {
+		if ids[i] == "" {
+			continue
+		}
+		out = append(out, &summarypb.Deliverer{StaffId: ids[i], StaffName: names[i]})
+	}
+	return out
+}
+
+func summaryFromScanRow(r summaryScanRow) *summarypb.JobTemplateSummary {
+	return &summarypb.JobTemplateSummary{
+		JobTemplateId: r.templateID, JobTemplateName: r.templateName,
+		SubscriptionGroupId: r.groupID, SubscriptionGroupName: r.groupName,
+		JobCount: r.jobCount, PriceScheduleId: r.priceScheduleID,
+		PriceScheduleName: r.priceScheduleName, OutputProductId: r.outputProductID,
+		OutputProductName: r.outputProductName, JobCategoryId: r.jobCategoryID,
+		Deliverers:     r.deliverers,
+		PublishedCount: r.publishedCount, PhaseCount: r.phaseCount,
+		LowestStatus: approvalRankToStatus(r.lowestRank), MixedAttention: r.mixedAttention,
+		GroupPublishedCount: r.groupPublishedCount, GroupPhaseCount: r.groupPhaseCount,
+		GroupLowestStatus: approvalRankToStatus(r.groupLowestRank), GroupMixedAttention: r.groupMixedAttention,
+		TemplateGrainFallback: r.templateGrainFallback,
+	}
+}
+
+func summaryCountInt32(name string, value sql.NullInt64) (int32, error) {
+	if !value.Valid {
+		return 0, nil
+	}
+	if value.Int64 < 0 || value.Int64 > math.MaxInt32 {
+		return 0, fmt.Errorf("job_template_summary: %s %d exceeds response capacity", name, value.Int64)
+	}
+	return int32(value.Int64), nil
 }
 
 // nullRankToInt maps a NULLable SQL ladder rank to its int form (0 = NULL = no
@@ -313,14 +484,15 @@ func collateDeliverySummaries(scanned []summaryScanRow) []*summarypb.JobTemplate
 				// template) and group+template (18-21, determined by (template, group)):
 				// both ⊆ the collation key, so set-once first-seen, constant across the
 				// folded staff rows. Rank 0 (no data-bearing sheet) → UNSPECIFIED.
-				PublishedCount:      r.publishedCount,
-				PhaseCount:          r.phaseCount,
-				LowestStatus:        approvalRankToStatus(r.lowestRank),
-				MixedAttention:      r.mixedAttention,
-				GroupPublishedCount: r.groupPublishedCount,
-				GroupPhaseCount:     r.groupPhaseCount,
-				GroupLowestStatus:   approvalRankToStatus(r.groupLowestRank),
-				GroupMixedAttention: r.groupMixedAttention,
+				PublishedCount:        r.publishedCount,
+				PhaseCount:            r.phaseCount,
+				LowestStatus:          approvalRankToStatus(r.lowestRank),
+				MixedAttention:        r.mixedAttention,
+				GroupPublishedCount:   r.groupPublishedCount,
+				GroupPhaseCount:       r.groupPhaseCount,
+				GroupLowestStatus:     approvalRankToStatus(r.groupLowestRank),
+				GroupMixedAttention:   r.groupMixedAttention,
+				TemplateGrainFallback: r.templateGrainFallback,
 			}
 			byKey[key] = s
 			out = append(out, s)
@@ -338,26 +510,23 @@ func collateDeliverySummaries(scanned []summaryScanRow) []*summarypb.JobTemplate
 	return out
 }
 
-// paginationBounds clamps a PaginationRequest to (limit, offset). limit==0 means
-// "no pagination" (return every scoped row). A requested limit is clamped to
-// [1, maxJobTemplateSummaryLimit]; offset is derived from the 1-based page.
-func paginationBounds(p *commonpb.PaginationRequest) (limit, offset int32) {
-	if p == nil {
-		return 0, 0
+// paginationBounds preserves the Courses compatibility contract where a nil or
+// non-positive limit means "no pagination". Positive-limit requests use the
+// shared finite-work validator; the shallow copy preserves caller-owned proto
+// state while retaining the historical clamp-to-100 behavior.
+func paginationBounds(p *commonpb.PaginationRequest) (limit, offset int32, err error) {
+	if p == nil || p.GetLimit() <= 0 {
+		return 0, 0, nil
 	}
-	limit = p.GetLimit()
-	if limit <= 0 {
-		return 0, 0
+	bounded := *p
+	if bounded.GetLimit() > maxJobTemplateSummaryLimit {
+		bounded.Limit = maxJobTemplateSummaryLimit
 	}
-	if limit > maxJobTemplateSummaryLimit {
-		limit = maxJobTemplateSummaryLimit
+	limit, offset, _, err = postgresCore.BoundedOffsetPagination(&bounded, maxJobTemplateSummaryLimit)
+	if err != nil {
+		return 0, 0, err
 	}
-	if off := p.GetOffset(); off != nil {
-		if page := off.GetPage(); page > 1 {
-			offset = (page - 1) * limit
-		}
-	}
-	return limit, offset
+	return limit, offset, nil
 }
 
 // buildListJobTemplateSummariesSQL is the pure SQL builder (no ctx, no DB — the
@@ -413,6 +582,22 @@ func buildListJobTemplateSummariesSQL(
 	limit, offset int32,
 	scopeFn func(startParam int) (clause string, args []any),
 ) (stmt string, args []any) {
+	stmt, args, err := buildListJobTemplateSummariesRequestSQL(
+		workspaceID, status, groupID, limit, offset,
+		jobTemplateSummaryQueryOptions{}, scopeFn,
+	)
+	if err != nil {
+		return "", nil
+	}
+	return stmt, args
+}
+
+func buildListJobTemplateSummariesRequestSQL(
+	workspaceID, status, groupID string,
+	limit, offset int32,
+	options jobTemplateSummaryQueryOptions,
+	scopeFn func(startParam int) (clause string, args []any),
+) (stmt string, args []any, err error) {
 	args = []any{workspaceID}
 	p := 2
 
@@ -433,11 +618,38 @@ func buildListJobTemplateSummariesSQL(
 	// the jj×dd hash join). Its placeholder is numbered before the scope args, so
 	// the arg order remains (ws, status, group, scope…, limit, offset) — identical
 	// to the pre-rewrite builder.
-	outerWhere := ""
+	var outerClauses []string
 	if groupID != "" {
-		outerWhere = fmt.Sprintf("\nWHERE sg.id = $%d", p)
+		outerClauses = append(outerClauses, fmt.Sprintf("sg.id = $%d", p))
 		args = append(args, groupID)
 		p++
+	}
+	if options.priceScheduleActive {
+		outerClauses = append(outerClauses, "ps.active")
+	}
+	outerWhere := ""
+	if len(outerClauses) > 0 {
+		outerWhere = "\nWHERE " + strings.Join(outerClauses, " AND ")
+	}
+
+	var selectedClauses []string
+	if options.jobCategoryID != "" {
+		selectedClauses = append(selectedClauses, fmt.Sprintf("job_category_id = $%d", p))
+		args = append(args, options.jobCategoryID)
+		p++
+	}
+	searchClause, searchArgs, nextParam, err := jobTemplateSummarySearchClause(options.search, p)
+	if err != nil {
+		return "", nil, err
+	}
+	if searchClause != "" {
+		selectedClauses = append(selectedClauses, searchClause)
+		args = append(args, searchArgs...)
+		p = nextParam
+	}
+	selectedWhere := ""
+	if len(selectedClauses) > 0 {
+		selectedWhere = "\n    WHERE " + strings.Join(selectedClauses, " AND ")
 	}
 
 	if scopeFn != nil {
@@ -453,12 +665,123 @@ func buildListJobTemplateSummariesSQL(
 		args = append(args, limit, offset)
 		p += 2
 	}
+	pageOrder, finalOrder, err := jobTemplateSummaryOrderBy(options.sort)
+	if err != nil {
+		return "", nil, err
+	}
+	includeFallback := options.includeTemplateFallback &&
+		status == "JOB_STATUS_ACTIVE" && groupID == "" && !options.priceScheduleActive
 
-	stmt = jobTemplateSummaryCTEs(jjWhere) + ",\nbase AS (\n" +
-		jobTemplateSummarySelectFrom() + outerWhere + "\n" +
-		jobTemplateSummaryGroupOrder() + "\n)\n" +
-		jobTemplateSummaryApprovalSelect() + limitClause
-	return stmt, args
+	stmt = jobTemplateSummaryCTEs(jjWhere) + ",\ndelivery AS MATERIALIZED (\n" +
+		jobTemplateSummarySelectFrom() + outerWhere + "\n),\n" +
+		jobTemplateSummaryDeliveryFold() + ",\n" +
+		jobTemplateSummaryUniverse(includeFallback) + ",\n" +
+		jobTemplateSummaryMetadata(selectedWhere) + ",\n" +
+		jobTemplateSummaryPageBase(pageOrder, limitClause) + ",\n" +
+		jobTemplateSummaryApprovalCTEs() + "\n" +
+		jobTemplateSummaryApprovalSelect(finalOrder)
+	return stmt, args, nil
+}
+
+func jobTemplateSummarySearchClause(search *commonpb.SearchRequest, startParam int) (string, []any, int, error) {
+	pattern, err := postgresCore.BoundedContainsSearchPattern(search)
+	if err != nil {
+		return "", nil, startParam, fmt.Errorf("bounded summary search: %w", err)
+	}
+	if pattern == "" {
+		return "", nil, startParam, nil
+	}
+
+	fields := defaultJobTemplateSummarySearchFields
+	if requested := search.GetOptions().GetSearchFields(); len(requested) > 0 {
+		if len(requested) > len(jobTemplateSummarySearchExpressions) {
+			return "", nil, startParam, fmt.Errorf("too many summary search fields: %d", len(requested))
+		}
+		fields = requested
+	}
+	seen := make(map[string]struct{}, len(fields))
+	clauses := make([]string, 0, len(fields))
+	for _, field := range fields {
+		field = strings.TrimSpace(field)
+		expression, ok := jobTemplateSummarySearchExpressions[field]
+		if !ok {
+			return "", nil, startParam, fmt.Errorf("unknown summary search field %q", field)
+		}
+		if _, duplicate := seen[field]; duplicate {
+			continue
+		}
+		seen[field] = struct{}{}
+		clauses = append(clauses, fmt.Sprintf("COALESCE((%s)::text, '') ILIKE $%d ESCAPE '\\'", expression, startParam))
+	}
+	if len(clauses) == 0 {
+		return "", nil, startParam, fmt.Errorf("summary search has no usable fields")
+	}
+	return "(" + strings.Join(clauses, " OR ") + ")", []any{pattern}, startParam + 1, nil
+}
+
+func jobTemplateSummaryOrderBy(sortRequest *commonpb.SortRequest) (pageOrder, finalOrder string, err error) {
+	pageParts, err := jobTemplateSummarySortParts(sortRequest, "")
+	if err != nil {
+		return "", "", err
+	}
+	finalParts, err := jobTemplateSummarySortParts(sortRequest, "page_enriched.")
+	if err != nil {
+		return "", "", err
+	}
+	return strings.Join(pageParts, ", "), strings.Join(finalParts, ", "), nil
+}
+
+func jobTemplateSummarySortParts(sortRequest *commonpb.SortRequest, prefix string) ([]string, error) {
+	tieBreakers := []string{
+		prefix + "subscription_group_id ASC NULLS FIRST",
+		prefix + "job_template_id ASC",
+		prefix + "price_schedule_id ASC NULLS FIRST",
+		prefix + "output_product_id ASC NULLS FIRST",
+	}
+	if sortRequest == nil || len(sortRequest.GetFields()) == 0 {
+		return append([]string{
+			prefix + "subscription_group_name ASC NULLS FIRST",
+			prefix + "job_template_name ASC",
+		}, tieBreakers...), nil
+	}
+	if len(sortRequest.GetFields()) > 4 {
+		return nil, fmt.Errorf("too many summary sort fields: %d", len(sortRequest.GetFields()))
+	}
+
+	parts := make([]string, 0, len(sortRequest.GetFields())+len(tieBreakers))
+	for i, field := range sortRequest.GetFields() {
+		if field == nil {
+			return nil, fmt.Errorf("summary sort field %d is nil", i)
+		}
+		name := strings.TrimSpace(field.GetField())
+		if _, ok := jobTemplateSummarySortExpressions[name]; !ok {
+			return nil, fmt.Errorf("unknown summary sort field %q", name)
+		}
+		expression := jobTemplateSummarySortExpression(name, prefix)
+		direction := "ASC"
+		switch field.GetDirection() {
+		case commonpb.SortDirection_ASC:
+		case commonpb.SortDirection_DESC:
+			direction = "DESC"
+		default:
+			return nil, fmt.Errorf("invalid summary sort direction %d", field.GetDirection())
+		}
+		nullOrder := "NULLS FIRST"
+		if field.GetNullOrder() == commonpb.NullOrder_NULLS_LAST {
+			nullOrder = "NULLS LAST"
+		}
+		parts = append(parts, expression+" "+direction+" "+nullOrder)
+	}
+	return append(parts, tieBreakers...), nil
+}
+
+func jobTemplateSummarySortExpression(field, prefix string) string {
+	switch field {
+	case "deliverer":
+		return "array_to_string(" + prefix + "staff_names, ', ')"
+	default:
+		return prefix + jobTemplateSummarySortExpressions[field]
+	}
 }
 
 // approvalStatusRankCASE is the approval_status → ladder-rank mapping the
@@ -524,6 +847,22 @@ func jobTemplateSummaryCTEs(jjWhere string) string {
            ON jt.id = j.job_template_id AND jt.workspace_id = $1 AND jt.active
     ` + jjWhere + `
 ),
+-- Pick the newest active primary class edge set-wise, once per
+-- (subscription_group_id, product_plan_id).  Do not apply the eligibility
+-- liveness gate here: a newly revoked edge must suppress attribution rather
+-- than make an older primary edge appear current.
+class_primary_edges AS MATERIALIZED (
+    SELECT DISTINCT ON (e.subscription_group_id, e.product_plan_id)
+        e.id,
+        e.subscription_group_id,
+        e.product_plan_id,
+        e.staff_id,
+        e.product_plan_staff_id
+    FROM ` + entityid.SubscriptionGroupProductPlanStaff + ` e
+    WHERE e.active AND e.workspace_id = $1 AND e.role = 'primary'
+    ORDER BY e.subscription_group_id, e.product_plan_id,
+             e.date_created DESC, e.id DESC
+),
 dd AS MATERIALIZED (
     -- Branch (a): the SUBSCRIPTION_SEAT deliverer/group side (the original dd).
     SELECT
@@ -567,7 +906,7 @@ dd AS MATERIALIZED (
         u.first_name             AS first_name,
         u.last_name              AS last_name,
         m.subscription_group_id  AS subscription_group_id
-    FROM ` + entityid.SubscriptionGroupProductPlanStaff + ` e
+    FROM class_primary_edges e
     JOIN ` + entityid.SubscriptionGroupMember + ` m
            ON m.subscription_group_id = e.subscription_group_id AND m.active
     JOIN ` + entityid.ProductPlan + ` pl
@@ -578,69 +917,12 @@ dd AS MATERIALIZED (
            ON st.id = COALESCE(pps.staff_id, e.staff_id) AND st.workspace_id = $1
     LEFT JOIN "` + entityid.User + `" u
            ON u.id = st.user_id AND u.active
-    -- CF-3: the sgpps unique is (group, product_plan, staff) — it does NOT forbid
-    -- two DIFFERENT active primary edges for one (group, product_plan). Pick ONE
-    -- deterministically (newest date_created, id breaks ties) via a correlated
-    -- ORDER BY … LIMIT 1 keyed on (group, product_plan), so a section with
-    -- duplicate primaries attributes a STABLE deliverer that agrees with the
-    -- grade-sheet's class-edge teacher (same rule in fayna fetchClassEdgeTeachers).
-    WHERE e.active AND e.workspace_id = $1 AND e.role = 'primary'
+    -- CF-3: class_primary_edges has already picked ONE primary edge for each
+    -- (group, product_plan), deterministically (newest date_created, id breaks
+    -- ties). Apply the eligibility gate only after that pick so a newer revoked
+    -- edge suppresses attribution rather than falling back to an older edge.
+    WHERE TRUE
       ` + classEdgeEligibilityLivePredicate + `
-      AND e.id = (
-          SELECT e2.id FROM ` + entityid.SubscriptionGroupProductPlanStaff + ` e2
-          WHERE e2.subscription_group_id = e.subscription_group_id
-            AND e2.product_plan_id = e.product_plan_id
-            AND e2.active AND e2.workspace_id = $1 AND e2.role = 'primary'
-          ORDER BY e2.date_created DESC, e2.id DESC
-          LIMIT 1
-      )
-),
-pa AS (
-    SELECT
-        jj.template_id            AS template_id,
-        gm.subscription_group_id  AS group_id,
-        jp.template_phase_id      AS template_phase_id,
-        MIN(` + approvalStatusRankCASE + `) AS min_rank,
-        MAX(` + approvalStatusRankCASE + `) AS max_rank,
-        BOOL_OR(tox.job_task_id IS NOT NULL) AS has_data
-    FROM jj
-    JOIN ` + entityid.JobPhase + ` jp
-           ON jp.job_id = jj.job_id AND jp.active AND jp.template_phase_id IS NOT NULL
-    LEFT JOIN ` + entityid.JobTask + ` tk
-           ON tk.job_phase_id = jp.id AND tk.active
-    LEFT JOIN ` + entityid.TaskOutcome + ` tox
-           ON tox.job_task_id = tk.id AND tox.active
-    LEFT JOIN ` + entityid.SubscriptionGroupMember + ` gm
-           ON gm.subscription_id = jj.subscription_id AND gm.client_id = jj.client_id
-          AND gm.workspace_id = $1 AND gm.active
-    GROUP BY jj.template_id, gm.subscription_group_id, jp.template_phase_id
-),
-tp AS (
-    SELECT template_id, template_phase_id,
-           MIN(min_rank)     AS min_rank,
-           MAX(max_rank)     AS max_rank,
-           BOOL_OR(has_data) AS has_data
-    FROM pa
-    GROUP BY template_id, template_phase_id
-),
-ta AS (
-    SELECT template_id,
-           COUNT(*) FILTER (WHERE has_data AND min_rank = 4) AS published_count,
-           COUNT(*) FILTER (WHERE has_data)                  AS phase_count,
-           MIN(min_rank) FILTER (WHERE has_data)             AS lowest_rank,
-           COALESCE(BOOL_OR(min_rank <> max_rank) FILTER (WHERE has_data), false) AS mixed_attention
-    FROM tp
-    GROUP BY template_id
-),
-ga AS (
-    SELECT template_id, group_id,
-           COUNT(*) FILTER (WHERE has_data AND min_rank = 4) AS published_count,
-           COUNT(*) FILTER (WHERE has_data)                  AS phase_count,
-           MIN(min_rank) FILTER (WHERE has_data)             AS lowest_rank,
-           COALESCE(BOOL_OR(min_rank <> max_rank) FILTER (WHERE has_data), false) AS mixed_attention
-    FROM pa
-    WHERE group_id IS NOT NULL
-    GROUP BY template_id, group_id
 )`
 }
 
@@ -655,13 +937,13 @@ ga AS (
 // ApprovalSelect), per the codex-tandem contract.
 func jobTemplateSummarySelectFrom() string {
 	return `SELECT
-    jj.template_id                 AS job_template_id,
+	    jj.job_id                      AS job_id,
+	    jj.template_id                 AS job_template_id,
     jj.template_name               AS job_template_name,
     sg.id                          AS subscription_group_id,
     sg.name                        AS subscription_group_name,
     dd.staff_id                    AS staff_id,
     COALESCE(NULLIF(TRIM(COALESCE(dd.first_name, '') || ' ' || COALESCE(dd.last_name, '')), ''), dd.staff_id) AS staff_name,
-    COUNT(DISTINCT jj.job_id)      AS job_count,
     ps.id                          AS price_schedule_id,
     ps.name                        AS price_schedule_name,
     jj.output_product_id           AS output_product_id,
@@ -680,8 +962,185 @@ LEFT JOIN ` + entityid.Product + ` op
        ON op.id = jj.output_product_id AND op.workspace_id = $1`
 }
 
+// jobTemplateSummaryDeliveryFold collapses the materialized delivery join to the
+// public Courses row grain before approval joins, ordering, and pagination. The
+// separate counts and deliverers CTEs prevent the job×staff join from making a
+// staff appear once per roster job while preserving COUNT(DISTINCT job_id).
+func jobTemplateSummaryDeliveryFold() string {
+	return `counts AS (
+    SELECT job_template_id, job_template_name, subscription_group_id, subscription_group_name,
+           price_schedule_id, price_schedule_name, output_product_id, output_product_name,
+           job_category_id, COUNT(DISTINCT job_id) AS job_count
+    FROM delivery
+    GROUP BY job_template_id, job_template_name, subscription_group_id, subscription_group_name,
+             price_schedule_id, price_schedule_name, output_product_id, output_product_name,
+             job_category_id
+),
+delivery_staff AS (
+    SELECT DISTINCT job_template_id, subscription_group_id, price_schedule_id,
+           output_product_id, staff_id, staff_name
+    FROM delivery
+),
+deliverers AS (
+    SELECT job_template_id, subscription_group_id, price_schedule_id, output_product_id,
+           ARRAY_AGG(staff_id ORDER BY staff_name, staff_id) AS staff_ids,
+           ARRAY_AGG(staff_name ORDER BY staff_name, staff_id) AS staff_names
+    FROM delivery_staff
+    GROUP BY job_template_id, subscription_group_id, price_schedule_id, output_product_id
+),
+base AS (
+    SELECT c.*, d.staff_ids, d.staff_names
+    FROM counts c
+    JOIN deliverers d
+      ON d.job_template_id = c.job_template_id
+     AND d.subscription_group_id = c.subscription_group_id
+     AND d.price_schedule_id IS NOT DISTINCT FROM c.price_schedule_id
+     AND d.output_product_id IS NOT DISTINCT FROM c.output_product_id
+)`
+}
+
+func jobTemplateSummaryUniverse(includeTemplateFallback bool) string {
+	if !includeTemplateFallback {
+		return `summary_universe AS MATERIALIZED (
+    SELECT base.*, false AS template_grain_fallback
+    FROM base
+)`
+	}
+	return `fallback_base AS MATERIALIZED (
+    SELECT
+        jt.id                  AS job_template_id,
+        jt.name                AS job_template_name,
+        ''::text               AS subscription_group_id,
+        ''::text               AS subscription_group_name,
+        NULL::text             AS price_schedule_id,
+        NULL::text             AS price_schedule_name,
+        NULL::text             AS output_product_id,
+        NULL::text             AS output_product_name,
+        jt.job_category_id     AS job_category_id,
+        0::bigint              AS job_count,
+        ARRAY[]::text[]        AS staff_ids,
+        ARRAY[]::text[]        AS staff_names,
+        true                   AS template_grain_fallback
+    FROM ` + entityid.JobTemplate + ` jt
+    WHERE jt.workspace_id = $1 AND jt.active
+      AND NOT EXISTS (
+          SELECT 1
+          FROM base
+          WHERE base.job_category_id IS NOT DISTINCT FROM jt.job_category_id
+      )
+),
+summary_universe AS MATERIALIZED (
+    SELECT base.*, false AS template_grain_fallback
+    FROM base
+    UNION ALL
+    SELECT * FROM fallback_base
+)`
+}
+
+func jobTemplateSummaryMetadata(selectedWhere string) string {
+	return `category_counts AS MATERIALIZED (
+    SELECT COALESCE(job_category_id, '') AS job_category_id,
+           COUNT(*) AS summary_count
+    FROM summary_universe
+    GROUP BY COALESCE(job_category_id, '')
+),
+selected_rows AS MATERIALIZED (
+    SELECT *
+    FROM summary_universe` + selectedWhere + `
+),
+metadata AS MATERIALIZED (
+    SELECT
+        (SELECT COUNT(*) FROM selected_rows) AS total_items,
+        COALESCE(
+            (SELECT jsonb_agg(
+                jsonb_build_object(
+                    'job_category_id', category_counts.job_category_id,
+                    'summary_count', category_counts.summary_count
+                ) ORDER BY category_counts.job_category_id
+            ) FROM category_counts),
+            '[]'::jsonb
+        ) AS category_counts_json
+)`
+}
+
+func jobTemplateSummaryPageBase(orderBy, limitClause string) string {
+	return `page_base AS MATERIALIZED (
+    SELECT selected_rows.*
+    FROM selected_rows
+    ORDER BY ` + orderBy + limitClause + `
+)`
+}
+
+// jobTemplateSummaryApprovalCTEs computes approval only for rows selected into
+// page_base. data_phases materializes the unique set of phases bearing an active
+// outcome once, so template_phase and group_phase can reuse it without correlated
+// probes or task/outcome fanout before their MIN/MAX rollups. ta and ga are
+// MATERIALIZED planner fences: page_base's live cardinality was severely
+// underestimated, which otherwise let PostgreSQL re-execute final GroupAggregates
+// under each page row.
+func jobTemplateSummaryApprovalCTEs() string {
+	return `candidate_templates AS (
+    SELECT DISTINCT job_template_id AS template_id FROM page_base
+),
+candidate_groups AS (
+    SELECT DISTINCT job_template_id AS template_id, subscription_group_id AS group_id FROM page_base
+),
+data_phases AS MATERIALIZED (
+    SELECT DISTINCT tk.job_phase_id
+    FROM ` + entityid.JobTask + ` tk
+    JOIN ` + entityid.TaskOutcome + ` tox ON tox.job_task_id = tk.id AND tox.active
+    WHERE tk.active
+),
+template_phase AS (
+    SELECT ct.template_id, jp.template_phase_id,
+           MIN(` + approvalStatusRankCASE + `) AS min_rank,
+           MAX(` + approvalStatusRankCASE + `) AS max_rank,
+           BOOL_OR(data_phases.job_phase_id IS NOT NULL) AS has_data
+    FROM candidate_templates ct
+    JOIN jj ON jj.template_id = ct.template_id
+    JOIN ` + entityid.JobPhase + ` jp
+           ON jp.job_id = jj.job_id AND jp.active AND jp.template_phase_id IS NOT NULL
+    LEFT JOIN data_phases ON data_phases.job_phase_id = jp.id
+    GROUP BY ct.template_id, jp.template_phase_id
+),
+ta AS MATERIALIZED (
+    SELECT template_id,
+           COUNT(*) FILTER (WHERE has_data AND min_rank = 4) AS published_count,
+           COUNT(*) FILTER (WHERE has_data)                  AS phase_count,
+           MIN(min_rank) FILTER (WHERE has_data)             AS lowest_rank,
+           COALESCE(BOOL_OR(min_rank <> max_rank) FILTER (WHERE has_data), false) AS mixed_attention
+    FROM template_phase
+    GROUP BY template_id
+),
+group_phase AS (
+    SELECT cg.template_id, cg.group_id, jp.template_phase_id,
+           MIN(` + approvalStatusRankCASE + `) AS min_rank,
+           MAX(` + approvalStatusRankCASE + `) AS max_rank,
+           BOOL_OR(data_phases.job_phase_id IS NOT NULL) AS has_data
+    FROM candidate_groups cg
+    JOIN jj ON jj.template_id = cg.template_id
+    JOIN ` + entityid.SubscriptionGroupMember + ` gm
+           ON gm.subscription_group_id = cg.group_id
+          AND gm.subscription_id = jj.subscription_id AND gm.client_id = jj.client_id
+          AND gm.workspace_id = $1 AND gm.active
+    JOIN ` + entityid.JobPhase + ` jp
+           ON jp.job_id = jj.job_id AND jp.active AND jp.template_phase_id IS NOT NULL
+    LEFT JOIN data_phases ON data_phases.job_phase_id = jp.id
+    GROUP BY cg.template_id, cg.group_id, jp.template_phase_id
+),
+ga AS MATERIALIZED (
+    SELECT template_id, group_id,
+           COUNT(*) FILTER (WHERE has_data AND min_rank = 4) AS published_count,
+           COUNT(*) FILTER (WHERE has_data)                  AS phase_count,
+           MIN(min_rank) FILTER (WHERE has_data)             AS lowest_rank,
+           COALESCE(BOOL_OR(min_rank <> max_rank) FILTER (WHERE has_data), false) AS mixed_attention
+    FROM group_phase
+    GROUP BY template_id, group_id
+)`
+}
+
 // jobTemplateSummaryApprovalSelect is the TOP-LEVEL SELECT: the delivery
-// aggregation (`base`, one row per (template, group, staff, schedule, product))
+// aggregation (`base`, one row per (template, group, schedule, product))
 // LEFT-joined to the two already-collapsed approval roll-ups — ta unique per
 // template_id (fields 14-17) and ga unique per (template_id, group_id) (fields
 // 18-21). Joining ONLY AFTER the delivery aggregation is the codex-tandem
@@ -694,13 +1153,33 @@ LEFT JOIN ` + entityid.Product + ` op
 //
 // A template with no approval rows LEFT-joins to NULL → counts COALESCE to 0
 // and the ranks scan NULL → UNSPECIFIED (neutral not-started default). The
-// ORDER BY keys are the LOCKED view order (group name, template name,
-// staff_name, staff_id) — the SAME key semantics as the pre-P4 statement,
-// referenced through base's output aliases because the sort now sits above the
-// wrapper.
-func jobTemplateSummaryApprovalSelect() string {
-	return `SELECT
-    base.*,
+// ORDER BY preserves the locked group/template presentation order and adds the
+// complete response identity as deterministic pagination tie-breakers.
+func jobTemplateSummaryApprovalSelect(finalOrders ...string) string {
+	finalOrder := "page_enriched.subscription_group_name ASC NULLS FIRST, " +
+		"page_enriched.job_template_name ASC, " +
+		"page_enriched.subscription_group_id ASC NULLS FIRST, " +
+		"page_enriched.job_template_id ASC, " +
+		"page_enriched.price_schedule_id ASC NULLS FIRST, " +
+		"page_enriched.output_product_id ASC NULLS FIRST"
+	if len(finalOrders) > 0 && finalOrders[0] != "" {
+		finalOrder = finalOrders[0]
+	}
+	return `,
+page_enriched AS MATERIALIZED (
+    SELECT
+	page_base.job_template_id,
+	page_base.job_template_name,
+	page_base.subscription_group_id,
+	page_base.subscription_group_name,
+	page_base.staff_ids,
+	page_base.staff_names,
+	page_base.job_count,
+	page_base.price_schedule_id,
+	page_base.price_schedule_name,
+	page_base.output_product_id,
+	page_base.output_product_name,
+	page_base.job_category_id,
     COALESCE(ta.published_count, 0)        AS published_count,
     COALESCE(ta.phase_count, 0)            AS phase_count,
     ta.lowest_rank                         AS lowest_rank,
@@ -708,13 +1187,41 @@ func jobTemplateSummaryApprovalSelect() string {
     COALESCE(ga.published_count, 0)        AS group_published_count,
     COALESCE(ga.phase_count, 0)            AS group_phase_count,
     ga.lowest_rank                         AS group_lowest_rank,
-    COALESCE(ga.mixed_attention, false)    AS group_mixed_attention
-FROM base
-LEFT JOIN ta
-       ON ta.template_id = base.job_template_id
-LEFT JOIN ga
-       ON ga.template_id = base.job_template_id AND ga.group_id = base.subscription_group_id
-ORDER BY base.subscription_group_name, base.job_template_name, base.staff_name, base.staff_id`
+    COALESCE(ga.mixed_attention, false)    AS group_mixed_attention,
+    page_base.template_grain_fallback
+    FROM page_base
+    LEFT JOIN ta
+           ON ta.template_id = page_base.job_template_id
+    LEFT JOIN ga
+           ON ga.template_id = page_base.job_template_id AND ga.group_id = page_base.subscription_group_id
+)
+SELECT
+    page_enriched.job_template_id,
+    page_enriched.job_template_name,
+    page_enriched.subscription_group_id,
+    page_enriched.subscription_group_name,
+    page_enriched.staff_ids,
+    page_enriched.staff_names,
+    page_enriched.job_count,
+    page_enriched.price_schedule_id,
+    page_enriched.price_schedule_name,
+    page_enriched.output_product_id,
+    page_enriched.output_product_name,
+    page_enriched.job_category_id,
+    page_enriched.published_count,
+    page_enriched.phase_count,
+    page_enriched.lowest_rank,
+    page_enriched.mixed_attention,
+    page_enriched.group_published_count,
+    page_enriched.group_phase_count,
+    page_enriched.group_lowest_rank,
+    page_enriched.group_mixed_attention,
+    page_enriched.template_grain_fallback,
+    metadata.total_items,
+    metadata.category_counts_json
+FROM metadata
+LEFT JOIN page_enriched ON TRUE
+ORDER BY ` + finalOrder
 }
 
 // jobTemplateSummaryGroupOrder is the GROUP BY + ORDER BY tail. The grain is one

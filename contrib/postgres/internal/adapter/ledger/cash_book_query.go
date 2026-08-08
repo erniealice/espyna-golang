@@ -4,7 +4,9 @@ package ledger
 
 import (
 	"context"
+	"fmt"
 
+	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	reportpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/reporting/gross_profit"
 )
@@ -17,12 +19,18 @@ func (a *LedgerReportingAdapter) GetCashBookReport(
 	ctx context.Context,
 	req *reportpb.CashBookReportRequest,
 ) (*reportpb.CashBookReportResponse, error) {
-	workspaceID := identity.Must(ctx).WorkspaceID
-
-	limit := int32(200)
-	if req.Limit != nil && req.GetLimit() > 0 {
-		limit = req.GetLimit()
+	if req == nil {
+		return &reportpb.CashBookReportResponse{Success: false}, fmt.Errorf("cash book report request is required")
 	}
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return &reportpb.CashBookReportResponse{Success: false}, fmt.Errorf("cash book report: %w", err)
+	}
+	limit, err := postgresCore.BoundedQueryLimit(req.GetLimit(), 200, 200)
+	if err != nil {
+		return &reportpb.CashBookReportResponse{Success: false}, fmt.Errorf("cash book report: %w", err)
+	}
+	workspaceID := requestIdentity.WorkspaceID
 
 	query := `
 		SELECT tx_date, description, reference, tx_type, amount
@@ -35,7 +43,7 @@ func (a *LedgerReportingAdapter) GetCashBookReport(
 				total_amount::bigint AS amount
 			FROM ` + a.tableConfig.Revenue + `
 			WHERE status NOT IN ('cancelled', 'draft')
-			AND ($1::text IS NULL OR workspace_id = $1)
+			AND workspace_id = $1
 
 			UNION ALL
 
@@ -47,13 +55,13 @@ func (a *LedgerReportingAdapter) GetCashBookReport(
 				total_amount::bigint AS amount
 			FROM ` + a.tableConfig.Expenditure + `
 			WHERE status NOT IN ('cancelled', 'draft')
-			AND ($1::text IS NULL OR workspace_id = $1)
+			AND workspace_id = $1
 		) combined
 		ORDER BY tx_date DESC, reference
 		LIMIT $2
 	`
 
-	rows, err := a.db.QueryContext(ctx, query, nilIfEmpty(workspaceID), limit)
+	rows, err := a.db.QueryContext(ctx, query, workspaceID, limit)
 	if err != nil {
 		return &reportpb.CashBookReportResponse{Success: false}, err
 	}

@@ -176,22 +176,10 @@ func (r *PostgresLicenseHistoryRepository) ListLicenseHistory(ctx context.Contex
 
 // GetLicenseHistoryListPageData retrieves a paginated, filtered, sorted, and searchable list of license history records
 func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx context.Context, req *licensehistorypb.GetLicenseHistoryListPageDataRequest) (*licensehistorypb.GetLicenseHistoryListPageDataResponse, error) {
-	// Extract pagination parameters with defaults
-	limit := int32(20)
-	page := int32(1)
-	if req.Pagination != nil && req.Pagination.Limit > 0 {
-		limit = req.Pagination.Limit
-		if limit > 100 {
-			limit = 100 // Cap at 100 items per page
-		}
-		if req.Pagination.GetOffset() != nil {
-			page = req.Pagination.GetOffset().Page
-			if page < 1 {
-				page = 1
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 20)
+	if err != nil {
+		return nil, fmt.Errorf("bounded license history pagination: %w", err)
 	}
-	offset := (page - 1) * limit
 
 	// Extract license_id filter
 	licenseIdFilter := ""

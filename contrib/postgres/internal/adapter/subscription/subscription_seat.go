@@ -248,19 +248,13 @@ func (r *PostgresSubscriptionSeatRepository) GetSubscriptionSeatListPageData(ctx
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
+	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if err != nil {
+		return nil, err
 	}
-	limit, offset, page := int32(50), int32(0), int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil && offsetPag.Page > 0 {
-			page = offsetPag.Page
-			offset = (page - 1) * limit
-		}
+	limit, offset, _, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, err
 	}
 	orderBy, err := postgresCore.BuildOrderBy(subscriptionSeatSortableSQLCols, req.GetSort(), "date_created DESC")
 	if err != nil {

@@ -22,6 +22,7 @@ import (
 	fibermw "github.com/erniealice/espyna-golang/contrib/fiber/internal/adapter/middleware"
 	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
+	"github.com/erniealice/espyna-golang/shared/httperror"
 )
 
 // =============================================================================
@@ -208,9 +209,10 @@ func (a *FiberAdapter) createFiberHandler(route *routing.Route) fiber.Handler {
 
 		resp, err := route.Handler.Execute(ctx, req)
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{
-				"error":      "Handler execution failed",
-				"details":    err.Error(),
+			status, message := httperror.Classify(err)
+			log.Printf("handler execution error: %v", err)
+			return c.Status(status).JSON(fiber.Map{
+				"error":      message,
 				"route_name": route.Metadata.Name,
 			})
 		}

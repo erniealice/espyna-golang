@@ -129,14 +129,13 @@ func TestBuildOrderByTiebreaker(t *testing.T) {
 			wantIDCount: 1,
 		},
 		{
-			// A pathological column literally named `x,id`: quoted as one identifier
-			// `"x,id"`, the embedded comma must NOT be split into a phantom `id`
-			// segment, so the real tiebreaker is still appended (exactly one id key).
-			name:        "quoted_embedded_comma_col_not_phantom_id",
-			sort:        sortReqOf(field("x,id", commonpb.SortDirection_ASC)),
-			fallback:    "date_created DESC",
-			want:        `ORDER BY "x,id" ASC, "id" ASC`,
-			wantIDCount: 1,
+			// Request fields use the repository's conservative SQL-identifier grammar.
+			// Even if PostgreSQL could quote a literal comma-bearing column, accepting
+			// punctuation here would weaken the injection boundary for no real entity.
+			name:     "comma_bearing_identifier_rejected",
+			sort:     sortReqOf(field("x,id", commonpb.SortDirection_ASC)),
+			fallback: "date_created DESC",
+			wantErr:  true,
 		},
 
 		// --- CLASS: joined outer (explicit alias-qualified tiebreaker) --------
@@ -216,6 +215,42 @@ func TestBuildOrderByTiebreaker(t *testing.T) {
 			// key = a redundant/duplicate sort column).
 			if n := countIDKeyTerminations(got); n != tc.wantIDCount {
 				t.Errorf("id-key count = %d, want %d in %q", n, tc.wantIDCount, got)
+			}
+		})
+	}
+}
+
+func TestBuildOrderByRejectsUnknownSortEnumsAndOversizedRequest(t *testing.T) {
+	allowed := []string{"name"}
+	tests := []struct {
+		name string
+		sort *commonpb.SortRequest
+		want string
+	}{
+		{
+			name: "unknown direction",
+			sort: sortReqOf(&commonpb.SortField{Field: "name", Direction: commonpb.SortDirection(99)}),
+			want: "unsupported sort direction",
+		},
+		{
+			name: "unknown null order",
+			sort: sortReqOf(&commonpb.SortField{Field: "name", NullOrder: commonpb.NullOrder(99)}),
+			want: "unsupported null order",
+		},
+		{
+			name: "oversized fields",
+			sort: sortReqOf(
+				&commonpb.SortField{Field: "name"}, &commonpb.SortField{Field: "name"}, &commonpb.SortField{Field: "name"},
+				&commonpb.SortField{Field: "name"}, &commonpb.SortField{Field: "name"},
+			),
+			want: "too many sort fields",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := BuildOrderBy(allowed, tc.sort, "name ASC"); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("BuildOrderBy() error = %v, want substring %q", err, tc.want)
 			}
 		})
 	}

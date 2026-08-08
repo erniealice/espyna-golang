@@ -127,6 +127,9 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 			s.timezone,
 			s.category_id,
 			s.payment_term_id,
+			s.kind,
+			s.position,
+			s.department,
 			u.id as user_id_value,
 			u.first_name as user_first_name,
 			u.last_name as user_last_name,
@@ -166,6 +169,9 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 		notes              *string
 		timezone           *string
 		categoryId         *string
+		kind               *string
+		position           *string
+		department         *string
 		userIdValue        *string
 		userFirstName      *string
 		userLastName       *string
@@ -201,6 +207,9 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 		&timezone,
 		&categoryId,
 		&paymentTermID,
+		&kind,
+		&position,
+		&department,
 		&userIdValue,
 		&userFirstName,
 		&userLastName,
@@ -220,7 +229,7 @@ func (r *PostgresSupplierRepository) ReadSupplier(ctx context.Context, req *supp
 		streetAddress, city, province, postalCode, country,
 		defaultCurrency, paymentTerms, leadTimeDays, creditLimit,
 		status, clientId, website, notes, timezone, categoryId,
-		paymentTermID,
+		paymentTermID, kind, position, department,
 		userIdValue, userFirstName, userLastName, userEmailAddress, userPhoneNumber,
 	)
 
@@ -295,6 +304,39 @@ var supplierSortableSQLCols = []string{
 	"date_created", "date_modified",
 }
 
+var supplierFilterFieldMap = map[string]string{
+	"id":                  "s.id",
+	"user_id":             "s.user_id",
+	"active":              "s.active",
+	"internal_id":         "s.internal_id",
+	"category_id":         "s.category_id",
+	"supplier_type":       "s.supplier_type",
+	"name":                "s.name",
+	"tax_id":              "s.tax_id",
+	"registration_number": "s.registration_number",
+	"street_address":      "s.street_address",
+	"city":                "s.city",
+	"province":            "s.province",
+	"postal_code":         "s.postal_code",
+	"country":             "s.country",
+	"billing_currency":    "s.billing_currency",
+	"payment_terms":       "s.payment_terms",
+	"lead_time_days":      "s.lead_time_days",
+	"credit_limit":        "s.credit_limit",
+	"status":              "s.status",
+	"client_id":           "s.client_id",
+	"website":             "s.website",
+	"notes":               "s.notes",
+	"payment_term_id":     "s.payment_term_id",
+	"timezone":            "s.timezone",
+	"kind":                "s.kind",
+	"position":            "s.position",
+	"department":          "s.department",
+	"currency":            "s.currency",
+	"date_created":        "s.date_created",
+	"date_modified":       "s.date_modified",
+}
+
 var supplierSortSpec = espynahttp.SortSpec{AllowedCols: supplierSortableSQLCols}
 
 // ListSuppliers lists suppliers using common PostgreSQL operations
@@ -348,20 +390,9 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
 	workspaceID := identity.Must(ctx).WorkspaceID
 
-	// Default pagination values
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, fmt.Errorf("get supplier list page data: invalid pagination: %w", err)
 	}
 
 	// Sort — fail-closed against the per-entity whitelist (A2 guard).
@@ -372,9 +403,11 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 
 	// Build filter/search WHERE clauses ($1 is reserved for workspace_id, start at $2)
 	searchFields := []string{"s.name", "s.internal_id", "u.first_name", "u.last_name", "u.email_address"}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMapped(
+		req.Filters, req.Search, supplierFilterFieldMap, searchFields, 2,
+	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get supplier list page data: invalid filter/search: %w", err)
 	}
 
 	whereSQL := "WHERE s.workspace_id = $1"
@@ -415,10 +448,13 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 				s.client_id,
 				s.website,
 				s.notes,
-				s.timezone,
-				s.category_id,
-				s.payment_term_id,
-				COALESCE(pt.name, '') as payment_term_name,
+			s.timezone,
+			s.category_id,
+			s.payment_term_id,
+			s.kind,
+			s.position,
+			s.department,
+			COALESCE(pt.name, '') as payment_term_name,
 				-- User fields (1:1 relationship)
 				u.id as user_id_value,
 				u.first_name as user_first_name,
@@ -484,6 +520,9 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			timezone           *string
 			categoryId         *string
 			paymentTermID      *string
+			kind               *string
+			position           *string
+			department         *string
 			paymentTermName    string
 			userIdValue        *string
 			userFirstName      *string
@@ -520,6 +559,9 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			&timezone,
 			&categoryId,
 			&paymentTermID,
+			&kind,
+			&position,
+			&department,
 			&paymentTermName,
 			&userIdValue,
 			&userFirstName,
@@ -540,7 +582,7 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			streetAddress, city, province, postalCode, country,
 			defaultCurrency, paymentTerms, leadTimeDays, creditLimit,
 			status, clientId, website, notes, timezone, categoryId,
-			paymentTermID,
+			paymentTermID, kind, position, department,
 			userIdValue, userFirstName, userLastName, userEmailAddress, userPhoneNumber,
 		)
 
@@ -626,6 +668,9 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 				s.timezone,
 				s.category_id,
 				s.payment_term_id,
+				s.kind,
+				s.position,
+				s.department,
 				-- User fields (1:1 relationship)
 				u.id as user_id_value,
 				u.first_name as user_first_name,
@@ -669,6 +714,9 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 		timezone           *string
 		categoryId         *string
 		paymentTermID      *string
+		kind               *string
+		position           *string
+		department         *string
 		userIdValue        *string
 		userFirstName      *string
 		userLastName       *string
@@ -703,6 +751,9 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 		&timezone,
 		&categoryId,
 		&paymentTermID,
+		&kind,
+		&position,
+		&department,
 		&userIdValue,
 		&userFirstName,
 		&userLastName,
@@ -722,7 +773,7 @@ func (r *PostgresSupplierRepository) GetSupplierItemPageData(
 		streetAddress, city, province, postalCode, country,
 		defaultCurrency, paymentTerms, leadTimeDays, creditLimit,
 		status, clientId, website, notes, timezone, categoryId,
-		paymentTermID,
+		paymentTermID, kind, position, department,
 		userIdValue, userFirstName, userLastName, userEmailAddress, userPhoneNumber,
 	)
 
@@ -805,7 +856,7 @@ func buildSupplierFromScan(
 	streetAddress *string, city *string, province *string, postalCode *string, country *string,
 	defaultCurrency *string, paymentTerms *string, leadTimeDays *int32, creditLimit *int64,
 	status *string, clientId *string, website *string, notes *string, timezone *string, categoryId *string,
-	paymentTermID *string,
+	paymentTermID *string, kind *string, position *string, department *string,
 	userIdValue *string, userFirstName *string, userLastName *string,
 	userEmailAddress *string, userPhoneNumber *string,
 ) *supplierpb.Supplier {
@@ -846,6 +897,9 @@ func buildSupplierFromScan(
 	supplier.Notes = notes
 	supplier.Timezone = timezone
 	supplier.CategoryId = categoryId
+	supplier.Kind = kind
+	supplier.Position = position
+	supplier.Department = department
 	if paymentTermID != nil {
 		supplier.PaymentTermId = paymentTermID
 	}

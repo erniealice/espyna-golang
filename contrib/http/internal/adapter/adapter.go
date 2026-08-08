@@ -22,6 +22,7 @@ import (
 	"github.com/erniealice/espyna-golang/composition/routing/customization"
 	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
+	"github.com/erniealice/espyna-golang/shared/httperror"
 )
 
 // =============================================================================
@@ -182,7 +183,9 @@ func (a *VanillaAdapter) createHTTPHandler(route *routing.Route) http.HandlerFun
 		// Execute handler
 		resp, err := route.Handler.Execute(ctx, req)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, "Handler execution failed", err.Error())
+			statusCode, message := httperror.Classify(err)
+			log.Printf("handler execution error: %v", err)
+			writeJSONError(w, statusCode, message, "")
 			return
 		}
 

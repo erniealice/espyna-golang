@@ -223,17 +223,9 @@ func (r *PostgresBillingEventRepository) GetBillingEventListPageData(
 		return nil, fmt.Errorf("get billing event list page data request is required")
 	}
 
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil && offsetPag.Page > 0 {
-			page = offsetPag.Page
-			offset = (page - 1) * limit
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, err
 	}
 
 	// A2: route the caller-supplied sort column through the fail-closed

@@ -9,8 +9,8 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 )
 
@@ -21,11 +21,11 @@ type CreateUserRepositories struct {
 
 // CreateUserServices groups all business service dependencies
 type CreateUserServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // CreateUserUseCase handles the business logic for creating users
@@ -54,11 +54,11 @@ func NewCreateUserUseCaseUngrouped(userRepo userpb.UserDomainServiceServer, auth
 	}
 
 	services := CreateUserServices{
-		Authorizer:  authorizationService,
-		Transactor:  ports.NewNoOpTransactor(),
+		Authorizer:       authorizationService,
+		Transactor:       ports.NewNoOpTransactor(),
 		Translator:       ports.NewNoOpTranslator(),
 		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
-		IDGenerator: ports.NewNoOpIDGenerator(),
+		IDGenerator:      ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateUserUseCase(repositories, services)
@@ -122,6 +122,7 @@ func (uc *CreateUserUseCase) executeCore(ctx context.Context, req *userpb.Create
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
+	resp.Data = redactPublicUserResponseData(resp.Data)
 	return resp, nil
 }
 

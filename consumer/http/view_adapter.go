@@ -19,6 +19,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/consumer"
 	consumermw "github.com/erniealice/espyna-golang/consumer/http/middleware"
+	"github.com/erniealice/espyna-golang/shared/database/model"
 	pyezarender "github.com/erniealice/pyeza-golang/render"
 	"github.com/erniealice/pyeza-golang/types"
 	"github.com/erniealice/pyeza-golang/view"
@@ -416,6 +417,16 @@ func (a *ViewAdapter) handleError(w http.ResponseWriter, r *http.Request, result
 	}
 
 	log.Printf("View error: %v", result.Error)
+
+	if _, isDbErr := model.GetDatabaseError(result.Error); isDbErr || statusCode >= 500 {
+		msg := http.StatusText(statusCode)
+		if msg == "" {
+			msg = http.StatusText(http.StatusInternalServerError)
+		}
+		http.Error(w, msg, statusCode)
+		return
+	}
+
 	http.Error(w, result.Error.Error(), statusCode)
 }
 

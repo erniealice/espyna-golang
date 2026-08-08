@@ -274,27 +274,17 @@ func (r *PostgresRevenuePaymentRepository) GetRevenuePaymentListPageData(
 		return nil, fmt.Errorf("get revenue_payment list page data request is required")
 	}
 
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
+	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if err != nil {
+		return nil, err
 	}
 
 	// Server-side parent-id filter: revenue_id pulled from the FilterRequest.
 	revenueIDFilter := filterValue(req.GetFilters(), "revenue_id")
 
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, err
 	}
 
 	orderByClause, err := postgresCore.BuildOrderBy(revenuePaymentSortableSQLCols, req.GetSort(), "date_created DESC")

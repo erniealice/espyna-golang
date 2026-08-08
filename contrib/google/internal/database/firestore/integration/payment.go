@@ -7,10 +7,10 @@ import (
 
 	"cloud.google.com/go/firestore"
 	firestoreCore "github.com/erniealice/espyna-golang/contrib/google/internal/database/firestore/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	integrationPorts "github.com/erniealice/espyna-golang/ports/integration"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/payment"
 	"github.com/google/uuid"
 )
@@ -51,10 +51,15 @@ func (r *FirestoreIntegrationPaymentRepository) LogWebhook(ctx context.Context, 
 
 	data := req.Data
 
-	// Generate ID if not provided
+	// Generate ID if not provided. UUIDv7 keeps webhook-log ids on the platform
+	// id policy (time-ordered, index-friendly) — never a random v4 id.
 	id := data.ExecutionId
 	if id == "" {
-		id = uuid.New().String()
+		newID, err := uuid.NewV7()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate webhook log id: %w", err)
+		}
+		id = newID.String()
 	}
 
 	// Build document for Firestore

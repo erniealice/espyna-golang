@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"time"
 
+	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/shared/database/operations"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	"github.com/lib/pq"
 )
 
@@ -59,6 +61,9 @@ func (a *auditAdapter) getExecutor(ctx context.Context) dbExecutor {
 // LogEntry writes one audit entry plus its associated field changes.
 // It participates in the caller's transaction if one is present in ctx.
 func (a *auditAdapter) LogEntry(ctx context.Context, req *infraports.AuditLogRequest) error {
+	if req == nil {
+		return fmt.Errorf("audit: log entry request is required")
+	}
 	ac, _ := infraports.GetAuditContext(ctx)
 
 	actorType := int32(0)
@@ -142,18 +147,31 @@ type auditCursor struct {
 	ID string `json:"id"` // entry UUID
 }
 
+const maxAuditCursorTokenBytes = 1024
+
 // ListByEntity returns audit entries for one entity, newest first,
 // using keyset (cursor) pagination on (occurred_at DESC, id DESC).
 func (a *auditAdapter) ListByEntity(ctx context.Context, req *infraports.ListAuditRequest) (*infraports.ListAuditResponse, error) {
-	limit := req.Limit
-	if limit <= 0 {
-		limit = 20
+	if req == nil {
+		return nil, fmt.Errorf("audit: list by entity request is required")
 	}
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("audit: list by entity: %w", err)
+	}
+	if req.WorkspaceID != "" && req.WorkspaceID != requestIdentity.WorkspaceID {
+		return nil, fmt.Errorf("audit: requested workspace does not match selected workspace")
+	}
+	workspaceID := requestIdentity.WorkspaceID
+	limit := boundedEntityListLimit(req.Limit)
 
 	// Decode optional cursor.
 	var cursorTime time.Time
 	var cursorID string
 	if req.CursorToken != "" {
+		if err := validateAuditCursorTokenLength(req.CursorToken); err != nil {
+			return nil, err
+		}
 		raw, err := base64.StdEncoding.DecodeString(req.CursorToken)
 		if err != nil {
 			return nil, fmt.Errorf("audit: invalid cursor token: %w", err)
@@ -171,10 +189,7 @@ func (a *auditAdapter) ListByEntity(ctx context.Context, req *infraports.ListAud
 
 	exec := a.getExecutor(ctx)
 
-	var (
-		rows *sql.Rows
-		err  error
-	)
+	var rows *sql.Rows
 
 	// LIMIT+1 pattern to detect whether a next page exists.
 	fetchLimit := limit + 1
@@ -191,7 +206,7 @@ func (a *auditAdapter) ListByEntity(ctx context.Context, req *infraports.ListAud
 			ORDER BY occurred_at DESC, id DESC
 			LIMIT $4`
 		rows, err = exec.QueryContext(ctx, q,
-			req.EntityType, req.EntityID, req.WorkspaceID, fetchLimit)
+			req.EntityType, req.EntityID, workspaceID, fetchLimit)
 	} else {
 		const q = `
 			SELECT id, actor_id, actor_type, entity_type, entity_id,
@@ -205,7 +220,7 @@ func (a *auditAdapter) ListByEntity(ctx context.Context, req *infraports.ListAud
 			ORDER BY occurred_at DESC, id DESC
 			LIMIT $6`
 		rows, err = exec.QueryContext(ctx, q,
-			req.EntityType, req.EntityID, req.WorkspaceID,
+			req.EntityType, req.EntityID, workspaceID,
 			cursorTime, cursorID, fetchLimit)
 	}
 	if err != nil {
@@ -224,7 +239,7 @@ func (a *auditAdapter) ListByEntity(ctx context.Context, req *infraports.ListAud
 		); err != nil {
 			return nil, fmt.Errorf("audit: scan audit_entry: %w", err)
 		}
-		e.WorkspaceID = req.WorkspaceID
+		e.WorkspaceID = workspaceID
 		e.OccurredAt = occurredAt.UTC().Format(time.RFC3339Nano)
 		entries = append(entries, e)
 	}
@@ -294,34 +309,53 @@ func (a *auditAdapter) ListByEntity(ctx context.Context, req *infraports.ListAud
 	}, nil
 }
 
+func validateAuditCursorTokenLength(token string) error {
+	if len(token) > maxAuditCursorTokenBytes {
+		return fmt.Errorf("audit: cursor token exceeds %d bytes", maxAuditCursorTokenBytes)
+	}
+	return nil
+}
+
 // ListByActor returns audit entries for a specific actor, newest first,
 // optionally filtered by a use_case prefix (e.g. "switch_").
 // COALESCE guards against missing request_url / referer columns in older schemas.
 func (a *auditAdapter) ListByActor(ctx context.Context, req *infraports.ListByActorRequest) (*infraports.ListAuditResponse, error) {
-	limit := req.Limit
-	if limit <= 0 || limit > 200 {
-		limit = 50
+	if req == nil {
+		return nil, fmt.Errorf("audit: list by actor request is required")
+	}
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("audit: list by actor: %w", err)
+	}
+	if req.Limit > 200 {
+		return nil, fmt.Errorf("audit: list by actor: query limit %d exceeds maximum 200", req.Limit)
+	}
+	limit, err := postgresCore.BoundedQueryLimit(int32(req.Limit), 50, 200)
+	if err != nil {
+		return nil, fmt.Errorf("audit: list by actor: %w", err)
+	}
+	prefix, err := postgresCore.BoundedPrefixPattern(req.UseCasePrefix)
+	if err != nil {
+		return nil, fmt.Errorf("audit: list by actor: %w", err)
 	}
 
 	exec := a.getExecutor(ctx)
 
-	var (
-		rows *sql.Rows
-		err  error
-	)
+	var rows *sql.Rows
 
-	if req.UseCasePrefix != "" {
+	if prefix != "" {
 		const q = `
 			SELECT id, actor_id, actor_type, use_case,
 			       COALESCE(request_url, ''), COALESCE(referer, ''),
 			       occurred_at
 			FROM ` + entityid.AuditEntry + `
 			WHERE actor_id = $1
-			  AND use_case LIKE $2
+			  AND workspace_id = $2
+			  AND use_case LIKE $3 ESCAPE '\'
 			ORDER BY occurred_at DESC
-			LIMIT $3`
+			LIMIT $4`
 		rows, err = exec.QueryContext(ctx, q,
-			req.ActorID, req.UseCasePrefix+"%", limit)
+			req.ActorID, requestIdentity.WorkspaceID, prefix, limit)
 	} else {
 		const q = `
 			SELECT id, actor_id, actor_type, use_case,
@@ -329,10 +363,11 @@ func (a *auditAdapter) ListByActor(ctx context.Context, req *infraports.ListByAc
 			       occurred_at
 			FROM ` + entityid.AuditEntry + `
 			WHERE actor_id = $1
+			  AND workspace_id = $2
 			ORDER BY occurred_at DESC
-			LIMIT $2`
+			LIMIT $3`
 		rows, err = exec.QueryContext(ctx, q,
-			req.ActorID, limit)
+			req.ActorID, requestIdentity.WorkspaceID, limit)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("audit: query audit_entry by actor: %w", err)
@@ -350,6 +385,7 @@ func (a *auditAdapter) ListByActor(ctx context.Context, req *infraports.ListByAc
 		); err != nil {
 			return nil, fmt.Errorf("audit: scan audit_entry by actor: %w", err)
 		}
+		e.WorkspaceID = requestIdentity.WorkspaceID
 		e.OccurredAt = occurredAt.UTC().Format(time.RFC3339Nano)
 		entries = append(entries, e)
 	}
@@ -360,6 +396,22 @@ func (a *auditAdapter) ListByActor(ctx context.Context, req *infraports.ListByAc
 	return &infraports.ListAuditResponse{
 		Entries: entries,
 	}, nil
+}
+
+// boundedEntityListLimit owns the keyset page budget. Capping rather than
+// rejecting preserves existing callers while ensuring LIMIT+1 cannot overflow.
+func boundedEntityListLimit(requested int) int {
+	const (
+		defaultLimit = 20
+		maximumLimit = 100
+	)
+	if requested <= 0 {
+		return defaultLimit
+	}
+	if requested > maximumLimit {
+		return maximumLimit
+	}
+	return requested
 }
 
 // nullableString returns nil for empty strings, otherwise the string value.

@@ -225,24 +225,14 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaListPageData(
 		return nil, fmt.Errorf("get location area list page data request is required")
 	}
 
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
+	searchPattern, searchErr := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if searchErr != nil {
+		return nil, fmt.Errorf("bounded search: %w", searchErr)
 	}
 
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if paginationErr != nil {
+		return nil, fmt.Errorf("bounded pagination: %w", paginationErr)
 	}
 
 	// Sort — fail-closed against the per-entity whitelist (A2 guard). The CTE
@@ -254,7 +244,11 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaListPageData(
 		return nil, err
 	}
 
-	workspaceID := identity.Must(ctx).WorkspaceID
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get location area list page data: %w", err)
+	}
+	workspaceID := requestIdentity.WorkspaceID
 
 	query := `
 		WITH enriched AS (
@@ -267,7 +261,7 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaListPageData(
 				date_modified
 			FROM ` + r.tableName + `
 			WHERE active = true
-			  AND ($1::text IS NULL OR $1::text = '' OR workspace_id = $1)
+			  AND workspace_id = $1
 			  AND ($2::text IS NULL OR $2::text = '' OR
 				   name ILIKE $2 OR
 				   description ILIKE $2)
@@ -378,7 +372,11 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaItemPageData(
 		return nil, fmt.Errorf("location area ID is required")
 	}
 
-	workspaceID := identity.Must(ctx).WorkspaceID
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get location area item page data: %w", err)
+	}
+	workspaceID := requestIdentity.WorkspaceID
 
 	query := `
 		SELECT
@@ -390,7 +388,7 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaItemPageData(
 			date_modified
 		FROM ` + r.tableName + `
 		WHERE id = $1
-		  AND ($2::text IS NULL OR workspace_id = $2)
+		  AND workspace_id = $2
 		LIMIT 1;
 	`
 
@@ -406,7 +404,7 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaItemPageData(
 		dateModified *time.Time
 	)
 
-	err := row.Scan(
+	err = row.Scan(
 		&id,
 		&name,
 		&description,

@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	summarypb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/job_template_summary"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
@@ -86,5 +87,19 @@ func (uc *ListJobTemplateSummariesUseCase) Execute(
 		return &summarypb.ListJobTemplateSummariesResponse{Success: true}, nil
 	}
 
-	return uc.repositories.Query.ListJobTemplateSummaries(ctx, req)
+	// The optional template fallback joins template-owned data. Authorize that
+	// branch independently and degrade it to the legacy summary shape when the
+	// caller cannot read templates. Clone first so sanitization never changes a
+	// request the caller may reuse.
+	forwardedReq := proto.Clone(req).(*summarypb.ListJobTemplateSummariesRequest)
+	if req.GetIncludeTemplateFallback() {
+		if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+			Entity: entityid.JobTemplate,
+			Action: entityid.ActionList,
+		}); err != nil {
+			forwardedReq.IncludeTemplateFallback = proto.Bool(false)
+		}
+	}
+
+	return uc.repositories.Query.ListJobTemplateSummaries(ctx, forwardedReq)
 }

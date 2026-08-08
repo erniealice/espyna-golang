@@ -369,171 +369,185 @@ func approvalRankToStatus(rank int) jobphasepb.PhaseApprovalStatus {
 //
 // S = every active, template-backed job_phase in the trusted workspace under
 // this template, keyed by template_phase_id. NO staff predicate — the roll-up is
-// the whole sheet's state, not the acting principal's visible rows. Four reads,
-// all workspace-scoped:
+// the whole sheet's state, not the acting principal's visible rows. One
+// workspace-scoped read computes:
 //   - status/count/mixed per phase (status = sole, or LOWEST ladder rank when mixed);
 //   - has_data per phase (any active task_outcome under the sheet);
 //   - blank required task×criterion leaves per phase (D6 confirm count; surfaced
 //     only for IN_PROGRESS sheets — mirrors the submit transition's
 //     countBlankRequiredCells seam exactly);
-//   - hard_frozen per phase, REUSING the P2 sheetHardFrozen read verbatim
-//     (closed schedule OR active authoritative final — plan §4.4).
-func (a *PostgresOutcomeMatrixQuery) loadApprovalRollups(ctx context.Context, jobTemplateID, workspaceID, groupID string) ([]*matrixpb.PhaseApprovalRollup, error) {
-	// Narrow every roll-up probe to the SAME delivery group the rows were narrowed
-	// to. Without this the band would describe the whole template while the grid
-	// showed one group: after a group-scoped Submit, this group's rows are
-	// FOR_REVIEW but the template's lowest rank is still IN_PROGRESS, so the badge
-	// would read "In Progress" and re-offer a Submit that has already run.
-	// Shared predicate with the transition path — display and write must agree on
-	// which jobs belong to a group. Workspace binds at $2 here.
-	narrow, narrowArgs := groupNarrowPredicate(groupID, 3, 2)
-	// (A) status-rank min/max + member count per template_phase.
-	statusSQL := `
-SELECT jp.template_phase_id,
-       COUNT(*) AS target_count,
-       MIN(CASE jp.approval_status
-             WHEN 'PHASE_APPROVAL_STATUS_IN_PROGRESS' THEN 1
-             WHEN 'PHASE_APPROVAL_STATUS_FOR_REVIEW'  THEN 2
-             WHEN 'PHASE_APPROVAL_STATUS_VERIFIED'    THEN 3
-             WHEN 'PHASE_APPROVAL_STATUS_PUBLISHED'   THEN 4
-             ELSE 1 END) AS lowest_rank,
-       COUNT(DISTINCT jp.approval_status) AS distinct_statuses
-FROM ` + entityid.JobPhase + ` jp
-JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
-LEFT JOIN ` + entityid.JobTemplatePhase + ` jtp ON jtp.id = jp.template_phase_id
-WHERE j.job_template_id = $1 AND j.workspace_id = $2
-  AND jp.active = true AND jp.template_phase_id IS NOT NULL` + narrow + `` + narrow + `
-GROUP BY jp.template_phase_id, jtp.phase_order
--- Curriculum order, NOT id order. This previously read ORDER BY
--- jp.template_phase_id — a UUID, so the approval band came out in effectively
--- arbitrary order and rendered "Semester 2" above "Semester 1" while the column
--- headers (built by the columns query below, which has always ordered by
--- jtp.phase_order) correctly read Semester 1 then Semester 2. Same sheet,
--- two different orderings. phase_order is the authority: S1=1, S2=2.
--- NULLS LAST so a phase whose template row is missing sorts after real ones
--- rather than jumping to the front.
-ORDER BY jtp.phase_order NULLS LAST, jp.template_phase_id`
+//   - hard_frozen per phase using the same template-grain predicate as
+//     sheetHardFrozen (closed schedule OR active authoritative final — plan §4.4).
+//
+// full_sheet intentionally remains un-narrowed so hard_frozen cannot be weakened
+// by selecting one delivery group. scoped_sheet applies groupNarrowPredicate
+// exactly once and feeds status, has_data, and blank_required_count.
+func buildApprovalRollupSQL(narrow string) string {
+	return `
+WITH full_sheet AS MATERIALIZED (
+  SELECT jp.id AS job_phase_id,
+         jp.template_phase_id,
+         jp.approval_status,
+         j.id AS job_id,
+         j.client_id,
+         j.origin_id,
+         j.origin_type,
+         j.workspace_id
+  FROM ` + entityid.JobPhase + ` jp
+  JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
+  WHERE j.job_template_id = $1
+    AND j.workspace_id = $2
+    AND jp.active = true
+    AND jp.template_phase_id IS NOT NULL
+),
+scoped_sheet AS MATERIALIZED (
+  SELECT j.*
+  FROM full_sheet j
+  WHERE true` + narrow + `
+),
+status_rollup AS (
+  SELECT template_phase_id,
+         COUNT(*) AS target_count,
+         MIN(CASE approval_status
+               WHEN 'PHASE_APPROVAL_STATUS_IN_PROGRESS' THEN 1
+               WHEN 'PHASE_APPROVAL_STATUS_FOR_REVIEW'  THEN 2
+               WHEN 'PHASE_APPROVAL_STATUS_VERIFIED'    THEN 3
+               WHEN 'PHASE_APPROVAL_STATUS_PUBLISHED'   THEN 4
+               ELSE 1 END) AS lowest_rank,
+         COUNT(DISTINCT approval_status) AS distinct_statuses
+  FROM scoped_sheet
+  GROUP BY template_phase_id
+),
+data_rollup AS (
+  SELECT ss.template_phase_id, true AS has_data
+  FROM scoped_sheet ss
+  WHERE EXISTS (
+    SELECT 1
+    FROM ` + entityid.JobTask + ` jt
+    JOIN ` + entityid.TaskOutcome + ` t
+      ON t.job_task_id = jt.id AND t.active = true
+    WHERE jt.job_phase_id = ss.job_phase_id
+      AND jt.active = true
+  )
+  GROUP BY ss.template_phase_id
+),
+blank_rollup AS (
+  SELECT ss.template_phase_id, COUNT(*) AS blank_required_count
+  FROM scoped_sheet ss
+  JOIN ` + entityid.JobTask + ` jt
+    ON jt.job_phase_id = ss.job_phase_id AND jt.active = true
+  JOIN ` + entityid.TemplateTaskCriteria + ` ttc
+    ON ttc.job_template_task_id = jt.template_task_id AND ttc.active = true
+  JOIN ` + entityid.OutcomeCriteria + ` oc
+    ON oc.id = ttc.outcome_criteria_id AND oc.active = true
+  WHERE COALESCE(ttc.required_override, oc.required) = true
+    AND NOT EXISTS (
+      SELECT 1
+      FROM ` + entityid.TaskOutcome + ` t
+      WHERE t.job_task_id = jt.id
+        AND t.criteria_version_id = ttc.outcome_criteria_id
+        AND t.active = true
+    )
+  GROUP BY ss.template_phase_id
+),
+frozen_rollup AS (
+  SELECT fs.template_phase_id, true AS hard_frozen
+  FROM full_sheet fs
+  WHERE EXISTS (
+          SELECT 1
+          FROM ` + entityid.JobOutcomeSummary + ` jos
+          WHERE jos.job_id = fs.job_id
+            AND jos.workspace_id = fs.workspace_id
+            AND jos.active = true
+            AND jos.is_authoritative = true
+        )
+     OR EXISTS (
+          SELECT 1
+          FROM ` + entityid.SubscriptionGroupMember + ` sgm
+          JOIN ` + entityid.SubscriptionGroup + ` sg
+            ON sg.id = sgm.subscription_group_id
+          JOIN ` + entityid.PriceSchedule + ` ps
+            ON ps.id = sg.price_schedule_id
+          WHERE fs.origin_type = 'ORIGIN_TYPE_SUBSCRIPTION'
+            AND sgm.subscription_id = fs.origin_id
+            AND sgm.workspace_id = fs.workspace_id
+            AND sg.workspace_id = fs.workspace_id
+            AND ps.workspace_id = fs.workspace_id
+            AND ps.closed = true
+        )
+  GROUP BY fs.template_phase_id
+)
+SELECT sr.template_phase_id,
+       sr.target_count,
+       sr.lowest_rank,
+       sr.distinct_statuses,
+       COALESCE(dr.has_data, false) AS has_data,
+       COALESCE(br.blank_required_count, 0) AS blank_required_count,
+       COALESCE(fr.hard_frozen, false) AS hard_frozen
+FROM status_rollup sr
+LEFT JOIN data_rollup dr ON dr.template_phase_id = sr.template_phase_id
+LEFT JOIN blank_rollup br ON br.template_phase_id = sr.template_phase_id
+LEFT JOIN frozen_rollup fr ON fr.template_phase_id = sr.template_phase_id
+LEFT JOIN ` + entityid.JobTemplatePhase + ` jtp ON jtp.id = sr.template_phase_id
+ORDER BY jtp.phase_order NULLS LAST, sr.template_phase_id`
+}
 
-	rows, err := a.db.QueryContext(ctx, statusSQL, append([]any{jobTemplateID, workspaceID}, narrowArgs...)...)
+func (a *PostgresOutcomeMatrixQuery) loadApprovalRollups(ctx context.Context, jobTemplateID, workspaceID, groupID string) ([]*matrixpb.PhaseApprovalRollup, error) {
+	// Display and transition paths share this exact group-membership predicate.
+	// It is applied once inside scoped_sheet; workspace binds at $2 here.
+	narrow, narrowArgs := groupNarrowPredicate(groupID, 3, 2)
+	rows, err := a.db.QueryContext(
+		ctx,
+		buildApprovalRollupSQL(narrow),
+		append([]any{jobTemplateID, workspaceID}, narrowArgs...)...,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("outcome_matrix: approval roll-up status query: %w", err)
+		return nil, fmt.Errorf("outcome_matrix: approval roll-up query: %w", err)
 	}
 	defer rows.Close()
 
-	type agg struct {
-		phaseID     string
-		targetCount int32
-		lowestRank  int
-		mixed       bool
-	}
-	var order []string
-	byPhase := map[string]*agg{}
+	var out []*matrixpb.PhaseApprovalRollup
 	for rows.Next() {
 		var (
-			phaseID  string
-			count    int32
-			rank     int
-			distinct int
+			phaseID            string
+			targetCount        int32
+			lowestRank         int
+			distinctStatuses   int
+			hasData            bool
+			blankRequiredCount int32
+			hardFrozen         bool
 		)
-		if err := rows.Scan(&phaseID, &count, &rank, &distinct); err != nil {
+		if err := rows.Scan(
+			&phaseID,
+			&targetCount,
+			&lowestRank,
+			&distinctStatuses,
+			&hasData,
+			&blankRequiredCount,
+			&hardFrozen,
+		); err != nil {
 			return nil, fmt.Errorf("outcome_matrix: scan approval roll-up: %w", err)
 		}
-		byPhase[phaseID] = &agg{phaseID: phaseID, targetCount: count, lowestRank: rank, mixed: distinct > 1}
-		order = append(order, phaseID)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("outcome_matrix: approval roll-up rows: %w", err)
-	}
-	if len(order) == 0 {
-		return nil, nil
-	}
 
-	// (B) has_data: template_phases with any active outcome under the sheet.
-	hasData := map[string]bool{}
-	hasDataSQL := `
-SELECT DISTINCT jp.template_phase_id
-FROM ` + entityid.JobPhase + ` jp
-JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
-JOIN ` + entityid.JobTask + ` jt ON jt.job_phase_id = jp.id AND jt.active = true
-JOIN ` + entityid.TaskOutcome + ` t ON t.job_task_id = jt.id AND t.active = true
-WHERE j.job_template_id = $1 AND j.workspace_id = $2
-  AND jp.active = true AND jp.template_phase_id IS NOT NULL` + narrow + ``
-	if err := a.scanPhaseIDSet(ctx, hasDataSQL, hasData, append([]any{jobTemplateID, workspaceID}, narrowArgs...)...); err != nil {
-		return nil, err
-	}
-
-	// (C) blank EFFECTIVE-REQUIRED task×criterion leaves per phase (D6). Mirrors
-	// countBlankRequiredCells (job_phase_approval.go) grouped by template_phase —
-	// codex P3 §B1: it must join the active OutcomeCriteria and filter
-	// COALESCE(ttc.required_override, oc.required) = true so the confirm count and
-	// the transition audit count agree (optional leaves are NOT blanks; a
-	// per-template-task required_override wins over the criterion default).
-	blankByPhase := map[string]int32{}
-	blankSQL := `
-SELECT jp.template_phase_id, COUNT(*)
-FROM ` + entityid.JobPhase + ` jp
-JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
-JOIN ` + entityid.JobTask + ` jt ON jt.job_phase_id = jp.id AND jt.active = true
-JOIN ` + entityid.TemplateTaskCriteria + ` ttc
-  ON ttc.job_template_task_id = jt.template_task_id AND ttc.active = true
-JOIN ` + entityid.OutcomeCriteria + ` oc
-  ON oc.id = ttc.outcome_criteria_id AND oc.active = true
-WHERE j.job_template_id = $1 AND j.workspace_id = $2
-  AND jp.active = true AND jp.template_phase_id IS NOT NULL` + narrow + `
-  AND COALESCE(ttc.required_override, oc.required) = true
-  AND NOT EXISTS (
-    SELECT 1 FROM ` + entityid.TaskOutcome + ` t
-    WHERE t.job_task_id = jt.id
-      AND t.criteria_version_id = ttc.outcome_criteria_id
-      AND t.active = true
-  )
-GROUP BY jp.template_phase_id`
-	brows, err := a.db.QueryContext(ctx, blankSQL, append([]any{jobTemplateID, workspaceID}, narrowArgs...)...)
-	if err != nil {
-		return nil, fmt.Errorf("outcome_matrix: approval roll-up blank-count query: %w", err)
-	}
-	defer brows.Close()
-	for brows.Next() {
-		var phaseID string
-		var n int32
-		if err := brows.Scan(&phaseID, &n); err != nil {
-			return nil, fmt.Errorf("outcome_matrix: scan blank count: %w", err)
-		}
-		blankByPhase[phaseID] = n
-	}
-	if err := brows.Err(); err != nil {
-		return nil, fmt.Errorf("outcome_matrix: blank-count rows: %w", err)
-	}
-
-	out := make([]*matrixpb.PhaseApprovalRollup, 0, len(order))
-	for _, phaseID := range order {
-		g := byPhase[phaseID]
-		status := approvalRankToStatus(g.lowestRank)
-		// hard_frozen: reuse the P2 read verbatim (closed schedule / authoritative
-		// final), per phase, workspace-scoped.
-		// Group narrowing deliberately NOT applied (""): hard_frozen is a property
-		// of the SHEET — a closed academic year or an authoritative final — not of
-		// one group within it. Narrowing it would let a group render editable while
-		// the template it belongs to is frozen, which widens permission rather than
-		// restricting it. The roll-up stays template-grain here, as before.
-		frozen, ferr := sheetHardFrozen(ctx, a.db, jobTemplateID, phaseID, workspaceID, "")
-		if ferr != nil {
-			return nil, ferr
-		}
+		status := approvalRankToStatus(lowestRank)
+		mixed := distinctStatuses > 1
 		rollup := &matrixpb.PhaseApprovalRollup{
 			JobTemplatePhaseId: phaseID,
 			Status:             status,
-			Mixed:              g.mixed,
-			TargetCount:        g.targetCount,
-			HasData:            hasData[phaseID],
-			HardFrozen:         frozen,
+			Mixed:              mixed,
+			TargetCount:        targetCount,
+			HasData:            hasData,
+			HardFrozen:         hardFrozen,
 		}
 		// D6: surface the blank count only when the sheet is IN_PROGRESS (the only
 		// submit-eligible state — the confirm dialog is a submit-only affordance).
-		if status == jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_IN_PROGRESS && !g.mixed {
-			rollup.BlankRequiredCount = blankByPhase[phaseID]
+		if status == jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_IN_PROGRESS && !mixed {
+			rollup.BlankRequiredCount = blankRequiredCount
 		}
 		out = append(out, rollup)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("outcome_matrix: approval roll-up rows: %w", err)
 	}
 	return out, nil
 }

@@ -173,15 +173,9 @@ func (r *PostgresEvaluationResponseRepository) GetEvaluationResponseListPageData
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
-	limit, offset, page := int32(200), int32(0), int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil && offsetPag.Page > 0 {
-			page = offsetPag.Page
-			offset = (page - 1) * limit
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 100)
+	if err != nil {
+		return nil, fmt.Errorf("invalid list pagination: %w", err)
 	}
 	orderBy, err := postgresCore.BuildOrderBy(evaluationResponseSortableSQLCols, req.GetSort(), "sequence_order ASC")
 	if err != nil {

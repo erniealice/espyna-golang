@@ -82,6 +82,14 @@ type PostgresWorkspaceUserRepository struct {
 	tableName string
 }
 
+func requireWorkspaceUserScope(ctx context.Context, operation string) (string, error) {
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", operation, err)
+	}
+	return requestIdentity.WorkspaceID, nil
+}
+
 // NewPostgresWorkspaceUserRepository creates a new PostgreSQL workspace user repository
 func NewPostgresWorkspaceUserRepository(dbOps interfaces.DatabaseOperation, tableName string) workspaceuserpb.WorkspaceUserDomainServiceServer {
 	if tableName == "" {
@@ -98,6 +106,9 @@ func NewPostgresWorkspaceUserRepository(dbOps interfaces.DatabaseOperation, tabl
 func (r *PostgresWorkspaceUserRepository) CreateWorkspaceUser(ctx context.Context, req *workspaceuserpb.CreateWorkspaceUserRequest) (*workspaceuserpb.CreateWorkspaceUserResponse, error) {
 	if req.Data == nil {
 		return nil, fmt.Errorf("workspace user data is required")
+	}
+	if _, err := requireWorkspaceUserScope(ctx, "create workspace user"); err != nil {
+		return nil, err
 	}
 
 	// Convert protobuf to map using protojson
@@ -138,6 +149,9 @@ func (r *PostgresWorkspaceUserRepository) ReadWorkspaceUser(ctx context.Context,
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("workspace user ID is required")
 	}
+	if _, err := requireWorkspaceUserScope(ctx, "read workspace user"); err != nil {
+		return nil, err
+	}
 
 	// Read document using common operations
 	result, err := r.dbOps.Read(ctx, r.tableName, req.Data.Id)
@@ -165,6 +179,9 @@ func (r *PostgresWorkspaceUserRepository) ReadWorkspaceUser(ctx context.Context,
 func (r *PostgresWorkspaceUserRepository) UpdateWorkspaceUser(ctx context.Context, req *workspaceuserpb.UpdateWorkspaceUserRequest) (*workspaceuserpb.UpdateWorkspaceUserResponse, error) {
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("workspace user ID is required")
+	}
+	if _, err := requireWorkspaceUserScope(ctx, "update workspace user"); err != nil {
+		return nil, err
 	}
 
 	// Convert protobuf to map using protojson
@@ -205,6 +222,9 @@ func (r *PostgresWorkspaceUserRepository) DeleteWorkspaceUser(ctx context.Contex
 	if req.Data == nil || req.Data.Id == "" {
 		return nil, fmt.Errorf("workspace user ID is required")
 	}
+	if _, err := requireWorkspaceUserScope(ctx, "delete workspace user"); err != nil {
+		return nil, err
+	}
 
 	// Delete document using common operations (soft delete)
 	err := r.dbOps.Delete(ctx, r.tableName, req.Data.Id)
@@ -219,6 +239,11 @@ func (r *PostgresWorkspaceUserRepository) DeleteWorkspaceUser(ctx context.Contex
 
 // ListWorkspaceUsers lists workspace users with joined user data
 func (r *PostgresWorkspaceUserRepository) ListWorkspaceUsers(ctx context.Context, req *workspaceuserpb.ListWorkspaceUsersRequest) (*workspaceuserpb.ListWorkspaceUsersResponse, error) {
+	wsID, err := requireWorkspaceUserScope(ctx, "list workspace users")
+	if err != nil {
+		return nil, err
+	}
+
 	query := `
 		SELECT
 			wu.id, wu.workspace_id, wu.user_id, wu.active,
@@ -227,11 +252,10 @@ func (r *PostgresWorkspaceUserRepository) ListWorkspaceUsers(ctx context.Context
 		FROM ` + entityid.WorkspaceUser + ` wu
 		LEFT JOIN "` + entityid.User + `" u ON wu.user_id = u.id
 		WHERE wu.active = true
-		  AND ($1::text = '' OR wu.workspace_id = $1::text)
+		  AND wu.workspace_id = $1::text
 		ORDER BY wu.date_created DESC
 	`
 
-	wsID := identity.Must(ctx).WorkspaceID
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, wsID)
 	if err != nil {
@@ -322,6 +346,45 @@ var workspaceUserSortAllowlist = map[string]string{
 	"u.email_address": "u.email_address",
 }
 
+var workspaceUserFilterFieldMap = map[string]string{
+	"id":            "wu.id",
+	"user_id":       "wu.user_id",
+	"active":        "wu.active",
+	"date_created":  "wu.date_created",
+	"date_modified": "wu.date_modified",
+	"first_name":    "u.first_name",
+	"last_name":     "u.last_name",
+	"email_address": "u.email_address",
+	"mobile_number": "u.mobile_number",
+	"user_active":   "u.active",
+}
+
+func workspaceUserFiltersForScope(filters *commonpb.FilterRequest, workspaceID string) (*commonpb.FilterRequest, error) {
+	if filters == nil {
+		return nil, nil
+	}
+
+	filtered := &commonpb.FilterRequest{
+		Logic:   filters.GetLogic(),
+		Filters: make([]*commonpb.TypedFilter, 0, len(filters.GetFilters())),
+	}
+	for _, filter := range filters.GetFilters() {
+		if filter == nil || filter.GetField() != "workspace_id" {
+			filtered.Filters = append(filtered.Filters, filter)
+			continue
+		}
+
+		stringFilter := filter.GetStringFilter()
+		if stringFilter == nil || stringFilter.GetOperator() != commonpb.StringOperator_STRING_EQUALS || stringFilter.GetValue() != workspaceID {
+			return nil, fmt.Errorf("workspace_id filter must exactly match the selected workspace")
+		}
+		// The trusted hard predicate below owns workspace scope. A matching public
+		// filter is accepted for workspace-detail compatibility, then removed so
+		// it cannot weaken or duplicate the authority predicate.
+	}
+	return filtered, nil
+}
+
 // GetWorkspaceUserListPageData retrieves workspace users with advanced filtering, sorting, searching, and pagination using CTE
 // CRITICAL: Always filters by workspace_id for multi-tenancy
 func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
@@ -332,36 +395,14 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 		return nil, fmt.Errorf("get workspace user list page data request is required")
 	}
 
-	// Extract workspace_id from filters (REQUIRED for multi-tenancy)
-	var workspaceID string
-	if req.Filters != nil && len(req.Filters.Filters) > 0 {
-		for _, filter := range req.Filters.Filters {
-			if filter.Field == "workspace_id" {
-				if stringFilter := filter.GetStringFilter(); stringFilter != nil {
-					workspaceID = stringFilter.Value
-					break
-				}
-			}
-		}
-	}
-	if workspaceID == "" {
-		return nil, fmt.Errorf("workspace_id filter is required for multi-tenancy")
+	workspaceID, err := requireWorkspaceUserScope(ctx, "get workspace user list page data")
+	if err != nil {
+		return nil, err
 	}
 
-	// Default pagination values
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, fmt.Errorf("get workspace user list page data: invalid pagination: %w", err)
 	}
 
 	// Allowlist-validated sort (A2 guard). The sort column is resolved through
@@ -388,26 +429,20 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 		}
 	}
 
-	// workspace_id is always $1; filter/search params start at $2
-	// Strip the workspace_id filter from req.Filters before passing to BuildFilterWhere
-	// to avoid duplicating it in the WHERE clause.
-	var filteredReqFilters *commonpb.FilterRequest
-	if req.Filters != nil {
-		var nonWorkspaceFilters []*commonpb.TypedFilter
-		for _, f := range req.Filters.Filters {
-			if f.Field != "workspace_id" {
-				nonWorkspaceFilters = append(nonWorkspaceFilters, f)
-			}
-		}
-		if len(nonWorkspaceFilters) > 0 {
-			filteredReqFilters = &commonpb.FilterRequest{Filters: nonWorkspaceFilters}
-		}
-	}
-
 	searchFields := []string{"u.first_name", "u.last_name", "u.email_address"}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhere(filteredReqFilters, req.Search, searchFields, 2)
+	filteredReqFilters, err := workspaceUserFiltersForScope(req.GetFilters(), workspaceID)
 	if err != nil {
 		return nil, err
+	}
+	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMapped(
+		filteredReqFilters,
+		req.Search,
+		workspaceUserFilterFieldMap,
+		searchFields,
+		2,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get workspace user list page data: invalid filter/search: %w", err)
 	}
 
 	// Hard WHERE conditions: always active + workspace_id
@@ -630,6 +665,10 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 	if req.WorkspaceUserId == "" {
 		return nil, fmt.Errorf("workspace user ID is required")
 	}
+	wsID, err := requireWorkspaceUserScope(ctx, "get workspace user item page data")
+	if err != nil {
+		return nil, err
+	}
 
 	// CTE Query - Single round-trip with enriched user data and aggregated workspace_user_role relationships
 	// Performance Notes:
@@ -685,12 +724,11 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 			LEFT JOIN "` + entityid.User + `" u ON wu.user_id = u.id AND u.active = true
 			LEFT JOIN user_roles_agg ura ON wu.id = ura.workspace_user_id
 			WHERE wu.id = $1 AND wu.active = true
-			  AND ($2::text = '' OR wu.workspace_id = $2::text)
+			  AND wu.workspace_id = $2::text
 		)
 		SELECT * FROM enriched LIMIT 1;
 	`
 
-	wsID := identity.Must(ctx).WorkspaceID
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	row := exec.QueryRowContext(ctx, query, req.WorkspaceUserId, wsID)
 
@@ -712,7 +750,7 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserItemPageData(
 		workspaceUserRolesJSON []byte
 	)
 
-	err := row.Scan(
+	err = row.Scan(
 		&id,
 		&workspaceId,
 		&userId,
@@ -795,14 +833,17 @@ func (r *PostgresWorkspaceUserRepository) ListWorkspacesForUsers(
 		req = &workspaceuserpb.ListWorkspacesForUsersRequest{}
 	}
 
-	wsID := identity.Must(ctx).WorkspaceID
+	wsID, err := requireWorkspaceUserScope(ctx, "list workspaces for users")
+	if err != nil {
+		return nil, err
+	}
 
 	query := `
 		SELECT wu.user_id, w.id, w.name
 		FROM ` + entityid.WorkspaceUser + ` wu
 		JOIN ` + entityid.Workspace + ` w ON wu.workspace_id = w.id
 		WHERE wu.active = true AND w.active = true
-		  AND ($1::text = '' OR wu.workspace_id = $1::text)
+		  AND wu.workspace_id = $1::text
 		ORDER BY wu.user_id, w.name
 	`
 

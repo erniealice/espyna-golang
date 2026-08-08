@@ -32,7 +32,7 @@ func AuditContext() fiber.Handler {
 		// Request ID: use incoming header or generate one.
 		requestID := c.Get("X-Request-ID")
 		if requestID == "" {
-			requestID = uuid.New().String()
+			requestID = uuid.Must(uuid.NewV7()).String()
 		}
 
 		// IP address: prefer X-Forwarded-For first entry, else IP().

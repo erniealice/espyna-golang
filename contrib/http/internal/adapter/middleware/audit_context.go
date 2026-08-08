@@ -32,7 +32,7 @@ func AuditContextMiddleware(next http.Handler) http.Handler {
 		// Request ID: use incoming header or generate one
 		requestID := r.Header.Get("X-Request-ID")
 		if requestID == "" {
-			requestID = uuid.New().String()
+			requestID = uuid.Must(uuid.NewV7()).String()
 		}
 
 		ac := infraports.AuditContext{

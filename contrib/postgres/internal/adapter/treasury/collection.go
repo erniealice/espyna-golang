@@ -7,8 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
-	"slices"
+	"strings"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -17,7 +16,6 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
@@ -28,25 +26,49 @@ import (
 // this guard is critical — an unrecognised column is a potential SQL-injection
 // vector and must be rejected loudly before query execution.
 var collectionSortableSQLCols = []string{
-	"tc.date_created",
-	"tc.date_modified",
-	"tc.name",
-	"tc.amount",
-	"tc.status",
-	"tc.payment_date",
-	"tc.reference_number",
+	"e.date_created",
+	"e.date_modified",
+	"e.name",
+	"e.amount",
+	"e.status",
+	"e.payment_date",
+	"e.reference_number",
 }
 
 // collectionViewToSQLColMap translates view-facing sort column keys to the SQL
 // column names used in the query. Columns absent from the map pass through unchanged.
 var collectionViewToSQLColMap = map[string]string{
-	"date_created":     "tc.date_created",
-	"date_modified":    "tc.date_modified",
-	"name":             "tc.name",
-	"amount":           "tc.amount",
-	"status":           "tc.status",
-	"payment_date":     "tc.payment_date",
-	"reference_number": "tc.reference_number",
+	"date_created":     "e.date_created",
+	"date_modified":    "e.date_modified",
+	"name":             "e.name",
+	"amount":           "e.amount",
+	"status":           "e.status",
+	"payment_date":     "e.payment_date",
+	"reference_number": "e.reference_number",
+}
+
+var collectionFilterFieldMap = map[string]string{
+	"id":                         "tc.id",
+	"active":                     "tc.active",
+	"name":                       "tc.name",
+	"subscription_id":            "tc.subscription_id",
+	"amount":                     "tc.amount",
+	"status":                     "tc.status",
+	"revenue_id":                 "tc.revenue_id",
+	"collection_method_id":       "tc.collection_method_id",
+	"currency":                   "tc.currency",
+	"reference_number":           "tc.reference_number",
+	"payment_date":               "tc.payment_date",
+	"received_by":                "tc.received_by",
+	"received_role":              "tc.received_role",
+	"collection_type":            "tc.collection_type",
+	"advance_kind":               "tc.advance_kind",
+	"advance_status":             "tc.advance_status",
+	"advance_balance_account_id": "tc.advance_balance_account_id",
+	"advance_target_account_id":  "tc.advance_target_account_id",
+	"client_id":                  "tc.client_id",
+	"date_created":               "tc.date_created",
+	"date_modified":              "tc.date_modified",
 }
 
 func init() {
@@ -226,9 +248,12 @@ func (r *PostgresCollectionRepository) DeleteCollection(ctx context.Context, req
 
 // ListCollections lists collection records with optional filters
 func (r *PostgresCollectionRepository) ListCollections(ctx context.Context, req *collectionpb.ListCollectionsRequest) (*collectionpb.ListCollectionsResponse, error) {
-	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	params := &interfaces.ListParams{}
+	if req != nil {
+		params.Filters = req.Filters
+		params.Search = req.Search
+		params.Sort = req.Sort
+		params.Pagination = req.Pagination
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
@@ -240,14 +265,12 @@ func (r *PostgresCollectionRepository) ListCollections(ctx context.Context, req 
 		postgresCore.ConvertMillisToDateStr(result, "payment_date")
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
-			log.Printf("WARN: json.Marshal collection row: %v", err)
-			continue
+			return nil, fmt.Errorf("failed to marshal collection row: %w", err)
 		}
 
 		collection := &collectionpb.Collection{}
 		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, collection); err != nil {
-			log.Printf("WARN: protojson unmarshal collection: %v", err)
-			continue
+			return nil, fmt.Errorf("failed to unmarshal collection row: %w", err)
 		}
 		collections = append(collections, collection)
 	}
@@ -268,59 +291,50 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 		return nil, fmt.Errorf("get collection list page data request is required")
 	}
 
-	// Extract workspace_id from context (REQUIRED for multi-tenancy)
-	workspaceID := identity.Must(ctx).WorkspaceID
-
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
+	if err := requireTreasuryRawDB(r.db); err != nil {
+		return nil, fmt.Errorf("get collection list page data: %w", err)
+	}
+	workspaceID, err := requireTreasuryWorkspace(ctx, r.dbOps, entityid.TreasuryCollection)
+	if err != nil {
+		return nil, fmt.Errorf("get collection list page data: %w", err)
 	}
 
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, fmt.Errorf("get collection list page data: invalid pagination: %w", err)
 	}
 
-	sortField := "tc.date_created"
-	sortOrder := "DESC"
-	// Only override the default when the request supplies a NON-BLANK field. A
-	// blank field would otherwise overwrite the default with "", slip past the
-	// `sortField != ""` allowlist guard below, and interpolate into `ORDER BY  DESC`
-	// (a query syntax error). Blank → keep the default, matching BuildOrderBy.
-	if req.Sort != nil && len(req.Sort.Fields) > 0 && req.Sort.Fields[0].Field != "" {
-		sortField = req.Sort.Fields[0].Field
-		if req.Sort.Fields[0].Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	sortFragment, err := postgresCore.BuildOrderBy(
+		collectionSortableSQLCols,
+		mapTreasurySortRequest(req.GetSort(), collectionViewToSQLColMap),
+		"e.date_created DESC",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("invalid sort column for collection: %w", err)
 	}
 
-	// Translate view-facing column key to SQL column name via ColMap.
-	if mapped, ok := collectionViewToSQLColMap[sortField]; ok {
-		sortField = mapped
+	searchFields := []string{"tc.name", "tc.reference_number", "tc.status", "tc.collection_type"}
+	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMappedISODateText(
+		req.GetFilters(), req.GetSearch(), collectionFilterFieldMap, []string{"payment_date"}, searchFields, 2,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get collection list page data: invalid filter/search: %w", err)
 	}
-
-	// Loud-failure guard: reject any sort column not in the allowlist. This query
-	// uses direct ORDER BY interpolation, so an unrecognised value is a potential
-	// SQL-injection vector and must be rejected loudly before query execution.
-	if sortField != "" && !slices.Contains(collectionSortableSQLCols, sortField) {
-		return nil, fmt.Errorf("unknown sort column %q for entity %q (allowed: %v)", sortField, "collection", collectionSortableSQLCols)
+	whereExtra := ""
+	if len(filterClauses) > 0 {
+		whereExtra = " AND " + strings.Join(filterClauses, " AND ")
 	}
+	limitIdx, offsetIdx := nextIdx, nextIdx+1
+	queryArgs := make([]any, 0, len(filterArgs)+3)
+	queryArgs = append(queryArgs, workspaceID)
+	queryArgs = append(queryArgs, filterArgs...)
+	queryArgs = append(queryArgs, limit, offset)
 
 	// 20260517 advance-cash-events: extend the CTE with all advance_* schedule
 	// columns + client_id. The list view doesn't render every column today,
 	// but downstream filter chips + Treasury dashboard need the data flowing
 	// through the proto without a second round-trip.
-	query := `
+	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				tc.id,
@@ -353,24 +367,20 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 				tc.advance_expiry_date,
 				tc.advance_proration_policy,
 				tc.client_id
-			FROM ` + entityid.TreasuryCollection + ` tc
+			FROM `+entityid.TreasuryCollection+` tc
 			WHERE tc.active = true
 			  AND tc.workspace_id = $1
-			  AND ($2::text IS NULL OR $2::text = '' OR
-			       tc.name ILIKE $2 OR
-			       tc.reference_number ILIKE $2 OR
-			       tc.status ILIKE $2 OR
-			       tc.collection_type ILIKE $2)
+			  %s
 		)
 		SELECT
 			e.*,
 			COUNT(*) OVER () AS total
 		FROM enriched e
-		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $3 OFFSET $4;
-	`
+		%s
+		LIMIT $%d OFFSET $%d;
+	`, whereExtra, sortFragment, limitIdx, offsetIdx)
 
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query collection list page data: %w", err)
 	}
@@ -393,7 +403,7 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 			collectionMethodID      *string
 			currency                *string
 			referenceNumber         *string
-			paymentDate             *time.Time
+			paymentDate             *string
 			receivedBy              *string
 			receivedRole            *string
 			collectionType          *string
@@ -487,8 +497,8 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 		if collectionType != nil {
 			collection.CollectionType = *collectionType
 		}
-		if paymentDate != nil && !paymentDate.IsZero() {
-			collection.PaymentDate = paymentDate.Format("2006-01-02")
+		if paymentDate != nil {
+			collection.PaymentDate = *paymentDate
 		}
 		assignAdvanceFieldsCollection(collection,
 			advanceKind, advanceStatus, advanceStartDate, advanceEndDate,
@@ -552,8 +562,13 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 		return nil, fmt.Errorf("collection ID is required")
 	}
 
-	// Extract workspace_id from context (REQUIRED for multi-tenancy)
-	workspaceID := identity.Must(ctx).WorkspaceID
+	if err := requireTreasuryRawDB(r.db); err != nil {
+		return nil, fmt.Errorf("get collection item page data: %w", err)
+	}
+	workspaceID, err := requireTreasuryWorkspace(ctx, r.dbOps, entityid.TreasuryCollection)
+	if err != nil {
+		return nil, fmt.Errorf("get collection item page data: %w", err)
+	}
 
 	// 20260517 advance-cash-events: extend the CTE with all advance_* schedule
 	// columns + client_id (mirrors GetCollectionListPageData; needed by the
@@ -612,7 +627,7 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 		collectionMethodID      *string
 		currency                *string
 		referenceNumber         *string
-		paymentDate             *time.Time
+		paymentDate             *string
 		receivedBy              *string
 		receivedRole            *string
 		collectionType          *string
@@ -632,7 +647,7 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 		clientID                *string
 	)
 
-	err := row.Scan(
+	err = row.Scan(
 		&id,
 		&dateCreated,
 		&dateModified,
@@ -705,8 +720,8 @@ func (r *PostgresCollectionRepository) GetCollectionItemPageData(
 	if collectionType != nil {
 		collection.CollectionType = *collectionType
 	}
-	if paymentDate != nil && !paymentDate.IsZero() {
-		collection.PaymentDate = paymentDate.Format("2006-01-02")
+	if paymentDate != nil {
+		collection.PaymentDate = *paymentDate
 	}
 	assignAdvanceFieldsCollection(collection,
 		advanceKind, advanceStatus, advanceStartDate, advanceEndDate,
@@ -818,16 +833,22 @@ func (r *PostgresCollectionRepository) ListByClient(ctx context.Context, req *co
 		return nil, fmt.Errorf("database operations does not support raw SQL queries")
 	}
 
-	wsID := identity.Must(ctx).WorkspaceID
+	workspaceID, err := requireTreasuryWorkspace(ctx, r.dbOps, entityid.TreasuryCollection)
+	if err != nil {
+		return nil, fmt.Errorf("list collections by client: %w", err)
+	}
+	if err := requireTreasuryRawDB(db.GetDB()); err != nil {
+		return nil, fmt.Errorf("list collections by client: %w", err)
+	}
 
 	rows, err := db.GetDB().QueryContext(ctx,
 		`SELECT c.id, c.active, c.revenue_id, c.amount, c.status, c.currency,
 		        c.reference_number, c.payment_date, c.collection_type
 		 FROM `+entityid.TreasuryCollection+` c
-		 JOIN `+entityid.Revenue+` r ON r.id = c.revenue_id
-		 WHERE r.client_id = $1
-		   AND ($2::text = '' OR r.workspace_id = $2::text)`,
-		req.GetClientId(), wsID,
+		 LEFT JOIN `+entityid.Revenue+` r ON r.id = c.revenue_id
+		 WHERE (c.client_id = $1 OR r.client_id = $1)
+		   AND c.workspace_id = $2::text`,
+		req.GetClientId(), workspaceID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("ListByClient query failed: %w", err)

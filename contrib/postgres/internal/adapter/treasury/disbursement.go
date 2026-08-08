@@ -7,7 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
+	"strings"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -16,7 +16,6 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
@@ -49,6 +48,29 @@ var disbursementViewToSQLColMap = map[string]string{
 	"status":           "e.status",
 	"payment_date":     "e.payment_date",
 	"reference_number": "e.reference_number",
+}
+
+var disbursementFilterFieldMap = map[string]string{
+	"id":                         "d.id",
+	"active":                     "d.active",
+	"name":                       "d.name",
+	"subscription_id":            "d.subscription_id",
+	"amount":                     "d.amount",
+	"status":                     "d.status",
+	"expenditure_id":             "d.expenditure_id",
+	"disbursement_type":          "d.disbursement_type",
+	"disbursement_method_id":     "d.disbursement_method_id",
+	"currency":                   "d.currency",
+	"reference_number":           "d.reference_number",
+	"payment_date":               "d.payment_date",
+	"approved_by":                "d.approved_by",
+	"advance_kind":               "d.advance_kind",
+	"advance_status":             "d.advance_status",
+	"advance_balance_account_id": "d.advance_balance_account_id",
+	"advance_target_account_id":  "d.advance_target_account_id",
+	"supplier_id":                "d.supplier_id",
+	"date_created":               "d.date_created",
+	"date_modified":              "d.date_modified",
 }
 
 func init() {
@@ -228,9 +250,12 @@ func (r *PostgresDisbursementRepository) DeleteDisbursement(ctx context.Context,
 
 // ListDisbursements lists disbursement records with optional filters
 func (r *PostgresDisbursementRepository) ListDisbursements(ctx context.Context, req *disbursementpb.ListDisbursementsRequest) (*disbursementpb.ListDisbursementsResponse, error) {
-	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	params := &interfaces.ListParams{}
+	if req != nil {
+		params.Filters = req.Filters
+		params.Search = req.Search
+		params.Sort = req.Sort
+		params.Pagination = req.Pagination
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
@@ -242,14 +267,12 @@ func (r *PostgresDisbursementRepository) ListDisbursements(ctx context.Context, 
 		postgresCore.ConvertMillisToDateStr(result, "payment_date")
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
-			log.Printf("WARN: json.Marshal disbursement row: %v", err)
-			continue
+			return nil, fmt.Errorf("failed to marshal disbursement row: %w", err)
 		}
 
 		disbursement := &disbursementpb.Disbursement{}
 		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, disbursement); err != nil {
-			log.Printf("WARN: protojson unmarshal disbursement: %v", err)
-			continue
+			return nil, fmt.Errorf("failed to unmarshal disbursement row: %w", err)
 		}
 		disbursements = append(disbursements, disbursement)
 	}
@@ -270,58 +293,48 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 		return nil, fmt.Errorf("get disbursement list page data request is required")
 	}
 
-	// Extract workspace_id from context (REQUIRED for multi-tenancy)
-	workspaceID := identity.Must(ctx).WorkspaceID
-
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
+	if err := requireTreasuryRawDB(r.db); err != nil {
+		return nil, fmt.Errorf("get disbursement list page data: %w", err)
+	}
+	workspaceID, err := requireTreasuryWorkspace(ctx, r.dbOps, entityid.TreasuryDisbursement)
+	if err != nil {
+		return nil, fmt.Errorf("get disbursement list page data: %w", err)
 	}
 
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, fmt.Errorf("get disbursement list page data: invalid pagination: %w", err)
 	}
 
-	// Translate view-facing column key to SQL column name via ColMap.
-	sortColKey := "e.date_created"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 && req.Sort.Fields[0].Field != "" {
-		sortColKey = req.Sort.Fields[0].Field
-	}
-	if mapped, ok := disbursementViewToSQLColMap[sortColKey]; ok {
-		sortColKey = mapped
-	}
-
-	// A2 sort guard: reject any column not in the whitelist via core.BuildOrderBy.
-	// Builds "ORDER BY <col> <DIR>" with the column safely double-quoted.
-	// Pass a synthesised *commonpb.SortRequest so the helper picks up direction.
 	sortFragment, err := postgresCore.BuildOrderBy(
 		disbursementSortableSQLCols,
-		&commonpb.SortRequest{Fields: []*commonpb.SortField{{Field: sortColKey, Direction: func() commonpb.SortDirection {
-			if req.Sort != nil && len(req.Sort.Fields) > 0 {
-				return req.Sort.Fields[0].Direction
-			}
-			return commonpb.SortDirection_DESC
-		}()}}},
+		mapTreasurySortRequest(req.GetSort(), disbursementViewToSQLColMap),
 		"e.date_created DESC",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("invalid sort column for disbursement: %w", err)
 	}
 
+	searchFields := []string{"d.name", "d.reference_number", "d.status", "d.disbursement_type"}
+	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMappedISODateText(
+		req.GetFilters(), req.GetSearch(), disbursementFilterFieldMap, []string{"payment_date"}, searchFields, 2,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get disbursement list page data: invalid filter/search: %w", err)
+	}
+	whereExtra := ""
+	if len(filterClauses) > 0 {
+		whereExtra = " AND " + strings.Join(filterClauses, " AND ")
+	}
+	limitIdx, offsetIdx := nextIdx, nextIdx+1
+	queryArgs := make([]any, 0, len(filterArgs)+3)
+	queryArgs = append(queryArgs, workspaceID)
+	queryArgs = append(queryArgs, filterArgs...)
+	queryArgs = append(queryArgs, limit, offset)
+
 	// 20260517 advance-cash-events: extend the CTE with all advance_* schedule
 	// columns + supplier_id (buying-side mirror of collection.go).
-	query := `
+	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				d.id,
@@ -353,14 +366,10 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 				d.advance_expiry_date,
 				d.advance_proration_policy,
 				d.supplier_id
-			FROM ` + entityid.TreasuryDisbursement + ` d
+			FROM `+entityid.TreasuryDisbursement+` d
 			WHERE d.active = true
 			  AND d.workspace_id = $1
-			  AND ($2::text IS NULL OR $2::text = '' OR
-			       d.name ILIKE $2 OR
-			       d.reference_number ILIKE $2 OR
-			       d.status ILIKE $2 OR
-			       d.disbursement_type ILIKE $2)
+			  %s
 		)
 		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
 		-- same scan as the page rows (the prior counted CTE forced a second scan).
@@ -368,11 +377,11 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 			e.*,
 			COUNT(*) OVER () AS total
 		FROM enriched e
-		` + sortFragment + `
-		LIMIT $3 OFFSET $4;
-	`
+		%s
+		LIMIT $%d OFFSET $%d;
+	`, whereExtra, sortFragment, limitIdx, offsetIdx)
 
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query disbursement list page data: %w", err)
 	}
@@ -396,7 +405,7 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 			disbursementMethodID    *string
 			currency                *string
 			referenceNumber         *string
-			paymentDate             *time.Time
+			paymentDate             *string
 			approvedBy              *string
 			advanceKind             sql.NullInt32
 			advanceStatus           sql.NullInt32
@@ -484,8 +493,8 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 		if approvedBy != nil {
 			disbursement.ApprovedBy = *approvedBy
 		}
-		if paymentDate != nil && !paymentDate.IsZero() {
-			disbursement.PaymentDate = paymentDate.Format("2006-01-02")
+		if paymentDate != nil {
+			disbursement.PaymentDate = *paymentDate
 		}
 		assignAdvanceFieldsDisbursement(disbursement,
 			advanceKind, advanceStatus, advanceStartDate, advanceEndDate,
@@ -549,8 +558,13 @@ func (r *PostgresDisbursementRepository) GetDisbursementItemPageData(
 		return nil, fmt.Errorf("disbursement ID is required")
 	}
 
-	// Extract workspace_id from context (REQUIRED for multi-tenancy)
-	workspaceID := identity.Must(ctx).WorkspaceID
+	if err := requireTreasuryRawDB(r.db); err != nil {
+		return nil, fmt.Errorf("get disbursement item page data: %w", err)
+	}
+	workspaceID, err := requireTreasuryWorkspace(ctx, r.dbOps, entityid.TreasuryDisbursement)
+	if err != nil {
+		return nil, fmt.Errorf("get disbursement item page data: %w", err)
+	}
 
 	// 20260517 advance-cash-events: extend the CTE with all advance_* schedule
 	// columns + supplier_id (mirrors GetDisbursementListPageData).
@@ -608,7 +622,7 @@ func (r *PostgresDisbursementRepository) GetDisbursementItemPageData(
 		disbursementMethodID    *string
 		currency                *string
 		referenceNumber         *string
-		paymentDate             *time.Time
+		paymentDate             *string
 		approvedBy              *string
 		advanceKind             sql.NullInt32
 		advanceStatus           sql.NullInt32
@@ -626,7 +640,7 @@ func (r *PostgresDisbursementRepository) GetDisbursementItemPageData(
 		supplierID              *string
 	)
 
-	err := row.Scan(
+	err = row.Scan(
 		&id,
 		&dateCreated,
 		&dateModified,
@@ -695,8 +709,8 @@ func (r *PostgresDisbursementRepository) GetDisbursementItemPageData(
 	if approvedBy != nil {
 		disbursement.ApprovedBy = *approvedBy
 	}
-	if paymentDate != nil && !paymentDate.IsZero() {
-		disbursement.PaymentDate = paymentDate.Format("2006-01-02")
+	if paymentDate != nil {
+		disbursement.PaymentDate = *paymentDate
 	}
 	assignAdvanceFieldsDisbursement(disbursement,
 		advanceKind, advanceStatus, advanceStartDate, advanceEndDate,

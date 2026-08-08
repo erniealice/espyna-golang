@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/database/operations"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
+	"github.com/erniealice/espyna-golang/shared/database/operations"
 	"github.com/google/uuid"
 )
 
@@ -84,7 +84,11 @@ func (a *auditAdapter) LogEntry(ctx context.Context, req *infraports.AuditLogReq
 	exec := a.getExecutor(ctx)
 
 	workspaceID := req.WorkspaceID
-	entryID := uuid.NewString()
+	newEntryID, err := uuid.NewV7()
+	if err != nil {
+		return fmt.Errorf("audit adapter: generate entry id: %w", err)
+	}
+	entryID := newEntryID.String()
 	occurredAt := time.Now().UTC()
 	fieldCount := int32(len(req.FieldChanges))
 

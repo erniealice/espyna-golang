@@ -184,8 +184,19 @@ func (r *PostgresWorkspaceRepository) DeleteWorkspace(ctx context.Context, req *
 }
 
 var workspaceSortableSQLCols = []string{
-	"id", "active", "name", "description", "private", "status",
+	"id", "active", "name", "description", "private",
 	"date_created", "date_modified",
+}
+
+var workspaceFilterFieldMap = map[string]string{
+	"id":                   "w.id",
+	"name":                 "w.name",
+	"description":          "w.description",
+	"private":              "w.private",
+	"workflow_template_id": "w.workflow_template_id",
+	"active":               "w.active",
+	"date_created":         "w.date_created",
+	"date_modified":        "w.date_modified",
 }
 
 var workspaceSortSpec = espynahttp.SortSpec{AllowedCols: workspaceSortableSQLCols}
@@ -239,21 +250,9 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 		return nil, fmt.Errorf("get workspace list page data request is required")
 	}
 
-	// Default pagination values
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		// Handle offset pagination
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, fmt.Errorf("get workspace list page data: invalid pagination: %w", err)
 	}
 
 	// Sort — fail-closed against the per-entity whitelist (A2 guard). Mirrors the
@@ -267,9 +266,11 @@ func (r *PostgresWorkspaceRepository) GetWorkspaceListPageData(
 
 	// Build filter/search WHERE clauses (start at $1)
 	searchFields := []string{"w.name", "w.description"}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMapped(
+		req.Filters, req.Search, workspaceFilterFieldMap, searchFields, 1,
+	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get workspace list page data: invalid filter/search: %w", err)
 	}
 
 	whereSQL := ""

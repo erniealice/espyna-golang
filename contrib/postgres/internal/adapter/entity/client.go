@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
+
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	principalscope "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
@@ -320,6 +322,30 @@ var clientSortableSQLCols = []string{
 
 var clientSortSpec = espynahttp.SortSpec{AllowedCols: clientSortableSQLCols}
 
+func clientActiveSubscriptionSortSQL(sort *commonpb.SortRequest) (projection, join string) {
+	projection = "0::bigint AS active_subscriptions"
+	if sort == nil {
+		return projection, ""
+	}
+	for _, field := range sort.GetFields() {
+		if field == nil || field.GetField() == "" {
+			continue
+		}
+		if field.GetField() != "active_subscriptions" {
+			return projection, ""
+		}
+		return "COALESCE(sub.active_subscriptions, 0)::bigint AS active_subscriptions", `
+			LEFT JOIN (
+				SELECT s.client_id, COUNT(*)::bigint AS active_subscriptions
+				FROM ` + entityid.Subscription + ` s
+				WHERE s.active = true
+				  AND s.workspace_id = $1
+				GROUP BY s.client_id
+			) sub ON sub.client_id = c.id`
+	}
+	return projection, ""
+}
+
 // ListClients lists clients using common PostgreSQL operations.
 func (r *PostgresClientRepository) ListClients(ctx context.Context, req *clientpb.ListClientsRequest) (*clientpb.ListClientsResponse, error) {
 	if err := espynahttp.ValidateSortColumns(clientSortSpec, req.GetSort(), "client"); err != nil {
@@ -436,15 +462,16 @@ func (r *DBClientRepository) Create(ctx context.Context, req *clientpb.CreateCli
 }
 */
 
-// GetClientListPageData retrieves clients via a raw CTE query that includes a
-// LATERAL JOIN computing active_subscriptions per client row. This enables
-// server-side ORDER BY active_subscriptions without a separate count query per
-// row and without client-side sorting.
+// GetClientListPageData retrieves clients via a raw CTE query. The
+// active_subscriptions SQL-only projection is added only when that derived
+// column is the requested sort key; ordinary pages emit a constant zero and do
+// no Subscription work. The derived-sort path preaggregates Subscription once
+// by client instead of running a correlated LATERAL count for every candidate.
 //
 // The query follows the same shape as GetSupplierListPageData (payment_term_name
 // LATERAL JOIN exemplar) — single round-trip, CTE + windowed COUNT(*), user
 // denorm via LEFT JOIN, payment_term name via LEFT JOIN, and the subscription
-// count via LEFT JOIN LATERAL.
+// count via an optional set-oriented aggregate.
 //
 // Cross-table search (u.first_name, u.last_name, u.email_address) is supported
 // via the enriched CTE joining the user table — callers pass Search through
@@ -466,23 +493,15 @@ func (r *PostgresClientRepository) GetClientListPageData(
 		return nil, err
 	}
 
-	// Extract workspace_id from context (REQUIRED for multi-tenancy).
-	workspaceID := identity.Must(ctx).WorkspaceID
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get client list page data: %w", err)
+	}
+	workspaceID := requestIdentity.WorkspaceID
 
-	// Default pagination values.
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, fmt.Errorf("invalid client pagination: %w", err)
 	}
 
 	// Sort — fail-closed against the per-entity whitelist (A2 guard). Default
@@ -495,8 +514,9 @@ func (r *PostgresClientRepository) GetClientListPageData(
 
 	// Build filter/search WHERE clauses ($1 reserved for workspace_id, start at $2).
 	// Search spans client name + internal_id + representative user name/email.
+	filterFields := []string{"name", "status"}
 	searchFields := []string{"c.name", "c.internal_id", "u.first_name", "u.last_name", "u.email_address"}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereAllowed(req.Filters, req.Search, filterFields, searchFields, 2)
 	if err != nil {
 		return nil, err
 	}
@@ -520,16 +540,18 @@ func (r *PostgresClientRepository) GetClientListPageData(
 	whereSQL += clientScope
 	queryArgs = append(queryArgs, clientScopeArgs...)
 
+	activeSubscriptionProjection, activeSubscriptionJoin := clientActiveSubscriptionSortSQL(req.GetSort())
+
 	// CTE query — single round-trip with:
 	//   • User denorm via LEFT JOIN "` + entityid.User + `" u
 	//   • PaymentTerm name via LEFT JOIN ` + entityid.PaymentTerm + ` pt
-	//   • Active subscription count via LEFT JOIN LATERAL subquery
+	//   • Optional active-subscription preaggregate only for the derived sort
 	//   • Windowed total count via COUNT(*) OVER () — avoids double-materialization
 	//     of the counted CTE pattern (A3 Q-PAGE-COUNT default tier).
 	//
 	// active_subscriptions is scoped to the same workspace_id so cross-workspace
-	// counts are not leaked. The column is available to ORDER BY at the enriched
-	// CTE level; it is not mapped to any Client proto field (DiscardUnknown).
+	// counts are not leaked. The projection is available to ORDER BY at the
+	// enriched CTE level; it is not mapped to any Client proto field.
 	query := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
@@ -559,9 +581,8 @@ func (r *PostgresClientRepository) GetClientListPageData(
 				c.credit_limit,
 				c.lead_time_days,
 				COALESCE(pt.name, '') AS payment_term_name,
-				-- Active subscription count — drives ORDER BY active_subscriptions.
-				-- Scoped by workspace_id to prevent cross-workspace count leakage.
-				sub.active_subscriptions,
+				-- SQL-only derived-sort projection; zero when no such sort is requested.
+				%s,
 				-- User fields (1:1 relationship via client.user_id)
 				u.id AS user_id_value,
 				u.first_name AS user_first_name,
@@ -573,19 +594,13 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			FROM `+entityid.Client+` c
 			LEFT JOIN "`+entityid.User+`" u ON c.user_id = u.id
 			LEFT JOIN `+entityid.PaymentTerm+` pt ON c.payment_term_id = pt.id
-			LEFT JOIN LATERAL (
-				SELECT COUNT(*) AS active_subscriptions
-				FROM `+entityid.Subscription+` s
-				WHERE s.client_id = c.id
-				  AND s.active = true
-				  AND s.workspace_id = $1
-			) sub ON true
+			%s
 			%s
 		)
 		SELECT * FROM enriched
 		%s
 		LIMIT $%d OFFSET $%d;
-	`, whereSQL, orderByClause, limitIdx, offsetIdx)
+	`, activeSubscriptionProjection, activeSubscriptionJoin, whereSQL, orderByClause, limitIdx, offsetIdx)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, queryArgs...)
@@ -785,12 +800,11 @@ func (r *PostgresClientRepository) GetClientListPageData(
 		return nil, fmt.Errorf("error iterating client rows: %w", err)
 	}
 
-	// Load Categories per row — cannot be inlined via a simple LEFT JOIN without
-	// multiplying rows; kept as a bounded N+1 read (≤ page size, default 50).
-	for _, c := range clients {
-		if cats, err := r.loadClientCategories(ctx, c.GetId()); err == nil && len(cats) > 0 {
-			c.Categories = cats
-		}
+	// Hydrate category tags for the returned page in one query. Keeping this as
+	// a separate batch avoids multiplying the paginated Client rows while also
+	// avoiding one query per row.
+	if err := hydrateClientCategories(ctx, clients, r.loadClientCategoriesBatch); err != nil {
+		return nil, err
 	}
 
 	// Pagination metadata — total_items is the windowed count from the CTE.
@@ -840,7 +854,11 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 	client := rr.GetData()[0]
 
 	// Categories denorm — adjacent helper, kept separate from ReadClient.
-	if categories, err := r.loadClientCategories(ctx, client.GetId()); err == nil && len(categories) > 0 {
+	categories, err := r.loadClientCategories(ctx, client.GetId())
+	if err != nil {
+		return nil, err
+	}
+	if len(categories) > 0 {
 		client.Categories = categories
 	}
 
@@ -850,8 +868,59 @@ func (r *PostgresClientRepository) GetClientItemPageData(
 	}, nil
 }
 
-// loadClientCategories loads the category tags for a client via JOIN through client_category to category
+type clientCategoryBatchLoader func(context.Context, []string) (map[string][]*clientcategorypb.ClientCategory, error)
+
+func hydrateClientCategories(ctx context.Context, clients []*clientpb.Client, load clientCategoryBatchLoader) error {
+	clientIDs := make([]string, 0, len(clients))
+	seen := make(map[string]struct{}, len(clients))
+	for _, client := range clients {
+		if client == nil || client.GetId() == "" {
+			continue
+		}
+		if _, duplicate := seen[client.GetId()]; duplicate {
+			continue
+		}
+		seen[client.GetId()] = struct{}{}
+		clientIDs = append(clientIDs, client.GetId())
+	}
+	if len(clientIDs) == 0 {
+		return nil
+	}
+
+	categoriesByClient, err := load(ctx, clientIDs)
+	if err != nil {
+		return fmt.Errorf("failed to hydrate client categories: %w", err)
+	}
+	for _, client := range clients {
+		if client == nil {
+			continue
+		}
+		if categories := categoriesByClient[client.GetId()]; len(categories) > 0 {
+			client.Categories = categories
+		}
+	}
+	return nil
+}
+
+// loadClientCategories loads the category tags for one client through the
+// page-batch implementation so list and item paths share the same scan shape.
 func (r *PostgresClientRepository) loadClientCategories(ctx context.Context, clientId string) ([]*clientcategorypb.ClientCategory, error) {
+	categoriesByClient, err := r.loadClientCategoriesBatch(ctx, []string{clientId})
+	if err != nil {
+		return nil, err
+	}
+	return categoriesByClient[clientId], nil
+}
+
+// loadClientCategoriesBatch loads category tags for only the returned Client
+// page. Client IDs are bound as a PostgreSQL text array; no identifier or value
+// is interpolated into SQL.
+func (r *PostgresClientRepository) loadClientCategoriesBatch(ctx context.Context, clientIDs []string) (map[string][]*clientcategorypb.ClientCategory, error) {
+	categoriesByClient := make(map[string][]*clientcategorypb.ClientCategory, len(clientIDs))
+	if len(clientIDs) == 0 {
+		return categoriesByClient, nil
+	}
+
 	query := `
 		SELECT
 			cc.id,
@@ -861,18 +930,19 @@ func (r *PostgresClientRepository) loadClientCategories(ctx context.Context, cli
 			cat.description
 		FROM ` + entityid.ClientCategory + ` cc
 		INNER JOIN ` + entityid.Category + ` cat ON cc.category_id = cat.id
-		WHERE cc.client_id = $1 AND cc.active = true AND cat.active = true
-		ORDER BY cat.name ASC
+		WHERE cc.client_id = ANY($1::text[])
+		  AND cc.active = true
+		  AND cat.active = true
+		ORDER BY cc.client_id, cat.name ASC
 	`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, clientId)
+	rows, err := exec.QueryContext(ctx, query, pq.Array(clientIDs))
 	if err != nil {
-		return nil, fmt.Errorf("failed to load client categories: %w", err)
+		return nil, fmt.Errorf("failed to load client category batch: %w", err)
 	}
 	defer rows.Close()
 
-	var categories []*clientcategorypb.ClientCategory
 	for rows.Next() {
 		var (
 			ccId       string
@@ -893,7 +963,7 @@ func (r *PostgresClientRepository) loadClientCategories(ctx context.Context, cli
 			cat.Description = *catDesc
 		}
 
-		categories = append(categories, &clientcategorypb.ClientCategory{
+		categoriesByClient[ccClientId] = append(categoriesByClient[ccClientId], &clientcategorypb.ClientCategory{
 			Id:         ccId,
 			ClientId:   ccClientId,
 			CategoryId: ccCatId,
@@ -903,10 +973,10 @@ func (r *PostgresClientRepository) loadClientCategories(ctx context.Context, cli
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating client category rows: %w", err)
+		return nil, fmt.Errorf("error iterating client category batch rows: %w", err)
 	}
 
-	return categories, nil
+	return categoriesByClient, nil
 }
 
 // deref safely dereferences a *string, returning "" if nil.
@@ -923,9 +993,13 @@ func (r *PostgresClientRepository) SearchClientsByName(ctx context.Context, req 
 		return nil, fmt.Errorf("search clients by name request is required")
 	}
 
-	limit := int32(20)
-	if req.Limit != nil && *req.Limit > 0 {
-		limit = *req.Limit
+	pattern, err := postgresCore.BoundedContainsPattern(req.GetQuery())
+	if err != nil {
+		return nil, fmt.Errorf("bounded client name search: %w", err)
+	}
+	limit, err := postgresCore.BoundedQueryLimit(req.GetLimit(), 20, 100)
+	if err != nil {
+		return nil, fmt.Errorf("bounded client name limit: %w", err)
 	}
 
 	// SEC-006: scope to the caller's workspace ($3) — without it this autocomplete
@@ -946,17 +1020,12 @@ func (r *PostgresClientRepository) SearchClientsByName(ctx context.Context, req 
 		WHERE c.workspace_id = $3
 			AND c.active = true
 			AND ($1::text = '' OR
-				c.name ILIKE $1 OR
-				u.first_name ILIKE $1 OR
-				u.last_name ILIKE $1)` + clientScope + `
+				c.name ILIKE $1 ESCAPE '\' OR
+				u.first_name ILIKE $1 ESCAPE '\' OR
+				u.last_name ILIKE $1 ESCAPE '\')` + clientScope + `
 		ORDER BY label ASC
 		LIMIT $2
 	`
-
-	pattern := ""
-	if req.Query != "" {
-		pattern = "%" + req.Query + "%"
-	}
 
 	queryArgs := []any{pattern, limit, workspaceID}
 	queryArgs = append(queryArgs, clientScopeArgs...)

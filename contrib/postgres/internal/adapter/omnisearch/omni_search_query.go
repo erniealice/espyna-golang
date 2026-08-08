@@ -29,10 +29,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 
 	omnisearchpb "github.com/erniealice/esqyma/pkg/schema/v1/service/omni_search"
 
+	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
 	internalregistry "github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	"github.com/erniealice/espyna-golang/registry/entityid"
@@ -72,6 +72,8 @@ func NewPostgresOmniSearchQuery(db *sql.DB) omnisearchpb.OmniSearchServiceServer
 // use-case-clamped) request carries no positive limit.
 const defaultLimitPerCategory int32 = 5
 
+const maxLimitPerCategory int32 = 10
+
 // SearchEntities runs one parameterized ILIKE arm per permitted category and
 // returns the non-empty groups in registry order. Workspace scope is derived
 // from the SESSION identity (never a request param); a missing identity fails
@@ -83,6 +85,21 @@ func (a *PostgresOmniSearchQuery) SearchEntities(
 	if req == nil || req.GetQuery() == "" || len(req.GetCategories()) == 0 {
 		return &omnisearchpb.OmniSearchResponse{Success: true}, nil
 	}
+	// The use case permission-gates category keys, but the adapter owns its
+	// finite work budget too. Reject an oversized raw request before identity or
+	// database work; duplicate keys still count toward that hostile input budget.
+	if len(req.GetCategories()) > len(categoryBuilders) {
+		return nil, fmt.Errorf("omni_search: category count %d exceeds maximum %d", len(req.GetCategories()), len(categoryBuilders))
+	}
+
+	pattern, err := core.BoundedContainsPattern(req.GetQuery())
+	if err != nil {
+		return nil, fmt.Errorf("omni_search: invalid query: %w", err)
+	}
+	limit, err := core.BoundedQueryLimit(req.GetLimitPerCategory(), defaultLimitPerCategory, maxLimitPerCategory)
+	if err != nil {
+		return nil, fmt.Errorf("omni_search: invalid per-category limit: %w", err)
+	}
 
 	// workspace_id from the session identity — required for multi-tenancy.
 	// FromContext (not identity.Must) so a missing identity fails closed to an
@@ -93,15 +110,13 @@ func (a *PostgresOmniSearchQuery) SearchEntities(
 	}
 	workspaceID := id.WorkspaceID
 
-	limit := defaultLimitPerCategory
-	if req.LimitPerCategory != nil && req.GetLimitPerCategory() > 0 {
-		limit = req.GetLimitPerCategory()
-	}
-
-	pattern := "%" + escapeLike(req.GetQuery()) + "%"
-
 	var categories []*omnisearchpb.OmniSearchCategoryResults
+	seen := make(map[string]struct{}, len(req.GetCategories()))
 	for _, key := range req.GetCategories() {
+		if _, duplicate := seen[key]; duplicate {
+			continue
+		}
+		seen[key] = struct{}{}
 		build, ok := categoryBuilders[key]
 		if !ok {
 			// Unknown key — defensively skipped (the use case validates the set;
@@ -151,24 +166,6 @@ func (a *PostgresOmniSearchQuery) runCategory(ctx context.Context, query string,
 		return nil, fmt.Errorf("omni_search: result rows: %w", err)
 	}
 	return out, nil
-}
-
-// escapeLike escapes the SQL LIKE/ILIKE wildcards (\, %, _) in the user query so
-// they are matched literally under ILIKE ... ESCAPE '\'. Without this, a query of
-// "%%" or "__" would match the first rows of every permitted category past the
-// min-length rule (codex finding #4). Backslash is escaped FIRST so an escape
-// char introduced for % / _ is not itself re-escaped.
-func escapeLike(s string) string {
-	var b strings.Builder
-	b.Grow(len(s) + 8)
-	for _, r := range s {
-		switch r {
-		case '\\', '%', '_':
-			b.WriteByte('\\')
-		}
-		b.WriteRune(r)
-	}
-	return b.String()
 }
 
 // categoryBuild builds one category's parameterized SQL + positional args. The
@@ -326,7 +323,7 @@ LIMIT $2`
 // (pl.workspace_id = $3) via the join. A pp row bridging to a foreign plan is
 // dropped by pl.workspace_id; a foreign product never matches pp.product_id = pr.id.
 // A product with zero plans yields an empty sublabel (the COALESCE turns the NULL
-// string_agg into ''), never the old "service".
+// string_agg into ”), never the old "service".
 func buildProduct(_ context.Context, pattern string, limit int32, workspaceID string) (string, []any) {
 	args := []any{pattern, limit, workspaceID}
 	q := `

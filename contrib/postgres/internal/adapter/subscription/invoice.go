@@ -329,10 +329,14 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 		}
 	}
 
+	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if err != nil {
+		return nil, fmt.Errorf("bounded invoice search: %w", err)
+	}
 	// Search functionality on invoice_number (partial match)
-	if req.Search != nil && req.Search.Query != "" {
+	if searchPattern != "" {
 		query += fmt.Sprintf(" AND i.invoice_number ILIKE $%d", argCounter)
-		args = append(args, "%"+req.Search.Query+"%")
+		args = append(args, searchPattern)
 		argCounter++
 	}
 
@@ -359,23 +363,10 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 	query += " " + orderBy
 
 	// Add pagination
-	limit := int32(20) // default
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-			if limit > 100 {
-				limit = 100 // Cap at 100 items per page
-			}
-		}
-		if req.Pagination.GetOffset() != nil {
-			page = req.Pagination.GetOffset().Page
-			if page < 1 {
-				page = 1
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 20)
+	if err != nil {
+		return nil, fmt.Errorf("bounded invoice pagination: %w", err)
 	}
-	offset := (page - 1) * limit
 	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argCounter, argCounter+1)
 	args = append(args, limit, offset)
 

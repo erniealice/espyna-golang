@@ -225,27 +225,14 @@ func (r *PostgresLicenseRepository) ListLicenses(ctx context.Context, req *licen
 
 // GetLicenseListPageData retrieves a paginated, filtered, sorted, and searchable list of licenses
 func (r *PostgresLicenseRepository) GetLicenseListPageData(ctx context.Context, req *licensepb.GetLicenseListPageDataRequest) (*licensepb.GetLicenseListPageDataResponse, error) {
-	// Extract pagination parameters with defaults
-	limit := int32(20)
-	page := int32(1)
-	if req.Pagination != nil && req.Pagination.Limit > 0 {
-		limit = req.Pagination.Limit
-		if limit > 100 {
-			limit = 100 // Cap at 100 items per page
-		}
-		if req.Pagination.GetOffset() != nil {
-			page = req.Pagination.GetOffset().Page
-			if page < 1 {
-				page = 1
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 20)
+	if err != nil {
+		return nil, fmt.Errorf("bounded license pagination: %w", err)
 	}
-	offset := (page - 1) * limit
 
-	// Extract search query
-	searchQuery := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchQuery = "%" + req.Search.Query + "%"
+	searchQuery, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if err != nil {
+		return nil, fmt.Errorf("bounded license search: %w", err)
 	}
 
 	// Extract sort parameters with defaults

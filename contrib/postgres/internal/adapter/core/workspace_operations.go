@@ -5,16 +5,54 @@ package core
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"sync"
 
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/database/model"
 	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
+
+type workspaceScopePolicy uint8
+
+const (
+	workspaceScopeLegacy workspaceScopePolicy = iota
+	workspaceScopeDirectRequired
+	workspaceScopeBlockedUntilDirectAnchor
+)
+
+// workspaceScopePolicies is the bounded, enforceable registry for the
+// school-admin tenant surfaces proven by the 2026-08-07 audit. The twelve
+// grading children are direct-required because their entity descriptors now
+// own workspace_id; until the additive migrations are present, generic
+// operations fail closed. Treasury uses the same direct-required policy after
+// its structural-anchor correction. Tables outside this registry retain their
+// existing policy during this bounded wave; direct-column catalog errors still
+// fail closed globally.
+var workspaceScopePolicies = map[string]workspaceScopePolicy{
+	entityid.JobPhase:             workspaceScopeDirectRequired,
+	entityid.JobTask:              workspaceScopeDirectRequired,
+	entityid.JobTemplatePhase:     workspaceScopeDirectRequired,
+	entityid.JobTemplateTask:      workspaceScopeDirectRequired,
+	entityid.JobTemplateRelation:  workspaceScopeDirectRequired,
+	entityid.CriteriaOption:       workspaceScopeDirectRequired,
+	entityid.CriteriaThreshold:    workspaceScopeDirectRequired,
+	entityid.TemplateTaskCriteria: workspaceScopeDirectRequired,
+	entityid.TaskOutcome:          workspaceScopeDirectRequired,
+	entityid.TaskOutcomeCheck:     workspaceScopeDirectRequired,
+	entityid.PhaseOutcomeSummary:  workspaceScopeDirectRequired,
+	entityid.ScoringComponent:     workspaceScopeDirectRequired,
+
+	entityid.TreasuryCollection:   workspaceScopeDirectRequired,
+	entityid.TreasuryDisbursement: workspaceScopeDirectRequired,
+}
+
+type workspaceColumnProbe func(context.Context, string) (map[string]bool, error)
 
 // columnLessTenantTables is the set of TENANT-scoped tables that SHOULD be
 // workspace-isolated but currently lack a workspace_id column in the baseline
@@ -373,6 +411,7 @@ type WorkspaceAwareOperations struct {
 	db            *sql.DB
 	columnCache   map[string]map[string]bool // table name → column name → exists
 	columnCacheMu sync.RWMutex
+	columnProbe   workspaceColumnProbe // test seam; nil uses information_schema
 	// enforce gates the W2 step-2 cross-tenant deny/filter. Read ONCE at
 	// construction from AUTHZ_ENFORCE (default false = SHADOW). When false the
 	// parent-JOIN probe only LOGS the would-be deny (AUTHZ_WS_SHADOW_DENY) and the
@@ -428,8 +467,11 @@ func newWorkspaceEnforce() bool {
 // StringFilter when the context carries a workspace and the table has the
 // column.
 func (w *WorkspaceAwareOperations) List(ctx context.Context, tableName string, params *interfaces.ListParams) (*interfaces.ListResult, error) {
-	wsID := w.getWorkspaceID(ctx)
-	if wsID != "" && w.tableHasWorkspaceColumn(ctx, tableName) {
+	wsID, hasWorkspaceColumn, err := w.resolveWorkspaceScope(ctx, tableName)
+	if err != nil {
+		return nil, err
+	}
+	if wsID != "" && hasWorkspaceColumn {
 		// Direct-column path. account / expenditure / journal_entry land HERE now
 		// that the esqyma migration added their workspace_id column (they were
 		// removed from columnLessTenantTables) — the StringFilter predicate scopes
@@ -452,8 +494,11 @@ func (w *WorkspaceAwareOperations) List(ctx context.Context, tableName string, p
 // Create injects workspace_id into the data map before inserting, when the
 // context carries a workspace and the table has the column.
 func (w *WorkspaceAwareOperations) Create(ctx context.Context, tableName string, data map[string]any) (map[string]any, error) {
-	wsID := w.getWorkspaceID(ctx)
-	if wsID != "" && w.tableHasWorkspaceColumn(ctx, tableName) {
+	wsID, hasWorkspaceColumn, err := w.resolveWorkspaceScope(ctx, tableName)
+	if err != nil {
+		return nil, err
+	}
+	if wsID != "" && hasWorkspaceColumn {
 		// Clone the map to avoid mutating the caller's data.
 		cloned := make(map[string]any, len(data)+1)
 		for k, v := range data {
@@ -484,19 +529,23 @@ func (w *WorkspaceAwareOperations) Create(ctx context.Context, tableName string,
 // Update and Delete already call Read for ownership verification, so they
 // inherit this fix automatically.
 func (w *WorkspaceAwareOperations) Read(ctx context.Context, tableName string, id string) (map[string]any, error) {
+	wsID, hasWorkspaceColumn, scopeErr := w.resolveWorkspaceScope(ctx, tableName)
+	if scopeErr != nil {
+		return nil, scopeErr
+	}
+
 	result, err := w.inner.Read(ctx, tableName, id)
 	if err != nil {
 		return nil, err
 	}
 
-	wsID := w.getWorkspaceID(ctx)
 	if wsID == "" {
 		return result, nil
 	}
 
 	// Only apply direct-column workspace enforcement when the table has the column.
 	// Tables without workspace_id are not directly tenant-scoped.
-	if !w.tableHasWorkspaceColumn(ctx, tableName) {
+	if !hasWorkspaceColumn {
 		// W2 step-2: if this column-less table is a TENANT table (IDOR surface),
 		// derive its owning workspace via the parent-JOIN probe. SHADOW (default)
 		// logs AUTHZ_WS_SHADOW_DENY / _PASS and returns the result unchanged;
@@ -536,8 +585,11 @@ func (w *WorkspaceAwareOperations) Read(ctx context.Context, tableName string, i
 // inner Update. It also strips any workspace_id key from the data payload to
 // prevent cross-workspace reassignment.
 func (w *WorkspaceAwareOperations) Update(ctx context.Context, tableName string, id string, data map[string]any) (map[string]any, error) {
-	wsID := w.getWorkspaceID(ctx)
-	if wsID != "" && w.tableHasWorkspaceColumn(ctx, tableName) {
+	wsID, hasWorkspaceColumn, err := w.resolveWorkspaceScope(ctx, tableName)
+	if err != nil {
+		return nil, err
+	}
+	if wsID != "" && hasWorkspaceColumn {
 		// Verify ownership — reuse Read which already enforces workspace check.
 		if _, err := w.Read(ctx, tableName, id); err != nil {
 			return nil, err
@@ -569,8 +621,11 @@ func (w *WorkspaceAwareOperations) Update(ctx context.Context, tableName string,
 // Delete verifies workspace ownership via a Read, then delegates the soft
 // delete to the inner operation.
 func (w *WorkspaceAwareOperations) Delete(ctx context.Context, tableName string, id string) error {
-	wsID := w.getWorkspaceID(ctx)
-	if wsID != "" && w.tableHasWorkspaceColumn(ctx, tableName) {
+	wsID, hasWorkspaceColumn, err := w.resolveWorkspaceScope(ctx, tableName)
+	if err != nil {
+		return err
+	}
+	if wsID != "" && hasWorkspaceColumn {
 		if _, err := w.Read(ctx, tableName, id); err != nil {
 			return err
 		}
@@ -587,8 +642,11 @@ func (w *WorkspaceAwareOperations) Delete(ctx context.Context, tableName string,
 // HardDelete verifies workspace ownership via a Read, then delegates the
 // permanent delete to the inner operation.
 func (w *WorkspaceAwareOperations) HardDelete(ctx context.Context, tableName string, id string) error {
-	wsID := w.getWorkspaceID(ctx)
-	if wsID != "" && w.tableHasWorkspaceColumn(ctx, tableName) {
+	wsID, hasWorkspaceColumn, err := w.resolveWorkspaceScope(ctx, tableName)
+	if err != nil {
+		return err
+	}
+	if wsID != "" && hasWorkspaceColumn {
 		if _, err := w.Read(ctx, tableName, id); err != nil {
 			return err
 		}
@@ -606,11 +664,17 @@ func (w *WorkspaceAwareOperations) HardDelete(ctx context.Context, tableName str
 // into QueryBuilder is non-trivial; callers that use Query are expected to
 // include workspace filtering themselves.
 func (w *WorkspaceAwareOperations) Query(ctx context.Context, tableName string, query interfaces.QueryBuilder) ([]map[string]any, error) {
+	if policy := workspaceScopePolicies[tableName]; policy != workspaceScopeLegacy {
+		return nil, workspaceScopeUnavailable(tableName, "generic Query cannot prove tenant scope", nil)
+	}
 	return w.inner.Query(ctx, tableName, query)
 }
 
 // QueryOne passes through to the inner operation (see Query).
 func (w *WorkspaceAwareOperations) QueryOne(ctx context.Context, tableName string, query interfaces.QueryBuilder) (map[string]any, error) {
+	if policy := workspaceScopePolicies[tableName]; policy != workspaceScopeLegacy {
+		return nil, workspaceScopeUnavailable(tableName, "generic QueryOne cannot prove tenant scope", nil)
+	}
 	return w.inner.QueryOne(ctx, tableName, query)
 }
 
@@ -637,6 +701,32 @@ func (w *WorkspaceAwareOperations) GetExecutor(ctx context.Context) sqlexec.DBEx
 	return w.db
 }
 
+// RequireDirectWorkspace is the capability gate for adapter-owned raw SQL.
+// Such queries bypass List/Read, so they must explicitly prove both a selected
+// workspace and the live direct workspace_id column before interpolating their
+// author-owned query text. This makes pre-migration deployments fail with a
+// stable 503 instead of executing drifted SQL or falling back to an unscoped
+// parentless query.
+func (w *WorkspaceAwareOperations) RequireDirectWorkspace(ctx context.Context, tableName string) (string, error) {
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return "", model.NewDatabaseError(
+			"workspace selection is required",
+			"WORKSPACE_REQUIRED",
+			400,
+		)
+	}
+
+	hasWorkspaceColumn, err := w.tableHasWorkspaceColumn(ctx, tableName)
+	if err != nil {
+		return "", workspaceScopeUnavailable(tableName, "catalog probe failed", err)
+	}
+	if !hasWorkspaceColumn {
+		return "", workspaceScopeUnavailable(tableName, "required workspace_id column is absent", nil)
+	}
+	return requestIdentity.WorkspaceID, nil
+}
+
 // ── Helper methods ───────────────────────────────────────────────────────────
 
 // getWorkspaceID extracts the workspace_id from the request context.
@@ -660,30 +750,109 @@ func (w *WorkspaceAwareOperations) getWorkspaceID(ctx context.Context) string {
 	return ""
 }
 
+// resolveWorkspaceScope resolves the trusted workspace and live direct-column
+// capability before the inner operation runs. Registered required tables never
+// inherit the historical empty-identity or missing-column pass-through.
+func (w *WorkspaceAwareOperations) resolveWorkspaceScope(ctx context.Context, tableName string) (string, bool, error) {
+	policy := workspaceScopePolicies[tableName]
+	if policy == workspaceScopeDirectRequired || policy == workspaceScopeBlockedUntilDirectAnchor {
+		if policy == workspaceScopeBlockedUntilDirectAnchor {
+			if _, err := identity.RequireWorkspace(ctx); err != nil {
+				return "", false, model.NewDatabaseError(
+					"workspace selection is required",
+					"WORKSPACE_REQUIRED",
+					400,
+				)
+			}
+			return "", false, workspaceScopeUnavailable(
+				tableName,
+				"direct tenant anchor has not been deployed",
+				nil,
+			)
+		}
+
+		workspaceID, err := w.RequireDirectWorkspace(ctx, tableName)
+		if err != nil {
+			return "", false, err
+		}
+		return workspaceID, true, nil
+	}
+
+	wsID := w.getWorkspaceID(ctx)
+	if wsID == "" {
+		return "", false, nil
+	}
+
+	hasWorkspaceColumn, err := w.tableHasWorkspaceColumn(ctx, tableName)
+	if err != nil {
+		// Catalog unavailability is not evidence that a table is global.
+		return "", false, workspaceScopeUnavailable(tableName, "catalog probe failed", err)
+	}
+	return wsID, hasWorkspaceColumn, nil
+}
+
+func workspaceScopeUnavailable(tableName, reason string, cause error) error {
+	if cause != nil {
+		log.Printf("tenant scope unavailable: table=%s reason=%s error=%v", tableName, reason, cause)
+	} else {
+		log.Printf("tenant scope unavailable: table=%s reason=%s", tableName, reason)
+	}
+	return model.NewDatabaseError(
+		"tenant scope is temporarily unavailable",
+		"TENANT_SCOPE_UNAVAILABLE",
+		503,
+	)
+}
+
 // tableHasWorkspaceColumn reports whether tableName has a workspace_id column.
-// Results are cached with a read-preferred RWMutex; the first miss for a table
-// performs a live query against information_schema.columns.
-func (w *WorkspaceAwareOperations) tableHasWorkspaceColumn(ctx context.Context, tableName string) bool {
+// Results are cached with a read-preferred RWMutex; the first miss performs a
+// live public-schema catalog query. Probe and scan errors are returned so callers
+// fail closed rather than treating catalog failure as proof of a global table.
+func (w *WorkspaceAwareOperations) tableHasWorkspaceColumn(ctx context.Context, tableName string) (bool, error) {
 	w.columnCacheMu.RLock()
 	cols, cached := w.columnCache[tableName]
 	w.columnCacheMu.RUnlock()
 
 	if cached {
-		return cols["workspace_id"]
+		return cols["workspace_id"], nil
 	}
 
-	// Cache miss — query the schema. Use the underlying db directly to avoid
-	// a potential recursive call through the decorated operation.
-	query := `
+	var (
+		colMap map[string]bool
+		err    error
+	)
+	if w.columnProbe != nil {
+		colMap, err = w.columnProbe(ctx, tableName)
+	} else {
+		colMap, err = w.probeTableColumns(ctx, tableName)
+	}
+	if err != nil {
+		return false, err
+	}
+
+	w.columnCacheMu.Lock()
+	w.columnCache[tableName] = colMap
+	w.columnCacheMu.Unlock()
+
+	return colMap["workspace_id"], nil
+}
+
+func (w *WorkspaceAwareOperations) probeTableColumns(ctx context.Context, tableName string) (map[string]bool, error) {
+	if w.db == nil {
+		return nil, fmt.Errorf("nil database handle")
+	}
+
+	// Use the underlying db directly to avoid recursion through the decorator.
+	const query = `
 		SELECT column_name
 		FROM information_schema.columns
-		WHERE table_name = $1
+		WHERE table_schema = 'public'
+		  AND table_name = $1
 		ORDER BY ordinal_position
 	`
 	rows, err := w.db.QueryContext(ctx, query, tableName)
 	if err != nil {
-		// On error, conservatively skip injection rather than blocking the call.
-		return false
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -691,19 +860,14 @@ func (w *WorkspaceAwareOperations) tableHasWorkspaceColumn(ctx context.Context, 
 	for rows.Next() {
 		var colName string
 		if err := rows.Scan(&colName); err != nil {
-			continue
+			return nil, err
 		}
 		colMap[colName] = true
 	}
-	if rows.Err() != nil {
-		return false
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
-
-	w.columnCacheMu.Lock()
-	w.columnCache[tableName] = colMap
-	w.columnCacheMu.Unlock()
-
-	return colMap["workspace_id"]
+	return colMap, nil
 }
 
 // injectWorkspaceFilter returns a copy of params with a workspace_id

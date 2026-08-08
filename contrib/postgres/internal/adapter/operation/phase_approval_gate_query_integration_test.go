@@ -71,6 +71,7 @@ func pagrtestCleanup(t *testing.T, db *sql.DB) {
 		`DELETE FROM subscription_group_member WHERE id LIKE 'pagrtest-%'`,
 		`DELETE FROM subscription_group WHERE id LIKE 'pagrtest-%'`,
 		`DELETE FROM subscription WHERE id LIKE 'pagrtest-%'`,
+		`DELETE FROM client WHERE id LIKE 'pagrtest-%'`,
 		`DELETE FROM workspace WHERE id LIKE 'pagrtest-%'`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
@@ -83,10 +84,10 @@ func pagrtestCleanup(t *testing.T, db *sql.DB) {
 // removed by pagrtestCleanup, which also runs FIRST so a previously aborted run
 // cannot poison this one.
 //
-// job.client_id / job.origin_id / sgm.client_id carry no FK in the schema, so
-// clients are bare ids; subscription_group_member does FK subscription_group,
-// subscription and workspace, so those parents are real rows — and
-// job_phase.template_phase_id FKs job_template_phase on both integration DBs
+// job.client_id is FK-backed on education1, so client parents are real rows;
+// subscription_group_member does FK subscription_group, subscription and
+// workspace, so those parents are real rows too — and job_phase.template_phase_id
+// FKs job_template_phase on both integration DBs
 // (job_phase_template_phase_id_fkey), so the tp parents are real rows too.
 func pagrtestSeed(t *testing.T, db *sql.DB) {
 	t.Helper()
@@ -95,6 +96,11 @@ func pagrtestSeed(t *testing.T, db *sql.DB) {
 
 	stmts := []string{
 		`INSERT INTO workspace (id) VALUES ('pagrtest-ws'), ('pagrtest-ws2')`,
+
+		`INSERT INTO client (id, workspace_id) VALUES
+			('pagrtest-c-a1', 'pagrtest-ws'),
+			('pagrtest-c-a2', 'pagrtest-ws'),
+			('pagrtest-c-b1', 'pagrtest-ws')`,
 
 		`INSERT INTO subscription_group (id, name, kind, capacity_mode, active, workspace_id) VALUES
 			('pagrtest-grp-a',   'pagrtest A',        'pagrtest', 'unlimited', true, 'pagrtest-ws'),
@@ -163,6 +169,8 @@ func pagrtestSeed(t *testing.T, db *sql.DB) {
 		// The >100 sheet: 120 members, 120 jobs, 120 pristine phases on tp-big.
 		`INSERT INTO subscription (id, active, workspace_id)
 			SELECT 'pagrtest-sub-big-'||g, true, 'pagrtest-ws' FROM generate_series(1,120) g`,
+		`INSERT INTO client (id, workspace_id)
+			SELECT 'pagrtest-c-big-'||g, 'pagrtest-ws' FROM generate_series(1,120) g`,
 		`INSERT INTO subscription_group_member (id, subscription_group_id, subscription_id, client_id, active, workspace_id)
 			SELECT 'pagrtest-sgm-big-'||g, 'pagrtest-grp-big', 'pagrtest-sub-big-'||g, 'pagrtest-c-big-'||g, true, 'pagrtest-ws'
 			FROM generate_series(1,120) g`,

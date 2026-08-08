@@ -32,7 +32,7 @@ func AuditContext() gin.HandlerFunc {
 		// Request ID: use incoming header or generate one.
 		requestID := c.GetHeader("X-Request-ID")
 		if requestID == "" {
-			requestID = uuid.New().String()
+			requestID = uuid.Must(uuid.NewV7()).String()
 		}
 
 		// IP address: prefer X-Forwarded-For first entry, else RemoteAddr.

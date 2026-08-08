@@ -210,27 +210,14 @@ func (r *PostgresCollectionRepository) ListCollections(ctx context.Context, req 
 // - collection_parent (Self-referential parent/child via junction table)
 // TODO: Add unit tests for GetCollectionListPageData
 func (r *PostgresCollectionRepository) GetCollectionListPageData(ctx context.Context, req *collectionpb.GetCollectionListPageDataRequest) (*collectionpb.GetCollectionListPageDataResponse, error) {
-	// Extract pagination parameters with defaults
-	limit := int32(20)
-	page := int32(1)
-	if req.Pagination != nil && req.Pagination.Limit > 0 {
-		limit = req.Pagination.Limit
-		if limit > 100 {
-			limit = 100 // Cap at 100 items per page
-		}
-		if req.Pagination.GetOffset() != nil {
-			page = req.Pagination.GetOffset().Page
-			if page < 1 {
-				page = 1
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 20)
+	if err != nil {
+		return nil, fmt.Errorf("bounded collection pagination: %w", err)
 	}
-	offset := (page - 1) * limit
 
-	// Extract search query
-	searchQuery := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchQuery = "%" + req.Search.Query + "%"
+	searchQuery, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if err != nil {
+		return nil, fmt.Errorf("bounded collection search: %w", err)
 	}
 
 	// Extract sort parameters with defaults

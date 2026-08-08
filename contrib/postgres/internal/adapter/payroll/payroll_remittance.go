@@ -12,11 +12,11 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	payrollremittancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_remittance"
 )
@@ -245,24 +245,14 @@ func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
 	// A1: workspace predicate — scoped via payroll_run join.
 	workspaceID := identity.Must(ctx).WorkspaceID
 
-	searchPattern := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchPattern = "%" + req.Search.Query + "%"
+	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if err != nil {
+		return nil, err
 	}
 
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, err
 	}
 
 	// A2: Sort guard — fail-closed via core.BuildOrderBy whitelist. The list
@@ -293,8 +283,8 @@ func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
 			rem.paid_at_string,
 			rem.reference_number,
 			COUNT(*) OVER() AS total
-		FROM ` + entityid.PayrollRemittance + ` rem
-		LEFT JOIN ` + entityid.PayrollRun + ` pr ON pr.id = rem.payroll_run_id
+		FROM `+entityid.PayrollRemittance+` rem
+		LEFT JOIN `+entityid.PayrollRun+` pr ON pr.id = rem.payroll_run_id
 		WHERE pr.workspace_id = $1
 		  AND ($2::text IS NULL OR $2::text = '' OR rem.reference_number ILIKE $2)
 		%s

@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
@@ -137,6 +136,16 @@ func (r *PostgresUserRepository) UpdateUser(ctx context.Context, req *userpb.Upd
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
 
+	for _, key := range []string{
+		"password_hash",
+		"password_reset_token",
+		"password_reset_expires",
+		"failed_login_attempts",
+		"locked_until",
+	} {
+		delete(data, key)
+	}
+
 	// Update document using common operations
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {
@@ -181,57 +190,63 @@ var userSortableSQLCols = []string{
 	"mobile_number", "timezone", "date_created", "date_modified",
 }
 
-var userSortSpec = espynahttp.SortSpec{AllowedCols: userSortableSQLCols}
-
-// ListUsers lists users using common PostgreSQL operations
-func (r *PostgresUserRepository) ListUsers(ctx context.Context, req *userpb.ListUsersRequest) (*userpb.ListUsersResponse, error) {
-	if err := espynahttp.ValidateSortColumns(userSortSpec, req.GetSort(), "user"); err != nil {
-		return nil, err
-	}
-
-	params := &interfaces.ListParams{}
-	if req != nil {
-		params.Filters = req.Filters
-		params.Search = req.Search
-		params.Sort = req.Sort
-		params.Pagination = req.Pagination
-	}
-
-	// List documents using common operations
-	listResult, err := r.dbOps.List(ctx, r.tableName, params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list users: %w", err)
-	}
-
-	// Convert results to protobuf slice using protojson
-	var users []*userpb.User
-	for _, result := range listResult.Data {
-		resultJSON, err := json.Marshal(result)
-		if err != nil {
-			// Log error and continue with next item
-			continue
-		}
-
-		user := &userpb.User{}
-		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, user); err != nil {
-			// Log error and continue with next item
-			continue
-		}
-		users = append(users, user)
-	}
-
-	return &userpb.ListUsersResponse{
-		Data: users,
-	}, nil
-}
-
-// userSortAllowlist maps external sort field names to safe SQL column references.
-var userSortAllowlist = map[string]string{
+var userFilterFieldMap = map[string]string{
+	"id":            "id",
 	"first_name":    "first_name",
 	"last_name":     "last_name",
 	"email_address": "email_address",
+	"mobile_number": "mobile_number",
+	"active":        "active",
+	"timezone":      "timezone",
 	"date_created":  "date_created",
 	"date_modified": "date_modified",
+}
+
+// hasExplicitUserActiveFilter reports whether the request deliberately chooses
+// an active state. Only BooleanFilter is a valid explicit boolean choice.
+func hasExplicitUserActiveFilter(filters *commonpb.FilterRequest) bool {
+	if filters == nil {
+		return false
+	}
+
+	for _, filter := range filters.Filters {
+		if filter == nil || filter.GetField() != "active" {
+			continue
+		}
+		if _, ok := filter.FilterType.(*commonpb.TypedFilter_BooleanFilter); ok {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ListUsers lists users using GetUserListPageData projection to avoid leaking
+// sensitive fields (password/reset/security control columns).
+func (r *PostgresUserRepository) ListUsers(ctx context.Context, req *userpb.ListUsersRequest) (*userpb.ListUsersResponse, error) {
+	pagination := req.GetPagination()
+	if req == nil || pagination == nil {
+		pagination = &commonpb.PaginationRequest{
+			Limit: 100,
+			Method: &commonpb.PaginationRequest_Offset{
+				Offset: &commonpb.OffsetPagination{Page: 1},
+			},
+		}
+	}
+
+	pageData, err := r.GetUserListPageData(ctx, &userpb.GetUserListPageDataRequest{
+		Pagination: pagination,
+		Sort:       req.GetSort(),
+		Filters:    req.GetFilters(),
+		Search:     req.GetSearch(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &userpb.ListUsersResponse{
+		Data: pageData.GetUserList(),
+	}, nil
 }
 
 func (r *PostgresUserRepository) GetUserListPageData(ctx context.Context, req *userpb.GetUserListPageDataRequest) (*userpb.GetUserListPageDataResponse, error) {
@@ -239,36 +254,26 @@ func (r *PostgresUserRepository) GetUserListPageData(ctx context.Context, req *u
 		return nil, fmt.Errorf("request required")
 	}
 
-	// Default pagination values
-	limit, offset, page := int32(50), int32(0), int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil && offsetPag.Page > 0 {
-			page = offsetPag.Page
-			offset = (page - 1) * limit
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user pagination: %w", err)
 	}
 
-	// Allowlist-validated sort
-	sortCol := "date_created"
-	sortOrder := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
-		f := req.Sort.Fields[0]
-		if col, ok := userSortAllowlist[f.Field]; ok {
-			sortCol = col
-		}
-		if f.Direction == commonpb.SortDirection_ASC {
-			sortOrder = "ASC"
-		}
+	orderByClause, err := postgresCore.BuildOrderBy(userSortableSQLCols, req.GetSort(), "date_created DESC")
+	if err != nil {
+		return nil, err
 	}
 
 	// Build filter/search WHERE clauses starting at $1
 	searchFields := []string{"first_name", "last_name", "email_address"}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 1)
+	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMapped(req.GetFilters(), req.GetSearch(), userFilterFieldMap, searchFields, 1)
 	if err != nil {
 		return nil, err
+	}
+	if !hasExplicitUserActiveFilter(req.GetFilters()) {
+		filterClauses = append(filterClauses, fmt.Sprintf("active = $%d", nextIdx))
+		filterArgs = append(filterArgs, true)
+		nextIdx++
 	}
 
 	whereSQL := ""
@@ -282,13 +287,13 @@ func (r *PostgresUserRepository) GetUserListPageData(ctx context.Context, req *u
 
 	query := fmt.Sprintf(`
 		SELECT
-			id, first_name, last_name, email_address, active, date_created, date_modified, timezone,
+			id, first_name, last_name, email_address, mobile_number, active, date_created, date_modified, timezone,
 			COUNT(*) OVER() AS total_count
 		FROM "`+entityid.User+`"
 		%s
-		ORDER BY %s %s
+		%s
 		LIMIT $%d OFFSET $%d
-	`, whereSQL, sortCol, sortOrder, limitIdx, offsetIdx)
+	`, whereSQL, orderByClause, limitIdx, offsetIdx)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	rows, err := exec.QueryContext(ctx, query, filterArgs...)
@@ -301,15 +306,19 @@ func (r *PostgresUserRepository) GetUserListPageData(ctx context.Context, req *u
 	var totalCount int64
 	for rows.Next() {
 		var id, firstName, lastName, emailAddress string
+		var mobileNumber sql.NullString
 		var active bool
 		var dateCreated, dateModified time.Time
 		var timezone sql.NullString
 		var total int64
-		if err := rows.Scan(&id, &firstName, &lastName, &emailAddress, &active, &dateCreated, &dateModified, &timezone, &total); err != nil {
+		if err := rows.Scan(&id, &firstName, &lastName, &emailAddress, &mobileNumber, &active, &dateCreated, &dateModified, &timezone, &total); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount = total
 		user := &userpb.User{Id: id, FirstName: firstName, LastName: lastName, EmailAddress: emailAddress, Active: active}
+		if mobileNumber.Valid {
+			user.MobileNumber = mobileNumber.String
+		}
 		if timezone.Valid {
 			tz := timezone.String
 			user.Timezone = &tz

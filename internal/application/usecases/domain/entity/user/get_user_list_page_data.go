@@ -6,8 +6,8 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 )
 
@@ -18,9 +18,9 @@ type GetUserListPageDataRepositories struct {
 
 // GetUserListPageDataServices groups all business service dependencies
 type GetUserListPageDataServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -50,8 +50,8 @@ func NewGetUserListPageDataUseCaseUngrouped(userRepo userpb.UserDomainServiceSer
 	}
 
 	services := GetUserListPageDataServices{
-		Authorizer: nil,
-		Transactor: ports.NewNoOpTransactor(),
+		Authorizer:       nil,
+		Transactor:       ports.NewNoOpTransactor(),
 		Translator:       ports.NewNoOpTranslator(),
 		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}
@@ -89,5 +89,5 @@ func (uc *GetUserListPageDataUseCase) Execute(ctx context.Context, req *userpb.G
 		return nil, err
 	}
 
-	return resp, nil
+	return redactPublicUserListPageDataResponse(resp), nil
 }

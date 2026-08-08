@@ -10,9 +10,9 @@ import (
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	supplierproductcostplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_product_cost_plan"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -164,14 +164,9 @@ func (r *PostgresSupplierProductCostPlanRepository) GetSupplierProductCostPlanLi
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
-	limit, offset := int32(50), int32(0)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if op := req.Pagination.GetOffset(); op != nil && op.Page > 0 {
-			offset = (op.Page - 1) * limit
-		}
+	limit, offset, _, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, fmt.Errorf("bounded supplier product cost plan pagination: %w", err)
 	}
 	query := `SELECT id, active, cost_plan_id, supplier_product_plan_id, billing_treatment, billing_amount, date_created, date_modified
 	          FROM ` + entityid.SupplierProductCostPlan + `

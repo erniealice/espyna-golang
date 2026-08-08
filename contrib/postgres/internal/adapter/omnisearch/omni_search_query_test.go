@@ -4,9 +4,16 @@ package omnisearch
 
 import (
 	"context"
+	"database/sql"
+	"database/sql/driver"
+	"io"
 	"strings"
+	"sync"
 	"testing"
 
+	omnisearchpb "github.com/erniealice/esqyma/pkg/schema/v1/service/omni_search"
+
+	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/shared/identity"
 )
@@ -183,7 +190,7 @@ func TestEveryArmUsesEscapedILIKE(t *testing.T) {
 
 // TestEscapeLikeNeutralisesWildcards pins the escaper: %, _ and \ are all
 // backslash-escaped so a "%%"/"__" query is matched literally under ESCAPE '\'.
-func TestEscapeLikeNeutralisesWildcards(t *testing.T) {
+func TestBoundedPatternNeutralisesWildcards(t *testing.T) {
 	cases := map[string]string{
 		"%%":    `\%\%`,
 		"__":    `\_\_`,
@@ -192,10 +199,127 @@ func TestEscapeLikeNeutralisesWildcards(t *testing.T) {
 		`50%_x`: `50\%\_x`,
 	}
 	for in, want := range cases {
-		if got := escapeLike(in); got != want {
-			t.Errorf("escapeLike(%q) = %q, want %q", in, got, want)
+		got, err := core.BoundedContainsPattern(in)
+		if err != nil {
+			t.Fatalf("BoundedContainsPattern(%q): %v", in, err)
+		}
+		if got != "%"+want+"%" {
+			t.Errorf("BoundedContainsPattern(%q) = %q, want %q", in, got, "%"+want+"%")
 		}
 	}
+}
+
+func TestSearchEntitiesRejectsAdapterOwnedBudgetsBeforeDB(t *testing.T) {
+	query := NewPostgresOmniSearchQuery(nil).(*PostgresOmniSearchQuery)
+	ctx := staffCtx()
+
+	t.Run("overlong query", func(t *testing.T) {
+		_, err := query.SearchEntities(ctx, &omnisearchpb.OmniSearchRequest{
+			Query:      strings.Repeat("x", 257),
+			Categories: []string{"plan"},
+		})
+		if err == nil || !strings.Contains(err.Error(), "search query exceeds") {
+			t.Fatalf("SearchEntities() error = %v, want query budget error", err)
+		}
+	})
+
+	t.Run("limit above adapter maximum", func(t *testing.T) {
+		_, err := query.SearchEntities(ctx, &omnisearchpb.OmniSearchRequest{
+			Query:            "term",
+			Categories:       []string{"plan"},
+			LimitPerCategory: ptrInt32(11),
+		})
+		if err == nil || !strings.Contains(err.Error(), "query limit 11 exceeds maximum 10") {
+			t.Fatalf("SearchEntities() error = %v, want limit budget error", err)
+		}
+	})
+
+	t.Run("raw category count exceeds builder registry", func(t *testing.T) {
+		categories := make([]string, len(categoryBuilders)+1)
+		for i := range categories {
+			categories[i] = "plan"
+		}
+		_, err := query.SearchEntities(ctx, &omnisearchpb.OmniSearchRequest{Query: "term", Categories: categories})
+		if err == nil || !strings.Contains(err.Error(), "category count") {
+			t.Fatalf("SearchEntities() error = %v, want category budget error", err)
+		}
+	})
+}
+
+func ptrInt32(value int32) *int32 { return &value }
+
+func TestSearchEntitiesDeduplicatesCategoriesAndBindsLiteralPattern(t *testing.T) {
+	db, probe := newOmniSearchProbeDB(t)
+	query := NewPostgresOmniSearchQuery(db)
+	response, err := query.SearchEntities(staffCtx(), &omnisearchpb.OmniSearchRequest{
+		Query:      "50%_x",
+		Categories: []string{"plan", "plan"},
+	})
+	if err != nil {
+		t.Fatalf("SearchEntities(): %v", err)
+	}
+	if probe.queryCalls != 1 {
+		t.Fatalf("database category executions = %d, want 1", probe.queryCalls)
+	}
+	if len(response.GetCategories()) != 1 || response.GetCategories()[0].GetCategory() != "plan" {
+		t.Fatalf("categories = %#v, want exactly one plan category", response.GetCategories())
+	}
+	if len(probe.args) < 1 || probe.args[0].Value != `%50\%\_x%` {
+		t.Fatalf("bound query pattern = %#v, want literal escaped contains pattern", probe.args)
+	}
+}
+
+const omniSearchProbeDriverName = "omnisearch-test-probe"
+
+var (
+	omniSearchProbeOnce sync.Once
+	omniSearchProbe     = &omniSearchDBProbe{}
+)
+
+type omniSearchDBProbe struct {
+	queryCalls int
+	args       []driver.NamedValue
+}
+
+func newOmniSearchProbeDB(t *testing.T) (*sql.DB, *omniSearchDBProbe) {
+	t.Helper()
+	omniSearchProbeOnce.Do(func() { sql.Register(omniSearchProbeDriverName, omniSearchProbeDriver{}) })
+	omniSearchProbe.queryCalls = 0
+	omniSearchProbe.args = nil
+	db, err := sql.Open(omniSearchProbeDriverName, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	return db, omniSearchProbe
+}
+
+type omniSearchProbeDriver struct{}
+
+func (omniSearchProbeDriver) Open(string) (driver.Conn, error) { return omniSearchProbeConn{}, nil }
+
+type omniSearchProbeConn struct{}
+
+func (omniSearchProbeConn) Prepare(string) (driver.Stmt, error) { return nil, driver.ErrSkip }
+func (omniSearchProbeConn) Close() error                        { return nil }
+func (omniSearchProbeConn) Begin() (driver.Tx, error)           { return nil, driver.ErrSkip }
+func (omniSearchProbeConn) QueryContext(_ context.Context, _ string, args []driver.NamedValue) (driver.Rows, error) {
+	omniSearchProbe.queryCalls++
+	omniSearchProbe.args = append([]driver.NamedValue(nil), args...)
+	return &omniSearchProbeRows{}, nil
+}
+
+type omniSearchProbeRows struct{ emitted bool }
+
+func (r *omniSearchProbeRows) Columns() []string { return []string{"id", "label", "sublabel"} }
+func (r *omniSearchProbeRows) Close() error      { return nil }
+func (r *omniSearchProbeRows) Next(dest []driver.Value) error {
+	if r.emitted {
+		return io.EOF
+	}
+	r.emitted = true
+	dest[0], dest[1], dest[2] = "plan-1", "Plan", ""
+	return nil
 }
 
 // TestSubscriptionArmCarriesClientReachability pins S6 / codex blocker #1: the

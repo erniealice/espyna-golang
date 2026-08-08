@@ -63,6 +63,9 @@ import (
 // silently defeat the uniqueness invariant) and emitted double-quoted PER
 // COMPONENT (`"rb"."id"`, never the single identifier `"rb.id"`).
 func BuildOrderBy(allowedCols []string, sort *commonpb.SortRequest, fallback string, tiebreaker ...string) (string, error) {
+	if err := validateSortBudget(sort); err != nil {
+		return "", err
+	}
 	tie := "id"
 	if len(tiebreaker) > 0 && tiebreaker[0] != "" {
 		tie = tiebreaker[0]

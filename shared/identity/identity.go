@@ -38,6 +38,11 @@ const DefaultSessionCookieName = "ichizen_session"
 // with a broader, struct-level error.
 var ErrIdentityNotInContext = errors.New("identity: no RequestIdentity in context")
 
+// ErrWorkspaceNotSelected is returned when an authenticated/preselection
+// identity exists but no workspace has been selected. Tenant data adapters must
+// not interpret this state as permission to run an unscoped query.
+var ErrWorkspaceNotSelected = errors.New("identity: workspace is required")
+
 // contextKey is unexported — forces usage through the typed API.
 type contextKey struct{}
 
@@ -166,6 +171,23 @@ func Require(ctx context.Context) (*RequestIdentity, error) {
 	id, ok := ctx.Value(contextKey{}).(*RequestIdentity)
 	if !ok || id == nil {
 		return nil, ErrIdentityNotInContext
+	}
+	return id, nil
+}
+
+// RequireWorkspace returns a request identity only when it carries a non-empty
+// workspace. Use it at tenant-data boundaries whose SQL must never broaden when
+// a valid preselection session has not chosen a workspace yet.
+//
+// Login, health, workspace-selection, and genuinely global operations should
+// continue to use Require or FromContext instead.
+func RequireWorkspace(ctx context.Context) (*RequestIdentity, error) {
+	id, err := Require(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if id.WorkspaceID == "" {
+		return nil, ErrWorkspaceNotSelected
 	}
 	return id, nil
 }

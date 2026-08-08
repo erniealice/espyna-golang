@@ -179,6 +179,18 @@ var locationSortableSQLCols = []string{
 	"location_area_id", "workspace_id", "date_created", "date_modified",
 }
 
+var locationFilterFieldMap = map[string]string{
+	"id":               "l.id",
+	"name":             "l.name",
+	"address":          "l.address",
+	"active":           "l.active",
+	"description":      "l.description",
+	"timezone":         "l.timezone",
+	"location_area_id": "l.location_area_id",
+	"date_created":     "l.date_created",
+	"date_modified":    "l.date_modified",
+}
+
 var locationSortSpec = espynahttp.SortSpec{AllowedCols: locationSortableSQLCols}
 
 // ListLocations lists locations using common PostgreSQL operations
@@ -230,19 +242,9 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 		return nil, fmt.Errorf("request is required")
 	}
 
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, fmt.Errorf("get location list page data: invalid pagination: %w", err)
 	}
 
 	// Sort — fail-closed against the per-entity whitelist (A2 guard). Routes the
@@ -253,16 +255,22 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 		return nil, err
 	}
 
-	workspaceID := identity.Must(ctx).WorkspaceID
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get location list page data: %w", err)
+	}
+	workspaceID := requestIdentity.WorkspaceID
 
 	// Build filter/search WHERE clauses ($1 is reserved for workspace_id, start at $2)
 	searchFields := []string{"l.name", "l.address"}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMapped(
+		req.Filters, req.Search, locationFilterFieldMap, searchFields, 2,
+	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get location list page data: invalid filter/search: %w", err)
 	}
 
-	whereSQL := "WHERE ($1::text IS NULL OR $1::text = '' OR l.workspace_id = $1)"
+	whereSQL := "WHERE l.workspace_id = $1"
 	if len(filterClauses) > 0 {
 		whereSQL += " AND " + strings.Join(filterClauses, " AND ")
 	}
@@ -293,16 +301,16 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 				l.id,
 				l.name,
 				l.address,
+				l.description,
 				l.active,
 				l.date_created,
 				l.date_modified,
 				COALESCE(l.timezone, 'Asia/Manila') as timezone,
 				l.location_area_id,
-				COALESCE(la2.name, '') as location_area_name,
+				l.workspace_id,
 				COALESCE(laa.attributes, '[]'::jsonb) as location_attributes
 			FROM `+entityid.Location+` l
 			LEFT JOIN location_attributes_agg laa ON l.id = laa.location_id
-			LEFT JOIN `+entityid.LocationArea+` la2 ON l.location_area_id = la2.id
 			%s
 		)
 		SELECT e.*, COUNT(*) OVER() AS total
@@ -323,23 +331,24 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 
 	for rows.Next() {
 		var (
-			id               string
-			name             string
-			address          *string
-			active           bool
-			dateCreated      time.Time
-			dateModified     time.Time
-			timezone         string
-			locationAreaID   *string
-			locationAreaName string
-			attributesJSON   []byte
-			total            int64
+			id             string
+			name           string
+			address        *string
+			description    *string
+			active         bool
+			dateCreated    time.Time
+			dateModified   time.Time
+			timezone       string
+			locationAreaID *string
+			workspaceID    *string
+			attributesJSON []byte
+			total          int64
 		)
 
 		err := rows.Scan(
-			&id, &name, &address,
+			&id, &name, &address, &description,
 			&active, &dateCreated, &dateModified,
-			&timezone, &locationAreaID, &locationAreaName, &attributesJSON, &total,
+			&timezone, &locationAreaID, &workspaceID, &attributesJSON, &total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan: %w", err)
@@ -356,12 +365,13 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 		if address != nil {
 			location.Address = *address
 		}
+		location.Description = description
 		location.Timezone = &timezone
 		if locationAreaID != nil {
 			location.LocationAreaId = locationAreaID
 		}
-		if locationAreaName != "" {
-			location.Description = &locationAreaName
+		if workspaceID != nil {
+			location.WorkspaceId = workspaceID
 		}
 
 		if !dateCreated.IsZero() {
@@ -437,7 +447,11 @@ func (r *PostgresLocationRepository) GetLocationItemPageData(
 		return nil, fmt.Errorf("location ID is required")
 	}
 
-	workspaceID := identity.Must(ctx).WorkspaceID
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get location item page data: %w", err)
+	}
+	workspaceID := requestIdentity.WorkspaceID
 
 	query := `
 		WITH location_attributes_agg AS (
@@ -463,7 +477,7 @@ func (r *PostgresLocationRepository) GetLocationItemPageData(
 		FROM ` + entityid.Location + ` l
 		LEFT JOIN location_attributes_agg laa ON l.id = laa.location_id
 		WHERE l.id = $1
-		  AND ($2::text IS NULL OR l.workspace_id = $2)
+		  AND l.workspace_id = $2
 	`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
@@ -480,7 +494,7 @@ func (r *PostgresLocationRepository) GetLocationItemPageData(
 		attributesJSON []byte
 	)
 
-	err := row.Scan(
+	err = row.Scan(
 		&id, &name, &address,
 		&active, &dateCreated, &dateModified,
 		&timezone, &attributesJSON,

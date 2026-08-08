@@ -586,6 +586,21 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 	if tableName == "" {
 		return nil, model.NewDatabaseError("table name is required", "MISSING_TABLE_NAME", 400)
 	}
+	if err := ValidateSQLIdent(tableName); err != nil || strings.Contains(tableName, ".") {
+		return nil, model.NewDatabaseError("invalid table name", "INVALID_TABLE_NAME", 400)
+	}
+
+	allowedColumns, err := p.listAllowedColumns(ctx, tableName)
+	if err != nil {
+		return nil, model.NewDatabaseError(
+			fmt.Sprintf("failed to resolve list columns: %v", err),
+			"POSTGRES_SCHEMA_ERROR",
+			500,
+		)
+	}
+	if err := validateListRequest(params, tableName, allowedColumns); err != nil {
+		return nil, model.NewDatabaseError(err.Error(), "INVALID_LIST_REQUEST", 400)
+	}
 
 	// Build WHERE clause.
 	// Default to active = true unless the caller supplies an explicit "active"
@@ -619,14 +634,14 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 				400,
 			)
 		}
-		whereConditions = append(whereConditions, filterConditions...)
+		whereConditions = append(whereConditions, groupFilterClauses(params.Filters.GetLogic(), filterConditions)...)
 		values = append(values, filterValues...)
 		paramIndex = nextIndex
 	}
 
 	// Search — ILIKE OR block across declared search fields
 	if params != nil && params.Search != nil && params.Search.Query != "" {
-		query := "%" + params.Search.Query + "%"
+		query := "%" + escapeLikeLiteral(params.Search.Query) + "%"
 		fields := params.Search.GetOptions().GetSearchFields()
 		if len(fields) == 0 {
 			return nil, model.NewDatabaseError(
@@ -647,7 +662,7 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 				)
 			}
 			values = append(values, query)
-			likeClauses = append(likeClauses, fmt.Sprintf("%s ILIKE $%d", col, paramIndex))
+			likeClauses = append(likeClauses, fmt.Sprintf("%s ILIKE $%d ESCAPE '\\'", col, paramIndex))
 			paramIndex++
 		}
 		whereConditions = append(whereConditions, "("+strings.Join(likeClauses, " OR ")+")")
@@ -678,19 +693,16 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 		)
 	}
 
-	// Apply pagination
-	limit := int32(100) // Default limit
-	offset := int32(0)
-	if params != nil && params.Pagination != nil {
-		if params.Pagination.Limit > 0 && params.Pagination.Limit <= 100 {
-			limit = params.Pagination.Limit
+	// Apply the already-validated finite pagination bounds.
+	var cursorMode bool
+	limit, offset, cursorMode, err := listPaginationBounds(func() *commonpb.PaginationRequest {
+		if params == nil {
+			return nil
 		}
-		// Handle offset pagination
-		if offsetPagination := params.Pagination.GetOffset(); offsetPagination != nil {
-			if offsetPagination.Page > 0 {
-				offset = (offsetPagination.Page - 1) * limit
-			}
-		}
+		return params.Pagination
+	}())
+	if err != nil {
+		return nil, model.NewDatabaseError(err.Error(), "INVALID_PAGINATION", 400)
 	}
 
 	// Build final query with pagination
@@ -747,7 +759,7 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 		)
 	}
 
-	// Build pagination response
+	// Build pagination response.
 	currentPage := int32(1)
 	if offset > 0 && limit > 0 {
 		currentPage = (offset / limit) + 1
@@ -759,16 +771,33 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 	hasNext := currentPage < totalPages
 	hasPrev := currentPage > 1
 
+	pagination := &commonpb.PaginationResponse{
+		TotalItems: totalItems,
+		HasNext:    hasNext,
+		HasPrev:    hasPrev,
+	}
+	if cursorMode {
+		if hasNext {
+			next := fmt.Sprintf("offset:%d", int64(offset)+int64(limit))
+			pagination.NextCursor = &next
+		}
+		if offset > 0 {
+			previousOffset := int64(offset) - int64(limit)
+			if previousOffset < 0 {
+				previousOffset = 0
+			}
+			previous := fmt.Sprintf("offset:%d", previousOffset)
+			pagination.PrevCursor = &previous
+		}
+	} else {
+		pagination.CurrentPage = &currentPage
+		pagination.TotalPages = &totalPages
+	}
+
 	return &interfaces.ListResult{
-		Data:  results,
-		Total: totalItems,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  totalItems,
-			CurrentPage: &currentPage,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
+		Data:       results,
+		Total:      totalItems,
+		Pagination: pagination,
 	}, nil
 }
 
@@ -1000,7 +1029,7 @@ func (p *PostgresOperations) buildFilterConditions(filterReq *commonpb.FilterReq
 
 		case *commonpb.TypedFilter_RangeFilter:
 			rangeConditions, vals, nextIndex := p.buildRangeFilter(field, ft.RangeFilter, paramIndex)
-			conditions = append(conditions, rangeConditions...)
+			conditions = append(conditions, "("+strings.Join(rangeConditions, " AND ")+")")
 			values = append(values, vals...)
 			paramIndex = nextIndex
 
@@ -1064,7 +1093,7 @@ func (p *PostgresOperations) buildFilterConditions(filterReq *commonpb.FilterReq
 // buildStringFilter builds SQL condition for StringFilter
 func (p *PostgresOperations) buildStringFilter(field string, filter *commonpb.StringFilter, paramIndex int) (string, []any, int) {
 	value := filter.Value
-	if !filter.CaseSensitive {
+	if !filter.CaseSensitive && filter.Operator != commonpb.StringOperator_STRING_REGEX {
 		field = fmt.Sprintf("LOWER(%s)", field)
 		value = strings.ToLower(value)
 	}
@@ -1082,19 +1111,23 @@ func (p *PostgresOperations) buildStringFilter(field string, filter *commonpb.St
 		values = append(values, value)
 		paramIndex++
 	case commonpb.StringOperator_STRING_CONTAINS:
-		condition = fmt.Sprintf("%s LIKE $%d", field, paramIndex)
-		values = append(values, "%"+value+"%")
+		condition = fmt.Sprintf("%s LIKE $%d ESCAPE '\\'", field, paramIndex)
+		values = append(values, "%"+escapeLikeLiteral(value)+"%")
 		paramIndex++
 	case commonpb.StringOperator_STRING_STARTS_WITH:
-		condition = fmt.Sprintf("%s LIKE $%d", field, paramIndex)
-		values = append(values, value+"%")
+		condition = fmt.Sprintf("%s LIKE $%d ESCAPE '\\'", field, paramIndex)
+		values = append(values, escapeLikeLiteral(value)+"%")
 		paramIndex++
 	case commonpb.StringOperator_STRING_ENDS_WITH:
-		condition = fmt.Sprintf("%s LIKE $%d", field, paramIndex)
-		values = append(values, "%"+value)
+		condition = fmt.Sprintf("%s LIKE $%d ESCAPE '\\'", field, paramIndex)
+		values = append(values, "%"+escapeLikeLiteral(value))
 		paramIndex++
 	case commonpb.StringOperator_STRING_REGEX:
-		condition = fmt.Sprintf("%s ~ $%d", field, paramIndex)
+		operator := "~"
+		if !filter.CaseSensitive {
+			operator = "~*"
+		}
+		condition = fmt.Sprintf("%s %s $%d", field, operator, paramIndex)
 		values = append(values, value)
 		paramIndex++
 	}
@@ -1229,6 +1262,33 @@ func (p *PostgresOperations) getTableColumns(ctx context.Context, tableName stri
 	}
 
 	return columns, rows.Err()
+}
+
+// listAllowedColumns returns the persisted entity-column allowlist used for
+// request filter/search/sort validation. The descriptor registry is the normal
+// production source (built and schema-reconciled at boot). A catalog fallback
+// keeps isolated package tests and explicitly dynamic tables functional, but a
+// catalog failure or unknown table is an error rather than an unvalidated pass.
+func (p *PostgresOperations) listAllowedColumns(ctx context.Context, tableName string) (map[string]struct{}, error) {
+	allowed := make(map[string]struct{})
+	if descriptorColumns, ok := schema.ColsFor(tableName); ok && len(descriptorColumns) > 0 {
+		for _, column := range descriptorColumns {
+			allowed[column.Name] = struct{}{}
+		}
+		return allowed, nil
+	}
+
+	reflectedColumns, err := p.getTableColumns(ctx, tableName)
+	if err != nil {
+		return nil, err
+	}
+	if len(reflectedColumns) == 0 {
+		return nil, fmt.Errorf("table %q has no registered or reflected columns", tableName)
+	}
+	for _, column := range reflectedColumns {
+		allowed[column] = struct{}{}
+	}
+	return allowed, nil
 }
 
 // getTableColumnTypes returns column-name → information_schema.data_type

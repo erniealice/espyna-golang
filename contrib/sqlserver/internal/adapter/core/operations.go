@@ -12,13 +12,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	"github.com/erniealice/espyna-golang/shared/database/model"
-	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
-	"github.com/erniealice/espyna-golang/shared/database/operations"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/database/model"
+	"github.com/erniealice/espyna-golang/shared/database/operations"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	"github.com/google/uuid"
 	_ "github.com/microsoft/go-mssqldb"
@@ -125,7 +125,15 @@ func (s *SQLServerOperations) Create(ctx context.Context, tableName string, data
 	// Set creation properties.
 	now := time.Now().UTC()
 	if existing, ok := data["id"]; !ok || existing == nil || existing == "" {
-		data["id"] = generateUUID()
+		newID, err := generateUUID()
+		if err != nil {
+			return nil, model.NewDatabaseError(
+				fmt.Sprintf("failed to generate id: %v", err),
+				"SQLSERVER_ID_GENERATION_FAILED",
+				500,
+			)
+		}
+		data["id"] = newID
 	}
 	data["active"] = true
 	data["date_created"] = autoTimestampValue(columnTypes["date_created"], now)
@@ -1295,11 +1303,16 @@ func normalizeValue(v any) any {
 	}
 }
 
-// generateUUID generates an application-side UUID. SQL Server can generate ids
+// generateUUID generates an application-side UUIDv7 (time-ordered — matches
+// the platform id policy; never a random v4 id). SQL Server can generate ids
 // with NEWID(), but app-side generation keeps parity across dialects and lets
 // callers supply their own id.
-func generateUUID() string {
-	return uuid.NewString()
+func generateUUID() (string, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return "", err
+	}
+	return id.String(), nil
 }
 
 // RunWithTransaction executes a function within a database transaction.

@@ -183,25 +183,14 @@ func (r *PostgresSupplierSubscriptionRepository) ListSupplierSubscriptions(ctx c
 // GetSupplierSubscriptionListPageData retrieves a paginated, filtered, sorted, searchable list
 // of supplier subscriptions with supplier and cost plan relationships.
 func (r *PostgresSupplierSubscriptionRepository) GetSupplierSubscriptionListPageData(ctx context.Context, req *suppliersubscriptionpb.GetSupplierSubscriptionListPageDataRequest) (*suppliersubscriptionpb.GetSupplierSubscriptionListPageDataResponse, error) {
-	limit := int32(20)
-	page := int32(1)
-	if req.Pagination != nil && req.Pagination.Limit > 0 {
-		limit = req.Pagination.Limit
-		if limit > 100 {
-			limit = 100
-		}
-		if req.Pagination.GetOffset() != nil {
-			page = req.Pagination.GetOffset().Page
-			if page < 1 {
-				page = 1
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 20)
+	if err != nil {
+		return nil, fmt.Errorf("bounded supplier subscription pagination: %w", err)
 	}
-	offset := (page - 1) * limit
 
-	searchQuery := ""
-	if req.Search != nil && req.Search.Query != "" {
-		searchQuery = "%" + req.Search.Query + "%"
+	searchQuery, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
+	if err != nil {
+		return nil, fmt.Errorf("bounded supplier subscription search: %w", err)
 	}
 
 	supplierIDFilter := ""
@@ -492,16 +481,18 @@ func (r *PostgresSupplierSubscriptionRepository) CountActiveBySupplierIds(ctx co
 	}
 
 	wsID := identity.Must(ctx).WorkspaceID
+	supplierIDs, err := postgresCore.BoundedQueryIDs(req.GetSupplierIds())
+	if err != nil {
+		return nil, err
+	}
 	var (
 		rows *sql.Rows
-		err  error
 	)
 
-	supplierIDs := req.GetSupplierIds()
 	if len(supplierIDs) > 0 {
 		rows, err = db.GetDB().QueryContext(ctx,
 			`SELECT supplier_id, COUNT(*)::int AS cnt
-			   FROM ` + entityid.SupplierSubscription + `
+			   FROM `+entityid.SupplierSubscription+`
 			  WHERE active = TRUE
 			    AND ($1::text = '' OR workspace_id = $1::text)
 			    AND supplier_id = ANY($2)
@@ -511,7 +502,7 @@ func (r *PostgresSupplierSubscriptionRepository) CountActiveBySupplierIds(ctx co
 	} else {
 		rows, err = db.GetDB().QueryContext(ctx,
 			`SELECT supplier_id, COUNT(*)::int AS cnt
-			   FROM ` + entityid.SupplierSubscription + `
+			   FROM `+entityid.SupplierSubscription+`
 			  WHERE active = TRUE
 			    AND ($1::text = '' OR workspace_id = $1::text)
 			  GROUP BY supplier_id`,

@@ -15,10 +15,14 @@ import (
 // so Check actually consults HasPermission (a disabled authorizer would allow
 // everything and defeat the point). allowed is the set of permission codes the
 // principal holds.
-type fakeAuthorizer struct{ allowed map[string]bool }
+type fakeAuthorizer struct {
+	allowed map[string]bool
+	checked []string
+}
 
 func (f *fakeAuthorizer) IsEnabled() bool { return true }
 func (f *fakeAuthorizer) HasPermission(_ context.Context, _ string, permission string) (bool, error) {
+	f.checked = append(f.checked, permission)
 	return f.allowed[permission], nil
 }
 
@@ -71,6 +75,45 @@ func TestBothKindsPermitted(t *testing.T) {
 	}
 	if !port.gotReq.IncludeCategories || !port.gotReq.IncludeTemplates {
 		t.Errorf("both kinds permitted must set both flags, got %+v", port.gotReq)
+	}
+}
+
+// TestCategoriesOnlySkipsTemplateGate — the category-only consumer must neither
+// authorize nor request templates, while retaining the category permission gate.
+func TestCategoriesOnlySkipsTemplateGate(t *testing.T) {
+	port := &fakePort{}
+	authorizer := &fakeAuthorizer{allowed: map[string]bool{perm(entityid.JobCategory): true}}
+	uc := newUC(port, actiongate.NewActionGatekeeper(authorizer, nil))
+
+	if _, err := uc.ExecuteCategoriesOnly(userCtx()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !port.called {
+		t.Fatal("category permission must call the port")
+	}
+	if !port.gotReq.IncludeCategories || port.gotReq.IncludeTemplates {
+		t.Errorf("category-only request must include only categories, got %+v", port.gotReq)
+	}
+	if len(authorizer.checked) != 1 || authorizer.checked[0] != perm(entityid.JobCategory) {
+		t.Errorf("category-only must check only job_category:list, got %v", authorizer.checked)
+	}
+}
+
+// TestCategoriesOnlyCategoryDenied — a denied category permission fails closed
+// without querying, even though template permission would otherwise be granted.
+func TestCategoriesOnlyCategoryDenied(t *testing.T) {
+	port := &fakePort{}
+	uc := newUC(port, gate(perm(entityid.JobTemplate)))
+
+	resp, err := uc.ExecuteCategoriesOnly(userCtx())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if port.called {
+		t.Error("denied category permission must not call the port")
+	}
+	if resp == nil || len(resp.Categories) != 0 || len(resp.Templates) != 0 {
+		t.Errorf("denied category permission must yield an empty response, got %+v", resp)
 	}
 }
 

@@ -69,13 +69,9 @@ func (r *PostgresAssigneeQueryRepository) ListPendingActivitiesForAssignee(
 		}, nil
 	}
 
-	limit := req.Limit
-	if limit <= 0 {
-		limit = defaultAssigneeQueryLimit
-	}
-	offset := req.Offset
-	if offset < 0 {
-		offset = 0
+	limit, offset, err := pendingActivitiesPagination(req.Limit, req.Offset)
+	if err != nil {
+		return nil, err
 	}
 
 	// ── Count query (same join, no LIMIT/OFFSET) ──
@@ -93,7 +89,7 @@ func (r *PostgresAssigneeQueryRepository) ListPendingActivitiesForAssignee(
 	`
 
 	var total int
-	err := r.db.QueryRowContext(ctx, countQuery, req.WorkspaceUserID, req.WorkspaceID).Scan(&total)
+	err = r.db.QueryRowContext(ctx, countQuery, req.WorkspaceUserID, req.WorkspaceID).Scan(&total)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count pending activities for assignee: %w", err)
 	}
@@ -199,4 +195,22 @@ func (r *PostgresAssigneeQueryRepository) ListPendingActivitiesForAssignee(
 		Activities: activities,
 		Total:      total,
 	}, nil
+}
+
+func pendingActivitiesPagination(requestedLimit, requestedOffset int) (int, int, error) {
+	limit := requestedLimit
+	if limit <= 0 {
+		limit = defaultAssigneeQueryLimit
+	}
+	if limit > 100 {
+		return 0, 0, fmt.Errorf("pending activities limit %d exceeds maximum 100", limit)
+	}
+	offset := requestedOffset
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > 1_000_000 {
+		return 0, 0, fmt.Errorf("pending activities offset %d exceeds maximum 1000000", offset)
+	}
+	return limit, offset, nil
 }

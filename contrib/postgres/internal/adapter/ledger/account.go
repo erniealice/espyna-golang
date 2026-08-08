@@ -37,6 +37,26 @@ var accountSortableSQLCols = []string{
 	"code", "name", "element", "status", "date_created", "date_modified",
 }
 
+var accountFilterFieldMap = map[string]string{
+	"id":                 "a.id",
+	"code":               "a.code",
+	"name":               "a.name",
+	"description":        "a.description",
+	"element":            "a.element",
+	"classification":     "a.classification",
+	"group_id":           "a.group_id",
+	"parent_id":          "a.parent_id",
+	"cash_flow_activity": "a.cash_flow_activity",
+	"normal_balance":     "a.normal_balance",
+	"is_system_account":  "a.is_system_account",
+	"is_contra":          "a.is_contra",
+	"status":             "a.status",
+	"notes":              "a.notes",
+	"active":             "a.active",
+	"date_created":       "a.date_created",
+	"date_modified":      "a.date_modified",
+}
+
 // PostgresAccountRepository implements account CRUD operations using PostgreSQL.
 //
 // Performance Index Recommendations:
@@ -117,8 +137,12 @@ func (r *PostgresAccountRepository) ReadAccount(ctx context.Context, req *accoun
 		return nil, fmt.Errorf("database connection is not available")
 	}
 
-	// Extract workspace_id from context (REQUIRED for multi-tenancy).
-	workspaceID := identity.Must(ctx).WorkspaceID
+	// Extract a non-empty workspace from context (REQUIRED for multi-tenancy).
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("read account: %w", err)
+	}
+	workspaceID := requestIdentity.WorkspaceID
 
 	query := `
 		SELECT
@@ -128,10 +152,10 @@ func (r *PostgresAccountRepository) ReadAccount(ctx context.Context, req *accoun
 			active, date_created, date_modified
 		FROM ` + entityid.Account + `
 		WHERE id = $1
-		AND ($2::text IS NULL OR workspace_id = $2)
+		AND workspace_id = $2
 		LIMIT 1`
 
-	row := r.db.QueryRowContext(ctx, query, req.Data.Id, nilIfEmpty(workspaceID))
+	row := r.db.QueryRowContext(ctx, query, req.Data.Id, workspaceID)
 
 	var (
 		id               string
@@ -153,7 +177,7 @@ func (r *PostgresAccountRepository) ReadAccount(ctx context.Context, req *accoun
 		dateModified     time.Time
 	)
 
-	err := row.Scan(
+	err = row.Scan(
 		&id,
 		&code,
 		&name,
@@ -306,24 +330,17 @@ func (r *PostgresAccountRepository) GetAccountListPageData(ctx context.Context, 
 		return nil, fmt.Errorf("get account list page data request is required")
 	}
 
-	// Default pagination values
-	limit := int32(50)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	if err != nil {
+		return nil, fmt.Errorf("get account list page data: invalid pagination: %w", err)
 	}
 
-	// Extract workspace_id from context (REQUIRED for multi-tenancy).
-	workspaceID := identity.Must(ctx).WorkspaceID
+	// Extract a non-empty workspace from context (REQUIRED for multi-tenancy).
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get account list page data: %w", err)
+	}
+	workspaceID := requestIdentity.WorkspaceID
 
 	// Sort — fail-closed against the per-entity whitelist (A2 guard).
 	// Bare column names (no table alias) because ORDER BY applies to the
@@ -336,9 +353,15 @@ func (r *PostgresAccountRepository) GetAccountListPageData(ctx context.Context, 
 	// Build parameterized WHERE clauses via shared helper.
 	// $1 is reserved for workspace_id, so filters start at $2.
 	searchFields := []string{"a.name", "a.code"}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMapped(
+		req.Filters,
+		req.Search,
+		accountFilterFieldMap,
+		searchFields,
+		2,
+	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get account list page data: invalid filter/search: %w", err)
 	}
 
 	whereStr := " AND a.workspace_id = $1"
@@ -516,8 +539,12 @@ func (r *PostgresAccountRepository) GetAccountItemPageData(ctx context.Context, 
 		return nil, fmt.Errorf("account ID is required")
 	}
 
-	// Extract workspace_id from context (REQUIRED for multi-tenancy).
-	workspaceID := identity.Must(ctx).WorkspaceID
+	// Extract a non-empty workspace from context (REQUIRED for multi-tenancy).
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get account item page data: %w", err)
+	}
+	workspaceID := requestIdentity.WorkspaceID
 
 	query := `
 		SELECT
@@ -527,10 +554,10 @@ func (r *PostgresAccountRepository) GetAccountItemPageData(ctx context.Context, 
 			active, date_created, date_modified
 		FROM ` + entityid.Account + `
 		WHERE id = $1 AND active = true
-		AND ($2::text IS NULL OR workspace_id = $2)
+		AND workspace_id = $2
 		LIMIT 1`
 
-	row := r.db.QueryRowContext(ctx, query, req.AccountId, nilIfEmpty(workspaceID))
+	row := r.db.QueryRowContext(ctx, query, req.AccountId, workspaceID)
 
 	var (
 		id               string
@@ -552,7 +579,7 @@ func (r *PostgresAccountRepository) GetAccountItemPageData(ctx context.Context, 
 		dateModified     time.Time
 	)
 
-	err := row.Scan(
+	err = row.Scan(
 		&id,
 		&code,
 		&name,

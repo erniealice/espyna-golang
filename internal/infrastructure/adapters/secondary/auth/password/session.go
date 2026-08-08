@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/erniealice/espyna-golang/internal/application/ports"
 	dbinterfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/google/uuid"
 )
@@ -23,7 +24,22 @@ const (
 // SessionService handles session creation, validation, and invalidation.
 type SessionService struct {
 	ops    dbinterfaces.DatabaseOperation
+	idGen  ports.IDGenerator
 	expiry time.Duration
+}
+
+// newSessionID mints a session id. It prefers the injected platform
+// IDGenerator (uuidv7 under CONFIG_ID_PROVIDER=google_uuidv7) and falls back
+// to a direct UUIDv7 — it never mints a random (v4) UUID.
+func (s *SessionService) newSessionID() (string, error) {
+	if s.idGen != nil && s.idGen.IsEnabled() {
+		return s.idGen.GenerateID(), nil
+	}
+	id, err := uuid.NewV7()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate session id: %w", err)
+	}
+	return id.String(), nil
 }
 
 // NewSessionService creates a new SessionService.
@@ -73,7 +89,10 @@ func (s *SessionService) CreateSession(ctx context.Context, userID string) (stri
 		return "", fmt.Errorf("session service: database operations not initialised")
 	}
 
-	id := uuid.New().String()
+	id, err := s.newSessionID()
+	if err != nil {
+		return "", err
+	}
 	token, err := generateToken()
 	if err != nil {
 		return "", err

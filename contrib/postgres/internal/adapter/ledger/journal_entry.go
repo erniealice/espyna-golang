@@ -39,6 +39,28 @@ var journalEntrySortableSQLCols = []string{
 	"date_created", "date_modified",
 }
 
+var journalEntryFilterFieldMap = map[string]string{
+	"id":                "je.id",
+	"entry_number":      "je.entry_number",
+	"description":       "je.description",
+	"entry_date":        "je.entry_date",
+	"status":            "je.status",
+	"source_type":       "je.source_type",
+	"source_id":         "je.source_id",
+	"fiscal_period_id":  "je.fiscal_period_id",
+	"total_debit":       "je.total_debit",
+	"total_credit":      "je.total_credit",
+	"posted_by":         "je.posted_by",
+	"posted_at":         "je.posted_at",
+	"reversed_by":       "je.reversed_by",
+	"reversed_at":       "je.reversed_at",
+	"reversal_entry_id": "je.reversal_entry_id",
+	"notes":             "je.notes",
+	"active":            "je.active",
+	"date_created":      "je.date_created",
+	"date_modified":     "je.date_modified",
+}
+
 // PostgresJournalEntryRepository implements journal_entry CRUD and lifecycle operations using PostgreSQL.
 //
 // Performance Index Recommendations:
@@ -247,20 +269,9 @@ func (r *PostgresJournalEntryRepository) GetJournalEntryListPageData(ctx context
 		return nil, fmt.Errorf("database connection not available")
 	}
 
-	// Default pagination values
-	limit := int32(100)
-	offset := int32(0)
-	page := int32(1)
-	if req.Pagination != nil {
-		if req.Pagination.Limit > 0 {
-			limit = req.Pagination.Limit
-		}
-		if offsetPag := req.Pagination.GetOffset(); offsetPag != nil {
-			if offsetPag.Page > 0 {
-				page = offsetPag.Page
-				offset = (page - 1) * limit
-			}
-		}
+	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 100)
+	if err != nil {
+		return nil, fmt.Errorf("get journal entry list page data: invalid pagination: %w", err)
 	}
 
 	// Extract workspace_id from context (REQUIRED for multi-tenancy).
@@ -276,9 +287,15 @@ func (r *PostgresJournalEntryRepository) GetJournalEntryListPageData(ctx context
 
 	// Build WHERE clauses. $1 is reserved for workspace_id, so filters start at $2.
 	searchFields := []string{"je.description", "je.entry_number"}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhere(req.Filters, req.Search, searchFields, 2)
+	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMapped(
+		req.Filters,
+		req.Search,
+		journalEntryFilterFieldMap,
+		searchFields,
+		2,
+	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get journal entry list page data: invalid filter/search: %w", err)
 	}
 
 	whereStr := " AND je.workspace_id = $1"

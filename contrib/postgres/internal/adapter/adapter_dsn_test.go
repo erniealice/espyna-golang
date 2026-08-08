@@ -418,6 +418,135 @@ func TestBuildDSNOmitsEmptyPassword(t *testing.T) {
 }
 
 // =============================================================================
+// TLS cert paths: emission, omission-when-empty, and escaping (TLS-01/01b)
+// =============================================================================
+
+func dsnFieldOrder(order []string, key string) int {
+	for i, k := range order {
+		if k == key {
+			return i
+		}
+	}
+	return -1
+}
+
+// TestBuildDSNEmitsTLSPathsWhenSet pins TLS-01: the three cert paths render as
+// their own keywords, with the values verbatim, in the fixed slot after sslmode
+// and before connect_timeout.
+func TestBuildDSNEmitsTLSPathsWhenSet(t *testing.T) {
+	cfg := &PostgresConfig{
+		Host: "h", Port: "5432", Name: "d", User: "u", SSLMode: "verify-full",
+		SSLRootCert: "/etc/certs/root.crt",
+		SSLCert:     "/etc/certs/client.crt",
+		SSLKey:      "/etc/certs/client.key",
+	}
+	dsn := buildDSN(cfg)
+	fields, order, err := parseKeywordValueDSN(dsn)
+	if err != nil {
+		t.Fatalf("unparseable DSN: %v\n%s", err, dsn)
+	}
+	for k, want := range map[string]string{
+		"sslrootcert": cfg.SSLRootCert,
+		"sslcert":     cfg.SSLCert,
+		"sslkey":      cfg.SSLKey,
+	} {
+		got, ok := fields[k]
+		if !ok {
+			t.Errorf("DSN missing %q\n%s", k, dsn)
+			continue
+		}
+		if got != want {
+			t.Errorf("DSN %q = %q, want %q", k, got, want)
+		}
+	}
+	// Fixed key order keeps the byte-identity test's expectation stable.
+	if !(dsnFieldOrder(order, "sslmode") < dsnFieldOrder(order, "sslrootcert") &&
+		dsnFieldOrder(order, "sslrootcert") < dsnFieldOrder(order, "sslcert") &&
+		dsnFieldOrder(order, "sslcert") < dsnFieldOrder(order, "sslkey") &&
+		dsnFieldOrder(order, "sslkey") < dsnFieldOrder(order, "connect_timeout")) {
+		t.Errorf("TLS keys must fall between sslmode and connect_timeout in order; got %v", order)
+	}
+}
+
+// TestBuildDSNOmitsUnsetTLSPaths pins TLS-01b: with no cert configured the DSN
+// is byte-identical to the pre-TLS form. This is the assertion that protects
+// every existing lane — a stronger claim than "still connects".
+func TestBuildDSNOmitsUnsetTLSPaths(t *testing.T) {
+	dsn := buildDSN(&PostgresConfig{Host: "h", Port: "1", Name: "d", User: "u", SSLMode: "disable"})
+	const want = "host=h port=1 dbname=d user=u sslmode=disable connect_timeout=5"
+	if dsn != want {
+		t.Errorf("unset TLS paths changed the DSN\n got: %s\nwant: %s", dsn, want)
+	}
+	for _, k := range []string{"sslrootcert", "sslcert", "sslkey"} {
+		if strings.Contains(dsn, k) {
+			t.Errorf("unset %q leaked into the DSN: %s", k, dsn)
+		}
+	}
+}
+
+// TestBuildDSNEscapesTLSPathsUnderHostileValues pins the security half of
+// TLS-01: a cert path is operator-supplied text, so a space, quote, injected
+// keyword, or unicode separator inside it must round-trip as one value through
+// pgKV and never spawn a keyword of its own.
+func TestBuildDSNEscapesTLSPathsUnderHostileValues(t *testing.T) {
+	cases := []struct {
+		name            string
+		root, cert, key string
+	}{
+		{"spaces in the path", "/etc/my certs/root.crt", "/etc/my certs/client.crt", "/etc/my certs/client.key"},
+		{"quote and injected keyword", `/x' sslmode='disable`, `/y' options='-c statement_timeout=0`, `/z' host='evil`},
+		{"unicode whitespace", "/a root.crt", "/b　client.crt", "/c client.key"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &PostgresConfig{
+				Host: "h", Port: "5432", Name: "d", User: "u", SSLMode: "verify-full",
+				SSLRootCert: tc.root, SSLCert: tc.cert, SSLKey: tc.key,
+			}
+			dsn := buildDSN(cfg)
+			fields, _, err := parseKeywordValueDSN(dsn)
+			if err != nil {
+				t.Fatalf("buildDSN produced an unparseable string: %v\n%s", err, dsn)
+			}
+			want := map[string]string{
+				"host": "h", "port": "5432", "dbname": "d", "user": "u",
+				"sslmode": "verify-full", "connect_timeout": "5",
+				"sslrootcert": tc.root, "sslcert": tc.cert, "sslkey": tc.key,
+			}
+			if len(fields) != len(want) {
+				t.Errorf("DSN carries %d fields, want %d — a path escaped its field\n%s", len(fields), len(want), dsn)
+			}
+			for k, v := range want {
+				if got := fields[k]; got != v {
+					t.Errorf("DSN %q = %q, want %q\n%s", k, got, v, dsn)
+				}
+			}
+			for k := range fields {
+				if _, expected := want[k]; !expected {
+					t.Errorf("DSN gained an unexpected keyword %q — a TLS path escaped its field\n%s", k, dsn)
+				}
+			}
+		})
+	}
+
+	// Driver truth: the same escaping, proven against lib/pq itself. A
+	// client_encoding=LATIN1 payload smuggled into sslrootcert via a unicode
+	// space is rejected by pq.NewConnector iff it broke out of the value.
+	t.Run("inert to the real driver", func(t *testing.T) {
+		pqEnvIsolate(t)
+		for _, sep := range unicodeSpaceSeparators {
+			cfg := &PostgresConfig{
+				Host: "db.internal", Port: "5432", Name: "app", User: "app", SSLMode: "verify-full",
+				SSLRootCert: "/etc/certs/root.crt" + sep.value + "client_encoding=LATIN1",
+			}
+			if _, err := pq.NewConnector(buildDSN(cfg)); err != nil {
+				t.Errorf("%s: lib/pq rejected the built DSN (%v) — sslrootcert escaped its field", sep.name, err)
+			}
+		}
+	})
+}
+
+// =============================================================================
 // sessionOptions: unit conversion and the 0-disables rule
 // =============================================================================
 

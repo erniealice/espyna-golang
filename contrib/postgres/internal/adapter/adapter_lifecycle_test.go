@@ -61,7 +61,7 @@ func lcProtoConfig() *dbpb.DatabaseProviderConfig {
 		Enabled:  true,
 		Config: &dbpb.DatabaseProviderConfig_Postgresql{
 			Postgresql: &dbpb.PostgreSQLConfig{
-				Host: "127.0.0.1", Port: "1", Database: "lifecycle", Username: "lifecycle",
+				Host: "127.0.0.1", Port: "1", Database: "lifecycle", Username: "lifecycle", SslMode: "disable",
 			},
 		},
 	}

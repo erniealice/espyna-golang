@@ -303,7 +303,9 @@ func TestRawMapAbsentAndNilReportNotPresent(t *testing.T) {
 }
 
 func cfgRawBase() map[string]any {
-	return map[string]any{"host": "h", "database": "d", "user": "u", "password": "p"}
+	// ssl_mode is included because Q1 gives sslmode no default: an unset value is a
+	// hard error, so every raw config that will be resolved must state its transport.
+	return map[string]any{"host": "h", "database": "d", "user": "u", "password": "p", "ssl_mode": "disable"}
 }
 
 func cfgRawWith(key string, value any) map[string]any {
@@ -437,7 +439,7 @@ func TestResolveStatementTimeoutPrecedence(t *testing.T) {
 				cfgSetEnv(t, envStatementTimeout, *tc.env)
 			}
 			cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{
-				Host: "h", StatementTimeoutSeconds: tc.protoVal,
+				Host: "h", SslMode: "disable", StatementTimeoutSeconds: tc.protoVal,
 			})
 			if tc.wantErr {
 				if err == nil {
@@ -487,7 +489,7 @@ func TestResolveEnvOnlyTimeouts(t *testing.T) {
 		t.Run(knob.env, func(t *testing.T) {
 			t.Run("absent uses default", func(t *testing.T) {
 				cfgCleanEnv(t)
-				cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h"})
+				cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", SslMode: "disable"})
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
@@ -502,7 +504,7 @@ func TestResolveEnvOnlyTimeouts(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					cfgCleanEnv(t)
 					cfgSetEnv(t, knob.env, tc.str)
-					cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h"})
+					cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", SslMode: "disable"})
 					got := 0
 					if cfg != nil {
 						got = knob.extract(cfg)
@@ -532,7 +534,7 @@ func TestResolveMaxConnections(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cfgCleanEnv(t)
-			cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", MaxConnections: tc.val})
+			cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", SslMode: "disable", MaxConnections: tc.val})
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("resolvePostgresConfig = %+v, want an error", cfg)
@@ -577,7 +579,7 @@ func TestResolveMaxIdleConnections(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfgCleanEnv(t)
 			cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{
-				Host: "h", MaxConnections: tc.open, MaxIdleConnections: tc.idle,
+				Host: "h", SslMode: "disable", MaxConnections: tc.open, MaxIdleConnections: tc.idle,
 			})
 			if tc.wantErr {
 				if err == nil {
@@ -604,24 +606,63 @@ func TestResolveMaxIdleConnections(t *testing.T) {
 	}
 }
 
-func TestResolveDefaultsSSLModeButNotOtherFields(t *testing.T) {
+func TestResolveRejectsUnsetSSLMode(t *testing.T) {
 	cfgCleanEnv(t)
-	cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", Port: "6543", Database: "d", Username: "u", Password: "p"})
+	// Q1: sslmode has no default. An unset value is a hard error naming the key,
+	// never a silent "disable" — the transport is the operator's explicit choice.
+	_, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", Port: "6543", Database: "d", Username: "u", Password: "p"})
+	if err == nil {
+		t.Fatal("expected an error for unset sslmode, got nil")
+	}
+	if !strings.Contains(err.Error(), "sslmode") || !strings.Contains(err.Error(), "DATABASE_POSTGRES_SSLMODE") {
+		t.Errorf("error should name the sslmode key, got: %v", err)
+	}
+	// An explicit value carries through verbatim, alongside the other string fields.
+	cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", Port: "6543", Database: "d", Username: "u", Password: "p", SslMode: "require"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.SSLMode != "disable" {
-		t.Errorf("SSLMode = %q, want %q", cfg.SSLMode, "disable")
+	if cfg.SSLMode != "require" {
+		t.Errorf("SSLMode = %q, want %q", cfg.SSLMode, "require")
 	}
 	if cfg.Host != "h" || cfg.Port != "6543" || cfg.Name != "d" || cfg.User != "u" || cfg.Password != "p" {
 		t.Errorf("string fields not carried through verbatim: %+v", cfg)
 	}
-	explicit, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", SslMode: "require"})
+}
+
+// TestResolveCarriesTLSPathsFromProto pins TLS-02: the three proto cert-path
+// fields land on PostgresConfig verbatim so buildDSN can emit them.
+func TestResolveCarriesTLSPathsFromProto(t *testing.T) {
+	cfgCleanEnv(t)
+	cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{
+		Host: "h", SslMode: "verify-full",
+		SslRootCertPath: "/etc/certs/root.crt",
+		SslCertPath:     "/etc/certs/client.crt",
+		SslKeyPath:      "/etc/certs/client.key",
+	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if explicit.SSLMode != "require" {
-		t.Errorf("SSLMode = %q, want %q", explicit.SSLMode, "require")
+	if cfg.SSLRootCert != "/etc/certs/root.crt" || cfg.SSLCert != "/etc/certs/client.crt" || cfg.SSLKey != "/etc/certs/client.key" {
+		t.Errorf("TLS paths not carried through: SSLRootCert=%q SSLCert=%q SSLKey=%q", cfg.SSLRootCert, cfg.SSLCert, cfg.SSLKey)
+	}
+}
+
+// TestResolveVerifyModeWithoutRootCertIsAllowed pins TLS-03 / Q2: a verify mode
+// with no root cert is LEGAL — a public-CA server verifies against the system
+// trust store — so it resolves without error (it only warns). A blanket
+// rejection here would break that valid lane, which is why Q2 is a warning.
+func TestResolveVerifyModeWithoutRootCertIsAllowed(t *testing.T) {
+	for _, mode := range []string{"verify-ca", "verify-full"} {
+		cfgCleanEnv(t)
+		cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", SslMode: mode})
+		if err != nil {
+			t.Errorf("%s with no root cert must resolve (system trust store), got error: %v", mode, err)
+			continue
+		}
+		if cfg == nil || cfg.SSLMode != mode || cfg.SSLRootCert != "" {
+			t.Errorf("%s did not resolve to the expected config: %+v", mode, cfg)
+		}
 	}
 }
 
@@ -702,7 +743,7 @@ func TestProtoPathNegativeIsHardError(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cfgCleanEnv(t)
-			cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", StatementTimeoutSeconds: tc.val})
+			cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", SslMode: "disable", StatementTimeoutSeconds: tc.val})
 			if err == nil {
 				t.Fatalf("resolvePostgresConfig(%d) = %+v, want a hard error — a negative proto value silently disabled the timeout", tc.val, cfg.StatementTimeout)
 			}
@@ -716,7 +757,7 @@ func TestProtoPathNegativeIsHardError(t *testing.T) {
 	// the ceiling must also be a hard error, never a huge silent timeout.
 	t.Run("large positive overflow shape", func(t *testing.T) {
 		cfgCleanEnv(t)
-		if cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", StatementTimeoutSeconds: math.MaxInt32}); err == nil {
+		if cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", SslMode: "disable", StatementTimeoutSeconds: math.MaxInt32}); err == nil {
 			t.Fatalf("= %+v, want a hard error", cfg.StatementTimeout)
 		} else if !strings.Contains(err.Error(), "statement_timeout_seconds") {
 			t.Errorf("error does not name the field: %v", err)
@@ -733,6 +774,7 @@ func TestProtoPathNegativeIsHardError(t *testing.T) {
 			Config: &dbpb.DatabaseProviderConfig_Postgresql{
 				Postgresql: &dbpb.PostgreSQLConfig{
 					Host: "127.0.0.1", Port: "1", Database: "d", Username: "u",
+					SslMode:                 "disable",
 					StatementTimeoutSeconds: -1,
 				},
 			},
@@ -774,7 +816,7 @@ func TestTypedDisabledSurvivesTheProtoHandOff(t *testing.T) {
 	t.Run("env 0 still disables", func(t *testing.T) {
 		cfgCleanEnv(t)
 		cfgSetEnv(t, envStatementTimeout, "0")
-		cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h"})
+		cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", SslMode: "disable"})
 		if err != nil {
 			t.Fatalf("resolvePostgresConfig: %v", err)
 		}
@@ -814,7 +856,7 @@ func TestNoSilentSubstitution(t *testing.T) {
 			for _, key := range []string{envStatementTimeout, envLockTimeout, envIdleTxTimeout} {
 				cfgCleanEnv(t)
 				cfgSetEnv(t, key, value)
-				if cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h"}); err == nil {
+				if cfg, err := resolvePostgresConfig(&dbpb.PostgreSQLConfig{Host: "h", SslMode: "disable"}); err == nil {
 					t.Errorf("%s=%s silently resolved to %+v", key, value, cfg)
 				}
 			}

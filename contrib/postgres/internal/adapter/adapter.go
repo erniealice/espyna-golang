@@ -346,7 +346,11 @@ func buildFromEnv() (ports.DatabaseProvider, error) {
 	name := getEnv("DATABASE_POSTGRES_DBNAME", "espyna")
 	user := getEnv("DATABASE_POSTGRES_USER", "postgres")
 	password := getEnv("DATABASE_POSTGRES_PASSWORD", "")
-	sslMode := getEnv("DATABASE_POSTGRES_SSLMODE", "disable")
+	// Q1: no default — an unset sslmode surfaces as "" and resolvePostgresConfig rejects it.
+	sslMode := getEnv("DATABASE_POSTGRES_SSLMODE", "")
+	sslRootCert := getEnv("DATABASE_POSTGRES_SSLROOTCERT", "")
+	sslCert := getEnv("DATABASE_POSTGRES_SSLCERT", "")
+	sslKey := getEnv("DATABASE_POSTGRES_SSLKEY", "")
 
 	maxConns, err := lookupIntEnv(envMaxConnections, "connections", defaultMaxConnections, 1, maxMaxConnections)
 	if err != nil {
@@ -365,13 +369,16 @@ func buildFromEnv() (ports.DatabaseProvider, error) {
 	}
 
 	pgProto := &dbpb.PostgreSQLConfig{
-		Host:           host,
-		Port:           port,
-		Database:       name,
-		Username:       user,
-		Password:       password,
-		SslMode:        sslMode,
-		MaxConnections: int32(maxConns),
+		Host:            host,
+		Port:            port,
+		Database:        name,
+		Username:        user,
+		Password:        password,
+		SslMode:         sslMode,
+		SslRootCertPath: sslRootCert,
+		SslCertPath:     sslCert,
+		SslKeyPath:      sslKey,
+		MaxConnections:  int32(maxConns),
 	}
 	if statementTimeoutSecs == 0 {
 		// Explicit env "0": the proto field cannot say "disabled" (its 0 means
@@ -451,9 +458,9 @@ func transformConfig(rawConfig map[string]any) (*dbpb.DatabaseProviderConfig, er
 
 	if sslMode, ok := rawConfig["ssl_mode"].(string); ok && sslMode != "" {
 		pgConfig.SslMode = sslMode
-	} else {
-		pgConfig.SslMode = "disable"
 	}
+	// Q1: no default — an unset ssl_mode leaves the field empty and
+	// resolvePostgresConfig rejects it rather than silently choosing cleartext.
 
 	// Numeric knobs go through the ONE strict parser: the same int/int32/int64/
 	// float64/numeric-string shapes DatabaseConfigAdapter accepts, with present-
@@ -537,6 +544,9 @@ type PostgresConfig struct {
 	User             string
 	Password         string
 	SSLMode          string
+	SSLRootCert      string
+	SSLCert          string
+	SSLKey           string
 	MaxConns         int
 	MaxIdleConns     int
 	StatementTimeout resolvedTimeout
@@ -573,10 +583,24 @@ func resolvePostgresConfig(pgProto *dbpb.PostgreSQLConfig) (*PostgresConfig, err
 		User:           pgProto.GetUsername(),
 		Password:       pgProto.GetPassword(),
 		SSLMode:        pgProto.GetSslMode(),
+		SSLRootCert:    pgProto.GetSslRootCertPath(),
+		SSLCert:        pgProto.GetSslCertPath(),
+		SSLKey:         pgProto.GetSslKeyPath(),
 		MigrationsPath: "./migrations",
 	}
+	// Q1: sslmode has NO default. An unset value must never silently pick cleartext
+	// (disable) or unverified TLS — matching the strict-parse posture the timeout
+	// knobs use, the operator states the transport explicitly or Initialize fails.
 	if cfg.SSLMode == "" {
-		cfg.SSLMode = "disable"
+		return nil, fmt.Errorf("postgresql: sslmode is required and has no default — set DATABASE_POSTGRES_SSLMODE explicitly to one of disable, require, verify-ca, verify-full")
+	}
+	// Q2: a verify mode with no root cert can authenticate only against the system
+	// trust store. That is legal for a public-CA managed database, so this is NOT a
+	// hard error (a blanket reject would break that valid lane). But a private-CA
+	// server — Supabase and most managed PG — is absent from the system store and
+	// will fail at dial with a confusing certificate error, so warn loudly at boot.
+	if (cfg.SSLMode == "verify-ca" || cfg.SSLMode == "verify-full") && cfg.SSLRootCert == "" {
+		log.Printf("WARN postgresql: sslmode=%s with no DATABASE_POSTGRES_SSLROOTCERT — the server is verified only against the system trust store; a private-CA server (e.g. Supabase) will fail to connect. Point DATABASE_POSTGRES_SSLROOTCERT at its CA, or at the system bundle for a public-CA database.", cfg.SSLMode)
 	}
 
 	switch mc := pgProto.GetMaxConnections(); {
@@ -691,8 +715,20 @@ func buildDSN(cfg *PostgresConfig) string {
 		pgKV("dbname", cfg.Name),
 		pgKV("user", cfg.User),
 		pgKV("sslmode", cfg.SSLMode),
-		pgKV("connect_timeout", "5"),
 	}
+	// TLS cert paths — emitted only when set, so a lane configuring none keeps a
+	// byte-identical DSN. Fixed order after sslmode, before connect_timeout, each
+	// through pgKV so a hostile path cannot inject a further connection keyword.
+	if cfg.SSLRootCert != "" {
+		connParts = append(connParts, pgKV("sslrootcert", cfg.SSLRootCert))
+	}
+	if cfg.SSLCert != "" {
+		connParts = append(connParts, pgKV("sslcert", cfg.SSLCert))
+	}
+	if cfg.SSLKey != "" {
+		connParts = append(connParts, pgKV("sslkey", cfg.SSLKey))
+	}
+	connParts = append(connParts, pgKV("connect_timeout", "5"))
 	if opts := sessionOptions(cfg); opts != "" {
 		connParts = append(connParts, pgKV("options", opts))
 	}

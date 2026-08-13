@@ -35,18 +35,19 @@ const (
 // existing policy during this bounded wave; direct-column catalog errors still
 // fail closed globally.
 var workspaceScopePolicies = map[string]workspaceScopePolicy{
-	entityid.JobPhase:             workspaceScopeDirectRequired,
-	entityid.JobTask:              workspaceScopeDirectRequired,
-	entityid.JobTemplatePhase:     workspaceScopeDirectRequired,
-	entityid.JobTemplateTask:      workspaceScopeDirectRequired,
-	entityid.JobTemplateRelation:  workspaceScopeDirectRequired,
-	entityid.CriteriaOption:       workspaceScopeDirectRequired,
-	entityid.CriteriaThreshold:    workspaceScopeDirectRequired,
-	entityid.TemplateTaskCriteria: workspaceScopeDirectRequired,
-	entityid.TaskOutcome:          workspaceScopeDirectRequired,
-	entityid.TaskOutcomeCheck:     workspaceScopeDirectRequired,
-	entityid.PhaseOutcomeSummary:  workspaceScopeDirectRequired,
-	entityid.ScoringComponent:     workspaceScopeDirectRequired,
+	entityid.JobPhase:                          workspaceScopeDirectRequired,
+	entityid.JobTask:                           workspaceScopeDirectRequired,
+	entityid.JobTemplatePhase:                  workspaceScopeDirectRequired,
+	entityid.JobTemplateTask:                   workspaceScopeDirectRequired,
+	entityid.JobTemplateRelation:               workspaceScopeDirectRequired,
+	entityid.CriteriaOption:                    workspaceScopeDirectRequired,
+	entityid.CriteriaThreshold:                 workspaceScopeDirectRequired,
+	entityid.TemplateTaskCriteria:              workspaceScopeDirectRequired,
+	entityid.TaskOutcome:                       workspaceScopeDirectRequired,
+	entityid.TaskOutcomeCheck:                  workspaceScopeDirectRequired,
+	entityid.PhaseOutcomeSummary:               workspaceScopeDirectRequired,
+	entityid.ScoringComponent:                  workspaceScopeDirectRequired,
+	entityid.SubscriptionGroupDocumentTemplate: workspaceScopeDirectRequired,
 
 	entityid.TreasuryCollection:   workspaceScopeDirectRequired,
 	entityid.TreasuryDisbursement: workspaceScopeDirectRequired,
@@ -805,9 +806,10 @@ func workspaceScopeUnavailable(tableName, reason string, cause error) error {
 }
 
 // tableHasWorkspaceColumn reports whether tableName has a workspace_id column.
-// Results are cached with a read-preferred RWMutex; the first miss performs a
-// live public-schema catalog query. Probe and scan errors are returned so callers
-// fail closed rather than treating catalog failure as proof of a global table.
+// Results are cached with a read-preferred RWMutex; the first miss inspects the
+// same search-path-resolved relation that an unqualified CRUD statement will
+// use. Probe and scan errors are returned so callers fail closed rather than
+// treating catalog failure as proof of a global table.
 func (w *WorkspaceAwareOperations) tableHasWorkspaceColumn(ctx context.Context, tableName string) (bool, error) {
 	w.columnCacheMu.RLock()
 	cols, cached := w.columnCache[tableName]
@@ -844,11 +846,12 @@ func (w *WorkspaceAwareOperations) probeTableColumns(ctx context.Context, tableN
 
 	// Use the underlying db directly to avoid recursion through the decorator.
 	const query = `
-		SELECT column_name
-		FROM information_schema.columns
-		WHERE table_schema = 'public'
-		  AND table_name = $1
-		ORDER BY ordinal_position
+		SELECT attname
+		FROM pg_catalog.pg_attribute
+		WHERE attrelid = to_regclass($1)
+		  AND attnum > 0
+		  AND NOT attisdropped
+		ORDER BY attnum
 	`
 	rows, err := w.db.QueryContext(ctx, query, tableName)
 	if err != nil {

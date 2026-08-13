@@ -40,6 +40,7 @@ func TestWorkspaceScopePolicyRegistryCoversLockedSchoolTables(t *testing.T) {
 		entityid.TaskOutcomeCheck,
 		entityid.PhaseOutcomeSummary,
 		entityid.ScoringComponent,
+		entityid.SubscriptionGroupDocumentTemplate,
 	}
 	for _, tableName := range direct {
 		if got := workspaceScopePolicies[tableName]; got != workspaceScopeDirectRequired {

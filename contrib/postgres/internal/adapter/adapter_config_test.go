@@ -691,6 +691,7 @@ func TestBuildFromEnvRejectsBadConfigBeforeDialing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfgCleanEnv(t)
 			cfgSetEnv(t, tc.key, tc.value)
+			cfgSetEnv(t, "DATABASE_POSTGRES_SSLMODE", "disable")
 			// Point the boot path at an unroutable address: if the rejection
 			// were to happen after dialing, this would surface as a connection
 			// error instead of a configuration error.

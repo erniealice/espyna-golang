@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/service/auth"
 )
@@ -270,6 +271,57 @@ func TestCoalesceNullStringOrSentinel(t *testing.T) {
 	}
 	if got := coalesceNullStringOrSentinel("abc"); got != "abc" {
 		t.Errorf("coalesceNullStringOrSentinel(\"abc\") = %q, want %q", got, "abc")
+	}
+}
+
+func TestStaffWorkspaceUserLookupSQLPinsBothIdentityAxes(t *testing.T) {
+	query := staffWorkspaceUserLookupSQL()
+	required := []string{
+		"FROM " + entityid.Staff + " s",
+		"JOIN " + entityid.WorkspaceUser + " wu",
+		"wu.user_id = s.user_id",
+		"wu.workspace_id = s.workspace_id",
+		"wu.active = true",
+		"s.id = $1",
+		"s.user_id = $2",
+		"s.workspace_id = $3",
+		"s.active = true",
+		"FOR UPDATE OF s, wu",
+	}
+	for _, fragment := range required {
+		if !strings.Contains(query, fragment) {
+			t.Errorf("staff membership query missing %q\n--- SQL ---\n%s", fragment, query)
+		}
+	}
+	if strings.Contains(query, "LIMIT 1") {
+		t.Error("staff membership query must not hide an ambiguous membership behind LIMIT 1")
+	}
+}
+
+func TestSelectExactStaffWorkspaceUserIDFailsClosedOnMissingOrAmbiguousCandidates(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		candidates []string
+		wantID     string
+		wantCount  int
+	}{
+		{name: "missing", candidates: nil, wantCount: 0},
+		{name: "empty rows do not become an anchor", candidates: []string{"", "  "}, wantCount: 0},
+		{name: "exactly one", candidates: []string{"", "wu-1"}, wantID: "wu-1", wantCount: 1},
+		{name: "duplicate row is ambiguous", candidates: []string{"wu-1", "wu-1"}, wantID: "wu-1", wantCount: 2},
+		{name: "distinct rows are ambiguous", candidates: []string{"wu-1", "wu-2"}, wantID: "wu-2", wantCount: 2},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			gotID, gotCount := selectExactStaffWorkspaceUserID(test.candidates)
+			if gotID != test.wantID || gotCount != test.wantCount {
+				t.Fatalf("selectExactStaffWorkspaceUserID() = (%q, %d), want (%q, %d)", gotID, gotCount, test.wantID, test.wantCount)
+			}
+		})
 	}
 }
 

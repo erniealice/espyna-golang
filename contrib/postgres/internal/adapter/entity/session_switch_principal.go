@@ -128,10 +128,20 @@ func (r *PostgresSessionRepository) SwitchPrincipal(
 	switch tgt.GetType() {
 	case principaltypepb.PrincipalType_PRINCIPAL_TYPE_OPERATOR_OWNER,
 		principaltypepb.PrincipalType_PRINCIPAL_TYPE_OPERATOR_STAFF:
-		// principal_id IS the workspace_user.id for staff principals;
+		// principal_id IS the workspace_user.id for operator principals;
 		// keep that mapping on workspace_user_id too for back-compat with
 		// the existing session middleware / permission loader chain.
 		newWorkspaceUserID = tgt.GetPrincipalId()
+	case principaltypepb.PrincipalType_PRINCIPAL_TYPE_STAFF:
+		// STAFF has two distinct anchors: principal_id remains staff.id for
+		// operational row scope, while workspace_user_id is the exact active
+		// membership for servicing grants and RBAC. Resolve both from the same
+		// trusted tuple inside this transaction; missing/ambiguous membership
+		// fails closed before any session write.
+		newWorkspaceUserID, err = resolveStaffWorkspaceUserID(ctx, tx, req.GetUserId(), tgt)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var (
@@ -439,6 +449,69 @@ func (r *PostgresSessionRepository) SwitchPrincipal(
 	// it in. This keeps the adapter free of HTTP routing concerns
 	// (hexagonal-rules.md §6 anti-patterns: adapters don't reach upward).
 	return resp, nil
+}
+
+func staffWorkspaceUserLookupSQL() string {
+	return `
+		SELECT wu.id
+		FROM ` + entityid.Staff + ` s
+		JOIN ` + entityid.WorkspaceUser + ` wu
+		  ON wu.user_id = s.user_id
+		 AND wu.workspace_id = s.workspace_id
+		 AND wu.active = true
+		WHERE s.id = $1
+		  AND s.user_id = $2
+		  AND s.workspace_id = $3
+		  AND s.active = true
+		ORDER BY wu.id
+		FOR UPDATE OF s, wu
+	`
+}
+
+// resolveStaffWorkspaceUserID binds the operational STAFF anchor (staff.id) to
+// its exact active workspace membership. It deliberately does not accept a
+// browser-supplied workspace_user_id or fall back to a user-only match.
+func resolveStaffWorkspaceUserID(ctx context.Context, tx *sql.Tx, userID string, tgt *authpb.Principal) (string, error) {
+	rows, err := tx.QueryContext(ctx, staffWorkspaceUserLookupSQL(), tgt.GetPrincipalId(), userID, tgt.GetWorkspaceId())
+	if err != nil {
+		return "", fmt.Errorf("session adapter: SwitchPrincipal: staff workspace membership query: %w", err)
+	}
+	defer rows.Close()
+
+	candidates := make([]string, 0, 2)
+	for rows.Next() {
+		var workspaceUserID sql.NullString
+		if err := rows.Scan(&workspaceUserID); err != nil {
+			return "", fmt.Errorf("session adapter: SwitchPrincipal: staff workspace membership scan: %w", err)
+		}
+		candidates = append(candidates, workspaceUserID.String)
+	}
+	if err := rows.Err(); err != nil {
+		return "", fmt.Errorf("session adapter: SwitchPrincipal: staff workspace membership rows: %w", err)
+	}
+	resolvedID, count := selectExactStaffWorkspaceUserID(candidates)
+	if count != 1 {
+		return "", fmt.Errorf("session adapter: SwitchPrincipal: binding revoked or not in workspace (type=%s principal_id=%s workspace_id=%s): expected one active workspace membership, found %d",
+			principalTypeAuditLabel(tgt.GetType()), tgt.GetPrincipalId(), tgt.GetWorkspaceId(), count)
+	}
+	return resolvedID, nil
+}
+
+// selectExactStaffWorkspaceUserID isolates the fail-closed cardinality rule
+// from the SQL transport. Empty candidates do not count; every non-empty row
+// does, including duplicate values, because more than one authoritative row is
+// ambiguous even when malformed data repeats the same identifier.
+func selectExactStaffWorkspaceUserID(candidates []string) (string, int) {
+	resolvedID := ""
+	count := 0
+	for _, candidate := range candidates {
+		if strings.TrimSpace(candidate) == "" {
+			continue
+		}
+		resolvedID = candidate
+		count++
+	}
+	return resolvedID, count
 }
 
 // switchAuditRow is the minimal field set we write to audit_entry on every

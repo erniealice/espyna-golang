@@ -181,8 +181,13 @@ func (r *PostgresClientAttributeRepository) DeleteClientAttribute(ctx context.Co
 func (r *PostgresClientAttributeRepository) ListClientAttributes(ctx context.Context, req *clientattributepb.ListClientAttributesRequest) (*clientattributepb.ListClientAttributesResponse, error) {
 	// List documents using common operations
 	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	if req != nil {
+		params = &interfaces.ListParams{
+			Search:     req.GetSearch(),
+			Filters:    req.GetFilters(),
+			Sort:       req.GetSort(),
+			Pagination: req.GetPagination(),
+		}
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
@@ -207,7 +212,8 @@ func (r *PostgresClientAttributeRepository) ListClientAttributes(ctx context.Con
 	}
 
 	return &clientattributepb.ListClientAttributesResponse{
-		Data: clientAttributes,
+		Data:    clientAttributes,
+		Success: true,
 	}, nil
 }
 

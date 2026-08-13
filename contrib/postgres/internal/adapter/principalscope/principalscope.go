@@ -130,19 +130,19 @@ func reachableClientUnion(staffP, wsP int) string {
 	s := fmt.Sprintf("$%d", staffP)
 	w := fmt.Sprintf("$%d", wsP)
 	return "SELECT j.client_id FROM " + entityid.Job + " j" +
-		" JOIN " + entityid.JobPhase + " jp ON jp.job_id = j.id" +
-		" JOIN " + entityid.JobTask + " jt ON jt.job_phase_id = jp.id" +
+		" JOIN " + entityid.JobPhase + " jp ON jp.job_id = j.id AND jp.workspace_id = " + w +
+		" JOIN " + entityid.JobTask + " jt ON jt.job_phase_id = jp.id AND jt.workspace_id = " + w +
 		" WHERE jt.assigned_to = " + s + " AND j.workspace_id = " + w +
 		" UNION " +
 		"SELECT j2.client_id FROM " + entityid.Job + " j2" +
-		" JOIN " + entityid.JobPhase + " jp2 ON jp2.job_id = j2.id" +
-		" JOIN " + entityid.JobTask + " jt2 ON jt2.job_phase_id = jp2.id" +
-		" JOIN " + entityid.TaskOutcome + " t ON t.job_task_id = jt2.id" +
+		" JOIN " + entityid.JobPhase + " jp2 ON jp2.job_id = j2.id AND jp2.workspace_id = " + w +
+		" JOIN " + entityid.JobTask + " jt2 ON jt2.job_phase_id = jp2.id AND jt2.workspace_id = " + w +
+		" JOIN " + entityid.TaskOutcome + " t ON t.job_task_id = jt2.id AND t.workspace_id = " + w +
 		" WHERE (t.recorded_by = " + s + " OR t.reviewed_by = " + s + ") AND j2.workspace_id = " + w +
 		" UNION " +
 		"SELECT j3.client_id FROM " + entityid.Job + " j3" +
 		" JOIN " + entityid.SubscriptionSeat + " ss ON ss.subscription_id = j3.origin_id" +
-		" JOIN " + entityid.JobTemplate + " tpl ON tpl.id = j3.job_template_id" +
+		" JOIN " + entityid.JobTemplate + " tpl ON tpl.id = j3.job_template_id AND tpl.workspace_id = " + w +
 		" JOIN " + entityid.ProductPlan + " pl ON pl.id = ss.product_plan_id AND pl.product_id = tpl.output_product_id" +
 		" WHERE ss.staff_id = " + s + " AND ss.status = 'active' AND ss.active = true" +
 		" AND j3.origin_type = '" + originTypeSubscription + "'" +
@@ -164,10 +164,10 @@ func reachableClientUnion(staffP, wsP int) string {
 		// then retracts a LINKED-but-REVOKED eligibility (see its own comment: the
 		// fallback must NOT rescue such a row).
 		"SELECT jce.client_id FROM " + entityid.SubscriptionGroupProductPlanStaff + " e" +
-		" JOIN " + entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.active" +
+		" JOIN " + entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.workspace_id = " + w + " AND m.active" +
 		" JOIN " + entityid.ProductPlan + " pp ON pp.id = e.product_plan_id" +
-		" JOIN " + entityid.Job + " jce ON jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id" +
-		" LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id" +
+		" JOIN " + entityid.Job + " jce ON jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id AND jce.workspace_id = " + w +
+		" LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id AND pps.workspace_id = " + w +
 		" WHERE COALESCE(pps.staff_id, e.staff_id) = " + s + classEdgeEligibilityLive +
 		" AND e.active AND e.workspace_id = " + w
 }
@@ -186,28 +186,28 @@ func reachableClientUnion(staffP, wsP int) string {
 // staff_id (f10) for rows that predate the M3 link-up (the LEFT JOIN keeps such
 // rows reachable instead of dropping them). The fallback is removed once M7
 // retires legacy f10; until then this is the read-side of the M2 dual-write
-// contract. job_phase/job_task carry no workspace_id, so the workspace bound is
-// enforced by joining job (aliased jw/jw2) on the phase's job_id; the seat branch
-// binds BOTH sides (job AND seat carry their own workspace_id) because
-// job.origin_id is plain text, not an FK. Table names come from registry/entityid
-// (no literals).
+// contract. Every workspace-bearing row in each graph arm is independently
+// bound to the trusted session workspace; an ID relationship alone is never a
+// tenant boundary. product_plan is intentionally workspace-neutral catalog
+// data, so it is the only joined row without a workspace predicate. Table names
+// come from registry/entityid (no literals).
 func reachableJobUnion(staffP, wsP int) string {
 	s := fmt.Sprintf("$%d", staffP)
 	w := fmt.Sprintf("$%d", wsP)
 	return "SELECT jp.job_id FROM " + entityid.JobPhase + " jp" +
-		" JOIN " + entityid.JobTask + " jt ON jt.job_phase_id = jp.id" +
+		" JOIN " + entityid.JobTask + " jt ON jt.job_phase_id = jp.id AND jt.workspace_id = " + w +
 		" JOIN " + entityid.Job + " jw ON jw.id = jp.job_id AND jw.workspace_id = " + w +
-		" WHERE jt.assigned_to = " + s +
+		" WHERE jp.workspace_id = " + w + " AND jt.assigned_to = " + s +
 		" UNION " +
 		"SELECT jp2.job_id FROM " + entityid.JobPhase + " jp2" +
-		" JOIN " + entityid.JobTask + " jt2 ON jt2.job_phase_id = jp2.id" +
-		" JOIN " + entityid.TaskOutcome + " t ON t.job_task_id = jt2.id" +
+		" JOIN " + entityid.JobTask + " jt2 ON jt2.job_phase_id = jp2.id AND jt2.workspace_id = " + w +
+		" JOIN " + entityid.TaskOutcome + " t ON t.job_task_id = jt2.id AND t.workspace_id = " + w +
 		" JOIN " + entityid.Job + " jw2 ON jw2.id = jp2.job_id AND jw2.workspace_id = " + w +
-		" WHERE t.recorded_by = " + s + " OR t.reviewed_by = " + s +
+		" WHERE jp2.workspace_id = " + w + " AND (t.recorded_by = " + s + " OR t.reviewed_by = " + s + ")" +
 		" UNION " +
 		"SELECT jw3.id FROM " + entityid.Job + " jw3" +
 		" JOIN " + entityid.SubscriptionSeat + " ss ON ss.subscription_id = jw3.origin_id" +
-		" JOIN " + entityid.JobTemplate + " tpl ON tpl.id = jw3.job_template_id" +
+		" JOIN " + entityid.JobTemplate + " tpl ON tpl.id = jw3.job_template_id AND tpl.workspace_id = " + w +
 		" JOIN " + entityid.ProductPlan + " pl ON pl.id = ss.product_plan_id AND pl.product_id = tpl.output_product_id" +
 		" WHERE ss.staff_id = " + s + " AND ss.status = 'active' AND ss.active = true" +
 		" AND jw3.origin_type = '" + originTypeSubscription + "'" +
@@ -229,10 +229,10 @@ func reachableJobUnion(staffP, wsP int) string {
 		// then retracts a LINKED-but-REVOKED eligibility (see its own comment: the
 		// fallback must NOT rescue such a row).
 		"SELECT jce.id FROM " + entityid.SubscriptionGroupProductPlanStaff + " e" +
-		" JOIN " + entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.active" +
+		" JOIN " + entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.workspace_id = " + w + " AND m.active" +
 		" JOIN " + entityid.ProductPlan + " pp ON pp.id = e.product_plan_id" +
-		" JOIN " + entityid.Job + " jce ON jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id" +
-		" LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id" +
+		" JOIN " + entityid.Job + " jce ON jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id AND jce.workspace_id = " + w +
+		" LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id AND pps.workspace_id = " + w +
 		" WHERE COALESCE(pps.staff_id, e.staff_id) = " + s + classEdgeEligibilityLive +
 		" AND e.active AND e.workspace_id = " + w
 }

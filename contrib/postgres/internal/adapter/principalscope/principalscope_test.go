@@ -220,10 +220,10 @@ func TestClassEdgeReachabilityBranch(t *testing.T) {
 	// rename keeps this assertion honest.
 	needles := []string{
 		entityid.SubscriptionGroupProductPlanStaff + " e",
-		entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.active",
+		entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.workspace_id = $2 AND m.active",
 		entityid.ProductPlan + " pp ON pp.id = e.product_plan_id",
-		"jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id",
-		entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id", // v2 eligibility link (f13), LEFT JOIN
+		"jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id AND jce.workspace_id = $2",
+		entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id AND pps.workspace_id = $2", // v2 eligibility link (f13), LEFT JOIN
 		// v2-linked preferred, legacy f10 fallback (empty ⇒ zero rows), with the
 		// eligibility-liveness gate spliced in at its production position.
 		"COALESCE(pps.staff_id, e.staff_id) = $1" + classEdgeEligibilityLive,
@@ -233,6 +233,37 @@ func TestClassEdgeReachabilityBranch(t *testing.T) {
 	unions := map[string]string{
 		"reachableJobUnion":    reachableJobUnion(1, 2),
 		"reachableClientUnion": reachableClientUnion(1, 2),
+	}
+
+	// Tenant defense is per edge, not merely on the outer job. Every row in the
+	// reachability walk that owns workspace_id must repeat the trusted bind. A
+	// malformed foreign child must never establish reachability to a local job.
+	workspaceNeedles := map[string][]string{
+		"reachableJobUnion": {
+			"jp.workspace_id = $2", "jt.workspace_id = $2",
+			"jp2.workspace_id = $2", "jt2.workspace_id = $2", "t.workspace_id = $2",
+			"jw.workspace_id = $2", "jw2.workspace_id = $2", "jw3.workspace_id = $2",
+			"ss.workspace_id = $2", "tpl.workspace_id = $2",
+			"m.workspace_id = $2", "jce.workspace_id = $2",
+			"pps.workspace_id = $2", "e.workspace_id = $2",
+		},
+		"reachableClientUnion": {
+			"jp.workspace_id = $2", "jt.workspace_id = $2",
+			"jp2.workspace_id = $2", "jt2.workspace_id = $2", "t.workspace_id = $2",
+			"j.workspace_id = $2", "j2.workspace_id = $2", "j3.workspace_id = $2",
+			"ss.workspace_id = $2", "tpl.workspace_id = $2",
+			"m.workspace_id = $2", "jce.workspace_id = $2",
+			"pps.workspace_id = $2", "e.workspace_id = $2",
+		},
+	}
+	for name, sql := range unions {
+		t.Run(name+"_workspace_edges", func(t *testing.T) {
+			for _, needle := range workspaceNeedles[name] {
+				if !strings.Contains(sql, needle) {
+					t.Errorf("%s: tenant-scoped reachability missing %q\nSQL: %s", name, needle, sql)
+				}
+			}
+		})
 	}
 	for name, sql := range unions {
 		t.Run(name, func(t *testing.T) {

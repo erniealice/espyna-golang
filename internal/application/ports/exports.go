@@ -59,6 +59,7 @@ type (
 	StorageProvider           = infrastructure.StorageProvider
 	StorageCapability         = infrastructure.StorageCapability
 	StorageCapabilityProvider = infrastructure.StorageCapabilityProvider
+	DefaultContainerProvider  = infrastructure.DefaultContainerProvider
 	StreamingStorageProvider  = infrastructure.StreamingStorageProvider
 	StorageError              = infrastructure.StorageError
 	StorageConfigAdapter      = infrastructure.StorageConfigAdapter
@@ -227,6 +228,12 @@ type (
 // tabstrip support read (20260718 courses-list-perf Rank-1) collapses the
 // category + active-template reads into ONE UNION-ALL statement.
 type JobListTabSupportQueryService = domain.JobListTabSupportQueryService
+type SubscriptionGroupOutcomeExportScope = domain.SubscriptionGroupOutcomeExportScope
+type SubscriptionGroupOutcomeExportQueryService = domain.SubscriptionGroupOutcomeExportQueryService
+type SubscriptionGroupOutcomeLandingRequest = domain.SubscriptionGroupOutcomeLandingRequest
+type SubscriptionGroupOutcomeLandingRow = domain.SubscriptionGroupOutcomeLandingRow
+type SubscriptionGroupOutcomeLandingResponse = domain.SubscriptionGroupOutcomeLandingResponse
+type SubscriptionGroupOutcomeLandingQueryService = domain.SubscriptionGroupOutcomeLandingQueryService
 
 type (
 	JobListTabSupportRequest  = domain.JobListTabSupportRequest

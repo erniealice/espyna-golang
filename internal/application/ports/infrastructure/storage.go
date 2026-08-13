@@ -43,6 +43,11 @@ type StorageProvider interface {
 	// Handles small uploads with inline content
 	UploadObject(ctx context.Context, req *pb.UploadObjectRequest) (*pb.UploadObjectResponse, error)
 
+	// DeleteObject deletes exactly one object identified by its container and key.
+	// Providers should treat an already-absent object as an idempotent success when
+	// their native API does so, and must never interpret the key as a prefix.
+	DeleteObject(ctx context.Context, req *pb.DeleteObjectRequest) (*pb.DeleteObjectResponse, error)
+
 	// DownloadObject downloads an object from storage
 	// Returns object content and metadata
 	DownloadObject(ctx context.Context, req *pb.DownloadObjectRequest) (*pb.DownloadObjectResponse, error)
@@ -67,7 +72,6 @@ type StorageProvider interface {
 
 	// TODO: Future operations (implement when proto contracts are ready)
 	// ListObjects(ctx context.Context, req *pb.ListObjectsRequest) (*pb.ListObjectsResponse, error)
-	// DeleteObject(ctx context.Context, req *pb.DeleteObjectRequest) (*pb.DeleteObjectResponse, error)
 	// GetObjectMetadata(ctx context.Context, req *pb.GetObjectMetadataRequest) (*pb.GetObjectMetadataResponse, error)
 	// InitiateMultipartUpload(ctx context.Context, req *pb.InitiateMultipartUploadRequest) (*pb.InitiateMultipartUploadResponse, error)
 	// UploadPart(ctx context.Context, req *pb.UploadPartRequest) (*pb.UploadPartResponse, error)
@@ -109,6 +113,18 @@ type StorageCapabilityProvider interface {
 
 	// SupportsCapability checks if a specific capability is supported
 	SupportsCapability(capability StorageCapability) bool
+}
+
+// DefaultContainerProvider is an OPTIONAL capability for providers configured
+// with one deployment-level physical bucket/container (GCS, S3, Azure). The
+// base StorageProvider contract remains explicit: request container_name is a
+// physical locator. Composition roots may use this capability to replace a
+// feature's local/mock fallback (for example "templates") before a new write
+// and persistence. A stored locator is authoritative on reads and must never be
+// passed through this capability. Providers without a configured default simply
+// do not implement it.
+type DefaultContainerProvider interface {
+	DefaultContainerName() string
 }
 
 // StreamingStorageProvider is an OPTIONAL capability sub-interface that extends

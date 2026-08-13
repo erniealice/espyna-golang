@@ -292,6 +292,9 @@ const (
 	// (optional) job_category (the sheet COLUMN SHAPE axis), versioned. JOSDT
 	// sibling; owns the publication lifecycle + validity window.
 	JobTemplateDocumentTemplate = "job_template_document_template"
+	// SubscriptionGroupDocumentTemplate — section/group surface template binding
+	// for grade-sheet style rendering.
+	SubscriptionGroupDocumentTemplate = "subscription_group_document_template"
 )
 
 // Operation domain — Layer 7: Outcome
@@ -538,6 +541,7 @@ var OperationEntities = []string{
 	JobCategory,
 	JobOutcomeSummaryDocumentTemplate,
 	JobTemplateDocumentTemplate,
+	SubscriptionGroupDocumentTemplate,
 	Evaluation, EvaluationResponse, EvaluationTemplate,
 	EvaluationTemplateItem, EvaluationCycle, EvaluationCycleMember,
 	WorkRequest, WorkRequestType,

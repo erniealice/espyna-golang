@@ -84,10 +84,13 @@ var (
 // =============================================================================
 
 type TableConfig = internal.TableConfig
+type SubscriptionGroupOutcomeLandingFactoryInput = internal.SubscriptionGroupOutcomeLandingFactoryInput
 
 var (
-	NewTableConfig        = internal.NewTableConfig
-	NewDefaultTableConfig = internal.NewDefaultTableConfig
+	NewTableConfig                                 = internal.NewTableConfig
+	NewDefaultTableConfig                          = internal.NewDefaultTableConfig
+	RegisterSubscriptionGroupOutcomeLandingFactory = internal.RegisterSubscriptionGroupOutcomeLandingFactory
+	GetSubscriptionGroupOutcomeLandingFactory      = internal.GetSubscriptionGroupOutcomeLandingFactory
 )
 
 // =============================================================================

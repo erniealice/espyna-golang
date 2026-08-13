@@ -3,8 +3,10 @@ package domain
 import (
 	"context"
 
+	documenttemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/template"
 	jobcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_category"
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
+	exportpb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/subscription_group_outcome_export"
 )
 
 // JobListTabSupportRequest carries the server-derived per-kind include flags for
@@ -47,4 +49,53 @@ type JobListTabSupportResponse struct {
 // flags false, returns an empty response with no SQL executed.
 type JobListTabSupportQueryService interface {
 	ListJobListTabSupport(ctx context.Context, req *JobListTabSupportRequest) (*JobListTabSupportResponse, error)
+}
+
+// SubscriptionGroupOutcomeExportScope is derived by the report-authorized
+// application use case. It is deliberately absent from the generated request:
+// a transport caller cannot self-select a wider principal scope.
+type SubscriptionGroupOutcomeExportScope struct {
+	WorkspaceWide bool
+}
+
+// SubscriptionGroupOutcomeExportQueryService is the internal typed port for
+// the one-statement group outcome matrix and the minimal render locator. The
+// adapter also implements the generated RPC server method, but application code
+// uses these scoped methods so the workspace-wide decision is server-derived.
+type SubscriptionGroupOutcomeExportQueryService interface {
+	GetSubscriptionGroupOutcomeExportScoped(
+		ctx context.Context,
+		req *exportpb.GetSubscriptionGroupOutcomeExportRequest,
+		scope SubscriptionGroupOutcomeExportScope,
+	) (*exportpb.GetSubscriptionGroupOutcomeExportResponse, error)
+	ResolveSubscriptionGroupOutcomeDocumentForRenderScoped(
+		ctx context.Context,
+		req *exportpb.ResolveSubscriptionGroupOutcomeDocumentForRenderRequest,
+		scope SubscriptionGroupOutcomeExportScope,
+	) (*exportpb.ResolveSubscriptionGroupOutcomeDocumentForRenderResponse, error)
+}
+
+// Backward-compatible names for the canonical provider-neutral Esqyma landing
+// messages. These are aliases, not application-owned DTOs; new signatures use
+// the generated names directly.
+type SubscriptionGroupOutcomeLandingRequest = exportpb.ListSubscriptionGroupOutcomeLandingRequest
+type SubscriptionGroupOutcomeLandingRow = exportpb.SubscriptionGroupOutcomeLandingRow
+type SubscriptionGroupOutcomeLandingResponse = exportpb.ListSubscriptionGroupOutcomeLandingResponse
+
+// SubscriptionGroupOutcomeLandingQueryService is the scoped, one-statement
+// query port for the report landing aggregate.
+type SubscriptionGroupOutcomeLandingQueryService interface {
+	ListSubscriptionGroupOutcomeLandingScoped(
+		ctx context.Context,
+		req *exportpb.ListSubscriptionGroupOutcomeLandingRequest,
+		scope SubscriptionGroupOutcomeExportScope,
+	) (*exportpb.ListSubscriptionGroupOutcomeLandingResponse, error)
+}
+
+// SubscriptionGroupDocumentTemplateDraftPairDeleter atomically soft-deletes
+// one active DRAFT binding and its unshared document-template artifact. The
+// returned artifact carries the exact committed storage locator so the caller
+// can delete the object only after the database transaction commits.
+type SubscriptionGroupDocumentTemplateDraftPairDeleter interface {
+	DeleteDraftPair(ctx context.Context, bindingID string) (*documenttemplatepb.DocumentTemplate, error)
 }

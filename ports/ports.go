@@ -63,6 +63,7 @@ type (
 	StorageProvider           = internal.StorageProvider
 	StorageCapability         = internal.StorageCapability
 	StorageCapabilityProvider = internal.StorageCapabilityProvider
+	DefaultContainerProvider  = internal.DefaultContainerProvider
 	StreamingStorageProvider  = internal.StreamingStorageProvider
 	StorageError              = internal.StorageError
 	StorageConfigAdapter      = internal.StorageConfigAdapter
@@ -198,9 +199,14 @@ type (
 // contrib/postgres adapter (a separate Go module) can implement the job-list
 // tabstrip support read (20260718 courses-list-perf Rank-1).
 type (
-	JobListTabSupportQueryService = internal.JobListTabSupportQueryService
-	JobListTabSupportRequest      = internal.JobListTabSupportRequest
-	JobListTabSupportResponse     = internal.JobListTabSupportResponse
+	JobListTabSupportQueryService               = internal.JobListTabSupportQueryService
+	JobListTabSupportRequest                    = internal.JobListTabSupportRequest
+	JobListTabSupportResponse                   = internal.JobListTabSupportResponse
+	SubscriptionGroupOutcomeExportScope         = internal.SubscriptionGroupOutcomeExportScope
+	SubscriptionGroupOutcomeLandingRequest      = internal.SubscriptionGroupOutcomeLandingRequest
+	SubscriptionGroupOutcomeLandingRow          = internal.SubscriptionGroupOutcomeLandingRow
+	SubscriptionGroupOutcomeLandingResponse     = internal.SubscriptionGroupOutcomeLandingResponse
+	SubscriptionGroupOutcomeLandingQueryService = internal.SubscriptionGroupOutcomeLandingQueryService
 )
 
 // Translation types

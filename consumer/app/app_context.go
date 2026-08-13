@@ -175,6 +175,17 @@ type AppContext struct {
 	// so no fayna→espyna dependency is introduced.
 	ResolveSheetTemplateBytes any
 
+	// ResolveSectionTemplate composes the report-scoped subscription-group
+	// outcome document resolver with app-owned storage. Its bare signature is
+	// asserted by Fayna; the result contains bytes + semantic identity only and
+	// never exposes a persisted storage locator to the view/HTTP layer.
+	ResolveSectionTemplate any
+	// StoreSectionTemplate and DeleteSectionTemplateObject are app-owned,
+	// exact-locator storage capabilities used only by the Section Template
+	// settings lifecycle. They are not HTTP routes.
+	StoreSectionTemplate        any
+	DeleteSectionTemplateObject any
+
 	// ListAuditHistory lists audit trail entries for an entity.
 	ListAuditHistory any
 

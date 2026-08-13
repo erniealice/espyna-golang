@@ -3,6 +3,7 @@ package consumer
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	storagepb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/storage"
 )
@@ -16,6 +17,7 @@ type storageOperations interface {
 	Close() error
 	UploadObject(ctx context.Context, req *storagepb.UploadObjectRequest) (*storagepb.UploadObjectResponse, error)
 	DownloadObject(ctx context.Context, req *storagepb.DownloadObjectRequest) (*storagepb.DownloadObjectResponse, error)
+	DeleteObject(ctx context.Context, req *storagepb.DeleteObjectRequest) (*storagepb.DeleteObjectResponse, error)
 	GetPresignedUrl(ctx context.Context, req *storagepb.GetPresignedUrlRequest) (*storagepb.GetPresignedUrlResponse, error)
 	CreateContainer(ctx context.Context, req *storagepb.CreateContainerRequest) (*storagepb.CreateContainerResponse, error)
 	GetContainer(ctx context.Context, req *storagepb.GetContainerRequest) (*storagepb.GetContainerResponse, error)
@@ -106,6 +108,33 @@ func (a *StorageAdapter) Name() string {
 	return a.provider.Name()
 }
 
+// DefaultContainerName returns the provider's configured physical default
+// bucket/container when it advertises the optional capability. Local and mock
+// providers intentionally return an empty string: their feature-level logical
+// container remains caller-owned.
+func (a *StorageAdapter) DefaultContainerName() string {
+	if a == nil || a.provider == nil {
+		return ""
+	}
+	provider, ok := a.provider.(interface{ DefaultContainerName() string })
+	if !ok {
+		return ""
+	}
+	return provider.DefaultContainerName()
+}
+
+// ResolveContainerName resolves a feature fallback only while composition is
+// creating a new storage locator: use a configured physical cloud container
+// when present, otherwise preserve the fallback used by local/mock providers.
+// Stored locators are already authoritative and must be passed directly to read
+// operations; callers must never use this helper to translate them.
+func (a *StorageAdapter) ResolveContainerName(fallback string) string {
+	if configured := a.DefaultContainerName(); configured != "" {
+		return configured
+	}
+	return fallback
+}
+
 // IsEnabled returns whether the storage provider is enabled
 func (a *StorageAdapter) IsEnabled() bool {
 	return a.provider != nil && a.provider.IsEnabled()
@@ -184,6 +213,23 @@ func (a *StorageAdapter) DownloadObjectFull(ctx context.Context, containerName, 
 	}
 
 	return a.provider.DownloadObject(ctx, req)
+}
+
+// DeleteObject deletes exactly one object from storage. The provider receives
+// the caller's canonical container/key unchanged; this adapter does not trim,
+// clean, or reinterpret object keys as prefixes.
+func (a *StorageAdapter) DeleteObject(ctx context.Context, containerName, objectKey string) (*storagepb.DeleteObjectResponse, error) {
+	if a.provider == nil {
+		return nil, fmt.Errorf("storage provider not initialized")
+	}
+	if strings.TrimSpace(containerName) == "" || strings.TrimSpace(objectKey) == "" {
+		return nil, fmt.Errorf("container_name and object_key are required")
+	}
+
+	return a.provider.DeleteObject(ctx, &storagepb.DeleteObjectRequest{
+		ContainerName: containerName,
+		ObjectKey:     objectKey,
+	})
 }
 
 // GetPresignedUrl generates a temporary URL for direct access to an object.

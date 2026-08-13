@@ -52,7 +52,7 @@ func SecurityHeadersConfigFromEnv(getenv func(string) string) SecurityHeadersCon
 	v := getenv(EnvKeyHSTSEnabled)
 	fbAuthDomain := ""
 	if getenv("CONFIG_AUTH_PROVIDER") == "firebase" {
-		fbAuthDomain = getenv("FIREBASE_AUTH_DOMAIN")
+		fbAuthDomain = getenv("AUTH_FIREBASE_AUTH_DOMAIN")
 	}
 	return SecurityHeadersConfig{
 		HSTSEnabled:        v == "true" || v == "1",

@@ -141,6 +141,12 @@ func (p *S3StorageProvider) Name() string {
 	return "aws_storage"
 }
 
+// DefaultContainerName reports the configured physical S3 bucket. It is an
+// optional composition capability and does not change explicit request I/O.
+func (p *S3StorageProvider) DefaultContainerName() string {
+	return p.bucketName
+}
+
 // Initialize sets up the S3 storage provider with proto configuration
 func (p *S3StorageProvider) Initialize(config *pb.StorageProviderConfig) error {
 	if config == nil {
@@ -374,6 +380,37 @@ func (p *S3StorageProvider) UploadObject(ctx context.Context, req *pb.UploadObje
 		UploadDurationMs: duration.Milliseconds(),
 		Message:          "upload successful",
 	}, nil
+}
+
+// DeleteObject deletes exactly one S3 object. S3's delete API is idempotent
+// for an absent object, so a successful SDK call is a successful response.
+func (p *S3StorageProvider) DeleteObject(ctx context.Context, req *pb.DeleteObjectRequest) (*pb.DeleteObjectResponse, error) {
+	if !p.enabled {
+		return &pb.DeleteObjectResponse{Success: false, Message: "S3 storage provider is not initialized"},
+			ports.NewStorageError(ports.StorageErrorCodeProviderError, "not initialized", nil)
+	}
+	if req == nil || strings.TrimSpace(req.ContainerName) == "" || strings.TrimSpace(req.ObjectKey) == "" {
+		return &pb.DeleteObjectResponse{Success: false, Message: "container_name and object_key are required"},
+			ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "missing required fields", nil)
+	}
+
+	deleteCtx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+	input := &s3.DeleteObjectInput{
+		Bucket: aws.String(req.ContainerName),
+		Key:    aws.String(req.ObjectKey),
+	}
+	if req.VersionId != "" {
+		input.VersionId = aws.String(req.VersionId)
+	}
+	if req.Permanent {
+		input.BypassGovernanceRetention = aws.Bool(true)
+	}
+	if _, err := p.client.DeleteObject(deleteCtx, input); err != nil {
+		return &pb.DeleteObjectResponse{Success: false, Message: fmt.Sprintf("failed to delete object: %v", err)},
+			ports.NewStorageError(ports.StorageErrorCodeDeleteFailed, "deletion failed", err)
+	}
+	return &pb.DeleteObjectResponse{Success: true, Message: "object deleted successfully"}, nil
 }
 
 // DownloadObject retrieves an object from S3
@@ -839,6 +876,7 @@ func (p *S3StorageProvider) IsEnabled() bool {
 var (
 	_ ports.StreamingStorageProvider  = (*S3StorageProvider)(nil)
 	_ ports.StorageCapabilityProvider = (*S3StorageProvider)(nil)
+	_ ports.DefaultContainerProvider  = (*S3StorageProvider)(nil)
 )
 
 // UploadStream streams body directly to S3 via PutObject. The AWS SDK accepts any

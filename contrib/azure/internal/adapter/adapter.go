@@ -122,6 +122,12 @@ func (p *AzureStorageProvider) Name() string {
 	return "azure_storage"
 }
 
+// DefaultContainerName reports the configured physical Azure container. It is
+// an optional composition capability and does not change explicit request I/O.
+func (p *AzureStorageProvider) DefaultContainerName() string {
+	return p.containerName
+}
+
 // Initialize sets up the Azure Blob Storage provider with proto configuration
 func (p *AzureStorageProvider) Initialize(config *pb.StorageProviderConfig) error {
 	if config == nil {
@@ -382,6 +388,42 @@ func (p *AzureStorageProvider) UploadObject(ctx context.Context, req *pb.UploadO
 		UploadDurationMs: duration.Milliseconds(),
 		Message:          "upload successful",
 	}, nil
+}
+
+// DeleteObject deletes exactly one Azure blob. Azure reports an absent blob as
+// BlobNotFound; that native not-found result is normalized to idempotent
+// success while all other provider errors propagate.
+func (p *AzureStorageProvider) DeleteObject(ctx context.Context, req *pb.DeleteObjectRequest) (*pb.DeleteObjectResponse, error) {
+	if !p.enabled {
+		return &pb.DeleteObjectResponse{Success: false, Message: "Azure Blob storage provider is not initialized"},
+			ports.NewStorageError(ports.StorageErrorCodeProviderError, "not initialized", nil)
+	}
+	if req == nil || strings.TrimSpace(req.ContainerName) == "" || strings.TrimSpace(req.ObjectKey) == "" {
+		return &pb.DeleteObjectResponse{Success: false, Message: "container_name and object_key are required"},
+			ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "missing required fields", nil)
+	}
+	if req.VersionId != "" {
+		return &pb.DeleteObjectResponse{Success: false, Message: "version_id is not supported by the Azure blob delete adapter"},
+			ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "unsupported version_id", nil)
+	}
+
+	deleteCtx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+	blobClient := p.client.ServiceClient().NewContainerClient(req.ContainerName).NewBlobClient(req.ObjectKey)
+	deleteOptions := (*blob.DeleteOptions)(nil)
+	if req.Permanent {
+		deleteOptions = &blob.DeleteOptions{}
+		deleteType := blob.DeleteTypePermanent
+		deleteOptions.BlobDeleteType = &deleteType
+	}
+	if _, err := blobClient.Delete(deleteCtx, deleteOptions); err != nil {
+		if bloberror.HasCode(err, bloberror.BlobNotFound) {
+			return &pb.DeleteObjectResponse{Success: true, Message: "object already absent"}, nil
+		}
+		return &pb.DeleteObjectResponse{Success: false, Message: fmt.Sprintf("failed to delete blob: %v", err)},
+			ports.NewStorageError(ports.StorageErrorCodeDeleteFailed, "deletion failed", err)
+	}
+	return &pb.DeleteObjectResponse{Success: true, Message: "object deleted successfully"}, nil
 }
 
 // DownloadObject retrieves an object from Azure Blob Storage
@@ -773,6 +815,7 @@ func (p *AzureStorageProvider) IsEnabled() bool {
 var (
 	_ ports.StreamingStorageProvider  = (*AzureStorageProvider)(nil)
 	_ ports.StorageCapabilityProvider = (*AzureStorageProvider)(nil)
+	_ ports.DefaultContainerProvider  = (*AzureStorageProvider)(nil)
 )
 
 // UploadStream streams body to Azure Blob via the SDK's UploadStream API (which

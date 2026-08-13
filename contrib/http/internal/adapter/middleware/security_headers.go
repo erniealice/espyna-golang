@@ -116,8 +116,8 @@ type SecurityHeadersConfig struct {
 	CSPEnforce bool
 
 	// FirebaseAuthDomain, when non-empty, widens the CSP to permit the Firebase
-	// JS SDK + sign-in popup/iframe. Resolved from FIREBASE_AUTH_DOMAIN only when
-	// CONFIG_AUTH_PROVIDER=firebase. Empty for password/mock builds.
+	// JS SDK + sign-in popup/iframe. Resolved from AUTH_FIREBASE_AUTH_DOMAIN only
+	// when CONFIG_AUTH_PROVIDER=firebase. Empty for password/mock builds.
 	FirebaseAuthDomain string
 }
 
@@ -137,7 +137,7 @@ func SecurityHeadersConfigFromEnv(getenv func(string) string) SecurityHeadersCon
 	v := getenv(EnvKeyHSTSEnabled)
 	fbAuthDomain := ""
 	if getenv("CONFIG_AUTH_PROVIDER") == "firebase" {
-		fbAuthDomain = getenv("FIREBASE_AUTH_DOMAIN")
+		fbAuthDomain = getenv("AUTH_FIREBASE_AUTH_DOMAIN")
 	}
 	return SecurityHeadersConfig{
 		HSTSEnabled:        v == "true" || v == "1",

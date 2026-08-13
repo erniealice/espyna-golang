@@ -11,6 +11,7 @@ import (
 	joblisttabsupportusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/job_list_tab_support"
 	jobtemplatesummaryusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/job_template_summary"
 	outcomematrixusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/outcome_matrix"
+	subscriptiongroupexportusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/subscription_group_outcome_export"
 	internalregistry "github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
@@ -89,6 +90,30 @@ func initServiceOperationJobListTabSupport(db *sql.DB, i18nSvc ports.Translator,
 	)
 }
 
+// initServiceOperationSubscriptionGroupOutcomeExport wires the service-layer
+// subscription-group outcome export read (service/operation/subscription_group_outcome_export).
+func initServiceOperationSubscriptionGroupOutcomeExport(db *sql.DB, landingInput internalregistry.SubscriptionGroupOutcomeLandingFactoryInput, i18nSvc ports.Translator, actionGate *actiongate.ActionGatekeeper) *subscriptiongroupexportusecases.UseCases {
+	query := subscriptionGroupOutcomeExportQueryFromDB(db)
+	landingQuery := subscriptionGroupOutcomeLandingQueryFromProvider(landingInput)
+	return subscriptiongroupexportusecases.NewUseCases(
+		subscriptiongroupexportusecases.Repositories{Query: query, LandingQuery: landingQuery},
+		subscriptiongroupexportusecases.Services{Translator: i18nSvc, ActionGatekeeper: actionGate},
+	)
+}
+
+func subscriptionGroupOutcomeLandingQueryFromProvider(input internalregistry.SubscriptionGroupOutcomeLandingFactoryInput) ports.SubscriptionGroupOutcomeLandingQueryService {
+	factory, ok := internalregistry.GetSubscriptionGroupOutcomeLandingFactory()
+	if !ok || factory == nil {
+		return nil
+	}
+	result := factory(input)
+	if result == nil {
+		return nil
+	}
+	query, _ := result.(ports.SubscriptionGroupOutcomeLandingQueryService)
+	return query
+}
+
 // jobListTabSupportQueryFromDB returns the registered job-list tab-support query
 // port backed by the provided raw connection, or nil when no provider has been
 // registered (e.g. non-postgres / non-mock builds). The factory takes `any` to
@@ -103,6 +128,25 @@ func jobListTabSupportQueryFromDB(db *sql.DB) ports.JobListTabSupportQueryServic
 		return nil
 	}
 	if q, ok := result.(ports.JobListTabSupportQueryService); ok {
+		return q
+	}
+	return nil
+}
+
+// subscriptionGroupOutcomeExportQueryFromDB returns the registered query port
+// backed by the provided raw connection, or nil when no provider has been
+// registered (e.g. non-postgres / non-mock builds). The factory takes `any` to
+// dodge the cyclic import — see registry/subscription_group_outcome_export.go.
+func subscriptionGroupOutcomeExportQueryFromDB(db *sql.DB) ports.SubscriptionGroupOutcomeExportQueryService {
+	factory, ok := internalregistry.GetSubscriptionGroupOutcomeExportFactory()
+	if !ok || factory == nil {
+		return nil
+	}
+	result := factory(db)
+	if result == nil {
+		return nil
+	}
+	if q, ok := result.(ports.SubscriptionGroupOutcomeExportQueryService); ok {
 		return q
 	}
 	return nil

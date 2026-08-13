@@ -814,8 +814,8 @@ func (uci *UseCaseInitializer) initializeSubscriptionUseCases(container *Contain
 		)
 		mjfs := subscriptionUseCase.NewMaterializeJobsForSubscriptionUseCase(
 			subscriptionUseCase.MaterializeJobsForSubscriptionRepositories{
-				Subscription:        subscriptionRepos.Subscription,
-				PricePlan:           subscriptionRepos.PricePlan,
+				Subscription: subscriptionRepos.Subscription,
+				PricePlan:    subscriptionRepos.PricePlan,
 				// PriceSchedule anchors the canonical closed-AY spawn guard
 				// (red-team HIGH #3).
 				PriceSchedule:       subscriptionRepos.PriceSchedule,
@@ -1456,9 +1456,11 @@ func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container, e
 	// builds yield a concrete *sql.DB). Non-SQL providers degrade to nil
 	// — the audit use cases still wire up but ListByEntity returns empty.
 	var sqlDB *sql.DB
+	var databaseConnection any
 	if dbProvider := uci.providerManager.GetDatabaseProvider(); dbProvider != nil {
 		if connHolder, ok := dbProvider.(interface{ GetConnection() any }); ok {
 			if conn := connHolder.GetConnection(); conn != nil {
+				databaseConnection = conn
 				if db, ok := conn.(*sql.DB); ok {
 					sqlDB = db
 				}
@@ -1525,7 +1527,11 @@ func (uci *UseCaseInitializer) initializeServiceUseCases(container *Container, e
 		}
 	}
 
-	svcUC, err := initservice.InitializeAll(sqlDB, authSvc, i18nSvc, txSvc, idSvc, actiongate.NewActionGatekeeper(authSvc, i18nSvc), entityRepos, ledgerReposForSvc, payrollReposForSvc, treasuryReposForSvc, expenditureReposForSvc, operationReposForSvc, productReposForSvc, fulfillmentReposForSvc, scheduleEntityDash, entityComputeTaxes)
+	landingInput := internalregistry.SubscriptionGroupOutcomeLandingFactoryInput{
+		Connection:  databaseConnection,
+		TableConfig: uci.providerManager.GetDBTableConfig(),
+	}
+	svcUC, err := initservice.InitializeAll(sqlDB, landingInput, authSvc, i18nSvc, txSvc, idSvc, actiongate.NewActionGatekeeper(authSvc, i18nSvc), entityRepos, ledgerReposForSvc, payrollReposForSvc, treasuryReposForSvc, expenditureReposForSvc, operationReposForSvc, productReposForSvc, fulfillmentReposForSvc, scheduleEntityDash, entityComputeTaxes)
 	if err != nil {
 		fmt.Printf("❌ Failed to initialize service-driven use cases: %v\n", err)
 		return &service.ServiceUseCases{}, err

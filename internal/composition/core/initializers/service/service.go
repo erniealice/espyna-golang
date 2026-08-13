@@ -18,6 +18,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/usecases/domain/tax/compute_taxes_for_revenue"
 	svcusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service"
 	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
+	internalregistry "github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
 // InitializeAll wires every service-driven use case sub-aggregate.
@@ -43,6 +44,7 @@ import (
 // initServiceAuth needs them.
 func InitializeAll(
 	db *sql.DB,
+	landingInput internalregistry.SubscriptionGroupOutcomeLandingFactoryInput,
 	authSvc ports.Authorizer,
 	i18nSvc ports.Translator,
 	txSvc ports.Transactor,
@@ -73,6 +75,8 @@ func InitializeAll(
 	// Outcome Matrix (20260702) — service/operation/outcome_matrix generic
 	// principal-scoped grading grid (replaces app-local grade_sheet).
 	operationUC := initServiceOperation(db, i18nSvc, actionGate)
+	// Subscription group outcome export wiring.
+	subscriptionGroupOutcomeExportUC := initServiceOperationSubscriptionGroupOutcomeExport(db, landingInput, i18nSvc, actionGate)
 	// Job-Template Summary (20260711) — service/operation/job_template_summary
 	// generic resolver-scoped template-grain delivery summary (one GROUP-BY read).
 	jobTemplateSummaryUC := initServiceOperationJobTemplateSummary(db, i18nSvc, actionGate)
@@ -85,5 +89,5 @@ func InitializeAll(
 	// command-palette search; per-category ":list" gate, fail-closed.
 	omniSearchUC := initServiceOmniSearch(db, i18nSvc, actionGate)
 
-	return svcusecases.NewServiceUseCases(auditUC, securityUC, authUC, dashboardUC, reportingUC, performanceUC, taxUC, amortUC, operationUC, jobTemplateSummaryUC, jobListTabSupportUC, omniSearchUC), nil
+	return svcusecases.NewServiceUseCases(auditUC, securityUC, authUC, dashboardUC, reportingUC, performanceUC, taxUC, amortUC, operationUC, subscriptionGroupOutcomeExportUC, jobTemplateSummaryUC, jobListTabSupportUC, omniSearchUC), nil
 }

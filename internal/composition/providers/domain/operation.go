@@ -6,6 +6,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	documenttemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/template"
 
 	clientworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_workspace_user"
 	criteriaoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_option"
@@ -19,13 +20,13 @@ import (
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	jobactivitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
 	jobcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_category"
-	joboutcomesummarydoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
-	jobtemplatedoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_document_template"
 	joboutcomelinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_line"
 	joboutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
+	joboutcomesummarydoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 	jobtaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
+	jobtemplatedoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_document_template"
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	jobtemplaterelationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_relation"
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
@@ -37,12 +38,13 @@ import (
 	scoringcomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_component"
 	scoringcomponentcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_component_criteria"
 	scoringschemepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_scheme"
+	subscriptiongroupdoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/subscription_group_document_template"
 	taskoutcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 	taskoutcomecheckpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
 	templatetaskcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
-	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	workrequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
 	workrequesttypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
 	subscriptionworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_workspace_user"
 
@@ -51,14 +53,14 @@ import (
 
 // OperationRepositories contains all operation domain repositories.
 type OperationRepositories struct {
-	Job                  jobpb.JobDomainServiceServer
-	JobPhase             jobphasepb.JobPhaseDomainServiceServer
-	JobTask              jobtaskpb.JobTaskDomainServiceServer
-	JobTemplate          jobtemplatepb.JobTemplateDomainServiceServer
-	JobTemplatePhase     jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
-	JobTemplateTask      jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
-	JobTemplateRelation  jobtemplaterelationpb.JobTemplateRelationDomainServiceServer
-	JobActivity          jobactivitypb.JobActivityDomainServiceServer
+	Job                 jobpb.JobDomainServiceServer
+	JobPhase            jobphasepb.JobPhaseDomainServiceServer
+	JobTask             jobtaskpb.JobTaskDomainServiceServer
+	JobTemplate         jobtemplatepb.JobTemplateDomainServiceServer
+	JobTemplatePhase    jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
+	JobTemplateTask     jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
+	JobTemplateRelation jobtemplaterelationpb.JobTemplateRelationDomainServiceServer
+	JobActivity         jobactivitypb.JobActivityDomainServiceServer
 	// JobCategory — per-workspace job taxonomy reference entity (20260714).
 	JobCategory jobcategorypb.JobCategoryDomainServiceServer
 	// Product — cross-domain (product) repo threaded here ONLY for the
@@ -68,6 +70,10 @@ type OperationRepositories struct {
 	JobOutcomeSummaryDocumentTemplate joboutcomesummarydoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer
 	// JobTemplateDocumentTemplate — sheet-family (grade-sheet) template binding (20260720).
 	JobTemplateDocumentTemplate jobtemplatedoctmplpb.JobTemplateDocumentTemplateDomainServiceServer
+	// SubscriptionGroupDocumentTemplate — section-group template binding sibling.
+	SubscriptionGroupDocumentTemplate subscriptiongroupdoctmplpb.SubscriptionGroupDocumentTemplateDomainServiceServer
+	// DocumentTemplate — shared layout source for template upload pair operations.
+	DocumentTemplate     documenttemplatepb.DocumentTemplateDomainServiceServer
 	OutcomeCriteria      outcomecriteriapb.OutcomeCriteriaDomainServiceServer
 	CriteriaThreshold    criteriathresholdpb.CriteriaThresholdDomainServiceServer
 	CriteriaOption       criteriaoptionpb.CriteriaOptionDomainServiceServer
@@ -202,6 +208,18 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 	jobTemplateDocumentTemplateRepo, err := repoCreator.CreateRepository(entityid.JobTemplateDocumentTemplate, conn, tableConfig.TableName(entityid.JobTemplateDocumentTemplate))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create job_template_document_template repository: %w", err)
+	}
+
+	// SubscriptionGroupDocumentTemplate — section-group template binding sibling.
+	subscriptionGroupDocumentTemplateRepo, err := repoCreator.CreateRepository(entityid.SubscriptionGroupDocumentTemplate, conn, tableConfig.TableName(entityid.SubscriptionGroupDocumentTemplate))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create subscription_group_document_template repository: %w", err)
+	}
+
+	// DocumentTemplate — shared layout source for template upload pair operations.
+	documentTemplateRepo, err := repoCreator.CreateRepository(entityid.DocumentTemplate, conn, tableConfig.TableName(entityid.DocumentTemplate))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create document_template repository: %w", err)
 	}
 
 	outcomeCriteriaRepo, err := repoCreator.CreateRepository(entityid.OutcomeCriteria, conn, tableConfig.TableName(entityid.OutcomeCriteria))
@@ -341,26 +359,28 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 	}
 
 	return &OperationRepositories{
-		Job:                  jobRepo.(jobpb.JobDomainServiceServer),
-		JobPhase:             jobPhaseRepo.(jobphasepb.JobPhaseDomainServiceServer),
-		JobTask:              jobTaskRepo.(jobtaskpb.JobTaskDomainServiceServer),
-		JobTemplate:          jobTemplateRepo.(jobtemplatepb.JobTemplateDomainServiceServer),
-		JobTemplatePhase:     jobTemplatePhaseRepo.(jobtemplatephasepb.JobTemplatePhaseDomainServiceServer),
-		JobTemplateTask:      jobTemplateTaskRepo.(jobtemplatetaskpb.JobTemplateTaskDomainServiceServer),
-		JobTemplateRelation:  jobTemplateRelationServer,
-		JobActivity:          jobActivityRepo.(jobactivitypb.JobActivityDomainServiceServer),
-		JobCategory:          jobCategoryRepo.(jobcategorypb.JobCategoryDomainServiceServer),
-		Product:              productServer,
+		Job:                               jobRepo.(jobpb.JobDomainServiceServer),
+		JobPhase:                          jobPhaseRepo.(jobphasepb.JobPhaseDomainServiceServer),
+		JobTask:                           jobTaskRepo.(jobtaskpb.JobTaskDomainServiceServer),
+		JobTemplate:                       jobTemplateRepo.(jobtemplatepb.JobTemplateDomainServiceServer),
+		JobTemplatePhase:                  jobTemplatePhaseRepo.(jobtemplatephasepb.JobTemplatePhaseDomainServiceServer),
+		JobTemplateTask:                   jobTemplateTaskRepo.(jobtemplatetaskpb.JobTemplateTaskDomainServiceServer),
+		JobTemplateRelation:               jobTemplateRelationServer,
+		JobActivity:                       jobActivityRepo.(jobactivitypb.JobActivityDomainServiceServer),
+		JobCategory:                       jobCategoryRepo.(jobcategorypb.JobCategoryDomainServiceServer),
+		Product:                           productServer,
 		JobOutcomeSummaryDocumentTemplate: jobOutcomeSummaryDocumentTemplateRepo.(joboutcomesummarydoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer),
 		JobTemplateDocumentTemplate:       jobTemplateDocumentTemplateRepo.(jobtemplatedoctmplpb.JobTemplateDocumentTemplateDomainServiceServer),
-		OutcomeCriteria:      outcomeCriteriaRepo.(outcomecriteriapb.OutcomeCriteriaDomainServiceServer),
-		CriteriaThreshold:    criteriaThresholdRepo.(criteriathresholdpb.CriteriaThresholdDomainServiceServer),
-		CriteriaOption:       criteriaOptionRepo.(criteriaoptionpb.CriteriaOptionDomainServiceServer),
-		TemplateTaskCriteria: templateTaskCriteriaRepo.(templatetaskcriteriapb.TemplateTaskCriteriaDomainServiceServer),
-		TaskOutcome:          taskOutcomeRepo.(taskoutcomepb.TaskOutcomeDomainServiceServer),
-		TaskOutcomeCheck:     taskOutcomeCheckRepo.(taskoutcomecheckpb.TaskOutcomeCheckDomainServiceServer),
-		PhaseOutcomeSummary:  phaseOutcomeSummaryRepo.(phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer),
-		JobOutcomeSummary:    jobOutcomeSummaryRepo.(joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer),
+		SubscriptionGroupDocumentTemplate: subscriptionGroupDocumentTemplateRepo.(subscriptiongroupdoctmplpb.SubscriptionGroupDocumentTemplateDomainServiceServer),
+		DocumentTemplate:                  documentTemplateRepo.(documenttemplatepb.DocumentTemplateDomainServiceServer),
+		OutcomeCriteria:                   outcomeCriteriaRepo.(outcomecriteriapb.OutcomeCriteriaDomainServiceServer),
+		CriteriaThreshold:                 criteriaThresholdRepo.(criteriathresholdpb.CriteriaThresholdDomainServiceServer),
+		CriteriaOption:                    criteriaOptionRepo.(criteriaoptionpb.CriteriaOptionDomainServiceServer),
+		TemplateTaskCriteria:              templateTaskCriteriaRepo.(templatetaskcriteriapb.TemplateTaskCriteriaDomainServiceServer),
+		TaskOutcome:                       taskOutcomeRepo.(taskoutcomepb.TaskOutcomeDomainServiceServer),
+		TaskOutcomeCheck:                  taskOutcomeCheckRepo.(taskoutcomecheckpb.TaskOutcomeCheckDomainServiceServer),
+		PhaseOutcomeSummary:               phaseOutcomeSummaryRepo.(phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer),
+		JobOutcomeSummary:                 jobOutcomeSummaryRepo.(joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer),
 
 		ScoringScheme:            scoringSchemeRepo.(scoringschemepb.ScoringSchemeDomainServiceServer),
 		ScoringComponent:         scoringComponentRepo.(scoringcomponentpb.ScoringComponentDomainServiceServer),

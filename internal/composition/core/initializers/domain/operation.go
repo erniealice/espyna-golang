@@ -41,6 +41,9 @@ func InitializeOperation(
 		JobOutcomeSummaryDocumentTemplate: repos.JobOutcomeSummaryDocumentTemplate,
 		// JobTemplateDocumentTemplate — sheet-family (grade-sheet) template binding (20260720).
 		JobTemplateDocumentTemplate: repos.JobTemplateDocumentTemplate,
+		// SubscriptionGroupDocumentTemplate — section-group template binding sibling.
+		SubscriptionGroupDocumentTemplate: repos.SubscriptionGroupDocumentTemplate,
+		DocumentTemplate:                  repos.DocumentTemplate,
 		OutcomeCriteria:                   repos.OutcomeCriteria,
 		// TemplateTaskCriteria backs the A/B/C/D criterion ordering
 		// (template_task_criteria.sequence_order) that the report-card document

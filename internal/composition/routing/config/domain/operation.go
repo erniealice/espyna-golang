@@ -10,17 +10,18 @@ import (
 	evaluationtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_template"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	jobcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_category"
-	joboutcomesummarydoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
-	jobtemplatedoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_document_template"
 	joboutcomelinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_line"
+	joboutcomesummarydoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
 	jobtaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
+	jobtemplatedoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_document_template"
 	reportingcheckpointpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/reporting_checkpoint"
 	scorescalepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale"
 	scorescalebandpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale_band"
 	scoringcomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_component"
 	scoringcomponentcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_component_criteria"
 	scoringschemepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_scheme"
+	subscriptiongroupdoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/subscription_group_document_template"
 )
 
 // ConfigureOperationDomain configures routes for the Operation domain.
@@ -279,6 +280,46 @@ func ConfigureOperationDomain(operationUseCases *operationuc.OperationUseCases) 
 				Method:  "POST",
 				Path:    "/api/operation/job-template-document-template/list",
 				Handler: contracts.NewGenericHandler(b.ListJobTemplateDocumentTemplates, &jobtemplatedoctmplpb.ListJobTemplateDocumentTemplatesRequest{}),
+			})
+		}
+	}
+
+	// SubscriptionGroupDocumentTemplate routes (section-group template binding sibling — 20260720+).
+	if operationUseCases.SubscriptionGroupDocumentTemplate != nil {
+		b := operationUseCases.SubscriptionGroupDocumentTemplate
+		if b.CreateSubscriptionGroupDocumentTemplate != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/subscription-group-document-template/create",
+				Handler: contracts.NewGenericHandler(b.CreateSubscriptionGroupDocumentTemplate, &subscriptiongroupdoctmplpb.CreateSubscriptionGroupDocumentTemplateRequest{}),
+			})
+		}
+		if b.ReadSubscriptionGroupDocumentTemplate != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/subscription-group-document-template/read",
+				Handler: contracts.NewGenericHandler(b.ReadSubscriptionGroupDocumentTemplate, &subscriptiongroupdoctmplpb.ReadSubscriptionGroupDocumentTemplateRequest{}),
+			})
+		}
+		if b.UpdateSubscriptionGroupDocumentTemplate != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/subscription-group-document-template/update",
+				Handler: contracts.NewGenericHandler(b.UpdateSubscriptionGroupDocumentTemplate, &subscriptiongroupdoctmplpb.UpdateSubscriptionGroupDocumentTemplateRequest{}),
+			})
+		}
+		if b.DeleteSubscriptionGroupDocumentTemplate != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/subscription-group-document-template/delete",
+				Handler: contracts.NewGenericHandler(b.DeleteSubscriptionGroupDocumentTemplate, &subscriptiongroupdoctmplpb.DeleteSubscriptionGroupDocumentTemplateRequest{}),
+			})
+		}
+		if b.ListSubscriptionGroupDocumentTemplates != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/subscription-group-document-template/list",
+				Handler: contracts.NewGenericHandler(b.ListSubscriptionGroupDocumentTemplates, &subscriptiongroupdoctmplpb.ListSubscriptionGroupDocumentTemplatesRequest{}),
 			})
 		}
 	}

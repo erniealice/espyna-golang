@@ -16,13 +16,13 @@ import (
 	jobUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job"
 	jobActivityUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_activity"
 	jobCategoryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_category"
-	jobOutcomeSummaryDocumentTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_outcome_summary_document_template"
-	jobTemplateDocumentTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_template_document_template"
 	jobOutcomeLineUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_outcome_line"
 	jobOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_outcome_summary"
+	jobOutcomeSummaryDocumentTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_outcome_summary_document_template"
 	jobPhaseUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_phase"
 	jobTaskUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_task"
 	jobTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_template"
+	jobTemplateDocumentTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_template_document_template"
 	jobTemplatePhaseUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_template_phase"
 	jobTemplateRelationUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_template_relation"
 	jobTemplateTaskUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_template_task"
@@ -34,6 +34,7 @@ import (
 	scoringComponentUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/scoring_component"
 	scoringComponentCriteriaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/scoring_component_criteria"
 	scoringSchemeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/scoring_scheme"
+	subscriptionGroupDocumentTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/subscription_group_document_template"
 	taskOutcomeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/task_outcome"
 	taskOutcomeCheckUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/task_outcome_check"
 	templateTaskCriteriaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/template_task_criteria"
@@ -45,6 +46,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
 	// Protobuf domain services for operation repositories
+	documenttemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/template"
 	criteriaoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_option"
 	criteriathresholdpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_threshold"
 	evaluationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation"
@@ -56,13 +58,13 @@ import (
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	jobactivitypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
 	jobcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_category"
-	joboutcomesummarydoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
-	jobtemplatedoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_document_template"
 	joboutcomelinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_line"
 	joboutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
+	joboutcomesummarydoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 	jobtaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_task"
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
+	jobtemplatedoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_document_template"
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	jobtemplaterelationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_relation"
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
@@ -74,6 +76,7 @@ import (
 	scoringcomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_component"
 	scoringcomponentcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_component_criteria"
 	scoringschemepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_scheme"
+	subscriptiongroupdoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/subscription_group_document_template"
 	taskoutcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 	taskoutcomecheckpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
 	templatetaskcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
@@ -109,14 +112,14 @@ import (
 // All four are optional. When nil, the milestone-billing branches no-op or
 // return a clear validation error.
 type OperationRepositories struct {
-	Job                  jobpb.JobDomainServiceServer
-	JobPhase             jobphasepb.JobPhaseDomainServiceServer
-	JobTask              jobtaskpb.JobTaskDomainServiceServer
-	JobTemplate          jobtemplatepb.JobTemplateDomainServiceServer
-	JobTemplatePhase     jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
-	JobTemplateTask      jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
-	JobTemplateRelation  jobtemplaterelationpb.JobTemplateRelationDomainServiceServer
-	JobActivity          jobactivitypb.JobActivityDomainServiceServer
+	Job                 jobpb.JobDomainServiceServer
+	JobPhase            jobphasepb.JobPhaseDomainServiceServer
+	JobTask             jobtaskpb.JobTaskDomainServiceServer
+	JobTemplate         jobtemplatepb.JobTemplateDomainServiceServer
+	JobTemplatePhase    jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
+	JobTemplateTask     jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
+	JobTemplateRelation jobtemplaterelationpb.JobTemplateRelationDomainServiceServer
+	JobActivity         jobactivitypb.JobActivityDomainServiceServer
 	// JobCategory — per-workspace job taxonomy reference entity (20260714).
 	JobCategory jobcategorypb.JobCategoryDomainServiceServer
 	// Product — cross-domain (product) repo used ONLY to fail-closed validate a
@@ -127,6 +130,10 @@ type OperationRepositories struct {
 	JobOutcomeSummaryDocumentTemplate joboutcomesummarydoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer
 	// JobTemplateDocumentTemplate — sheet-family (grade-sheet) template binding (20260720).
 	JobTemplateDocumentTemplate jobtemplatedoctmplpb.JobTemplateDocumentTemplateDomainServiceServer
+	// SubscriptionGroupDocumentTemplate — section-group template binding sibling.
+	SubscriptionGroupDocumentTemplate subscriptiongroupdoctmplpb.SubscriptionGroupDocumentTemplateDomainServiceServer
+	// DocumentTemplate — shared layout source for template upload pair operations.
+	DocumentTemplate     documenttemplatepb.DocumentTemplateDomainServiceServer
 	OutcomeCriteria      outcomecriteriapb.OutcomeCriteriaDomainServiceServer
 	CriteriaThreshold    criteriathresholdpb.CriteriaThresholdDomainServiceServer
 	CriteriaOption       criteriaoptionpb.CriteriaOptionDomainServiceServer
@@ -174,28 +181,30 @@ type OperationRepositories struct {
 // (raw DomainServiceServer leak) is wrapped in a Layer-7 use case sub-aggregate
 // and now lives at .JobTemplateRelation as a *jobtemplaterelation.UseCases.
 type OperationUseCases struct {
-	Job                  *jobUseCases.UseCases
-	JobPhase             *jobPhaseUseCases.UseCases
-	JobTask              *jobTaskUseCases.UseCases
-	JobTemplate          *jobTemplateUseCases.UseCases
-	JobTemplatePhase     *jobTemplatePhaseUseCases.UseCases
-	JobTemplateRelation  *jobTemplateRelationUseCases.UseCases
-	JobTemplateTask      *jobTemplateTaskUseCases.UseCases
-	JobActivity          *jobActivityUseCases.UseCases
+	Job                 *jobUseCases.UseCases
+	JobPhase            *jobPhaseUseCases.UseCases
+	JobTask             *jobTaskUseCases.UseCases
+	JobTemplate         *jobTemplateUseCases.UseCases
+	JobTemplatePhase    *jobTemplatePhaseUseCases.UseCases
+	JobTemplateRelation *jobTemplateRelationUseCases.UseCases
+	JobTemplateTask     *jobTemplateTaskUseCases.UseCases
+	JobActivity         *jobActivityUseCases.UseCases
 	// JobCategory — per-workspace job taxonomy reference entity (20260714).
 	JobCategory *jobCategoryUseCases.UseCases
 	// JobOutcomeSummaryDocumentTemplate — report-card template binding (20260714).
 	JobOutcomeSummaryDocumentTemplate *jobOutcomeSummaryDocumentTemplateUseCases.UseCases
 	// JobTemplateDocumentTemplate — sheet-family (grade-sheet) template binding (20260720).
 	JobTemplateDocumentTemplate *jobTemplateDocumentTemplateUseCases.UseCases
-	OutcomeCriteria      *outcomeCriteriaUseCases.UseCases
-	CriteriaThreshold    *criteriaThresholdUseCases.UseCases
-	CriteriaOption       *criteriaOptionUseCases.UseCases
-	TemplateTaskCriteria *templateTaskCriteriaUseCases.UseCases
-	TaskOutcome          *taskOutcomeUseCases.UseCases
-	TaskOutcomeCheck     *taskOutcomeCheckUseCases.UseCases
-	PhaseOutcomeSummary  *phaseOutcomeSummaryUseCases.UseCases
-	JobOutcomeSummary    *jobOutcomeSummaryUseCases.UseCases
+	// SubscriptionGroupDocumentTemplate — section-group template binding sibling.
+	SubscriptionGroupDocumentTemplate *subscriptionGroupDocumentTemplateUseCases.UseCases
+	OutcomeCriteria                   *outcomeCriteriaUseCases.UseCases
+	CriteriaThreshold                 *criteriaThresholdUseCases.UseCases
+	CriteriaOption                    *criteriaOptionUseCases.UseCases
+	TemplateTaskCriteria              *templateTaskCriteriaUseCases.UseCases
+	TaskOutcome                       *taskOutcomeUseCases.UseCases
+	TaskOutcomeCheck                  *taskOutcomeCheckUseCases.UseCases
+	PhaseOutcomeSummary               *phaseOutcomeSummaryUseCases.UseCases
+	JobOutcomeSummary                 *jobOutcomeSummaryUseCases.UseCases
 
 	// Education grading (20260616 v1). Single-repo CRUD entities.
 	ScoringScheme            *scoringSchemeUseCases.UseCases
@@ -365,6 +374,21 @@ func NewUseCases(
 	jobTemplateDocumentTemplateUC := jobTemplateDocumentTemplateUseCases.NewUseCases(
 		jobTemplateDocumentTemplateUseCases.Repositories{JobTemplateDocumentTemplate: repos.JobTemplateDocumentTemplate},
 		jobTemplateDocumentTemplateUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	// SubscriptionGroupDocumentTemplate — section-group template binding sibling.
+	subscriptionGroupDocumentTemplateUC := subscriptionGroupDocumentTemplateUseCases.NewUseCases(
+		subscriptionGroupDocumentTemplateUseCases.Repositories{
+			DocumentTemplate:                  repos.DocumentTemplate,
+			SubscriptionGroupDocumentTemplate: repos.SubscriptionGroupDocumentTemplate,
+		},
+		subscriptionGroupDocumentTemplateUseCases.Services{
 			Authorizer:       authSvc,
 			Transactor:       txSvc,
 			Translator:       i18nSvc,
@@ -677,25 +701,26 @@ func NewUseCases(
 	)
 
 	return &OperationUseCases{
-		Job:                  jobUC,
-		JobPhase:             jobPhaseUC,
-		JobTask:              jobTaskUC,
-		JobTemplate:          jobTemplateUC,
-		JobTemplatePhase:     jobTemplatePhaseUC,
-		JobTemplateRelation:  jobTemplateRelationUC,
-		JobTemplateTask:      jobTemplateTaskUC,
-		JobActivity:          jobActivityUC,
-		JobCategory:          jobCategoryUC,
+		Job:                               jobUC,
+		JobPhase:                          jobPhaseUC,
+		JobTask:                           jobTaskUC,
+		JobTemplate:                       jobTemplateUC,
+		JobTemplatePhase:                  jobTemplatePhaseUC,
+		JobTemplateRelation:               jobTemplateRelationUC,
+		JobTemplateTask:                   jobTemplateTaskUC,
+		JobActivity:                       jobActivityUC,
+		JobCategory:                       jobCategoryUC,
 		JobOutcomeSummaryDocumentTemplate: jobOutcomeSummaryDocumentTemplateUC,
 		JobTemplateDocumentTemplate:       jobTemplateDocumentTemplateUC,
-		OutcomeCriteria:      outcomeCriteriaUC,
-		CriteriaThreshold:    criteriaThresholdUC,
-		CriteriaOption:       criteriaOptionUC,
-		TemplateTaskCriteria: templateTaskCriteriaUC,
-		TaskOutcome:          taskOutcomeUC,
-		TaskOutcomeCheck:     taskOutcomeCheckUC,
-		PhaseOutcomeSummary:  phaseOutcomeSummaryUC,
-		JobOutcomeSummary:    jobOutcomeSummaryUC,
+		SubscriptionGroupDocumentTemplate: subscriptionGroupDocumentTemplateUC,
+		OutcomeCriteria:                   outcomeCriteriaUC,
+		CriteriaThreshold:                 criteriaThresholdUC,
+		CriteriaOption:                    criteriaOptionUC,
+		TemplateTaskCriteria:              templateTaskCriteriaUC,
+		TaskOutcome:                       taskOutcomeUC,
+		TaskOutcomeCheck:                  taskOutcomeCheckUC,
+		PhaseOutcomeSummary:               phaseOutcomeSummaryUC,
+		JobOutcomeSummary:                 jobOutcomeSummaryUC,
 
 		ScoringScheme:            scoringSchemeUC,
 		ScoringComponent:         scoringComponentUC,

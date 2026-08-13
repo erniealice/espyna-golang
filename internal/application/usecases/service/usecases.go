@@ -38,6 +38,7 @@ import (
 	joblisttabsupport "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/job_list_tab_support"
 	jobtemplatesummary "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/job_template_summary"
 	outcomematrix "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/outcome_matrix"
+	subscriptiongroupoutcomeexport "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/subscription_group_outcome_export"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/performance"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/reporting"
 	"github.com/erniealice/espyna-golang/internal/application/usecases/service/security"
@@ -73,6 +74,11 @@ type ServiceUseCases struct {
 	// confusion with the unrelated domain-driven Aggregate.Operation. Nil-safe:
 	// when no postgres provider is registered the read degrades to empty.
 	OutcomeMatrix *outcomematrix.UseCases
+
+	// SubscriptionGroupOutcomeExport service/operation
+	// subscription_group_outcome_export — generic service-scoped composite
+	// export stream, implemented as a typed sibling to OutcomeMatrix.
+	SubscriptionGroupOutcomeExport *subscriptiongroupoutcomeexport.UseCases
 
 	// JobTemplateSummary (20260711) — service/operation/job_template_summary.
 	// Generic resolver-scoped, template-grain delivery-summary aggregate (one
@@ -121,22 +127,24 @@ func NewServiceUseCases(
 	tax *servicetax.UseCases,
 	amort *amortization.UseCases,
 	operation *outcomematrix.UseCases,
+	subscriptionGroupOutcomeExport *subscriptiongroupoutcomeexport.UseCases,
 	jobTemplateSummary *jobtemplatesummary.UseCases,
 	jobListTabSupport *joblisttabsupport.UseCases,
 	omniSearch *omnisearch.UseCases,
 ) *ServiceUseCases {
 	return &ServiceUseCases{
-		Audit:              audit,
-		Security:           security,
-		Auth:               auth,
-		Dashboard:          dash,
-		Reporting:          rep,
-		Performance:        perf,
-		Tax:                tax,
-		Amortization:       amort,
-		OutcomeMatrix:      operation,
-		JobTemplateSummary: jobTemplateSummary,
-		JobListTabSupport:  jobListTabSupport,
-		OmniSearch:         omniSearch,
+		Audit:                          audit,
+		Security:                       security,
+		Auth:                           auth,
+		Dashboard:                      dash,
+		Reporting:                      rep,
+		Performance:                    perf,
+		Tax:                            tax,
+		Amortization:                   amort,
+		OutcomeMatrix:                  operation,
+		SubscriptionGroupOutcomeExport: subscriptionGroupOutcomeExport,
+		JobTemplateSummary:             jobTemplateSummary,
+		JobListTabSupport:              jobListTabSupport,
+		OmniSearch:                     omniSearch,
 	}
 }

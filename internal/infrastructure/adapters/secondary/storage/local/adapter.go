@@ -330,6 +330,54 @@ func (p *LocalStorageProvider) DownloadObject(ctx context.Context, req *pb.Downl
 	}, nil
 }
 
+// DeleteObject removes exactly one regular file beneath the requested
+// container. The container and key are joined as supplied after validation;
+// neither is sanitized or treated as a prefix.
+func (p *LocalStorageProvider) DeleteObject(ctx context.Context, req *pb.DeleteObjectRequest) (*pb.DeleteObjectResponse, error) {
+	if !p.enabled {
+		return &pb.DeleteObjectResponse{Success: false, Message: "local storage provider is not initialized"},
+			ports.NewStorageError(ports.StorageErrorCodeProviderError, "provider not initialized", nil)
+	}
+	if req == nil || strings.TrimSpace(req.ContainerName) == "" || strings.TrimSpace(req.ObjectKey) == "" {
+		return &pb.DeleteObjectResponse{Success: false, Message: "container_name and object_key are required"},
+			ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "container name and object key required", nil)
+	}
+	if !isValidPath(req.ContainerName) || !isValidPath(req.ObjectKey) {
+		return &pb.DeleteObjectResponse{Success: false, Message: "path traversal attempt detected"},
+			ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "invalid path", nil)
+	}
+
+	containerPath := filepath.Join(p.basePath, req.ContainerName)
+	objectPath := filepath.Join(containerPath, req.ObjectKey)
+	if !isSafeObjectPath(objectPath, p.basePath) {
+		return &pb.DeleteObjectResponse{Success: false, Message: "path traversal attempt detected"},
+			ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "invalid path", nil)
+	}
+
+	info, err := os.Lstat(objectPath)
+	if os.IsNotExist(err) {
+		return &pb.DeleteObjectResponse{Success: true, Message: "object already absent"}, nil
+	}
+	if err != nil {
+		return &pb.DeleteObjectResponse{Success: false, Message: fmt.Sprintf("failed to inspect object: %v", err)},
+			ports.NewStorageError(ports.StorageErrorCodeDeleteFailed, "inspect failed", err)
+	}
+	if info.IsDir() {
+		return &pb.DeleteObjectResponse{Success: false, Message: "object key resolves to a directory"},
+			ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "object key is a directory", nil)
+	}
+
+	if err := os.Remove(objectPath); err != nil {
+		if os.IsNotExist(err) {
+			return &pb.DeleteObjectResponse{Success: true, Message: "object already absent"}, nil
+		}
+		return &pb.DeleteObjectResponse{Success: false, Message: fmt.Sprintf("failed to delete object: %v", err)},
+			ports.NewStorageError(ports.StorageErrorCodeDeleteFailed, "deletion failed", err)
+	}
+
+	return &pb.DeleteObjectResponse{Success: true, Message: "object deleted successfully"}, nil
+}
+
 // GetPresignedUrl generates a presigned URL (not applicable for local storage)
 func (p *LocalStorageProvider) GetPresignedUrl(ctx context.Context, req *pb.GetPresignedUrlRequest) (*pb.GetPresignedUrlResponse, error) {
 	return &pb.GetPresignedUrlResponse{
@@ -894,4 +942,38 @@ func isPathWithinBase(path, base string) bool {
 
 	// If the relative path starts with ".." or is absolute, it's outside the base
 	return !filepath.IsAbs(rel) && !strings.HasPrefix(rel, "..")
+}
+
+// isSafeObjectPath validates the lexical path and rejects symlinks in every
+// existing component. EvalSymlinks alone is insufficient for a missing target:
+// a hostile link/absent-key path could otherwise be classified as an idempotent
+// miss without proving that its existing parent remains beneath base.
+func isSafeObjectPath(path, base string) bool {
+	absPath, err := filepath.Abs(path)
+	if err != nil || !isPathWithinBase(absPath, base) {
+		return false
+	}
+	absBase, err := filepath.Abs(base)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(absBase, absPath)
+	if err != nil || filepath.IsAbs(rel) {
+		return false
+	}
+	current := absBase
+	for _, part := range strings.Split(rel, string(filepath.Separator)) {
+		if part == "" || part == "." {
+			continue
+		}
+		current = filepath.Join(current, part)
+		info, statErr := os.Lstat(current)
+		if os.IsNotExist(statErr) {
+			return true
+		}
+		if statErr != nil || info.Mode()&os.ModeSymlink != 0 {
+			return false
+		}
+	}
+	return true
 }

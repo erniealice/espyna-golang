@@ -4,6 +4,8 @@ package local
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/storage"
@@ -153,6 +155,53 @@ func TestLocalStorageProvider(t *testing.T) {
 
 	if provider.IsEnabled() {
 		t.Error("Provider should be disabled after close")
+	}
+}
+
+func TestLocalDeleteObjectDeletesOnlyExactTargetAndRejectsTraversal(t *testing.T) {
+	provider := NewLocalStorageProvider()
+	root := t.TempDir()
+	if err := provider.Initialize(&pb.StorageProviderConfig{
+		Provider: pb.StorageProvider_STORAGE_PROVIDER_LOCAL,
+		Config: &pb.StorageProviderConfig_LocalConfig{LocalConfig: &pb.LocalStorageConfig{
+			BaseDirectory: root, AutoCreateDirectories: true,
+		}},
+	}); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+	defer provider.Close()
+	ctx := context.Background()
+	if _, err := provider.CreateContainer(ctx, &pb.CreateContainerRequest{Name: "templates"}); err != nil {
+		t.Fatalf("CreateContainer() error = %v", err)
+	}
+	for _, key := range []string{"target.docx", "sibling.docx"} {
+		resp, err := provider.UploadObject(ctx, &pb.UploadObjectRequest{ContainerName: "templates", ObjectKey: key, Content: []byte(key), Overwrite: true})
+		if err != nil || !resp.Success {
+			t.Fatalf("UploadObject(%q) = %#v, %v", key, resp, err)
+		}
+	}
+
+	resp, err := provider.DeleteObject(ctx, &pb.DeleteObjectRequest{ContainerName: "templates", ObjectKey: "target.docx"})
+	if err != nil || resp == nil || !resp.Success {
+		t.Fatalf("DeleteObject(target) = %#v, %v", resp, err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "templates", "sibling.docx")); err != nil {
+		t.Fatalf("sibling object was removed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "templates", "target.docx")); !os.IsNotExist(err) {
+		t.Fatalf("target still exists or unexpected stat error: %v", err)
+	}
+
+	for _, key := range []string{"../outside.docx", "../../outside.docx", "."} {
+		resp, err := provider.DeleteObject(ctx, &pb.DeleteObjectRequest{ContainerName: "templates", ObjectKey: key})
+		if err == nil || resp == nil || resp.Success {
+			t.Fatalf("DeleteObject(%q) = %#v, %v; want rejected", key, resp, err)
+		}
+	}
+
+	resp, err = provider.DeleteObject(ctx, &pb.DeleteObjectRequest{ContainerName: "templates", ObjectKey: "missing.docx"})
+	if err != nil || resp == nil || !resp.Success {
+		t.Fatalf("missing DeleteObject() = %#v, %v; want idempotent success", resp, err)
 	}
 }
 

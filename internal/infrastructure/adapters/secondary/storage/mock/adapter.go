@@ -243,6 +243,25 @@ func (p *MockStorageProvider) DownloadObject(ctx context.Context, req *pb.Downlo
 	}, nil
 }
 
+// DeleteObject removes exactly one object map entry. Missing objects are an
+// idempotent success, matching the native delete semantics of the cloud
+// providers; no prefix or sibling entries are touched.
+func (p *MockStorageProvider) DeleteObject(ctx context.Context, req *pb.DeleteObjectRequest) (*pb.DeleteObjectResponse, error) {
+	if !p.enabled {
+		return &pb.DeleteObjectResponse{Success: false, Message: "mock storage provider is not initialized"},
+			ports.NewStorageError(ports.StorageErrorCodeProviderError, "not initialized", nil)
+	}
+	if req == nil || strings.TrimSpace(req.ContainerName) == "" || strings.TrimSpace(req.ObjectKey) == "" {
+		return &pb.DeleteObjectResponse{Success: false, Message: "container_name and object_key are required"},
+			ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "missing fields", nil)
+	}
+
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+	delete(p.objects, objectKey(req.ContainerName, req.ObjectKey))
+	return &pb.DeleteObjectResponse{Success: true, Message: "object deleted successfully"}, nil
+}
+
 // GetPresignedUrl generates a mock presigned URL
 func (p *MockStorageProvider) GetPresignedUrl(ctx context.Context, req *pb.GetPresignedUrlRequest) (*pb.GetPresignedUrlResponse, error) {
 	if !p.enabled {

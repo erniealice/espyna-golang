@@ -113,3 +113,38 @@ func TestMockStorageProvider(t *testing.T) {
 		t.Errorf("Failed to close provider: %v", err)
 	}
 }
+
+func TestMockDeleteObjectDeletesOnlyExactTarget(t *testing.T) {
+	provider := NewMockStorageProvider()
+	if err := provider.Initialize(&pb.StorageProviderConfig{Provider: pb.StorageProvider_STORAGE_PROVIDER_LOCAL}); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+	defer provider.Close()
+	ctx := context.Background()
+	if _, err := provider.CreateContainer(ctx, &pb.CreateContainerRequest{Name: "templates"}); err != nil {
+		t.Fatalf("CreateContainer() error = %v", err)
+	}
+	for _, key := range []string{"target.docx", "sibling.docx"} {
+		resp, err := provider.UploadObject(ctx, &pb.UploadObjectRequest{ContainerName: "templates", ObjectKey: key, Content: []byte(key), Overwrite: true})
+		if err != nil || !resp.Success {
+			t.Fatalf("UploadObject(%q) = %#v, %v", key, resp, err)
+		}
+	}
+
+	resp, err := provider.DeleteObject(ctx, &pb.DeleteObjectRequest{ContainerName: "templates", ObjectKey: "target.docx"})
+	if err != nil || resp == nil || !resp.Success {
+		t.Fatalf("DeleteObject(target) = %#v, %v", resp, err)
+	}
+	mockProvider := provider.(*MockStorageProvider)
+	if mockProvider.GetObjectCount() != 1 {
+		t.Fatalf("GetObjectCount() = %d, want sibling retained", mockProvider.GetObjectCount())
+	}
+	if _, err := provider.DownloadObject(ctx, &pb.DownloadObjectRequest{ContainerName: "templates", ObjectKey: "sibling.docx"}); err != nil {
+		t.Fatalf("sibling DownloadObject() error = %v", err)
+	}
+
+	resp, err = provider.DeleteObject(ctx, &pb.DeleteObjectRequest{ContainerName: "templates", ObjectKey: "missing.docx"})
+	if err != nil || resp == nil || !resp.Success {
+		t.Fatalf("missing DeleteObject() = %#v, %v; want idempotent success", resp, err)
+	}
+}

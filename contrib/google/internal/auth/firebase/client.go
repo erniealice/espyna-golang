@@ -3,6 +3,7 @@ package firebase
 import (
 	"context"
 	"log"
+	"os"
 	"time"
 
 	"firebase.google.com/go/v4/auth"
@@ -48,7 +49,7 @@ type AuthServiceInterface interface {
 // NewAuthService creates a new Firebase Auth service instance
 func NewAuthService(ctx context.Context) (AuthServiceInterface, error) {
 	// Create Firebase client manager
-	manager, err := NewFirebaseClientManager(ctx)
+	manager, err := NewFirebaseClientManager(ctx, os.Getenv("AUTH_FIREBASE_PROJECT_ID"))
 	if err != nil {
 		return nil, err
 	}

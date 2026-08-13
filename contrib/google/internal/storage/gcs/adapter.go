@@ -2,15 +2,18 @@ package gcs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"cloud.google.com/go/storage"
+	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/erniealice/espyna-golang/ports"
@@ -75,6 +78,9 @@ type GCSStorageProvider struct {
 	enabled       bool
 	timeout       time.Duration
 	clientManager *GCSClientManager
+	// objectAccessProbe is a unit-test seam. Production leaves it nil and uses
+	// the bounded object-list probe in probeObjectAccess.
+	objectAccessProbe func(context.Context, string) error
 }
 
 // NewGCSStorageProvider creates a new Google Cloud Storage provider
@@ -88,6 +94,13 @@ func NewGCSStorageProvider() ports.StorageProvider {
 // Name returns the name of this storage provider
 func (p *GCSStorageProvider) Name() string {
 	return "gcs"
+}
+
+// DefaultContainerName reports the pre-provisioned physical bucket selected by
+// STORAGE_GCS_BUCKET. Application composition resolves this before I/O; feature
+// namespaces belong in object keys, not substitute bucket names.
+func (p *GCSStorageProvider) DefaultContainerName() string {
+	return p.bucketName
 }
 
 // Initialize sets up the GCS storage provider with proto configuration
@@ -117,6 +130,7 @@ func (p *GCSStorageProvider) Initialize(config *pb.StorageProviderConfig) error 
 	// Initialize GCS client manager
 	clientCfg := &GCSClientConfig{
 		StorageTimeout: p.timeout,
+		ProjectID:      p.projectID,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
@@ -132,13 +146,12 @@ func (p *GCSStorageProvider) Initialize(config *pb.StorageProviderConfig) error 
 	p.config = config
 	p.enabled = true
 
-	// Test bucket accessibility
-	client := p.clientManager.GetStorageClient()
-	bucket := client.Bucket(p.bucketName)
-	_, err = bucket.Attrs(ctx)
-	if err != nil {
+	// Prove the runtime's object-level access without requiring bucket metadata
+	// (`storage.buckets.get`) or bucket administration. The least-privilege
+	// runtime contract is object create/get/list only.
+	if err := p.probeObjectAccess(ctx); err != nil {
 		p.enabled = false
-		return fmt.Errorf("GCS bucket access test failed: %w", err)
+		return fmt.Errorf("GCS object access test failed: %w", err)
 	}
 
 	return nil
@@ -257,6 +270,37 @@ func (p *GCSStorageProvider) UploadObject(ctx context.Context, req *pb.UploadObj
 		UploadDurationMs: duration.Milliseconds(),
 		Message:          "upload successful",
 	}, nil
+}
+
+// DeleteObject deletes exactly one GCS object. GCS treats deletion of an
+// already-absent object as a not-found error, which is normalized here to the
+// idempotent success contract.
+func (p *GCSStorageProvider) DeleteObject(ctx context.Context, req *pb.DeleteObjectRequest) (*pb.DeleteObjectResponse, error) {
+	if !p.enabled {
+		return &pb.DeleteObjectResponse{Success: false, Message: "GCS storage provider is not initialized"},
+			ports.NewStorageError(ports.StorageErrorCodeProviderError, "not initialized", nil)
+	}
+	if req == nil || strings.TrimSpace(req.ContainerName) == "" || strings.TrimSpace(req.ObjectKey) == "" {
+		return &pb.DeleteObjectResponse{Success: false, Message: "container_name and object_key are required"},
+			ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "missing required fields", nil)
+	}
+
+	deleteCtx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+	obj := p.clientManager.GetStorageClient().Bucket(req.ContainerName).Object(req.ObjectKey)
+	if req.VersionId != "" {
+		generation, parseErr := strconv.ParseInt(req.VersionId, 10, 64)
+		if parseErr != nil || generation <= 0 {
+			return &pb.DeleteObjectResponse{Success: false, Message: "version_id must be a positive GCS generation"},
+				ports.NewStorageError(ports.StorageErrorCodeInvalidPath, "invalid version_id", parseErr)
+		}
+		obj = obj.Generation(generation)
+	}
+	if err := obj.Delete(deleteCtx); err != nil && err != storage.ErrObjectNotExist {
+		return &pb.DeleteObjectResponse{Success: false, Message: fmt.Sprintf("failed to delete object: %v", err)},
+			ports.NewStorageError(ports.StorageErrorCodeDeleteFailed, "deletion failed", err)
+	}
+	return &pb.DeleteObjectResponse{Success: true, Message: "object deleted successfully"}, nil
 }
 
 // DownloadObject retrieves an object from GCS
@@ -546,9 +590,25 @@ func (p *GCSStorageProvider) IsHealthy(ctx context.Context) error {
 	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	client := p.clientManager.GetStorageClient()
-	bucket := client.Bucket(p.bucketName)
-	_, err := bucket.Attrs(healthCtx)
+	return p.probeObjectAccess(healthCtx)
+}
+
+// probeObjectAccess performs a one-item object listing. An empty bucket is
+// healthy (iterator.Done); any other result proves or rejects the object-level
+// list permission. It deliberately does not call Bucket.Attrs or mutate data.
+func (p *GCSStorageProvider) probeObjectAccess(ctx context.Context) error {
+	if p.objectAccessProbe != nil {
+		return p.objectAccessProbe(ctx, p.bucketName)
+	}
+	if p.clientManager == nil || p.clientManager.GetStorageClient() == nil {
+		return fmt.Errorf("GCS storage client is not initialized")
+	}
+	objects := p.clientManager.GetStorageClient().Bucket(p.bucketName).Objects(ctx, nil)
+	objects.PageInfo().MaxSize = 1
+	_, err := objects.Next()
+	if errors.Is(err, iterator.Done) {
+		return nil
+	}
 	return err
 }
 
@@ -574,6 +634,7 @@ func (p *GCSStorageProvider) IsEnabled() bool {
 var (
 	_ ports.StreamingStorageProvider  = (*GCSStorageProvider)(nil)
 	_ ports.StorageCapabilityProvider = (*GCSStorageProvider)(nil)
+	_ ports.DefaultContainerProvider  = (*GCSStorageProvider)(nil)
 )
 
 // UploadStream streams body to GCS via ObjectHandle.NewWriter + io.Copy. The GCS

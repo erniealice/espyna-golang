@@ -4,22 +4,25 @@
 // Charter — this package:
 //   - Holds the credential SHAPE (CredentialConfig) and the option-builder
 //     (GetClientOption: CredentialConfig -> google api option.ClientOption).
-//   - Reads the environment ONLY via DefaultCredentialConfig(prefix), where the
-//     CALLER injects its fully-explicit {CONCERN}_{PROVIDER}_ prefix.
+//   - Reads the environment ONLY via LoadCredentialConfig(prefix, projectID),
+//     where the CALLER injects its fully-explicit {CONCERN}_{PROVIDER}_ prefix
+//     and its already-resolved resource project.
 //   - MUST NOT hardcode any {CONCERN}_{PROVIDER}_ literal, MUST NOT read any
 //     global/shared env name (no bare GOOGLE_APPLICATION_CREDENTIALS), and MUST
 //     NOT os.Setenv. Each concern passes its own scoped credentials directly to
 //     its SDK client, so AUTH and STORAGE can target entirely different GCP
 //     projects/credentials with no shared state.
 //
-// Authentication methods (resolved by GetClientOption, in order):
-//   1. Inline service-account JSON from {prefix}SA_* vars ({prefix}USE_SERVICE_ACCOUNT=true)
-//   2. Service-account JSON file at {prefix}CREDENTIALS_FILE or {prefix}SERVICE_ACCOUNT_KEY_PATH
-//   3. Application Default Credentials (ADC)
+// Authentication methods (resolved by GetClientOption):
+//   1. Service-account JSON file at {prefix}CREDENTIALS_FILE (local/non-managed escape hatch)
+//   2. Application Default Credentials (ADC; managed-runtime default)
+//
+// Inline {prefix}SA_*, {prefix}USE_SERVICE_ACCOUNT, and the key-path alias are
+// retired and fail closed by environment name before SDK construction.
 //
 // Usage (the caller — a concern adapter — owns the prefix):
 //
-//	cfg := gcp.DefaultCredentialConfig("STORAGE_GCS_")
+//	cfg, err := gcp.LoadCredentialConfig("STORAGE_GCS_", explicitProjectID)
 //	opt, err := gcp.GetClientOption(cfg)
 //	if err != nil {
 //	    return err

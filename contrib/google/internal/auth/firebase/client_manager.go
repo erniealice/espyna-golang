@@ -25,12 +25,11 @@ type FirebaseClientManager struct {
 //
 // This initializes the Firebase App and prepares it for creating Auth clients
 // on demand.
-func NewFirebaseClientManager(ctx context.Context) (*FirebaseClientManager, error) {
-	// Get credential configuration using shared package (AUTH/firebase concern).
-	credConfig := gcp.DefaultCredentialConfig("AUTH_FIREBASE_")
-
-	// Validate credential config
-	if err := credConfig.Validate(); err != nil {
+func NewFirebaseClientManager(ctx context.Context, projectID string) (*FirebaseClientManager, error) {
+	// The provider config owns the target project. The credential loader may
+	// select ADC or a scoped local file, but never re-derives that target.
+	credConfig, err := gcp.LoadCredentialConfig("AUTH_FIREBASE_", projectID)
+	if err != nil {
 		return nil, fmt.Errorf("invalid credential config: %w", err)
 	}
 

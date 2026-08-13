@@ -1,128 +1,108 @@
 package gcp
 
 import (
-	"os"
+	"strings"
 	"testing"
 )
 
-func TestDefaultCredentialConfig(t *testing.T) {
-	// Set up test environment
-	os.Setenv("GOOGLE_PROJECT_ID", "test-project")
-	os.Setenv("GOOGLE_USE_SERVICE_ACCOUNT", "true")
-	defer os.Unsetenv("GOOGLE_PROJECT_ID")
-	defer os.Unsetenv("GOOGLE_USE_SERVICE_ACCOUNT")
-
-	config := DefaultCredentialConfig("GOOGLE_")
-
-	if config.ProjectID != "test-project" {
-		t.Errorf("Expected project ID 'test-project', got '%s'", config.ProjectID)
-	}
-
-	if !config.UseServiceAccountJSON {
-		t.Error("Expected UseServiceAccountJSON to be true")
-	}
-
-	if config.EnvPrefix != "GOOGLE_" {
-		t.Errorf("Expected prefix 'GOOGLE_', got '%s'", config.EnvPrefix)
+func TestLoadCredentialConfigRequiresExplicitProjectID(t *testing.T) {
+	_, err := LoadCredentialConfig("TEST_EXPLICIT_", "")
+	if err == nil || !strings.Contains(err.Error(), "TEST_EXPLICIT_PROJECT_ID is required") {
+		t.Fatalf("LoadCredentialConfig() error = %v, want explicit project error", err)
 	}
 }
 
-func TestGetServiceAccountJSON(t *testing.T) {
-	// Set up test service account environment
-	testEnv := map[string]string{
-		"TEST_SA_TYPE":                   "service_account",
-		"TEST_SA_PROJECT_ID":             "test-project",
-		"TEST_SA_PRIVATE_KEY_ID":         "key123",
-		"TEST_SA_PRIVATE_KEY":            "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
-		"TEST_SA_CLIENT_EMAIL":           "test@test-project.iam.gserviceaccount.com",
-		"TEST_SA_CLIENT_ID":              "12345",
-		"TEST_SA_AUTH_URI":               "https://accounts.google.com/o/oauth2/auth",
-		"TEST_SA_TOKEN_URI":              "https://oauth2.googleapis.com/token",
-		"TEST_SA_AUTH_PROVIDER_CERT_URL": "https://www.googleapis.com/oauth2/v1/certs",
-		"TEST_SA_CLIENT_CERT_URL":        "https://www.googleapis.com/robot/v1/metadata/x509/test",
-	}
-
-	for key, value := range testEnv {
-		os.Setenv(key, value)
-		defer os.Unsetenv(key)
-	}
-
-	config := &CredentialConfig{
-		EnvPrefix: "TEST_",
-		ProjectID: "test-project",
-	}
-
-	jsonBytes, err := GetServiceAccountJSON(config)
+func TestLoadCredentialConfigUsesADCByDefault(t *testing.T) {
+	config, err := LoadCredentialConfig("TEST_ADC_", "resource-project")
 	if err != nil {
-		t.Fatalf("GetServiceAccountJSON failed: %v", err)
+		t.Fatalf("LoadCredentialConfig() error = %v", err)
 	}
-
-	if len(jsonBytes) == 0 {
-		t.Error("Expected non-empty JSON bytes")
+	if config.ProjectID != "resource-project" {
+		t.Fatalf("ProjectID = %q, want resource-project", config.ProjectID)
 	}
-
-	// Verify JSON structure is valid and contains expected fields
-	jsonStr := string(jsonBytes)
-	if !contains(jsonStr, "-----BEGIN PRIVATE KEY-----") {
-		t.Error("Expected private key BEGIN marker in JSON")
+	if config.CredentialsPath != "" {
+		t.Fatalf("CredentialsPath = %q, want empty ADC path", config.CredentialsPath)
 	}
-	if !contains(jsonStr, "test@test-project.iam.gserviceaccount.com") {
-		t.Error("Expected client email in JSON")
+	opt, err := GetClientOption(config)
+	if err != nil {
+		t.Fatalf("GetClientOption() error = %v", err)
+	}
+	if opt != nil {
+		t.Fatal("GetClientOption() returned an option, want nil for ADC")
 	}
 }
 
-func TestGetServiceAccountJSON_MissingFields(t *testing.T) {
-	config := &CredentialConfig{
-		EnvPrefix: "MISSING_",
-		ProjectID: "test-project",
+func TestLoadCredentialConfigUsesScopedCredentialsFile(t *testing.T) {
+	t.Setenv("TEST_FILE_CREDENTIALS_FILE", "/tmp/test-google-credentials.json")
+	config, err := LoadCredentialConfig("TEST_FILE_", "resource-project")
+	if err != nil {
+		t.Fatalf("LoadCredentialConfig() error = %v", err)
 	}
+	if config.CredentialsPath != "/tmp/test-google-credentials.json" {
+		t.Fatalf("CredentialsPath = %q", config.CredentialsPath)
+	}
+	opt, err := GetClientOption(config)
+	if err != nil {
+		t.Fatalf("GetClientOption() error = %v", err)
+	}
+	if opt == nil {
+		t.Fatal("GetClientOption() = nil, want scoped file option")
+	}
+}
 
-	_, err := GetServiceAccountJSON(config)
+func TestLoadCredentialConfigRejectsRetiredVariables(t *testing.T) {
+	tests := []struct {
+		name string
+		env  string
+	}{
+		{name: "boolean even when false", env: "TEST_RETIRED_USE_SERVICE_ACCOUNT"},
+		{name: "key path alias", env: "TEST_RETIRED_SERVICE_ACCOUNT_KEY_PATH"},
+		{name: "inline project", env: "TEST_RETIRED_SA_PROJECT_ID"},
+		{name: "inline private key", env: "TEST_RETIRED_SA_PRIVATE_KEY"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			secretValue := "must-not-appear-in-error"
+			t.Setenv(tt.env, secretValue)
+			_, err := LoadCredentialConfig("TEST_RETIRED_", "resource-project")
+			if err == nil {
+				t.Fatal("LoadCredentialConfig() error = nil, want retired-name error")
+			}
+			if !strings.Contains(err.Error(), tt.env) {
+				t.Fatalf("error %q does not name %s", err, tt.env)
+			}
+			if strings.Contains(err.Error(), secretValue) {
+				t.Fatalf("error leaked retired variable value: %q", err)
+			}
+		})
+	}
+}
+
+func TestLoadCredentialConfigDoesNotDeriveTargetFromSAProjectID(t *testing.T) {
+	t.Setenv("TEST_NO_FALLBACK_SA_PROJECT_ID", "credential-owner-project")
+	_, err := LoadCredentialConfig("TEST_NO_FALLBACK_", "")
 	if err == nil {
-		t.Error("Expected error for missing service account fields")
+		t.Fatal("LoadCredentialConfig() error = nil, want retired/missing explicit project error")
 	}
 }
 
 func TestCredentialConfigValidate(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  CredentialConfig
+		config  *CredentialConfig
 		wantErr bool
 	}{
-		{
-			name: "valid config",
-			config: CredentialConfig{
-				EnvPrefix: "GOOGLE_",
-				ProjectID: "test-project",
-			},
-			wantErr: false,
-		},
-		{
-			name: "missing prefix",
-			config: CredentialConfig{
-				ProjectID: "test-project",
-			},
-			wantErr: true,
-		},
-		{
-			name: "missing project ID",
-			config: CredentialConfig{
-				EnvPrefix: "GOOGLE_",
-			},
-			wantErr: true,
-		},
+		{name: "valid", config: &CredentialConfig{EnvPrefix: "TEST_", ProjectID: "project"}},
+		{name: "nil", config: nil, wantErr: true},
+		{name: "missing prefix", config: &CredentialConfig{ProjectID: "project"}, wantErr: true},
+		{name: "missing project", config: &CredentialConfig{EnvPrefix: "TEST_"}, wantErr: true},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.config.Validate()
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+				t.Fatalf("Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || contains(s[1:], substr)))
 }

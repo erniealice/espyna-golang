@@ -2,6 +2,7 @@ package firebase
 
 import (
 	"context"
+	"os"
 	"testing"
 )
 
@@ -14,7 +15,7 @@ func TestFirebaseIntegration(t *testing.T) {
 
 	ctx := context.Background()
 
-	manager, err := NewFirebaseClientManager(ctx)
+	manager, err := NewFirebaseClientManager(ctx, os.Getenv("AUTH_FIREBASE_PROJECT_ID"))
 	if err != nil {
 		t.Fatalf("Failed to create Firebase client manager: %v", err)
 	}

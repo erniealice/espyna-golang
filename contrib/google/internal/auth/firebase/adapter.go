@@ -115,7 +115,7 @@ func (p *FirebaseAuthAdapter) Initialize(config *authpb.ProviderConfig) error {
 	defer cancel()
 
 	// Create Firebase client manager
-	manager, err := NewFirebaseClientManager(ctx)
+	manager, err := NewFirebaseClientManager(ctx, gcpConfig.ProjectId)
 	if err != nil {
 		return fmt.Errorf("failed to initialize Firebase client manager: %w", err)
 	}

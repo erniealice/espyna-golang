@@ -23,6 +23,7 @@ type GCSClientManager struct {
 // GCSClientConfig holds GCS-specific configuration
 type GCSClientConfig struct {
 	StorageTimeout time.Duration
+	ProjectID      string
 }
 
 // DefaultGCSConfig returns default GCS configuration from environment
@@ -36,6 +37,7 @@ func DefaultGCSConfig() *GCSClientConfig {
 
 	return &GCSClientConfig{
 		StorageTimeout: timeout,
+		ProjectID:      os.Getenv("STORAGE_GCS_PROJECT_ID"),
 	}
 }
 
@@ -48,11 +50,10 @@ func NewGCSClientManager(ctx context.Context, config *GCSClientConfig) (*GCSClie
 		config = DefaultGCSConfig()
 	}
 
-	// Get credential configuration using shared package (STORAGE/gcs concern).
-	credConfig := gcp.DefaultCredentialConfig("STORAGE_GCS_")
-
-	// Validate credential config
-	if err := credConfig.Validate(); err != nil {
+	// The provider config owns the target project. Credentials select ADC or a
+	// scoped local file without deriving that target from key metadata.
+	credConfig, err := gcp.LoadCredentialConfig("STORAGE_GCS_", config.ProjectID)
+	if err != nil {
 		return nil, fmt.Errorf("invalid credential config: %w", err)
 	}
 

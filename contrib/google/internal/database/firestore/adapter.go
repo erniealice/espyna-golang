@@ -8,9 +8,9 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/erniealice/espyna-golang/contrib/google/internal/database/firestore/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/registry"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	dbpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/database"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
@@ -105,17 +105,30 @@ func buildTableConfig() *registry.TableConfig {
 		"stage_template":    "STAGE_TEMPLATE",
 		"activity_template": "ACTIVITY_TEMPLATE",
 		// Subscription
-		"plan":                   "PLAN",
-		"plan_attribute":         "PLAN_ATTRIBUTE",
-		"plan_location":          "PLAN_LOCATION",
-		"plan_settings":          "PLAN_SETTINGS",
-		"balance":                "BALANCE",
-		"balance_attribute":      "BALANCE_ATTRIBUTE",
-		"invoice":                "INVOICE",
-		"invoice_attribute":      "INVOICE_ATTRIBUTE",
-		"price_plan":             "PRICE_PLAN",
-		"subscription":           "SUBSCRIPTION",
-		"subscription_attribute": "SUBSCRIPTION_ATTRIBUTE",
+		"plan":                                  "PLAN",
+		"plan_attribute":                        "PLAN_ATTRIBUTE",
+		"plan_location":                         "PLAN_LOCATION",
+		"plan_settings":                         "PLAN_SETTINGS",
+		"balance":                               "BALANCE",
+		"balance_attribute":                     "BALANCE_ATTRIBUTE",
+		"invoice":                               "INVOICE",
+		"invoice_attribute":                     "INVOICE_ATTRIBUTE",
+		"price_plan":                            "PRICE_PLAN",
+		"subscription":                          "SUBSCRIPTION",
+		"subscription_attribute":                "SUBSCRIPTION_ATTRIBUTE",
+		"price_schedule":                        "PRICE_SCHEDULE",
+		"subscription_group":                    "SUBSCRIPTION_GROUP",
+		"subscription_group_member":             "SUBSCRIPTION_GROUP_MEMBER",
+		"subscription_group_workspace_user":     "SUBSCRIPTION_GROUP_WORKSPACE_USER",
+		"subscription_group_product_plan_staff": "SUBSCRIPTION_GROUP_PRODUCT_PLAN_STAFF",
+		"subscription_seat":                     "SUBSCRIPTION_SEAT",
+		// Operation landing projection dependencies.
+		"job":                "JOB",
+		"job_template":       "JOB_TEMPLATE",
+		"job_phase":          "JOB_PHASE",
+		"job_task":           "JOB_TASK",
+		"task_outcome":       "TASK_OUTCOME",
+		"product_plan_staff": "PRODUCT_PLAN_STAFF",
 	}
 
 	for entity, envSuffix := range entityEnvMap {

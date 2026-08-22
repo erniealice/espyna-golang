@@ -404,6 +404,30 @@ func (p *FirebaseAuthAdapter) resolveFirebaseUID(ctx context.Context, identifier
 	return rec.UID, rec.Email, nil
 }
 
+// CreateCustomToken implements the optional custom-token capability exposed by
+// consumer.AuthAdapter. It resolves only an existing Firebase identity and
+// delegates signing to the Admin SDK; the token is never logged or persisted.
+func (p *FirebaseAuthAdapter) CreateCustomToken(ctx context.Context, identifier string) (string, error) {
+	uid, _, err := p.resolveFirebaseUID(ctx, strings.TrimSpace(identifier))
+	if err != nil {
+		return "", err
+	}
+
+	authClient, err := p.clientManager.GetAuthClient(ctx)
+	if err != nil {
+		return "", fmt.Errorf("firebase auth client not available: %w", err)
+	}
+	if authClient == nil {
+		return "", fmt.Errorf("firebase auth client not available")
+	}
+
+	token, err := authClient.CustomToken(ctx, uid)
+	if err != nil {
+		return "", fmt.Errorf("firebase: mint custom token for uid %q: %w", uid, err)
+	}
+	return token, nil
+}
+
 // DisableUserAtProvider disables the firebase account (UpdateUser{Disabled:true}).
 func (p *FirebaseAuthAdapter) DisableUserAtProvider(ctx context.Context, userID string) error {
 	uid, _, err := p.resolveFirebaseUID(ctx, userID)

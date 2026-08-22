@@ -3,6 +3,7 @@ package consumer
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	serviceauthuc "github.com/erniealice/espyna-golang/internal/application/usecases/service/auth"
 	"github.com/erniealice/espyna-golang/ports"
@@ -64,9 +65,10 @@ Usage:
 // AuthAdapter provides technology-agnostic access to authentication services.
 // It wraps the AuthProvider interface and works with Firebase, JWT, Mock, etc.
 type AuthAdapter struct {
-	provider  authProviderOperations
-	service   authServiceOperations
-	container *Container
+	provider          authProviderOperations
+	service           authServiceOperations
+	customTokenMinter customTokenMinter
+	container         *Container
 }
 
 // NewAuthAdapterFromContainer creates an AuthAdapter from an existing container.
@@ -134,9 +136,10 @@ func NewAuthAdapterFromContainer(container *Container) *AuthAdapter {
 	service := provider.GetAuthService()
 
 	return &AuthAdapter{
-		provider:  provider,
-		service:   service,
-		container: container,
+		provider:          provider,
+		service:           service,
+		customTokenMinter: resolveCustomTokenMinter(service, provider),
+		container:         container,
 	}
 }
 
@@ -210,6 +213,47 @@ type signInProviderVerifier interface {
 // Satisfied by the Firebase and Password adapters.
 type authCapabilityProvider interface {
 	GetUserAuthCapability(ctx context.Context, userID string) (ports.AuthCapability, error)
+}
+
+// customTokenMinter is an optional provider capability used by explicitly
+// enabled local-development login tooling. It deliberately stays outside the
+// mandatory AuthService contract because password and mock providers cannot
+// mint Firebase credentials.
+type customTokenMinter interface {
+	CreateCustomToken(ctx context.Context, identifier string) (string, error)
+}
+
+func resolveCustomTokenMinter(sources ...any) customTokenMinter {
+	for _, source := range sources {
+		if minter, ok := source.(customTokenMinter); ok && minter != nil {
+			return minter
+		}
+	}
+	return nil
+}
+
+// CreateCustomToken asks the active provider to mint a short-lived custom
+// authentication token for an existing provider identity. The identifier is
+// provider-neutral at this boundary; Firebase accepts an email address or UID.
+// Callers must still exchange the result through the provider's client SDK and
+// submit the resulting ID token through the normal verified login path.
+func (a *AuthAdapter) CreateCustomToken(ctx context.Context, identifier string) (string, error) {
+	identifier = strings.TrimSpace(identifier)
+	if identifier == "" {
+		return "", fmt.Errorf("custom token identifier is required")
+	}
+	if a == nil || a.customTokenMinter == nil {
+		return "", fmt.Errorf("custom token minting is not supported by the active auth provider")
+	}
+
+	token, err := a.customTokenMinter.CreateCustomToken(ctx, identifier)
+	if err != nil {
+		return "", fmt.Errorf("create custom token: %w", err)
+	}
+	if strings.TrimSpace(token) == "" {
+		return "", fmt.Errorf("create custom token: provider returned an empty token")
+	}
+	return token, nil
 }
 
 // VerifyTokenWithSignInProvider verifies an ID token and returns the signed-in

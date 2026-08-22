@@ -5,13 +5,13 @@ package entity
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	delegatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate"
 	delegateclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/delegate_client"

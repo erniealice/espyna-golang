@@ -5,7 +5,7 @@ package tax
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	taxregistrationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_registration"
 )
 
@@ -183,7 +183,7 @@ func (r *SQLServerTaxRegistrationRepository) FindActive(ctx context.Context, par
 		`SELECT tr.id, tr.party_type, tr.party_id, tr.tax_registration_kind_id,
 		        tr.compute_path_snapshot, tr.party_role_snapshot,
 		        tr.status, tr.effective_from, tr.effective_to, tr.workspace_id
-		 FROM ` + entityid.TaxRegistration + ` tr
+		 FROM `+entityid.TaxRegistration+` tr
 		 WHERE tr.party_type = @p1
 		   AND tr.party_id = @p2
 		   AND tr.status IN (2, 3, 4)
@@ -274,8 +274,8 @@ func (r *SQLServerTaxRegistrationRepository) FindActiveByComputePath(ctx context
 				tr.id, tr.party_type, tr.party_id, tr.tax_registration_kind_id,
 				tr.compute_path_snapshot, tr.party_role_snapshot,
 				tr.status, tr.effective_from, tr.effective_to, tr.workspace_id
-			 FROM ` + entityid.TaxRegistration + ` tr
-			 JOIN ` + entityid.TaxRegistrationKind + ` trk ON trk.id = tr.tax_registration_kind_id
+			 FROM `+entityid.TaxRegistration+` tr
+			 JOIN `+entityid.TaxRegistrationKind+` trk ON trk.id = tr.tax_registration_kind_id
 			 WHERE tr.party_type = @p1
 			   AND tr.party_id = @p2
 			   AND tr.compute_path_snapshot = @p3
@@ -295,7 +295,7 @@ func (r *SQLServerTaxRegistrationRepository) FindActiveByComputePath(ctx context
 				tr.id, tr.party_type, tr.party_id, tr.tax_registration_kind_id,
 				tr.compute_path_snapshot, tr.party_role_snapshot,
 				tr.status, tr.effective_from, tr.effective_to, tr.workspace_id
-			 FROM ` + entityid.TaxRegistration + ` tr
+			 FROM `+entityid.TaxRegistration+` tr
 			 WHERE tr.party_type = @p1
 			   AND tr.party_id = @p2
 			   AND tr.compute_path_snapshot = @p3

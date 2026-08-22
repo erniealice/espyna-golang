@@ -19,6 +19,7 @@ import (
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	jobtemplaterelationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_relation"
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
+	planjobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/plan_job_template"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
@@ -131,6 +132,15 @@ type stubJobTemplateRelationRepo struct {
 	byParent map[string][]*jobtemplaterelationpb.JobTemplateRelation
 }
 
+type stubPlanJobTemplateRepo struct {
+	planjobtemplatepb.UnimplementedPlanJobTemplateDomainServiceServer
+	byPlan map[string][]*planjobtemplatepb.PlanJobTemplate
+}
+
+func (r *stubPlanJobTemplateRepo) ListPlanJobTemplatesByPlan(_ context.Context, req *planjobtemplatepb.ListPlanJobTemplatesByPlanRequest) (*planjobtemplatepb.ListPlanJobTemplatesByPlanResponse, error) {
+	return &planjobtemplatepb.ListPlanJobTemplatesByPlanResponse{Success: true, PlanJobTemplates: r.byPlan[req.GetPlanId()]}, nil
+}
+
 func (r *stubJobTemplateRelationRepo) ListByParent(_ context.Context, req *jobtemplaterelationpb.ListJobTemplateRelationsByParentRequest) (*jobtemplaterelationpb.ListJobTemplateRelationsByParentResponse, error) {
 	return &jobtemplaterelationpb.ListJobTemplateRelationsByParentResponse{
 		JobTemplateRelations: r.byParent[req.ParentTemplateId],
@@ -218,6 +228,7 @@ type fixtureOpts struct {
 	failOnNthCreate   int
 	withMBE           bool
 	withRelationRepo  bool
+	composition       []*planjobtemplatepb.PlanJobTemplate
 	// Closed-AY spawn guard (red-team HIGH #3). When priceScheduleID is set, the
 	// price_plan points at it and a matching price_schedule row is wired.
 	// scheduleInactive / scheduleEnded model the two blocking window states.
@@ -279,6 +290,10 @@ func newFixture(t *testing.T, opts fixtureOpts) *fixture {
 		}
 		relRepo = &stubJobTemplateRelationRepo{byParent: byParent}
 	}
+	var compositionRepo planjobtemplatepb.PlanJobTemplateDomainServiceServer
+	if len(opts.composition) > 0 {
+		compositionRepo = &stubPlanJobTemplateRepo{byPlan: map[string][]*planjobtemplatepb.PlanJobTemplate{planID: opts.composition}}
+	}
 
 	jobRepo := &stubJobRepo{failOnIdx: opts.failOnNthCreate}
 	jobPhaseRepo := &stubJobPhaseRepo{}
@@ -300,6 +315,7 @@ func newFixture(t *testing.T, opts fixtureOpts) *fixture {
 			JobTemplatePhase:    phaseRepo,
 			JobTemplateTask:     taskRepo,
 			JobTemplateRelation: relRepo,
+			PlanJobTemplate:     compositionRepo,
 			Job:                 jobRepo,
 			JobPhase:            jobPhaseRepo,
 			JobTask:             jobTaskRepo,

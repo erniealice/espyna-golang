@@ -8,7 +8,7 @@ import (
 	"net/netip"
 	"strings"
 
-	"github.com/google/uuid"
+	"uuid"
 
 	infraports "github.com/erniealice/espyna-golang/ports"
 	"github.com/erniealice/espyna-golang/shared/identity"
@@ -32,7 +32,7 @@ func AuditContextMiddleware(next http.Handler) http.Handler {
 		// Request ID: use incoming header or generate one
 		requestID := r.Header.Get("X-Request-ID")
 		if requestID == "" {
-			requestID = uuid.Must(uuid.NewV7()).String()
+			requestID = uuid.NewV7().String()
 		}
 
 		ac := infraports.AuditContext{

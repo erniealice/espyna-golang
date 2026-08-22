@@ -5,8 +5,9 @@ package middleware
 import (
 	"strings"
 
+	"uuid"
+
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 
 	infraports "github.com/erniealice/espyna-golang/ports"
 )
@@ -32,7 +33,7 @@ func AuditContext() gin.HandlerFunc {
 		// Request ID: use incoming header or generate one.
 		requestID := c.GetHeader("X-Request-ID")
 		if requestID == "" {
-			requestID = uuid.Must(uuid.NewV7()).String()
+			requestID = uuid.NewV7().String()
 		}
 
 		// IP address: prefer X-Forwarded-For first entry, else RemoteAddr.

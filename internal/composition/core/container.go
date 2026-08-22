@@ -170,7 +170,7 @@ func NewContainer() *Container {
 // Environment variables (provider selection):
 //   - CONFIG_DATABASE_PROVIDER: mock_db, postgres, firestore (default: mock_db)
 //   - CONFIG_AUTH_PROVIDER: mock, password, firebase (default: mock)
-//   - CONFIG_ID_PROVIDER: noop, google_uuidv7 (default: noop)
+//   - CONFIG_ID_PROVIDER: noop, uuidv7 (default: noop)
 //   - CONFIG_STORAGE_PROVIDER: mock_storage, local, gcs (default: mock_storage)
 //   - CONFIG_EMAIL_PROVIDER: mock_email, google_email, microsoft_email (default: mock_email)
 //   - CONFIG_PAYMENT_PROVIDER: mock_payment, asiapay, stripe (default: mock_payment)

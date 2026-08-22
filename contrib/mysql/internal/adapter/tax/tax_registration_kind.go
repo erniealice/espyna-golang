@@ -5,16 +5,16 @@ package tax
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	taxregistrationkindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_registration_kind"
 )
 
@@ -118,7 +118,7 @@ func (r *MySQLTaxRegistrationKindRepository) FindByPartyType(ctx context.Context
 	// Dialect: JSON_CONTAINS replaces postgres ANY(array); active = 1 for TINYINT boolean.
 	// applicable_party_types is stored as a JSON array in MySQL (e.g. ["CLIENT","WORKSPACE"]).
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT k.id FROM ` + entityid.TaxRegistrationKind + ` k
+		`SELECT k.id FROM `+entityid.TaxRegistrationKind+` k
 		 WHERE active = 1
 		   AND JSON_CONTAINS(k.applicable_party_types, JSON_QUOTE(?), '$')
 		 ORDER BY k.name`,

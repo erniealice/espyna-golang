@@ -5,17 +5,17 @@ package entity
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -276,7 +276,7 @@ func (r *MySQLWorkspaceRepository) GetWorkspaceListPageData(
 				w.active,
 				w.date_created,
 				w.date_modified
-			FROM ` + entityid.Workspace + ` w
+			FROM `+entityid.Workspace+` w
 			%s
 		),
 		counted AS (
@@ -496,7 +496,7 @@ func (r *MySQLWorkspaceRepository) SwitchWorkspace(ctx context.Context, req *wor
 	// Dialect: $1/$2 → ?; active = true → active = 1
 	var wsUserID string
 	err := exec.QueryRowContext(ctx,
-		`SELECT wu.id FROM ` + entityid.WorkspaceUser + ` wu
+		`SELECT wu.id FROM `+entityid.WorkspaceUser+` wu
 		 WHERE wu.user_id = ? AND wu.workspace_id = ? AND wu.active = 1
 		 LIMIT 1`,
 		userID, req.WorkspaceId,
@@ -507,7 +507,7 @@ func (r *MySQLWorkspaceRepository) SwitchWorkspace(ctx context.Context, req *wor
 
 	var wsName string
 	_ = exec.QueryRowContext(ctx,
-		`SELECT name FROM ` + entityid.Workspace + ` WHERE id = ? AND active = 1`,
+		`SELECT name FROM `+entityid.Workspace+` WHERE id = ? AND active = 1`,
 		req.WorkspaceId,
 	).Scan(&wsName)
 
@@ -541,8 +541,8 @@ func (r *MySQLWorkspaceRepository) ListUserWorkspaces(ctx context.Context, req *
 	// Dialect: $1 → ?; active = true → active = 1
 	rows, err := exec.QueryContext(ctx,
 		`SELECT w.id, w.name, wu.id AS workspace_user_id
-		 FROM ` + entityid.Workspace + ` w
-		 JOIN ` + entityid.WorkspaceUser + ` wu ON wu.workspace_id = w.id
+		 FROM `+entityid.Workspace+` w
+		 JOIN `+entityid.WorkspaceUser+` wu ON wu.workspace_id = w.id
 		 WHERE wu.user_id = ? AND wu.active = 1 AND w.active = 1
 		 ORDER BY w.name`,
 		req.UserId,

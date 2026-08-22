@@ -5,7 +5,8 @@ package core
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"sort"
@@ -1743,7 +1744,7 @@ func normalizeValue(v any) any {
 // "{CLIENT,WORKSPACE}" (text[]/enum[]), or "{}" (empty). It returns a native
 // []any of the scalar elements so a subsequent json.Marshal emits a real JSON
 // array [...] that protojson accepts for repeated proto fields. Integer-looking
-// elements become json.Number (preserved exactly by json.Marshal, accepted by
+// elements become jsontext.Value numbers (preserved exactly by json.Marshal, accepted by
 // protojson for both int and enum repeated fields); everything else is returned
 // as an unquoted/unescaped string. The bool result is false when the value is
 // not a PG array literal (so the caller falls back to its string handling).
@@ -1780,9 +1781,9 @@ func parsePGArrayLiteral(s string) ([]any, bool) {
 				quotedElem = false
 				return
 			}
-			// Integer-looking → json.Number so json.Marshal emits a bare number.
+			// Integer-looking → jsontext.Value so json.Marshal emits a bare number.
 			if isPGInteger(t) {
-				out = append(out, json.Number(t))
+				out = append(out, jsontext.Value(t))
 				quotedElem = false
 				return
 			}

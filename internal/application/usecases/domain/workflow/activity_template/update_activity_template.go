@@ -2,7 +2,7 @@ package activity_template
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"regexp"
@@ -10,8 +10,8 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	activityTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/activity_template"
 	stageTemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/workflow/stage_template"
 )
@@ -24,9 +24,9 @@ type UpdateActivityTemplateRepositories struct {
 
 // UpdateActivityTemplateServices groups all business service dependencies
 type UpdateActivityTemplateServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -56,8 +56,8 @@ func NewUpdateActivityTemplateUseCaseUngrouped(activityTemplateRepo activityTemp
 	}
 
 	services := UpdateActivityTemplateServices{
-		Authorizer: nil,
-		Transactor: ports.NewNoOpTransactor(),
+		Authorizer:       nil,
+		Transactor:       ports.NewNoOpTransactor(),
 		Translator:       ports.NewNoOpTranslator(),
 		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}

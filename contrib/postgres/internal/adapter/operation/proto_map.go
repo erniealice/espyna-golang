@@ -3,7 +3,7 @@
 package operation
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"

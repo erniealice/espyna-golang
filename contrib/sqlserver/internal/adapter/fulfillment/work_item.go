@@ -5,7 +5,7 @@ package fulfillment
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"strings"
@@ -13,11 +13,11 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/fulfillment"
 )
@@ -285,10 +285,10 @@ func (r *SQLServerFulfillmentRepository) GetFulfillmentListPageData(
 				COUNT(DISTINCT fi.id) AS item_count,
 				COUNT(DISTINCT fse.id) AS status_event_count,
 				COUNT(*) OVER() AS total_count
-			FROM ` + entityid.Fulfillment + ` f
-			LEFT JOIN ` + entityid.Supplier + ` s ON s.id = f.supplier_id AND s.active = 1
-			LEFT JOIN ` + entityid.FulfillmentItem + ` fi ON fi.fulfillment_id = f.id
-			LEFT JOIN ` + entityid.FulfillmentStatusEvent + ` fse ON fse.fulfillment_id = f.id
+			FROM `+entityid.Fulfillment+` f
+			LEFT JOIN `+entityid.Supplier+` s ON s.id = f.supplier_id AND s.active = 1
+			LEFT JOIN `+entityid.FulfillmentItem+` fi ON fi.fulfillment_id = f.id
+			LEFT JOIN `+entityid.FulfillmentStatusEvent+` fse ON fse.fulfillment_id = f.id
 			%s
 			GROUP BY
 				f.id, f.date_created, f.date_modified, f.active, f.workspace_id,

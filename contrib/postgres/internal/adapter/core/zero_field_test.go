@@ -3,7 +3,7 @@
 package core
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"testing"
 
 	"google.golang.org/protobuf/encoding/protojson"

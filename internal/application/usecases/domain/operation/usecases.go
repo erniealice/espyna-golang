@@ -28,6 +28,7 @@ import (
 	jobTemplateTaskUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/job_template_task"
 	outcomeCriteriaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/outcome_criteria"
 	phaseOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/phase_outcome_summary"
+	planJobTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/plan_job_template"
 	reportingCheckpointUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/reporting_checkpoint"
 	scoreScaleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/score_scale"
 	scoreScaleBandUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/score_scale_band"
@@ -70,6 +71,7 @@ import (
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
 	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
 	phaseoutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
+	planjobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/plan_job_template"
 	reportingcheckpointpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/reporting_checkpoint"
 	scorescalepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale"
 	scorescalebandpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale_band"
@@ -93,6 +95,7 @@ import (
 	// Cross-domain dependency for the OnJobPhaseCompleted hook + the
 	// MaterializeBillingEventsForJob use case (milestone-billing plan §3).
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
+	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
@@ -119,6 +122,7 @@ type OperationRepositories struct {
 	JobTemplatePhase    jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
 	JobTemplateTask     jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
 	JobTemplateRelation jobtemplaterelationpb.JobTemplateRelationDomainServiceServer
+	PlanJobTemplate     planjobtemplatepb.PlanJobTemplateDomainServiceServer
 	JobActivity         jobactivitypb.JobActivityDomainServiceServer
 	// JobCategory — per-workspace job taxonomy reference entity (20260714).
 	JobCategory jobcategorypb.JobCategoryDomainServiceServer
@@ -164,6 +168,7 @@ type OperationRepositories struct {
 
 	// Milestone-billing cross-domain reads (Phase C).
 	BillingEvent     billingeventpb.BillingEventDomainServiceServer
+	Plan             planpb.PlanDomainServiceServer
 	Subscription     subscriptionpb.SubscriptionDomainServiceServer
 	PricePlan        priceplanpb.PricePlanDomainServiceServer
 	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
@@ -187,6 +192,7 @@ type OperationUseCases struct {
 	JobTemplate         *jobTemplateUseCases.UseCases
 	JobTemplatePhase    *jobTemplatePhaseUseCases.UseCases
 	JobTemplateRelation *jobTemplateRelationUseCases.UseCases
+	PlanJobTemplate     *planJobTemplateUseCases.UseCases
 	JobTemplateTask     *jobTemplateTaskUseCases.UseCases
 	JobActivity         *jobActivityUseCases.UseCases
 	// JobCategory — per-workspace job taxonomy reference entity (20260714).
@@ -699,6 +705,20 @@ func NewUseCases(
 			ActionGatekeeper: actionGate,
 		},
 	)
+	planJobTemplateUC := planJobTemplateUseCases.NewUseCases(
+		planJobTemplateUseCases.Repositories{
+			PlanJobTemplate: repos.PlanJobTemplate,
+			Plan:            repos.Plan,
+			JobTemplate:     repos.JobTemplate,
+		},
+		planJobTemplateUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
 
 	return &OperationUseCases{
 		Job:                               jobUC,
@@ -707,6 +727,7 @@ func NewUseCases(
 		JobTemplate:                       jobTemplateUC,
 		JobTemplatePhase:                  jobTemplatePhaseUC,
 		JobTemplateRelation:               jobTemplateRelationUC,
+		PlanJobTemplate:                   planJobTemplateUC,
 		JobTemplateTask:                   jobTemplateTaskUC,
 		JobActivity:                       jobActivityUC,
 		JobCategory:                       jobCategoryUC,

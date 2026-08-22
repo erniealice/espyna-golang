@@ -3,10 +3,10 @@
 package product
 
 import (
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"log"
 	"time"
 

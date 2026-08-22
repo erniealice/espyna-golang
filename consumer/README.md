@@ -130,7 +130,7 @@ The adapter is only compiled into the binary when the tag is present.
 | **Tabular** |||||
 | `register_tabular_google_sheets.go` | `google_sheets` | Google Sheets | `contrib/google` | Google Sheets API |
 | **ID** |||||
-| `register_id_uuidv7.go` | `google_uuidv7` | UUIDv7 (Google) | `contrib/google` | github.com/google/uuid |
+| `register_id_uuidv7.go` | `uuidv7` | UUIDv7 (standard library) | `contrib/google` | uuid |
 
 ## Build Tag Examples
 
@@ -142,10 +142,10 @@ go build -tags "http,mock_db,mock_auth,mock_storage,mock_email" ./cmd/server
 go build -tags "http,postgresql,mock_auth,mock_email" ./cmd/server
 
 # Production GCP stack
-go build -tags "http,postgresql,firebase_auth,gcp_storage,google_uuidv7,google_email,asiapay,calendly" ./cmd/server
+go build -tags "http,postgresql,firebase_auth,gcp_storage,uuidv7,google_email,asiapay,calendly" ./cmd/server
 
 # Production with multiple payment gateways
-go build -tags "http,postgresql,firebase_auth,gcp_storage,google_uuidv7,google_email,maya,asiapay,paypal" ./cmd/server
+go build -tags "http,postgresql,firebase_auth,gcp_storage,uuidv7,google_email,maya,asiapay,paypal" ./cmd/server
 ```
 
 ## Adding a New Adapter
@@ -309,6 +309,6 @@ No. HTTP server adapters use mutual exclusion (audit-tags.sh enforces it).
 | `CONFIG_SCHEDULER_PROVIDER` | `calendly`, `google_calendar`, `mock_scheduler` | `mock_scheduler` |
 | `CONFIG_FULFILLMENT_PROVIDER` | `lalamove`, `grabexpress`, `mock_fulfillment` | `mock_fulfillment` |
 | `CONFIG_STORAGE_PROVIDER` | `gcp_storage`, `aws_storage`, `azure_storage`, `local_storage`, `mock_storage` | `mock_storage` |
-| `CONFIG_ID_PROVIDER` | `google_uuidv7`, `noop` | `noop` |
+| `CONFIG_ID_PROVIDER` | `uuidv7`, `noop` | `noop` |
 | `CONFIG_SERVER_PROVIDER` | `http`, `gin`, `fiber`, `grpc` | `http` |
 | `CONFIG_TABULAR_PROVIDER` | `google_sheets`, `mock_tabular` | `mock_tabular` |

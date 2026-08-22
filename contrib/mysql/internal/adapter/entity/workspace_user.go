@@ -5,16 +5,16 @@ package entity
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"strings"
 	"time"
 
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
@@ -392,8 +392,8 @@ func (r *MySQLWorkspaceUserRepository) GetWorkspaceUserListPageData(
 						'active', wur.active
 					)
 				) AS roles
-			FROM ` + entityid.WorkspaceUserRole + ` wur
-			JOIN ` + entityid.Role + ` r ON wur.role_id = r.id
+			FROM `+entityid.WorkspaceUserRole+` wur
+			JOIN `+entityid.Role+` r ON wur.role_id = r.id
 			WHERE wur.active = 1 AND r.active = 1
 			GROUP BY wur.workspace_user_id
 		)
@@ -412,7 +412,7 @@ func (r *MySQLWorkspaceUserRepository) GetWorkspaceUserListPageData(
 			u.active AS user_active,
 			COALESCE(ura.roles, JSON_ARRAY()) AS workspace_user_roles,
 			COUNT(*) OVER() AS total_count
-		FROM ` + entityid.WorkspaceUser + ` wu
+		FROM `+entityid.WorkspaceUser+` wu
 		LEFT JOIN `+"`user`"+` u ON wu.user_id = u.id AND u.active = 1
 		LEFT JOIN user_roles_agg ura ON wu.id = ura.workspace_user_id
 		WHERE %s%s

@@ -28,7 +28,7 @@ core/
 │    │  • Configure DatabaseProvider (mock_db | postgres | firestore)  │      │
 │    │  • Configure AuthProvider (mock_auth | firebase_auth)           │      │
 │    │  • Configure StorageProvider (mock_storage | local)             │      │
-│    │  • Configure IDProvider (noop | google_uuidv7)                  │      │
+│    │  • Configure IDProvider (noop | uuidv7)                  │      │
 │    │  • Create DatabaseTableConfig from environment                  │      │
 │    └─────────────────────────────────────────────────────────────────┘      │
 └───────────────────────────────────┬─────────────────────────────────────────┘
@@ -183,7 +183,7 @@ See `config.go` for complete documentation. Quick reference:
 | `CONFIG_DATABASE_PROVIDER` | mock_db, postgres, firestore | mock_db |
 | `CONFIG_AUTH_PROVIDER` | mock_auth, firebase_auth | mock_auth |
 | `CONFIG_STORAGE_PROVIDER` | mock_storage, local | mock_storage |
-| `CONFIG_ID_PROVIDER` | noop, google_uuidv7 | noop |
+| `CONFIG_ID_PROVIDER` | noop, uuidv7 | noop |
 
 ## Container Lifecycle
 

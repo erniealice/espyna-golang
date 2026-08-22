@@ -5,7 +5,7 @@ package treasury
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pettycashfundpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/petty_cash_fund"
 )

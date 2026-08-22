@@ -1,4 +1,4 @@
-//go:build !google_uuidv7
+//go:build !uuidv7
 
 package noop
 

@@ -5,17 +5,17 @@ package entity
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
@@ -372,20 +372,20 @@ func (r *MySQLClientRepository) GetClientListPageData(
 				c.credit_limit,
 				c.lead_time_days,
 				COALESCE(pt.name, '') AS payment_term_name,
-				(SELECT COUNT(*) FROM ` + entityid.Subscription + ` s WHERE s.client_id = c.id AND s.active = 1 AND s.workspace_id = ?) AS active_subscriptions,
+				(SELECT COUNT(*) FROM `+entityid.Subscription+` s WHERE s.client_id = c.id AND s.active = 1 AND s.workspace_id = ?) AS active_subscriptions,
 				u.id AS user_id_value,
 				u.first_name AS user_first_name,
 				u.last_name AS user_last_name,
 				u.email_address AS user_email_address,
 				u.mobile_number AS user_phone_number,
 				COUNT(*) OVER () AS total
-			FROM ` + entityid.Client + ` c
+			FROM `+entityid.Client+` c
 			LEFT JOIN `+"`user`"+` u ON c.user_id = u.id
-			LEFT JOIN ` + entityid.PaymentTerm + ` pt ON c.payment_term_id = pt.id
+			LEFT JOIN `+entityid.PaymentTerm+` pt ON c.payment_term_id = pt.id
 			%s
 		)
 		SELECT * FROM enriched
-		` + orderByClause + `
+		`+orderByClause+`
 		LIMIT ? OFFSET ?;
 	`, whereSQL)
 

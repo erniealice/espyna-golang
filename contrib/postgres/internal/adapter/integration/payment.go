@@ -5,15 +5,16 @@ package integration
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"time"
+
+	"uuid"
 
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	paymentpb "github.com/erniealice/esqyma/pkg/schema/v1/integration/payment"
-	"github.com/google/uuid"
 )
 
 func init() {
@@ -62,11 +63,7 @@ func (r *PostgresIntegrationPaymentRepository) LogWebhook(ctx context.Context, r
 	if id == "" {
 		// UUIDv7 keeps webhook-log ids on the platform id policy (time-ordered,
 		// index-friendly) — never a random v4 id.
-		newID, err := uuid.NewV7()
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate webhook log id: %w", err)
-		}
-		id = newID.String()
+		id = uuid.NewV7().String()
 	}
 
 	now := time.Now()

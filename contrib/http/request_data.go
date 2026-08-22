@@ -2,7 +2,8 @@ package espynahttp
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -72,8 +73,7 @@ func ReadRequestBody(body io.ReadCloser) ([]byte, error) {
 func WriteJSONResponse(w http.ResponseWriter, response any) error {
 	w.Header().Set("Content-Type", "application/json")
 
-	encoder := json.NewEncoder(w)
-	if err := encoder.Encode(response); err != nil {
+	if err := json.MarshalEncode(jsontext.NewEncoder(w), response); err != nil {
 		return fmt.Errorf("failed to encode JSON response: %w", err)
 	}
 

@@ -1,6 +1,6 @@
 module github.com/erniealice/espyna-golang
 
-go 1.25.1
+go 1.27.0
 
 require (
 	github.com/erniealice/espyna-golang/contrib/asiapay v0.1.0-alpha.1
@@ -19,7 +19,6 @@ require (
 	github.com/erniealice/lyngua v0.1.0-alpha.1
 	github.com/erniealice/pyeza-golang v0.1.0-alpha.1
 	github.com/google/cel-go v0.23.0
-	github.com/google/uuid v1.6.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	golang.org/x/crypto v0.47.0
 	google.golang.org/protobuf v1.36.11

@@ -5,15 +5,15 @@ package operation
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
 )
@@ -229,7 +229,7 @@ func (r *MySQLJobActivityRepository) GetJobActivityListPageData(ctx context.Cont
 				ja.active,
 				j.name AS job_name
 			FROM %s ja
-			LEFT JOIN ` + entityid.Job + ` j ON j.id = ja.job_id
+			LEFT JOIN `+entityid.Job+` j ON j.id = ja.job_id
 			WHERE ja.active = 1
 		),
 		counted AS (

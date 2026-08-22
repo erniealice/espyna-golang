@@ -5,15 +5,15 @@ package subscription
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"time"
 
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -266,7 +266,7 @@ func (r *SQLServerPricePlanRepository) GetPricePlanListPageData(ctx context.Cont
 		SELECT id, plan_id, billing_amount, billing_currency, name, description, active,
 		       date_created, date_modified, price_schedule_id, billing_kind, amount_basis,
 		       billing_cycle_value, billing_cycle_unit, default_term_value, default_term_unit
-		FROM ` + entityid.PricePlan + `
+		FROM `+entityid.PricePlan+`
 		WHERE active = 1
 		  AND (@p1 IS NULL OR @p1 = '' OR plan_id LIKE @p1 OR billing_currency LIKE @p1)
 		ORDER BY [%s] %s

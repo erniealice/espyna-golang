@@ -62,22 +62,20 @@ func (p *IDProviderAdapter) GetIDService() ports.IDGenerator {
 // The provider reads its own environment variables - composition layer is provider-agnostic.
 //
 // Uses CONFIG_ID_PROVIDER environment variable to select which provider to use:
-//   - "google_uuidv7" → Google UUID v7 provider (requires google_uuidv7 build tag)
+//   - "uuidv7" → Go standard library UUID v7 provider (requires uuidv7 build tag)
 //   - "noop" → NoOp provider (timestamp-based, for dev/test)
 //
-// Retired aliases (startup error): "uuidv7", "mock", "".
+// Retired aliases (startup error): "mock", "". All unknown names fail closed.
 // A missing or unknown provider fails at startup — no silent fallback.
 func CreateIDProvider() (contracts.Provider, error) {
 	providerName := strings.ToLower(os.Getenv("CONFIG_ID_PROVIDER"))
 
 	// Reject retired aliases with a clear error message
 	switch providerName {
-	case "uuidv7":
-		return nil, fmt.Errorf("CONFIG_ID_PROVIDER=%q is a retired alias — use \"google_uuidv7\" instead", providerName)
 	case "mock":
 		return nil, fmt.Errorf("CONFIG_ID_PROVIDER=%q is a retired alias — use \"noop\" instead", providerName)
 	case "":
-		return nil, fmt.Errorf("CONFIG_ID_PROVIDER is empty — set it explicitly to \"google_uuidv7\" or \"noop\"")
+		return nil, fmt.Errorf("CONFIG_ID_PROVIDER is empty — set it explicitly to \"uuidv7\" or \"noop\"")
 	}
 
 	// Let the provider build and configure itself from environment

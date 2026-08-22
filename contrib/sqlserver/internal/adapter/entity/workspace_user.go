@@ -5,16 +5,16 @@ package entity
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"strings"
 	"time"
 
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
@@ -385,12 +385,12 @@ func (r *SQLServerWorkspaceUserRepository) GetWorkspaceUserListPageData(
 				r.description AS [role.description],
 				r.color AS [role.color],
 				r.active AS [role.active]
-			 FROM ` + entityid.WorkspaceUserRole + ` wur
-			 JOIN ` + entityid.Role + ` r ON wur.role_id = r.id
+			 FROM `+entityid.WorkspaceUserRole+` wur
+			 JOIN `+entityid.Role+` r ON wur.role_id = r.id
 			 WHERE wur.workspace_user_id = wu.id AND wur.active = 1 AND r.active = 1
 			 FOR JSON PATH) AS workspace_user_roles,
 			COUNT(*) OVER () AS total_count
-		FROM ` + entityid.WorkspaceUser + ` wu
+		FROM `+entityid.WorkspaceUser+` wu
 		LEFT JOIN [user] u ON wu.user_id = u.id AND u.active = 1
 		WHERE %s%s
 		ORDER BY %s %s

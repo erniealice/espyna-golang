@@ -6,19 +6,20 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"os"
 	"strconv"
 	"time"
 
+	"uuid"
+
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	dbinterfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/infrastructure/auth"
-	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -176,7 +177,7 @@ func (a *PasswordAuthAdapter) SetOperations(ops dbinterfaces.DatabaseOperation) 
 
 // SetIDGenerator injects the platform IDGenerator so user and session ids
 // minted here follow the configured id policy (CONFIG_ID_PROVIDER, e.g.
-// google_uuidv7). Mirrors the SetOperations injection seam — the container
+// uuidv7). Mirrors the SetOperations injection seam — the container
 // wires it in consumer.NewAuthAdapterFromContainer.
 func (a *PasswordAuthAdapter) SetIDGenerator(gen ports.IDGenerator) {
 	a.idGenerator = gen
@@ -186,17 +187,13 @@ func (a *PasswordAuthAdapter) SetIDGenerator(gen ports.IDGenerator) {
 }
 
 // newUserID mints an id for a newly registered user. It prefers the injected
-// platform IDGenerator (uuidv7 under CONFIG_ID_PROVIDER=google_uuidv7) and
+// platform IDGenerator (uuidv7 under CONFIG_ID_PROVIDER=uuidv7) and
 // falls back to a direct UUIDv7 — it never mints a random (v4) UUID.
 func (a *PasswordAuthAdapter) newUserID() (string, error) {
 	if a.idGenerator != nil && a.idGenerator.IsEnabled() {
 		return a.idGenerator.GenerateID(), nil
 	}
-	id, err := uuid.NewV7()
-	if err != nil {
-		return "", fmt.Errorf("failed to generate user id: %w", err)
-	}
-	return id.String(), nil
+	return uuid.NewV7().String(), nil
 }
 
 // GetAuthService returns the authentication service (returns itself).

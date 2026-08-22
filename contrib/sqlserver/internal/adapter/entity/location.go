@@ -5,17 +5,17 @@ package entity
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
 	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
@@ -288,13 +288,13 @@ func (r *SQLServerLocationRepository) GetLocationListPageData(
 					la.location_id,
 					la.attribute_id,
 					la.value
-				 FROM ` + entityid.LocationAttribute + ` la
+				 FROM `+entityid.LocationAttribute+` la
 				 WHERE la.location_id = l.id
 				 ORDER BY la.attribute_id
 				 FOR JSON PATH) AS location_attributes,
 				COUNT(*) OVER () AS total
-			FROM ` + entityid.Location + ` l
-			LEFT JOIN ` + entityid.LocationArea + ` la2 ON l.location_area_id = la2.id
+			FROM `+entityid.Location+` l
+			LEFT JOIN `+entityid.LocationArea+` la2 ON l.location_area_id = la2.id
 			%s
 		),
 		counted AS (

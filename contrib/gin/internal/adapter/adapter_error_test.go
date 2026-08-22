@@ -4,7 +4,8 @@ package adapter
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -52,7 +53,7 @@ func TestCreateGinHandler_ExecutionErrorsAreSanitized(t *testing.T) {
 				t.Fatalf("status: got %d want %d", recorder.Code, test.wantStatus)
 			}
 			var body map[string]any
-			if err := json.NewDecoder(recorder.Body).Decode(&body); err != nil {
+			if err := json.UnmarshalDecode(jsontext.NewDecoder(recorder.Body), &body); err != nil {
 				t.Fatalf("decode body: %v", err)
 			}
 			if body["error"] != test.wantError || body["route_name"] != "demo" {

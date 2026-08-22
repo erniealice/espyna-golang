@@ -5,18 +5,18 @@ package finance
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	forexratepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/finance/forex_rate"
 )
 
@@ -121,7 +121,7 @@ func (r *PostgresForexRateRepository) FindMostRecent(ctx context.Context, worksp
 		return nil, fmt.Errorf("FindMostRecent requires raw *sql.DB")
 	}
 	row := r.db.QueryRowContext(ctx,
-		`SELECT row_to_json(fr) FROM ` + entityid.ForexRate + ` fr
+		`SELECT row_to_json(fr) FROM `+entityid.ForexRate+` fr
 		 WHERE fr.workspace_id = $1
 		   AND fr.from_currency = $2
 		   AND fr.to_currency = $3
@@ -149,7 +149,7 @@ func (r *PostgresForexRateRepository) FindActive(ctx context.Context, workspaceI
 		return nil, fmt.Errorf("FindActive requires raw *sql.DB")
 	}
 	row := r.db.QueryRowContext(ctx,
-		`SELECT row_to_json(fr) FROM ` + entityid.ForexRate + ` fr
+		`SELECT row_to_json(fr) FROM `+entityid.ForexRate+` fr
 		 WHERE fr.workspace_id = $1
 		   AND fr.from_currency = $2
 		   AND fr.to_currency = $3
@@ -196,7 +196,7 @@ func (r *PostgresForexRateRepository) SupersedePrior(ctx context.Context, priorI
 		return fmt.Errorf("SupersedePrior requires raw *sql.DB")
 	}
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE ` + entityid.ForexRate + ` SET status = 3, effective_to = $1
+		`UPDATE `+entityid.ForexRate+` SET status = 3, effective_to = $1
 		 WHERE id = $2
 		   AND workspace_id = $3
 		   AND status = 2`,

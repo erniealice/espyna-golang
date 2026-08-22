@@ -22,7 +22,7 @@ package revenue
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"strings"
@@ -30,11 +30,11 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
 	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
@@ -362,12 +362,12 @@ func (r *SQLServerRevenueRepository) GetRevenueListPageData(
 				COALESCE(c.name, '') as client_name,
 				COALESCE(l.name, '') as location_name,
 				COALESCE(pt.name, '') as payment_term_name,
-				CAST(CASE WHEN EXISTS(SELECT 1 FROM ` + entityid.TreasuryCollection + ` tc WHERE tc.revenue_id = rv.id) THEN 1 ELSE 0 END AS BIT) as has_collection,
+				CAST(CASE WHEN EXISTS(SELECT 1 FROM `+entityid.TreasuryCollection+` tc WHERE tc.revenue_id = rv.id) THEN 1 ELSE 0 END AS BIT) as has_collection,
 				COUNT(*) OVER() AS total_count
 			FROM %s rv
-			LEFT JOIN ` + entityid.Client + ` c ON rv.client_id = c.id AND c.active = 1
-			LEFT JOIN ` + entityid.Location + ` l ON rv.location_id = l.id AND l.active = 1
-			LEFT JOIN ` + entityid.PaymentTerm + ` pt ON rv.payment_term_id = pt.id
+			LEFT JOIN `+entityid.Client+` c ON rv.client_id = c.id AND c.active = 1
+			LEFT JOIN `+entityid.Location+` l ON rv.location_id = l.id AND l.active = 1
+			LEFT JOIN `+entityid.PaymentTerm+` pt ON rv.payment_term_id = pt.id
 			%s
 		)
 		SELECT * FROM enriched
@@ -575,8 +575,8 @@ func (r *SQLServerRevenueRepository) GetRevenueItemPageData(
 				COALESCE(c.name, '') as client_name,
 				COALESCE(l.name, '') as location_name
 			FROM %s rv
-			LEFT JOIN ` + entityid.Client + ` c ON rv.client_id = c.id AND c.active = 1
-			LEFT JOIN ` + entityid.Location + ` l ON rv.location_id = l.id AND l.active = 1
+			LEFT JOIN `+entityid.Client+` c ON rv.client_id = c.id AND c.active = 1
+			LEFT JOIN `+entityid.Location+` l ON rv.location_id = l.id AND l.active = 1
 			WHERE rv.id = @p1 AND rv.workspace_id = @p2 AND rv.active = 1
 		)
 		SELECT TOP 1 * FROM enriched;

@@ -31,6 +31,7 @@ func InitializeOperation(
 		JobTemplatePhase:    repos.JobTemplatePhase,
 		JobTemplateTask:     repos.JobTemplateTask,
 		JobTemplateRelation: repos.JobTemplateRelation,
+		PlanJobTemplate:     repos.PlanJobTemplate,
 		JobActivity:         repos.JobActivity,
 		// JobCategory — per-workspace job taxonomy reference entity (20260714).
 		JobCategory: repos.JobCategory,
@@ -88,6 +89,7 @@ func InitializeOperation(
 	}
 	if subRepos != nil {
 		opRepos.BillingEvent = subRepos.BillingEvent
+		opRepos.Plan = subRepos.Plan
 		opRepos.Subscription = subRepos.Subscription
 		opRepos.PricePlan = subRepos.PricePlan
 		opRepos.ProductPricePlan = subRepos.ProductPricePlan

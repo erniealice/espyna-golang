@@ -5,16 +5,16 @@ package subscription
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"sort"
 	"strings"
 
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"

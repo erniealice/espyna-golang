@@ -5,18 +5,18 @@ package treasury
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
@@ -331,7 +331,7 @@ func (r *SQLServerCollectionRepository) GetCollectionListPageData(
 				tc.advance_expiry_date,
 				tc.advance_proration_policy,
 				tc.client_id
-			FROM ` + entityid.TreasuryCollection + ` tc
+			FROM `+entityid.TreasuryCollection+` tc
 			WHERE tc.active = 1
 			  AND tc.workspace_id = @p1
 			  AND (@p2 = '' OR
@@ -797,8 +797,8 @@ func (r *SQLServerCollectionRepository) ListByClient(ctx context.Context, req *c
 	rows, err := exec.QueryContext(ctx,
 		`SELECT c.id, c.active, c.revenue_id, c.amount, c.status, c.currency,
 		        c.reference_number, c.payment_date, c.collection_type
-		 FROM ` + entityid.TreasuryCollection + ` c
-		 JOIN ` + entityid.Revenue + ` r ON r.id = c.revenue_id
+		 FROM `+entityid.TreasuryCollection+` c
+		 JOIN `+entityid.Revenue+` r ON r.id = c.revenue_id
 		 WHERE r.client_id = @p1
 		   AND (@p2 = '' OR r.workspace_id = @p2)`,
 		req.GetClientId(), wsID,

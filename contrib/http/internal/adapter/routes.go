@@ -3,7 +3,8 @@
 package vanilla
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -83,7 +84,7 @@ func (s *Server) createRouteHandler(route *routing.Route) http.HandlerFunc {
 			fmt.Printf("❌ [METHOD CHECK] Failed: got %s, expected %s\n", r.Method, route.Method)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusMethodNotAllowed)
-			json.NewEncoder(w).Encode(map[string]any{
+			_ = json.MarshalEncode(jsontext.NewEncoder(w), map[string]any{
 				"success": false,
 				"message": "Method not allowed",
 			})
@@ -105,7 +106,7 @@ func (s *Server) createRouteHandler(route *routing.Route) http.HandlerFunc {
 				if err != nil {
 					fmt.Printf("❌ [BODY READ] Failed to read request body: %v\n", err)
 					w.WriteHeader(http.StatusBadRequest)
-					json.NewEncoder(w).Encode(map[string]any{
+					_ = json.MarshalEncode(jsontext.NewEncoder(w), map[string]any{
 						"success": false,
 						"message": "Failed to read request body: " + err.Error(),
 					})
@@ -124,7 +125,7 @@ func (s *Server) createRouteHandler(route *routing.Route) http.HandlerFunc {
 			if err != nil {
 				fmt.Printf("❌ [PARSER] Failed to parse request: %v\n", err)
 				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(map[string]any{
+				_ = json.MarshalEncode(jsontext.NewEncoder(w), map[string]any{
 					"success": false,
 					"message": "Failed to parse request: " + err.Error(),
 				})
@@ -145,7 +146,7 @@ func (s *Server) createRouteHandler(route *routing.Route) http.HandlerFunc {
 				fmt.Printf("❌ [HANDLER EXEC] Handler execution failed: %v\n", err)
 				fmt.Printf("🔍 [ERROR DETAILS] Error type: %T, Error: %s\n", err, err.Error())
 				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(response)
+				json.MarshalEncode(jsontext.NewEncoder(w), response)
 				return
 			}
 
@@ -155,7 +156,7 @@ func (s *Server) createRouteHandler(route *routing.Route) http.HandlerFunc {
 			// Convert protobuf response to JSON
 			fmt.Printf("🔄 [ENCODER] Encoding response to JSON...\n")
 			w.WriteHeader(http.StatusOK)
-			err = json.NewEncoder(w).Encode(response)
+			err = json.MarshalEncode(jsontext.NewEncoder(w), response)
 			if err != nil {
 				fmt.Printf("❌ [ENCODER] Failed to encode response: %v\n", err)
 			} else {
@@ -167,7 +168,7 @@ func (s *Server) createRouteHandler(route *routing.Route) http.HandlerFunc {
 		fmt.Printf("❌ [HANDLER CHECK] No handler found for route\n")
 		// No handler found
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.MarshalEncode(jsontext.NewEncoder(w), map[string]any{
 			"success": false,
 			"message": "Handler not found",
 		})

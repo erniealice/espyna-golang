@@ -5,17 +5,17 @@ package entity
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
@@ -382,12 +382,12 @@ func (r *SQLServerClientRepository) GetClientListPageData(
 				u.mobile_number AS user_phone_number,
 				-- Windowed total — same filter as the page rows; no separate CTE needed.
 				COUNT(*) OVER () AS total
-			FROM ` + entityid.Client + ` c
+			FROM `+entityid.Client+` c
 			LEFT JOIN [user] u ON c.user_id = u.id
-			LEFT JOIN ` + entityid.PaymentTerm + ` pt ON c.payment_term_id = pt.id
+			LEFT JOIN `+entityid.PaymentTerm+` pt ON c.payment_term_id = pt.id
 			OUTER APPLY (
 				SELECT COUNT(*) AS active_subscriptions
-				FROM ` + entityid.Subscription + ` s
+				FROM `+entityid.Subscription+` s
 				WHERE s.client_id = c.id
 				  AND s.active = 1
 				  AND s.workspace_id = @p1
@@ -737,7 +737,7 @@ func (r *SQLServerClientRepository) SearchClientsByName(ctx context.Context, req
 				NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''),
 				c.id
 			) AS label
-		FROM ` + entityid.Client + ` c
+		FROM `+entityid.Client+` c
 		LEFT JOIN [user] u ON c.user_id = u.id
 		WHERE c.active = 1
 			AND (@p1 = '' OR

@@ -5,15 +5,15 @@ package product
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
 
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productvariantimagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant_image"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -266,8 +266,8 @@ func (r *MySQLProductVariantImageRepository) GetProductVariantImageListPageData(
 				pvi.sort_order,
 				pvi.is_primary,
 				COALESCE(pv.sku, '') AS variant_sku
-			FROM ` + entityid.ProductVariantImage + ` pvi
-			LEFT JOIN ` + entityid.ProductVariant + ` pv ON pvi.product_variant_id = pv.id AND pv.active = 1
+			FROM `+entityid.ProductVariantImage+` pvi
+			LEFT JOIN `+entityid.ProductVariant+` pv ON pvi.product_variant_id = pv.id AND pv.active = 1
 			WHERE pvi.active = 1
 			%s
 		),

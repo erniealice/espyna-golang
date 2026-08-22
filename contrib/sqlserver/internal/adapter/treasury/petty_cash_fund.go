@@ -5,18 +5,18 @@ package treasury
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pettycashfundpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/petty_cash_fund"
 )
@@ -287,7 +287,7 @@ func (r *SQLServerPettyCashFundRepository) GetPettyCashFundListPageData(
 				pcf.current_balance,
 				pcf.custodian_id,
 				pcf.location_id
-			FROM ` + entityid.PettyCashFund + ` pcf
+			FROM `+entityid.PettyCashFund+` pcf
 			WHERE pcf.active = 1
 			  AND pcf.workspace_id = @p1
 			  AND (@p2 = '' OR pcf.name LIKE @p2)

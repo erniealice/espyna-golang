@@ -2,6 +2,7 @@ package domain
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
@@ -32,6 +33,7 @@ import (
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
 	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
 	phaseoutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
+	planjobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/plan_job_template"
 	reportingcheckpointpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/reporting_checkpoint"
 	scorescalepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale"
 	scorescalebandpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale_band"
@@ -60,6 +62,7 @@ type OperationRepositories struct {
 	JobTemplatePhase    jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
 	JobTemplateTask     jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
 	JobTemplateRelation jobtemplaterelationpb.JobTemplateRelationDomainServiceServer
+	PlanJobTemplate     planjobtemplatepb.PlanJobTemplateDomainServiceServer
 	JobActivity         jobactivitypb.JobActivityDomainServiceServer
 	// JobCategory — per-workspace job taxonomy reference entity (20260714).
 	JobCategory jobcategorypb.JobCategoryDomainServiceServer
@@ -175,6 +178,12 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 	var jobTemplateRelationServer jobtemplaterelationpb.JobTemplateRelationDomainServiceServer
 	if jobTemplateRelationRepo, jtrErr := repoCreator.CreateRepository(entityid.JobTemplateRelation, conn, tableConfig.TableName(entityid.JobTemplateRelation)); jtrErr == nil {
 		jobTemplateRelationServer = jobTemplateRelationRepo.(jobtemplaterelationpb.JobTemplateRelationDomainServiceServer)
+	}
+	var planJobTemplateServer planjobtemplatepb.PlanJobTemplateDomainServiceServer
+	if repo, pjtErr := repoCreator.CreateRepository(entityid.PlanJobTemplate, conn, tableConfig.TableName(entityid.PlanJobTemplate)); pjtErr == nil {
+		planJobTemplateServer = repo.(planjobtemplatepb.PlanJobTemplateDomainServiceServer)
+	} else {
+		log.Printf("operation provider: plan_job_template repository unavailable: %v", pjtErr)
 	}
 
 	jobActivityRepo, err := repoCreator.CreateRepository(entityid.JobActivity, conn, tableConfig.TableName(entityid.JobActivity))
@@ -366,6 +375,7 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 		JobTemplatePhase:                  jobTemplatePhaseRepo.(jobtemplatephasepb.JobTemplatePhaseDomainServiceServer),
 		JobTemplateTask:                   jobTemplateTaskRepo.(jobtemplatetaskpb.JobTemplateTaskDomainServiceServer),
 		JobTemplateRelation:               jobTemplateRelationServer,
+		PlanJobTemplate:                   planJobTemplateServer,
 		JobActivity:                       jobActivityRepo.(jobactivitypb.JobActivityDomainServiceServer),
 		JobCategory:                       jobCategoryRepo.(jobcategorypb.JobCategoryDomainServiceServer),
 		Product:                           productServer,

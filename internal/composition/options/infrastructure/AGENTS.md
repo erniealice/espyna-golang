@@ -19,7 +19,7 @@ Configures fundamental infrastructure components that the application depends on
 | `database.go` | PostgreSQL, Firestore, Mock | `WithDatabaseFromEnv()`, `WithPostgresDatabase()` |
 | `auth.go` | Firebase, JWT, Mock | Auth provider is now selected via `CONFIG_AUTH_PROVIDER` env var (no With*Auth option-setters); `WithFirebaseAuth()`, `WithJWTAuth()`, `WithMockAuth()`, `WithAuthFromEnv()` were all DELETED in `20260521-composition-reshape` |
 | `storage.go` | GCS, S3, Local, Mock | `WithStorageFromEnv()`, `WithGoogleCloudStorage()` |
-| `id.go` | UUID v7, NoOp | `WithIDFromEnv()`, `WithGoogleUUIDv7()` |
+| `id.go` | UUID v7, NoOp | `WithIDFromEnv()`, `WithUUIDv7()` |
 | `server.go` | Gin, Fiber, Vanilla | `WithServerFromEnv()`, `WithGinServer()` |
 
 ## Usage
@@ -41,5 +41,5 @@ Each provider reads from `CONFIG_*_PROVIDER` to select the implementation:
 - `CONFIG_DATABASE_PROVIDER`: postgres, firestore, mock_db
 - `CONFIG_AUTH_PROVIDER`: firebase_auth, jwt_auth, mock_auth
 - `CONFIG_STORAGE_PROVIDER`: gcs, s3, local_storage
-- `CONFIG_ID_PROVIDER`: google_uuidv7, noop
+- `CONFIG_ID_PROVIDER`: uuidv7, noop
 - `CONFIG_SERVER_FRAMEWORK`: gin, fiber, vanilla

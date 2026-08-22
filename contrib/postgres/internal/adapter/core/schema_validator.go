@@ -75,6 +75,19 @@ func bootShotEnforceEnabled() bool {
 //   - _atlas_review_depreciation_period_collisions — Atlas review scratch table.
 //   - fund_transaction_posted — a VIEW (treasury projection layer), not a base table; no writer.
 //   - activity_execution_log — append-only activity log, written via raw SQL; no table=true proto.
+//   - criteria_group — outcome-criteria lineage/domain anchor created by the
+//     20260718000003/4 migrations and read/written by the raw-SQL outcome_criteria adapter.
+//
+// Migration recovery evidence retained in production is also classified here by
+// exact table name. A 2026-08-16 read-only production audit verified that the 20
+// zz_* relations below have no view, trigger, or FK dependencies and no runtime
+// source references. Do not replace these entries with a prefix exemption: every
+// newly observed recovery table must be reviewed before enforce-mode boot accepts it.
+// The same exact-name rule covers:
+//   - plan_composition_successor_legacy_backup — four-row migration recovery
+//     snapshot in education2, with no views, triggers, or inbound dependencies.
+//   - plan_job_template — normalized plan/template junction already present in
+//     education2; the pinned application graph has no descriptor or writer for it.
 //
 // As the Phase 1 annotation sprint adds table=true to former GAP-B tables, those
 // tables leave this list automatically (they become registry-covered). Keep this
@@ -89,10 +102,35 @@ var descriptorOutOfScope = map[string]bool{
 
 	// Infrastructure / migration / view / log tables — no proto message, no
 	// reflectionless writer. See doc comment above.
-	"schema_migrations": true,
+	"schema_migrations":                            true,
 	"_atlas_review_depreciation_period_collisions": true,
 	"fund_transaction_posted":                      true,
 	"activity_execution_log":                       true,
+	"criteria_group":                               true,
+
+	// Exact migration recovery/mapping relations retained in production.
+	"zz_f2_pos_backup_20260712":                true,
+	"zz_f2_pos_precompute_20260712":            true,
+	"zz_f2_task_outcome_backup_20260712":       true,
+	"zz_f3_job_outprod_backup_20260712":        true,
+	"zz_f3_product_backup_20260712":            true,
+	"zz_f3_product_plan_backup_20260712":       true,
+	"zz_idremap_20260803":                      true,
+	"zz_s8_equality_baseline":                  true,
+	"zz_s8_job_backup":                         true,
+	"zz_s8_jobmap":                             true,
+	"zz_s8_jp_backup":                          true,
+	"zz_s8_jt_backup":                          true,
+	"zz_s8_jtask_backup":                       true,
+	"zz_s8_jtp_backup":                         true,
+	"zz_s8_jtt_backup":                         true,
+	"zz_s8_pairmap":                            true,
+	"zz_s8_pos_backup":                         true,
+	"zz_s8_pp_backup":                          true,
+	"zz_s8_product_backup":                     true,
+	"zz_t16_job_origin_backup_20260711":        true,
+	"plan_composition_successor_legacy_backup": true,
+	"plan_job_template":                        true,
 }
 
 // ValidateSchema is the registered postgresql SchemaValidator. It reads the live

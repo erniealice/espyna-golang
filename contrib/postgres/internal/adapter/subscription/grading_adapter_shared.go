@@ -3,7 +3,7 @@
 package subscription
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 
 	"google.golang.org/protobuf/encoding/protojson"

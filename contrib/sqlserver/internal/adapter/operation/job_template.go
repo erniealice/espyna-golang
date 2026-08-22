@@ -5,19 +5,19 @@ package operation
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
 )
@@ -257,7 +257,7 @@ func (r *SQLServerJobTemplateRepository) GetJobTemplateListPageData(
 				jt.default_fulfillment_type,
 				jt.default_cost_flow_type,
 				jt.default_billing_rule_type
-			FROM ` + entityid.JobTemplate + ` jt
+			FROM `+entityid.JobTemplate+` jt
 			%s
 		),
 		counted AS (

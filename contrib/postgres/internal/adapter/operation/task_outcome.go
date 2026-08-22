@@ -5,7 +5,7 @@ package operation
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
 	"log"

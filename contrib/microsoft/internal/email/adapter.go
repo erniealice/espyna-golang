@@ -6,7 +6,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -496,7 +497,7 @@ func (p *MicrosoftGraphProvider) getInboxMessagesLegacy(ctx context.Context, opt
 
 	// Parse response
 	var listResp graphMessageListResponse
-	if err := json.NewDecoder(resp.Body).Decode(&listResp); err != nil {
+	if err := json.UnmarshalDecode(jsontext.NewDecoder(resp.Body), &listResp); err != nil {
 		return nil, fmt.Errorf("failed to decode list response: %w", err)
 	}
 
@@ -543,7 +544,7 @@ func (p *MicrosoftGraphProvider) getMessageLegacy(ctx context.Context, messageID
 
 	// Parse response
 	var graphMsg graphMessage
-	if err := json.NewDecoder(resp.Body).Decode(&graphMsg); err != nil {
+	if err := json.UnmarshalDecode(jsontext.NewDecoder(resp.Body), &graphMsg); err != nil {
 		return nil, fmt.Errorf("failed to decode message response: %w", err)
 	}
 

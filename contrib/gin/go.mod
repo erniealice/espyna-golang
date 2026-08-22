@@ -1,6 +1,6 @@
 module github.com/erniealice/espyna-golang/contrib/gin
 
-go 1.25.1
+go 1.27.0
 
 require (
 	github.com/erniealice/espyna-golang v0.1.0-alpha
@@ -8,7 +8,6 @@ require (
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-contrib/gzip v1.2.3
 	github.com/gin-gonic/gin v1.11.0
-	github.com/google/uuid v1.6.0
 	google.golang.org/protobuf v1.36.11
 )
 

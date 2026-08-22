@@ -22,6 +22,7 @@ import (
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	jobtemplaterelationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_relation"
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
+	planjobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/plan_job_template"
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
@@ -78,6 +79,7 @@ type MaterializeInstanceJobsForSubscriptionRepositories struct {
 	JobTemplatePhase    jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
 	JobTemplateTask     jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
 	JobTemplateRelation jobtemplaterelationpb.JobTemplateRelationDomainServiceServer
+	PlanJobTemplate     planjobtemplatepb.PlanJobTemplateDomainServiceServer
 	Job                 jobpb.JobDomainServiceServer
 	JobPhase            jobphasepb.JobPhaseDomainServiceServer
 	JobTask             jobtaskpb.JobTaskDomainServiceServer
@@ -313,7 +315,20 @@ func (uc *MaterializeInstanceJobsForSubscriptionUseCase) executeInternal(
 			SkippedReason: InstanceSkipReasonMilestoneUnsupported,
 		}, nil
 	}
+	composition, err := listActivePlanComposition(ctx, uc.repositories.PlanJobTemplate, plan.GetId())
+	if err != nil {
+		return nil, err
+	}
 	templateID := plan.GetJobTemplateId()
+	if len(composition) > 0 {
+		templateID, err = standaloneCompositionTemplateID(composition)
+		if err != nil {
+			return nil, err
+		}
+		copyPlan := *plan
+		copyPlan.JobTemplateId = &templateID
+		plan = &copyPlan
+	}
 	if templateID == "" {
 		// AD_HOC has its own skip reason since the validator check differs
 		// (pool_no_template + pay_per_call_no_template — see ad-hoc plan §6).

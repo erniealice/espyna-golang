@@ -5,17 +5,17 @@ package entity
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	locationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location"
 	locationattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/location_attribute"
@@ -285,7 +285,7 @@ func (r *MySQLLocationRepository) GetLocationListPageData(
 						'value', la.value
 					)
 				) AS attributes
-			FROM ` + entityid.LocationAttribute + ` la
+			FROM `+entityid.LocationAttribute+` la
 			GROUP BY la.location_id
 		),
 		enriched AS (
@@ -300,9 +300,9 @@ func (r *MySQLLocationRepository) GetLocationListPageData(
 				l.location_area_id,
 				COALESCE(la2.name, '') AS location_area_name,
 				COALESCE(laa.attributes, JSON_ARRAY()) AS location_attributes
-			FROM ` + entityid.Location + ` l
+			FROM `+entityid.Location+` l
 			LEFT JOIN location_attributes_agg laa ON l.id = laa.location_id
-			LEFT JOIN ` + entityid.LocationArea + ` la2 ON l.location_area_id = la2.id
+			LEFT JOIN `+entityid.LocationArea+` la2 ON l.location_area_id = la2.id
 			%s
 		),
 		counted AS (

@@ -32,7 +32,7 @@ func NewContainer(opts ...infraopts.ContainerOption) (*core.Container, error) {
 // Environment variables:
 //   - CONFIG_DATABASE_PROVIDER: mock_db, postgres, firestore (default: mock_db)
 //   - CONFIG_AUTH_PROVIDER: mock, password, firebase (default: mock)
-//   - CONFIG_ID_PROVIDER: noop, google_uuidv7 (default: noop)
+//   - CONFIG_ID_PROVIDER: noop, uuidv7 (default: noop)
 //   - CONFIG_STORAGE_PROVIDER: mock_storage, local (default: mock_storage)
 func NewContainerFromEnv() (*core.Container, error) {
 	return core.NewContainerFromEnv()

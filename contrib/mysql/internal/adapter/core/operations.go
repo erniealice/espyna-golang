@@ -5,11 +5,13 @@ package core
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"strings"
 	"time"
+
+	"uuid"
 
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
@@ -19,7 +21,6 @@ import (
 	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/google/uuid"
 )
 
 // dbExecutor abstracts *sql.DB and *sql.Tx for uniform query execution.
@@ -1281,11 +1282,7 @@ func normalizeValue(v any) any {
 // the platform id policy; never a random v4 id). MySQL has no RETURNING, so
 // Create assigns the id up front and SELECTs the row back by it.
 func generateUUID() (string, error) {
-	id, err := uuid.NewV7()
-	if err != nil {
-		return "", err
-	}
-	return id.String(), nil
+	return uuid.NewV7().String(), nil
 }
 
 // RunWithTransaction executes a function within a database transaction.

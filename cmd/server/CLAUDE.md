@@ -483,4 +483,4 @@ Build tags enable conditional compilation:
 
 **Last Updated:** 2025-11-30
 **Espyna Version:** 1.0.0
-**Go Version:** 1.25.1+
+**Go Version:** 1.27+

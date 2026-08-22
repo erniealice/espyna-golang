@@ -5,7 +5,7 @@ package operation
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"time"
 
@@ -390,14 +390,14 @@ func (r *PostgresJobTemplateDocumentTemplateRepository) FindApplicableJobTemplat
 	var results []scanned
 	for rows.Next() {
 		var (
-			bID, bWorkspaceID, bDocTmplID                             string
-			bPriceScheduleID, bJobCategoryID                          sql.NullString
-			bVersionStatus, bSupersedes, bCreatedBy                   sql.NullString
-			bPublishedBy                                              sql.NullString
-			bVersion                                                  sql.NullInt32
-			bActive                                                   sql.NullBool
-			bValidityStart, bValidityEnd                              sql.NullTime
-			bPublishedAt, bDateCreated, bDateModified                 sql.NullInt64
+			bID, bWorkspaceID, bDocTmplID             string
+			bPriceScheduleID, bJobCategoryID          sql.NullString
+			bVersionStatus, bSupersedes, bCreatedBy   sql.NullString
+			bPublishedBy                              sql.NullString
+			bVersion                                  sql.NullInt32
+			bActive                                   sql.NullBool
+			bValidityStart, bValidityEnd              sql.NullTime
+			bPublishedAt, bDateCreated, bDateModified sql.NullInt64
 
 			dtID                                                   string
 			dtName, dtDescription, dtWorkspaceID, dtTemplateType   sql.NullString

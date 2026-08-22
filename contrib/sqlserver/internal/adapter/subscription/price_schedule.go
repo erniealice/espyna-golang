@@ -5,15 +5,15 @@ package subscription
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"time"
 
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -261,7 +261,7 @@ func (r *SQLServerPriceScheduleRepository) GetPriceScheduleListPageData(ctx cont
 
 	query := fmt.Sprintf(`
 		SELECT id, name, description, active, date_created, date_modified, location_id, date_time_start, date_time_end
-		FROM ` + entityid.PriceSchedule + `
+		FROM `+entityid.PriceSchedule+`
 		WHERE active = 1
 		  AND (@p1 IS NULL OR @p1 = '' OR name LIKE @p1 OR description LIKE @p1)
 		ORDER BY [%s] %s

@@ -5,16 +5,16 @@ package inventory
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"time"
 
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	inventoryitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_item"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
@@ -310,8 +310,8 @@ func (r *MySQLInventoryItemRepository) GetInventoryItemListPageData(
 				COALESCE(p.tracking_mode, '') as tracking_mode,
 				COALESCE(p.name, '') as product_name,
 				COUNT(*) OVER() AS total_count
-			FROM ` + entityid.InventoryItem + ` ii
-			LEFT JOIN ` + entityid.Product + ` p ON ii.product_id = p.id AND p.active = 1
+			FROM `+entityid.InventoryItem+` ii
+			LEFT JOIN `+entityid.Product+` p ON ii.product_id = p.id AND p.active = 1
 			WHERE ii.active = 1%s
 		)
 		SELECT * FROM enriched

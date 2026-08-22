@@ -50,9 +50,9 @@ FIREBASE_AUTH_TENANT_ID=                     Firebase Auth tenant ID (optional)
 ═══════════════════════════════════════════════════════════════════════════
 
 CONFIG_ID_PROVIDER=noop                   (default) NoOp ID service (timestamp-based)
-CONFIG_ID_PROVIDER=google_uuidv7          Google UUID v7 (time-ordered, globally unique)
+CONFIG_ID_PROVIDER=uuidv7          Go standard library UUID v7 (time-ordered, globally unique)
 
-Note: google_uuidv7 requires build tag: -tags google_uuidv7
+Note: uuidv7 requires build tag: -tags uuidv7
 
 ═══════════════════════════════════════════════════════════════════════════
 📁 STORAGE PROVIDERS:

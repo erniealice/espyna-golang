@@ -8,9 +8,10 @@ import (
 	"os"
 	"time"
 
+	"uuid"
+
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	dbinterfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	"github.com/google/uuid"
 )
 
 const (
@@ -29,17 +30,13 @@ type SessionService struct {
 }
 
 // newSessionID mints a session id. It prefers the injected platform
-// IDGenerator (uuidv7 under CONFIG_ID_PROVIDER=google_uuidv7) and falls back
+// IDGenerator (uuidv7 under CONFIG_ID_PROVIDER=uuidv7) and falls back
 // to a direct UUIDv7 — it never mints a random (v4) UUID.
 func (s *SessionService) newSessionID() (string, error) {
 	if s.idGen != nil && s.idGen.IsEnabled() {
 		return s.idGen.GenerateID(), nil
 	}
-	id, err := uuid.NewV7()
-	if err != nil {
-		return "", fmt.Errorf("failed to generate session id: %w", err)
-	}
-	return id.String(), nil
+	return uuid.NewV7().String(), nil
 }
 
 // NewSessionService creates a new SessionService.

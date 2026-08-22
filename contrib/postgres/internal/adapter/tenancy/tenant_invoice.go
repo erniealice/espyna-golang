@@ -5,13 +5,13 @@ package tenancy
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	tenantinvoicepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tenancy/tenant_invoice"
 	"google.golang.org/protobuf/encoding/protojson"
 )

@@ -1,6 +1,6 @@
 module github.com/erniealice/espyna-golang/contrib/microsoft
 
-go 1.25.1
+go 1.27.0
 
 require (
 	github.com/erniealice/espyna-golang v0.1.0-alpha

@@ -5,16 +5,16 @@ package tax
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	taxclasspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_class"
 )
 
@@ -112,7 +112,7 @@ func (r *PostgresTaxClassRepository) FindByCode(ctx context.Context, code, direc
 		return nil, fmt.Errorf("FindByCode requires raw *sql.DB")
 	}
 	row := r.db.QueryRowContext(ctx,
-		`SELECT row_to_json(c) FROM ` + entityid.TaxClass + ` c
+		`SELECT row_to_json(c) FROM `+entityid.TaxClass+` c
 		 WHERE code = $1 AND direction = $2 AND active = true
 		 LIMIT 1`,
 		code, direction,

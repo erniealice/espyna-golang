@@ -29,7 +29,8 @@ package common
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"log"
@@ -150,12 +151,12 @@ func (c *Client) getToken(ctx context.Context) (string, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		var errBody map[string]interface{}
-		json.NewDecoder(resp.Body).Decode(&errBody)
+		json.UnmarshalDecode(jsontext.NewDecoder(resp.Body), &errBody)
 		return "", fmt.Errorf("token request failed with status %d: %v", resp.StatusCode, errBody)
 	}
 
 	var tokenResp tokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+	if err := json.UnmarshalDecode(jsontext.NewDecoder(resp.Body), &tokenResp); err != nil {
 		return "", fmt.Errorf("failed to decode token response: %w", err)
 	}
 

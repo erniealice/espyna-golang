@@ -15,13 +15,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"time"
 
+	"uuid"
+
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/shared/database/operations"
-	"github.com/google/uuid"
 )
 
 // auditAdapter implements infraports.AuditService using direct SQL against
@@ -84,10 +85,7 @@ func (a *auditAdapter) LogEntry(ctx context.Context, req *infraports.AuditLogReq
 	exec := a.getExecutor(ctx)
 
 	workspaceID := req.WorkspaceID
-	newEntryID, err := uuid.NewV7()
-	if err != nil {
-		return fmt.Errorf("audit adapter: generate entry id: %w", err)
-	}
+	newEntryID := uuid.NewV7()
 	entryID := newEntryID.String()
 	occurredAt := time.Now().UTC()
 	fieldCount := int32(len(req.FieldChanges))

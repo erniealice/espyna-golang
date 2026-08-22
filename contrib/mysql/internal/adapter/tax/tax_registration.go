@@ -5,7 +5,7 @@ package tax
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	taxregistrationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_registration"
 )
 
@@ -179,7 +179,7 @@ func (r *MySQLTaxRegistrationRepository) FindActive(ctx context.Context, partyTy
 	}
 	// Dialect: ? placeholders; no casts needed in MySQL.
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT tr.id FROM ` + entityid.TaxRegistration + ` tr
+		`SELECT tr.id FROM `+entityid.TaxRegistration+` tr
 		 WHERE tr.party_type = ?
 		   AND tr.party_id = ?
 		   AND tr.status IN (2, 3, 4)
@@ -232,8 +232,8 @@ func (r *MySQLTaxRegistrationRepository) FindActiveByComputePath(ctx context.Con
 	if jurisdiction != "" {
 		row := r.db.QueryRowContext(ctx,
 			`SELECT tr.id
-			 FROM ` + entityid.TaxRegistration + ` tr
-			 JOIN ` + entityid.TaxRegistrationKind + ` trk ON trk.id = tr.tax_registration_kind_id
+			 FROM `+entityid.TaxRegistration+` tr
+			 JOIN `+entityid.TaxRegistrationKind+` trk ON trk.id = tr.tax_registration_kind_id
 			 WHERE tr.party_type = ?
 			   AND tr.party_id = ?
 			   AND tr.compute_path_snapshot = ?
@@ -253,7 +253,7 @@ func (r *MySQLTaxRegistrationRepository) FindActiveByComputePath(ctx context.Con
 	} else {
 		row := r.db.QueryRowContext(ctx,
 			`SELECT tr.id
-			 FROM ` + entityid.TaxRegistration + ` tr
+			 FROM `+entityid.TaxRegistration+` tr
 			 WHERE tr.party_type = ?
 			   AND tr.party_id = ?
 			   AND tr.compute_path_snapshot = ?

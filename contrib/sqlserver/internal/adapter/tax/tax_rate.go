@@ -5,7 +5,7 @@ package tax
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	taxratepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_rate"
 )
 
@@ -126,7 +126,7 @@ func (r *SQLServerTaxRateRepository) FindApplicable(ctx context.Context, workspa
 			tr.id, tr.jurisdiction, tr.authority_code, tr.kind, tr.treatment_code,
 			tr.direction, tr.rate_bps, tr.status, tr.effective_from, tr.effective_to,
 			tr.workspace_id
-		 FROM ` + entityid.TaxRate + ` tr
+		 FROM `+entityid.TaxRate+` tr
 		 WHERE tr.jurisdiction = @p1
 		   AND tr.authority_code = @p2
 		   AND tr.kind = @p3

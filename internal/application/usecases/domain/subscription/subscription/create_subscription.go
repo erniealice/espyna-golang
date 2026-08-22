@@ -283,7 +283,15 @@ func (uc *CreateSubscriptionUseCase) planDeclaresRootTemplate(ctx context.Contex
 		// prove job_template_id is empty, so it must not clean-skip.
 		return false, errors.New("planDeclaresRootTemplate: plan not found")
 	}
-	return resp.GetData()[0].GetJobTemplateId() != "", nil
+	if resp.GetData()[0].GetJobTemplateId() != "" {
+		return true, nil
+	}
+	if declarer, ok := uc.services.JobTemplateInstantiator.(interface {
+		PlanDeclaresComposition(context.Context, string) (bool, error)
+	}); ok {
+		return declarer.PlanDeclaresComposition(ctx, planID)
+	}
+	return false, nil
 }
 
 // jobSpawnOutcome is the richer materialize result that Q-GSE-8 needs: the

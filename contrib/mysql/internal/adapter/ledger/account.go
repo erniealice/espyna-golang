@@ -5,16 +5,16 @@ package ledger
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	accountpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/account"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -322,7 +322,7 @@ func (r *MySQLAccountRepository) GetAccountListPageData(ctx context.Context, req
 				a.date_created,
 				a.date_modified,
 				COUNT(*) OVER() AS total_count
-			FROM ` + entityid.Account + ` a
+			FROM `+entityid.Account+` a
 			%s
 		)
 		SELECT * FROM enriched

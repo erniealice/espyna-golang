@@ -5,16 +5,16 @@ package tax
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	taxclasspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_class"
 )
 
@@ -131,7 +131,7 @@ func (r *MySQLTaxClassRepository) FindByCode(ctx context.Context, code, directio
 	// Simplified: query id only then use dbOps.Read. This avoids enumerating all columns.
 	var id string
 	row := r.db.QueryRowContext(ctx,
-		"SELECT id FROM " + entityid.TaxClass + " WHERE code = ? AND direction = ? AND active = 1 LIMIT 1",
+		"SELECT id FROM "+entityid.TaxClass+" WHERE code = ? AND direction = ? AND active = 1 LIMIT 1",
 		code, direction,
 	)
 	if err := row.Scan(&id); err == sql.ErrNoRows {

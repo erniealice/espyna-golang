@@ -30,16 +30,16 @@ package expenditure
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition_run"
 )
 

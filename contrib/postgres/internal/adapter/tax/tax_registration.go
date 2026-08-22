@@ -5,7 +5,7 @@ package tax
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	taxregistrationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_registration"
 )
 
@@ -181,7 +181,7 @@ func (r *PostgresTaxRegistrationRepository) FindActive(ctx context.Context, part
 		return nil, fmt.Errorf("FindActive requires raw *sql.DB")
 	}
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT row_to_json(tr) FROM ` + entityid.TaxRegistration + ` tr
+		`SELECT row_to_json(tr) FROM `+entityid.TaxRegistration+` tr
 		 WHERE tr.party_type = $1
 		   AND tr.party_id = $2
 		   AND tr.status IN (2, 3, 4)  -- ACTIVE=2, SUPERSEDED=3, CANCELLED=4
@@ -231,8 +231,8 @@ func (r *PostgresTaxRegistrationRepository) FindActiveByComputePath(ctx context.
 		// Join to tax_registration_kind to apply the jurisdiction predicate.
 		row := r.db.QueryRowContext(ctx,
 			`SELECT row_to_json(tr)
-			 FROM ` + entityid.TaxRegistration + ` tr
-			 JOIN ` + entityid.TaxRegistrationKind + ` trk ON trk.id = tr.tax_registration_kind_id
+			 FROM `+entityid.TaxRegistration+` tr
+			 JOIN `+entityid.TaxRegistrationKind+` trk ON trk.id = tr.tax_registration_kind_id
 			 WHERE tr.party_type = $1
 			   AND tr.party_id = $2
 			   AND tr.compute_path_snapshot = $3
@@ -253,7 +253,7 @@ func (r *PostgresTaxRegistrationRepository) FindActiveByComputePath(ctx context.
 		// No jurisdiction filter — return the most-recent matching registration.
 		row := r.db.QueryRowContext(ctx,
 			`SELECT row_to_json(tr)
-			 FROM ` + entityid.TaxRegistration + ` tr
+			 FROM `+entityid.TaxRegistration+` tr
 			 WHERE tr.party_type = $1
 			   AND tr.party_id = $2
 			   AND tr.compute_path_snapshot = $3

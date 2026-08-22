@@ -1,12 +1,11 @@
 module github.com/erniealice/espyna-golang/contrib/fiber
 
-go 1.25.1
+go 1.27.0
 
 require (
 	github.com/erniealice/espyna-golang v0.1.0-alpha
 	github.com/gofiber/fiber/v2 v2.52.9
 	github.com/gofiber/fiber/v3 v3.0.0-rc.2
-	github.com/google/uuid v1.6.0
 	google.golang.org/protobuf v1.36.11
 )
 

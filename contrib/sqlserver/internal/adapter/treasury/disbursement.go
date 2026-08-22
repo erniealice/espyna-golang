@@ -5,18 +5,18 @@ package treasury
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
@@ -319,7 +319,7 @@ func (r *SQLServerDisbursementRepository) GetDisbursementListPageData(
 				d.advance_expiry_date,
 				d.advance_proration_policy,
 				d.supplier_id
-			FROM ` + entityid.TreasuryDisbursement + ` d
+			FROM `+entityid.TreasuryDisbursement+` d
 			WHERE d.active = 1
 			  AND d.workspace_id = @p1
 			  AND (@p2 = '' OR

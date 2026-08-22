@@ -5,18 +5,18 @@ package operation
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_activity"
@@ -283,7 +283,7 @@ func (r *SQLServerJobActivityRepository) GetJobActivityListPageData(ctx context.
 				j.name AS job_name,
 				COUNT(*) OVER() AS total_count
 			FROM %s ja
-			LEFT JOIN ` + entityid.Job + ` j ON j.id = ja.job_id
+			LEFT JOIN `+entityid.Job+` j ON j.id = ja.job_id
 			%s
 		)
 		SELECT * FROM enriched

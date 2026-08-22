@@ -1,7 +1,8 @@
 package engine
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"reflect"
 	"strings"
 	"testing"
@@ -528,7 +529,7 @@ func TestResolveSimple_EmailWorkflowScenario(t *testing.T) {
 	}
 
 	// Log the final structure for debugging
-	jsonBytes, _ := json.MarshalIndent(result, "", "  ")
+	jsonBytes, _ := json.Marshal(result, json.Deterministic(true), jsontext.WithIndent("  "))
 	t.Logf("Final resolved structure:\n%s", string(jsonBytes))
 }
 

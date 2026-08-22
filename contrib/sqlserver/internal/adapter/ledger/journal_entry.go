@@ -5,17 +5,17 @@ package ledger
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	journalentrypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/journal_entry"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -261,7 +261,7 @@ func (r *SQLServerJournalEntryRepository) GetJournalEntryListPageData(ctx contex
 				je.date_created,
 				je.date_modified,
 				COUNT(*) OVER() AS total_count
-			FROM ` + entityid.JournalEntry + ` je
+			FROM `+entityid.JournalEntry+` je
 			WHERE je.active = 1%s
 		)
 		SELECT * FROM enriched
@@ -419,7 +419,7 @@ func (r *SQLServerJournalEntryRepository) PostJournalEntry(ctx context.Context, 
 	postedBy := req.PostedBy
 
 	result, err := r.db.ExecContext(ctx,
-		`UPDATE ` + entityid.JournalEntry + `
+		`UPDATE `+entityid.JournalEntry+`
 		    SET status        = 'POSTED',
 		        posted_by     = @p1,
 		        posted_at     = @p2,

@@ -5,16 +5,16 @@ package revenue
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	revenuetaxlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_tax_line"
 )
 
@@ -136,7 +136,7 @@ func (r *SQLServerRevenueTaxLineRepository) DeleteByRevenueID(ctx context.Contex
 		return fmt.Errorf("DeleteByRevenueID requires raw *sql.DB")
 	}
 	_, err := r.db.ExecContext(ctx,
-		`DELETE FROM ` + entityid.RevenueTaxLine + ` WHERE revenue_id = @p1`,
+		`DELETE FROM `+entityid.RevenueTaxLine+` WHERE revenue_id = @p1`,
 		revenueID,
 	)
 	if err != nil {
@@ -160,11 +160,11 @@ func (r *SQLServerRevenueTaxLineRepository) ListByRevenueID(ctx context.Context,
 			SELECT
 				rtl.id, rtl.revenue_id, rtl.direction, rtl.tax_kind_snapshot,
 				rtl.amount, rtl.rate, rtl.tax_id, rtl.active
-			FROM ` + entityid.RevenueTaxLine + ` rtl2
+			FROM `+entityid.RevenueTaxLine+` rtl2
 			WHERE rtl2.id = rtl.id
 			FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
 		) AS row_json
-		FROM ` + entityid.RevenueTaxLine + ` rtl
+		FROM `+entityid.RevenueTaxLine+` rtl
 		WHERE rtl.revenue_id = @p1
 		ORDER BY rtl.direction, rtl.tax_kind_snapshot
 	`, revenueID)

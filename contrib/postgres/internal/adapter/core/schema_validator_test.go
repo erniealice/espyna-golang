@@ -143,3 +143,49 @@ func TestAllowlistContainsDesignNamedEntries(t *testing.T) {
 		}
 	}
 }
+
+func TestAllowlistContainsAuditedRawSQLAndRecoveryRelations(t *testing.T) {
+	for _, want := range []string{
+		"criteria_group",
+		"zz_f2_pos_backup_20260712",
+		"zz_f2_pos_precompute_20260712",
+		"zz_f2_task_outcome_backup_20260712",
+		"zz_f3_job_outprod_backup_20260712",
+		"zz_f3_product_backup_20260712",
+		"zz_f3_product_plan_backup_20260712",
+		"zz_idremap_20260803",
+		"zz_s8_equality_baseline",
+		"zz_s8_job_backup",
+		"zz_s8_jobmap",
+		"zz_s8_jp_backup",
+		"zz_s8_jt_backup",
+		"zz_s8_jtask_backup",
+		"zz_s8_jtp_backup",
+		"zz_s8_jtt_backup",
+		"zz_s8_pairmap",
+		"zz_s8_pos_backup",
+		"zz_s8_pp_backup",
+		"zz_s8_product_backup",
+		"zz_t16_job_origin_backup_20260711",
+		"plan_composition_successor_legacy_backup",
+		"plan_job_template",
+	} {
+		if !descriptorOutOfScope[want] {
+			t.Errorf("descriptorOutOfScope must contain audited relation %q", want)
+		}
+	}
+}
+
+func TestRecoveryAllowlistRemainsExact(t *testing.T) {
+	buildRegistry(t)
+	live := liveFromRegistry(t, "asset_component")
+	live["zz_unreviewed_backup"] = map[string]bool{"id": true}
+
+	drift, _ := reconcile(live, descriptorOutOfScope)
+	if len(drift) == 0 {
+		t.Fatal("an unreviewed zz_* relation must remain bootshot drift")
+	}
+	if !strings.Contains(strings.Join(drift, "\n"), "zz_unreviewed_backup") {
+		t.Fatalf("drift must name the unreviewed recovery relation: %v", drift)
+	}
+}

@@ -136,7 +136,7 @@ These stay in core because they use only stdlib or lightweight deps:
 | Payment | paypal, asiapay, maya, mock | Custom HTTP clients |
 | Scheduler | calendly, mock | Custom HTTP client |
 | Translation | lyngua, file, mock, noop | Lightweight |
-| ID | uuidv7, noop | `google/uuid` is tiny |
+| ID | uuidv7, noop | `standard library uuid` is tiny |
 | Tabular | mock | In-memory |
 
 ## Build Tags
@@ -146,7 +146,7 @@ Some core adapters still use build tags (compile-time selection):
 | Tag | What it enables |
 |---|---|
 | `vanilla` | Vanilla HTTP server adapter |
-| `google_uuidv7` | UUIDv7 ID provider |
+| `uuidv7` | UUIDv7 ID provider |
 | `mock_auth` | Mock authentication |
 | `mock_storage` | Mock storage |
 | `noop` | No-op adapters (ID, etc.) |
@@ -176,7 +176,7 @@ Contrib modules do **not** use build tags — importing them is the opt-in mecha
 ### go.work (monorepo)
 
 ```
-go 1.25.1
+go 1.27.0
 
 use (
     ./apps/service-admin
@@ -206,7 +206,7 @@ cd packages/espyna-golang/contrib/gin && go build ./...
 cd packages/espyna-golang/contrib/fiber && go build ./...
 
 # Consumer app (dev mode)
-cd apps/service-admin && go build -tags "google_uuidv7,mock_auth,mock_storage,noop,vanilla,lyngua" ./...
+cd apps/service-admin && go build -tags "uuidv7,mock_auth,mock_storage,noop,vanilla,lyngua" ./...
 ```
 
 ## Key Dependencies
@@ -218,7 +218,7 @@ cd apps/service-admin && go build -tags "google_uuidv7,mock_auth,mock_storage,no
 | `github.com/erniealice/esqyma` | Protobuf schemas (domain entities, infrastructure, integration) |
 | `github.com/erniealice/lyngua` | Translation/i18n |
 | `github.com/google/cel-go` | Common Expression Language (authorization rules) |
-| `github.com/google/uuid` | UUID generation |
+| `uuid` | UUID generation |
 | `google.golang.org/protobuf` | Protobuf runtime |
 | `google.golang.org/grpc` | gRPC runtime |
 | `leapfor.xyz/copya` | Shared mock data |

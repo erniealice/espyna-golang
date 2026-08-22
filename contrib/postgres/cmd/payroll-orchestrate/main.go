@@ -29,7 +29,7 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	payrollservice "github.com/erniealice/espyna-golang/internal/application/usecases/service/payroll"
@@ -42,12 +42,12 @@ import (
 
 type uuidv7 struct{}
 
-func (uuidv7) GenerateID() string { return uuid.Must(uuid.NewV7()).String() }
+func (uuidv7) GenerateID() string { return uuid.NewV7().String() }
 func (uuidv7) GenerateIDWithPrefix(prefix string) string {
-	return prefix + "_" + uuid.Must(uuid.NewV7()).String()
+	return prefix + "_" + uuid.NewV7().String()
 }
 func (uuidv7) IsEnabled() bool         { return true }
-func (uuidv7) GetProviderInfo() string { return "google_uuidv7" }
+func (uuidv7) GetProviderInfo() string { return "uuidv7" }
 
 var _ ports.IDGenerator = uuidv7{}
 

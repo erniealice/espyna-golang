@@ -5,15 +5,15 @@ package product
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -300,8 +300,8 @@ func (r *MySQLCollectionRepository) GetCollectionListPageData(ctx context.Contex
 				p.date_modified AS p_date_modified,
 				p.active     AS p_active,
 				ROW_NUMBER() OVER (PARTITION BY cp.collection_id, cp.plan_id ORDER BY p.name ASC) AS rn
-			FROM ` + entityid.CollectionPlan + ` cp
-			INNER JOIN ` + entityid.Plan + ` p ON cp.plan_id = p.id
+			FROM `+entityid.CollectionPlan+` cp
+			INNER JOIN `+entityid.Plan+` p ON cp.plan_id = p.id
 			WHERE cp.active = 1 AND p.active = 1
 		),
 
@@ -353,7 +353,7 @@ func (r *MySQLCollectionRepository) GetCollectionListPageData(ctx context.Contex
 					)
 				) AS collection_parent
 			FROM collection_parent cpp
-			INNER JOIN ` + entityid.Collection + ` cp ON cpp.parent_id = cp.id
+			INNER JOIN `+entityid.Collection+` cp ON cpp.parent_id = cp.id
 			WHERE cpp.active = 1 AND cp.active = 1
 		),
 
@@ -368,7 +368,7 @@ func (r *MySQLCollectionRepository) GetCollectionListPageData(ctx context.Contex
 				c.date_modified,
 				COALESCE(cpa.collection_plans, JSON_ARRAY()) AS collection_plans,
 				cppa.collection_parent
-			FROM ` + entityid.Collection + ` c
+			FROM `+entityid.Collection+` c
 			LEFT JOIN collection_plans_agg cpa ON c.id = cpa.collection_id
 			LEFT JOIN collection_parent_agg cppa ON c.id = cppa.collection_id
 			%s

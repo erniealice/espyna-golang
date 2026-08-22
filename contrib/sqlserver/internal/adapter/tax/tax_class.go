@@ -5,16 +5,16 @@ package tax
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	taxclasspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_class"
 )
 
@@ -118,7 +118,7 @@ func (r *SQLServerTaxClassRepository) FindByCode(ctx context.Context, code, dire
 	}
 	row := r.db.QueryRowContext(ctx,
 		`SELECT TOP 1 id, code, direction, name, description, active
-		 FROM ` + entityid.TaxClass + `
+		 FROM `+entityid.TaxClass+`
 		 WHERE code = @p1 AND direction = @p2 AND active = 1`,
 		code, direction,
 	)

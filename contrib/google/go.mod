@@ -1,6 +1,6 @@
 module github.com/erniealice/espyna-golang/contrib/google
 
-go 1.25.1
+go 1.27.0
 
 require (
 	cloud.google.com/go/firestore v1.18.0
@@ -9,7 +9,6 @@ require (
 	firebase.google.com/go/v4 v4.18.0
 	github.com/erniealice/espyna-golang v0.1.0-alpha
 	github.com/erniealice/esqyma v0.1.0-alpha
-	github.com/google/uuid v1.6.0
 	golang.org/x/oauth2 v0.31.0
 	google.golang.org/api v0.251.0
 	google.golang.org/grpc v1.75.1

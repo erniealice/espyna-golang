@@ -5,17 +5,17 @@ package entity
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	supplierpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier"
 	suppliercategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/supplier_category"
@@ -431,9 +431,9 @@ func (r *MySQLSupplierRepository) GetSupplierListPageData(
 				u.last_name as user_last_name,
 				u.email_address as user_email_address,
 				u.mobile_number as user_phone_number
-			FROM ` + entityid.Supplier + ` s
+			FROM `+entityid.Supplier+` s
 			LEFT JOIN `+"`user`"+` u ON s.user_id = u.id
-			LEFT JOIN ` + entityid.PaymentTerm + ` pt ON s.payment_term_id = pt.id
+			LEFT JOIN `+entityid.PaymentTerm+` pt ON s.payment_term_id = pt.id
 			%s
 		),
 		counted AS (

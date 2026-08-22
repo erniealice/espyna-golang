@@ -5,7 +5,7 @@ package expenditure
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"strings"
@@ -13,11 +13,11 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
 )
@@ -326,9 +326,9 @@ func (r *SQLServerExpenditureRepository) GetExpenditureListPageData(
 				COALESCE(s.name, '') as vendor_name,
 				COALESCE(l.name, '') as location_name,
 				COUNT(*) OVER() AS total
-			FROM ` + entityid.Expenditure + ` ex
-			LEFT JOIN ` + entityid.Supplier + ` s ON ex.supplier_id = s.id AND s.active = 1
-			LEFT JOIN ` + entityid.Location + ` l ON ex.location_id = l.id AND l.active = 1
+			FROM `+entityid.Expenditure+` ex
+			LEFT JOIN `+entityid.Supplier+` s ON ex.supplier_id = s.id AND s.active = 1
+			LEFT JOIN `+entityid.Location+` l ON ex.location_id = l.id AND l.active = 1
 			%s
 		)
 		SELECT * FROM enriched

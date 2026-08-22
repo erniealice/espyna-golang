@@ -40,6 +40,7 @@ var workspaceScopePolicies = map[string]workspaceScopePolicy{
 	entityid.JobTemplatePhase:                  workspaceScopeDirectRequired,
 	entityid.JobTemplateTask:                   workspaceScopeDirectRequired,
 	entityid.JobTemplateRelation:               workspaceScopeDirectRequired,
+	entityid.PlanJobTemplate:                   workspaceScopeDirectRequired,
 	entityid.CriteriaOption:                    workspaceScopeDirectRequired,
 	entityid.CriteriaThreshold:                 workspaceScopeDirectRequired,
 	entityid.TemplateTaskCriteria:              workspaceScopeDirectRequired,

@@ -5,12 +5,14 @@ package core
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"strings"
 	"sync"
 	"time"
+
+	"uuid"
 
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
@@ -20,7 +22,6 @@ import (
 	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
-	"github.com/google/uuid"
 	_ "github.com/microsoft/go-mssqldb"
 )
 
@@ -1308,11 +1309,7 @@ func normalizeValue(v any) any {
 // with NEWID(), but app-side generation keeps parity across dialects and lets
 // callers supply their own id.
 func generateUUID() (string, error) {
-	id, err := uuid.NewV7()
-	if err != nil {
-		return "", err
-	}
-	return id.String(), nil
+	return uuid.NewV7().String(), nil
 }
 
 // RunWithTransaction executes a function within a database transaction.

@@ -5,17 +5,17 @@ package ledger
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	journalentrypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/journal_entry"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -300,7 +300,7 @@ func (r *MySQLJournalEntryRepository) GetJournalEntryListPageData(ctx context.Co
 				je.date_created,
 				je.date_modified,
 				COUNT(*) OVER() AS total_count
-			FROM ` + entityid.JournalEntry + ` je
+			FROM `+entityid.JournalEntry+` je
 			%s
 		)
 		SELECT * FROM enriched

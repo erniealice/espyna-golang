@@ -5,7 +5,7 @@ package tax
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	taxratepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_rate"
 )
 
@@ -124,7 +124,7 @@ func (r *MySQLTaxRateRepository) FindApplicable(ctx context.Context, workspaceID
 	// Re-sequenced from postgres $1..$7 → positional ? order matching arg slice.
 	var id string
 	row := r.db.QueryRowContext(ctx,
-		`SELECT tr.id FROM ` + entityid.TaxRate + ` tr
+		`SELECT tr.id FROM `+entityid.TaxRate+` tr
 		 WHERE tr.jurisdiction = ?
 		   AND tr.authority_code = ?
 		   AND tr.kind = ?

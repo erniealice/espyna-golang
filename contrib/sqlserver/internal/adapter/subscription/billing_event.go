@@ -5,7 +5,7 @@ package subscription
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
@@ -13,10 +13,10 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 )
@@ -275,7 +275,7 @@ func (r *SQLServerBillingEventRepository) GetBillingEventListPageData(
 	// SQL Server: CROSS JOIN counted → COUNT(*) OVER (); LIMIT/OFFSET → OFFSET/FETCH.
 	query := fmt.Sprintf(`
 		WITH base AS (
-			SELECT * FROM ` + entityid.BillingEvent + ` WHERE active = 1
+			SELECT * FROM `+entityid.BillingEvent+` WHERE active = 1
 		)
 		SELECT b.*, COUNT(*) OVER () AS total
 		FROM base b

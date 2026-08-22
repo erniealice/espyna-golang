@@ -5,15 +5,15 @@ package product
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
 
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productvariantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -267,8 +267,8 @@ func (r *MySQLProductVariantRepository) GetProductVariantListPageData(
 				pv.sku,
 				pv.price_override,
 				COALESCE(p.name, '') AS product_name
-			FROM ` + entityid.ProductVariant + ` pv
-			LEFT JOIN ` + entityid.Product + ` p ON pv.product_id = p.id AND p.active = 1
+			FROM `+entityid.ProductVariant+` pv
+			LEFT JOIN `+entityid.Product+` p ON pv.product_id = p.id AND p.active = 1
 			WHERE pv.active = 1
 			%s
 		),

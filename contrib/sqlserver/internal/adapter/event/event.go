@@ -5,17 +5,17 @@ package event
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	"github.com/erniealice/espyna-golang/shared/database/operations"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/database/operations"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -297,7 +297,7 @@ func (r *SQLServerEventRepository) GetEventListPageData(
 				e.date_created,
 				e.date_modified,
 				COUNT(*) OVER() AS total_count
-			FROM ` + entityid.Event + ` e
+			FROM `+entityid.Event+` e
 			%s
 		)
 		SELECT * FROM enriched

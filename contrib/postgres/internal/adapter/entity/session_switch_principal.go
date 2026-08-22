@@ -7,12 +7,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	"log"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/erniealice/espyna-golang/registry/entityid"
+
+	"uuid"
 
 	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/service/auth"
@@ -284,11 +285,7 @@ func (r *PostgresSessionRepository) SwitchPrincipal(
 		if err != nil {
 			return nil, fmt.Errorf("session adapter: SwitchPrincipal: gen token: %w", err)
 		}
-		newID, err := uuid.NewV7()
-		if err != nil {
-			return nil, fmt.Errorf("session adapter: SwitchPrincipal: gen session id: %w", err)
-		}
-		newSessionID = newID.String()
+		newSessionID = uuid.NewV7().String()
 		expiresAt := time.Now().Add(7 * 24 * time.Hour).UnixMilli()
 		nowMs := time.Now().UnixMilli()
 
@@ -551,11 +548,7 @@ func writeSwitchAuditRow(ctx context.Context, tx *sql.Tx, row switchAuditRow) er
 
 	// occurred_at is timestamptz, populated via NOW() to avoid Go-side TZ
 	// nuance. id is generated client-side to match the rest of the codebase.
-	newAuditID, err := uuid.NewV7()
-	if err != nil {
-		return fmt.Errorf("session adapter: switch audit: generate id: %w", err)
-	}
-	auditID := newAuditID.String()
+	auditID := uuid.NewV7().String()
 	useCase := row.UseCaseLabel
 	if useCase == "" {
 		// Defensive default; pre-refactor callers used "switch_principal".

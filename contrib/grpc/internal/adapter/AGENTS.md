@@ -50,7 +50,7 @@ POST /api/subscription/plan/read   -> /espyna.subscription.v1.PlanService/Read
 
 ```bash
 # Build with grpc_vanilla build tag
-go build -tags grpc_vanilla,firestore,mock_auth,mock_storage,google_uuidv7 ./cmd/server
+go build -tags grpc_vanilla,firestore,mock_auth,mock_storage,uuidv7 ./cmd/server
 
 # Or for development
 go build -tags grpc_vanilla,mock_db,mock_auth,mock_storage ./cmd/server
@@ -313,7 +313,7 @@ After authentication, the following values are available in the gRPC context:
 
 **Full build command:**
 ```bash
-go build -tags "grpc_vanilla,firestore,firebase_auth,gcs,google_uuidv7,gmail" ./cmd/server
+go build -tags "grpc_vanilla,firestore,firebase_auth,gcs,uuidv7,gmail" ./cmd/server
 ```
 
 ---

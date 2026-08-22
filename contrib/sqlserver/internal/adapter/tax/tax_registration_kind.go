@@ -5,16 +5,16 @@ package tax
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	taxregistrationkindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_registration_kind"
 )
 
@@ -126,7 +126,7 @@ func (r *SQLServerTaxRegistrationKindRepository) FindByPartyType(ctx context.Con
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, code, name, description, jurisdiction,
 		        applicable_party_types, active
-		 FROM ` + entityid.TaxRegistrationKind + `
+		 FROM `+entityid.TaxRegistrationKind+`
 		 WHERE active = 1
 		   AND CHARINDEX(@p1, applicable_party_types) > 0
 		 ORDER BY name`,

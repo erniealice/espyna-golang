@@ -4,7 +4,8 @@ package vanilla
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -53,7 +54,7 @@ func TestCreateHTTPHandler_DirectDatabaseError_SanitizedResponse(t *testing.T) {
 	}
 
 	var body map[string]interface{}
-	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+	if err := json.UnmarshalDecode(jsontext.NewDecoder(rec.Body), &body); err != nil {
 		t.Fatalf("decode response body: %v", err)
 	}
 
@@ -98,7 +99,7 @@ func TestCreateHTTPHandler_WrappedDatabaseError_SanitizedResponse(t *testing.T) 
 	}
 
 	var body map[string]interface{}
-	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+	if err := json.UnmarshalDecode(jsontext.NewDecoder(rec.Body), &body); err != nil {
 		t.Fatalf("decode response body: %v", err)
 	}
 
@@ -132,7 +133,7 @@ func TestCreateHTTPHandler_GenericInternalError_SanitizedResponse(t *testing.T) 
 	}
 
 	var body map[string]interface{}
-	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+	if err := json.UnmarshalDecode(jsontext.NewDecoder(rec.Body), &body); err != nil {
 		t.Fatalf("decode response body: %v", err)
 	}
 

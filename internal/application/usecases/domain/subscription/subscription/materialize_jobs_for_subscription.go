@@ -21,6 +21,7 @@ import (
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	jobtemplaterelationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_relation"
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
+	planjobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/plan_job_template"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
@@ -46,8 +47,8 @@ type MaterializeBillingEventsForJobInvoker interface {
 // JobTemplateRelation (operation domain), and writes Job / JobPhase /
 // JobTask in the operation domain.
 type MaterializeJobsForSubscriptionRepositories struct {
-	Subscription        subscriptionpb.SubscriptionDomainServiceServer
-	PricePlan           priceplanpb.PricePlanDomainServiceServer
+	Subscription subscriptionpb.SubscriptionDomainServiceServer
+	PricePlan    priceplanpb.PricePlanDomainServiceServer
 	// PriceSchedule anchors the canonical closed-AY spawn guard: a scheduled
 	// price_plan whose price_schedule window is inactive or closed must not spawn
 	// (red-team HIGH #3). Optional — a nil repo (unwired composition) leaves the
@@ -58,6 +59,7 @@ type MaterializeJobsForSubscriptionRepositories struct {
 	JobTemplatePhase    jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
 	JobTemplateTask     jobtemplatetaskpb.JobTemplateTaskDomainServiceServer
 	JobTemplateRelation jobtemplaterelationpb.JobTemplateRelationDomainServiceServer
+	PlanJobTemplate     planjobtemplatepb.PlanJobTemplateDomainServiceServer
 	Job                 jobpb.JobDomainServiceServer
 	JobPhase            jobphasepb.JobPhaseDomainServiceServer
 	JobTask             jobtaskpb.JobTaskDomainServiceServer
@@ -227,15 +229,14 @@ func (uc *MaterializeJobsForSubscriptionUseCase) materializeCore(
 		return nil, err
 	}
 
-	rootTemplateID := plan.GetJobTemplateId()
-	if rootTemplateID == "" {
-		skipReason := SkipReasonNoTemplateFound
-		return &subscriptionpb.MaterializeJobsForSubscriptionResponse{Success: true, SkippedReason: &skipReason}, nil
-	}
-
-	relations, err := uc.listChildRelations(ctx, rootTemplateID)
+	composition, err := listActivePlanComposition(ctx, uc.repositories.PlanJobTemplate, plan.GetId())
 	if err != nil {
 		return nil, err
+	}
+	rootTemplateID := plan.GetJobTemplateId()
+	if rootTemplateID == "" && len(composition) == 0 {
+		skipReason := SkipReasonNoTemplateFound
+		return &subscriptionpb.MaterializeJobsForSubscriptionResponse{Success: true, SkippedReason: &skipReason}, nil
 	}
 
 	// 2026-04-30 cyclic-subscription-jobs plan §4 — cyclic branch.
@@ -250,6 +251,16 @@ func (uc *MaterializeJobsForSubscriptionUseCase) materializeCore(
 	// The non-cyclic path below remains UNCHANGED — phase4-subscription
 	// regression specs (08-15) and the new C2 composition test are the canary.
 	if IsCyclic(pricePlan) {
+		if len(composition) > 0 {
+			rootTemplateID, err = standaloneCompositionTemplateID(composition)
+			if err != nil {
+				return nil, err
+			}
+		}
+		relations, err := uc.listChildRelations(ctx, rootTemplateID)
+		if err != nil {
+			return nil, err
+		}
 		internal, err := uc.executeCyclicShell(ctx, sub, pricePlan, plan, relations)
 		if err != nil {
 			return nil, err
@@ -257,21 +268,14 @@ func (uc *MaterializeJobsForSubscriptionUseCase) materializeCore(
 		return materializeJobsToProto(internal), nil
 	}
 
-	type spawnEntry struct {
-		templateID string
-		isRoot     bool
+	var toSpawn []compositionSpawnEntry
+	if len(composition) > 0 {
+		toSpawn, err = uc.buildCompositionSpawnEntries(ctx, composition)
+	} else {
+		toSpawn, err = uc.buildLegacySpawnEntries(ctx, rootTemplateID)
 	}
-	toSpawn := make([]spawnEntry, 0, 1+len(relations))
-	toSpawn = append(toSpawn, spawnEntry{templateID: rootTemplateID, isRoot: true})
-	for _, rel := range relations {
-		if !rel.GetActive() {
-			continue
-		}
-		childID := rel.GetChildTemplateId()
-		if childID == "" || childID == rootTemplateID {
-			continue
-		}
-		toSpawn = append(toSpawn, spawnEntry{templateID: childID, isRoot: false})
+	if err != nil {
+		return nil, err
 	}
 
 	now := time.Now()
@@ -279,13 +283,12 @@ func (uc *MaterializeJobsForSubscriptionUseCase) materializeCore(
 	dcs := now.Format(time.RFC3339)
 
 	var (
-		rootJob     *jobpb.Job
 		spawnedJobs []*jobpb.Job
 	)
 
 	writeFn := func(txCtx context.Context) error {
 		spawnedJobs = spawnedJobs[:0]
-		rootJob = nil
+		spawnedByTemplate := map[string]*jobpb.Job{}
 
 		// FIX-5 graph-wide parent pre-lock: enumerate EVERY job_template_phase across
 		// all templates this graph will spawn (root + active relations) and take them
@@ -314,12 +317,16 @@ func (uc *MaterializeJobsForSubscriptionUseCase) materializeCore(
 			}
 
 			parentID := ""
-			if !entry.isRoot && rootJob != nil {
-				parentID = rootJob.GetId()
+			if entry.parentTemplateID != "" {
+				parent, ok := spawnedByTemplate[entry.parentTemplateID]
+				if !ok {
+					return fmt.Errorf("composition parent template %s was not spawned before child %s", entry.parentTemplateID, entry.templateID)
+				}
+				parentID = parent.GetId()
 			}
 
 			jobName := tpl.GetName()
-			if entry.isRoot && sub.GetName() != "" {
+			if entry.useSubscriptionName && sub.GetName() != "" {
 				jobName = sub.GetName()
 			}
 
@@ -327,9 +334,7 @@ func (uc *MaterializeJobsForSubscriptionUseCase) materializeCore(
 			if err != nil {
 				return err
 			}
-			if entry.isRoot {
-				rootJob = job
-			}
+			spawnedByTemplate[entry.templateID] = job
 			spawnedJobs = append(spawnedJobs, job)
 
 			if err := uc.spawnPhasesAndTasks(txCtx, dc, dcs, job, tpl.GetId()); err != nil {

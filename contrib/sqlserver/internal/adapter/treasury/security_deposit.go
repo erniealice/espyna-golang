@@ -5,17 +5,17 @@ package treasury
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	securitydepositpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/security_deposit"
 )
@@ -282,7 +282,7 @@ func (r *SQLServerSecurityDepositRepository) GetSecurityDepositListPageData(
 				sd.status,
 				sd.account_id,
 				sd.notes
-			FROM ` + entityid.SecurityDeposit + ` sd
+			FROM `+entityid.SecurityDeposit+` sd
 			WHERE sd.active = 1
 			  AND sd.workspace_id = @p1
 			  AND (@p2 = '' OR

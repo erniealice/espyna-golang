@@ -5,16 +5,16 @@ package revenue
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	revenuetaxlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_tax_line"
 )
 
@@ -150,7 +150,7 @@ func (r *PostgresRevenueTaxLineRepository) ListByRevenueID(ctx context.Context, 
 		return nil, fmt.Errorf("ListByRevenueID requires raw *sql.DB")
 	}
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT row_to_json(rtl) FROM ` + entityid.RevenueTaxLine + ` rtl
+		`SELECT row_to_json(rtl) FROM `+entityid.RevenueTaxLine+` rtl
 		 WHERE rtl.revenue_id = $1
 		 ORDER BY rtl.direction, rtl.tax_kind_snapshot`,
 		revenueID,

@@ -5,7 +5,7 @@ package inventory
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"

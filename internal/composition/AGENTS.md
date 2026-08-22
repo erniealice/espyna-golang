@@ -210,6 +210,6 @@ Provider selection via `CONFIG_*` variables:
 - `CONFIG_DATABASE_PROVIDER`: mock_db, postgres, firestore
 - `CONFIG_AUTH_PROVIDER`: mock_auth, firebase_auth, jwt_auth
 - `CONFIG_STORAGE_PROVIDER`: mock_storage, local_storage, gcs, s3
-- `CONFIG_ID_PROVIDER`: noop, google_uuidv7
+- `CONFIG_ID_PROVIDER`: noop, uuidv7
 - `CONFIG_EMAIL_PROVIDER`: mock, gmail, microsoft
 - `CONFIG_PAYMENT_PROVIDER`: mock, stripe, asiapay

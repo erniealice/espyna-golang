@@ -5,16 +5,16 @@ package subscription
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"slices"
 	"strings"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
@@ -325,7 +325,7 @@ func (r *MySQLSubscriptionRepository) GetSubscriptionListPageData(ctx context.Co
 		WITH
 		search_filtered AS (
 			SELECT s.*
-			FROM ` + entityid.Subscription + ` s
+			FROM `+entityid.Subscription+` s
 			WHERE s.active = ?
 				AND (? = '' OR s.workspace_id = ?)
 				AND (? = '' OR s.name LIKE ?)
@@ -384,10 +384,10 @@ func (r *MySQLSubscriptionRepository) GetSubscriptionListPageData(ctx context.Co
 				) as price_plan,
 				COUNT(*) OVER () AS _total_count
 			FROM search_filtered sf
-			LEFT JOIN ` + entityid.Client + ` c ON sf.client_id = c.id AND c.active = 1
+			LEFT JOIN `+entityid.Client+` c ON sf.client_id = c.id AND c.active = 1
 			LEFT JOIN `+"`user`"+` u ON c.user_id = u.id AND u.active = 1
-			LEFT JOIN ` + entityid.PricePlan + ` pp ON sf.price_plan_id = pp.id AND pp.active = 1
-			LEFT JOIN ` + entityid.Plan + ` p ON pp.plan_id = p.id AND p.active = 1
+			LEFT JOIN `+entityid.PricePlan+` pp ON sf.price_plan_id = pp.id AND pp.active = 1
+			LEFT JOIN `+entityid.Plan+` p ON pp.plan_id = p.id AND p.active = 1
 		),
 		sorted AS (
 			SELECT * FROM enriched
@@ -754,7 +754,7 @@ func (r *MySQLSubscriptionRepository) CountActiveByClientIds(ctx context.Context
 		}
 		sqlRows, err = exec.QueryContext(ctx,
 			`SELECT client_id, COUNT(*) AS cnt
-			   FROM ` + entityid.Subscription + `
+			   FROM `+entityid.Subscription+`
 			  WHERE active = 1
 			    AND (? = '' OR workspace_id = ?)
 			    AND client_id IN (`+placeholders+`)
@@ -764,7 +764,7 @@ func (r *MySQLSubscriptionRepository) CountActiveByClientIds(ctx context.Context
 	} else {
 		sqlRows, err = exec.QueryContext(ctx,
 			`SELECT client_id, COUNT(*) AS cnt
-			   FROM ` + entityid.Subscription + `
+			   FROM `+entityid.Subscription+`
 			  WHERE active = 1
 			    AND (? = '' OR workspace_id = ?)
 			  GROUP BY client_id`,

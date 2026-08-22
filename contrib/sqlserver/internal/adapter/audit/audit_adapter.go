@@ -6,12 +6,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/database/operations"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
+	"github.com/erniealice/espyna-golang/shared/database/operations"
 )
 
 // auditAdapter implements infraports.AuditService using direct SQL against

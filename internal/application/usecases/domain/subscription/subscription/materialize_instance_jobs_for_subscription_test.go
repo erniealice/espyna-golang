@@ -18,6 +18,7 @@ import (
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	jobtemplaterelationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_relation"
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
+	planjobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/plan_job_template"
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
@@ -112,6 +113,7 @@ type instFixtureOpts struct {
 	billingCycleUnit  string
 	visitsPerCycle    int32
 	planJobTemplateID string
+	composition       []*planjobtemplatepb.PlanJobTemplate
 	// AD_HOC × TOTAL_PACKAGE knobs (codex MAJ-1).
 	entitledOccurrences         int32
 	entitledOccurrencesOverride int32
@@ -226,6 +228,10 @@ func newInstFixture(t *testing.T, opts instFixtureOpts) *instFixture {
 	jobTaskRepo := &stubJobTaskRepo{}
 	eventRepo := &stubBillingEventRepo{}
 
+	var compositionRepo planjobtemplatepb.PlanJobTemplateDomainServiceServer
+	if len(opts.composition) > 0 {
+		compositionRepo = &stubPlanJobTemplateRepo{byPlan: map[string][]*planjobtemplatepb.PlanJobTemplate{"plan-1": opts.composition}}
+	}
 	repos := MaterializeInstanceJobsForSubscriptionRepositories{
 		Subscription:        subRepo,
 		PricePlan:           ppRepo,
@@ -234,6 +240,7 @@ func newInstFixture(t *testing.T, opts instFixtureOpts) *instFixture {
 		JobTemplatePhase:    phaseRepo,
 		JobTemplateTask:     taskRepo,
 		JobTemplateRelation: relRepo,
+		PlanJobTemplate:     compositionRepo,
 		Job:                 jobRepo,
 		JobPhase:            jobPhaseRepo,
 		JobTask:             jobTaskRepo,

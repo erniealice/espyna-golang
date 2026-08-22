@@ -4,7 +4,8 @@ package adapterv3
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"net/http"
@@ -53,7 +54,7 @@ func TestCreateFiberV3Handler_ExecutionErrorsAreSanitized(t *testing.T) {
 				t.Fatalf("status: got %d want %d", response.StatusCode, test.wantStatus)
 			}
 			var body map[string]any
-			if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+			if err := json.UnmarshalDecode(jsontext.NewDecoder(response.Body), &body); err != nil {
 				t.Fatalf("decode body: %v", err)
 			}
 			if body["error"] != test.wantError || body["route_name"] != "demo" {

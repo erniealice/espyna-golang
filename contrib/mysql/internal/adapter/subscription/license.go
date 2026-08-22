@@ -5,15 +5,15 @@ package subscription
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"slices"
 	"time"
 
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -258,7 +258,7 @@ func (r *MySQLLicenseRepository) GetLicenseListPageData(ctx context.Context, req
 		WITH
 		search_filtered AS (
 			SELECT l.*
-			FROM ` + entityid.License + ` l
+			FROM `+entityid.License+` l
 			WHERE l.active = 1
 				AND (? = '' OR
 					l.license_key LIKE ? OR

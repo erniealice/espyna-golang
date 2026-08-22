@@ -5,16 +5,16 @@ package operation
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/inventory_movement"
@@ -219,7 +219,7 @@ func (r *SQLServerInventoryMovementRepository) GetInventoryMovementListPageData(
 				im.reference_id,
 				im.reference_type,
 				im.notes
-			FROM ` + entityid.InventoryMovement + ` im
+			FROM `+entityid.InventoryMovement+` im
 			WHERE im.workspace_id = @p1 AND im.active = 1
 		),
 		counted AS (

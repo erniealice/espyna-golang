@@ -5,7 +5,8 @@ package vanilla
 import (
 	"compress/gzip"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"log"
@@ -91,7 +92,7 @@ func (a *VanillaAdapter) Initialize(container any) error {
 	// Add default health endpoint
 	a.mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.MarshalEncode(jsontext.NewEncoder(w), map[string]interface{}{
 			"status":    "ok",
 			"timestamp": time.Now().UTC(),
 			"framework": "http",
@@ -191,9 +192,9 @@ func (a *VanillaAdapter) createHTTPHandler(route *routing.Route) http.HandlerFun
 
 		// Return response
 		if resp != nil {
-			json.NewEncoder(w).Encode(resp)
+			json.MarshalEncode(jsontext.NewEncoder(w), resp)
 		} else {
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.MarshalEncode(jsontext.NewEncoder(w), map[string]interface{}{
 				"message":    "Success",
 				"route_name": route.Metadata.Name,
 			})
@@ -279,7 +280,7 @@ func writeJSONError(w http.ResponseWriter, status int, message, details string) 
 	if details != "" {
 		response["details"] = details
 	}
-	json.NewEncoder(w).Encode(response)
+	json.MarshalEncode(jsontext.NewEncoder(w), response)
 }
 
 // corsMiddleware adds CORS headers to responses

@@ -5,7 +5,7 @@ package treasury
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pettycashreplenishmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/petty_cash_replenishment"
 )
@@ -277,7 +277,7 @@ func (r *SQLServerPettyCashReplenishmentRepository) GetPettyCashReplenishmentLis
 				pcr.replenishment_date,
 				pcr.posted_by,
 				pcr.notes
-			FROM ` + entityid.PettyCashReplenishment + ` pcr
+			FROM `+entityid.PettyCashReplenishment+` pcr
 			WHERE (@p1 = '' OR
 			       pcr.replenishment_number LIKE @p1 OR
 			       pcr.notes LIKE @p1)

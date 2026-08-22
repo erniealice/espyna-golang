@@ -5,18 +5,18 @@ package payroll
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	payrollremittancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_remittance"
 )
@@ -247,8 +247,8 @@ func (r *MySQLPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
 			rem.paid_at_string,
 			rem.reference_number,
 			COUNT(*) OVER() AS total
-		FROM ` + entityid.PayrollRemittance + ` rem
-		LEFT JOIN ` + entityid.PayrollRun + ` pr ON pr.id = rem.payroll_run_id
+		FROM `+entityid.PayrollRemittance+` rem
+		LEFT JOIN `+entityid.PayrollRun+` pr ON pr.id = rem.payroll_run_id
 		WHERE (? IS NULL OR ? = '' OR pr.workspace_id = ?)
 		  AND (? IS NULL OR ? = '' OR rem.reference_number LIKE ?)
 		%s

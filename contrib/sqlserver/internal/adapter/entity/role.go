@@ -5,17 +5,17 @@ package entity
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	rolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role"
@@ -284,12 +284,12 @@ func (r *SQLServerRoleRepository) GetRoleListPageData(
 					p.permission_type AS [permission.permission_type],
 					p.description AS [permission.description],
 					p.active AS [permission.active]
-				 FROM ` + entityid.RolePermission + ` rp
-				 JOIN ` + entityid.Permission + ` p ON rp.permission_id = p.id
+				 FROM `+entityid.RolePermission+` rp
+				 JOIN `+entityid.Permission+` p ON rp.permission_id = p.id
 				 WHERE rp.role_id = r.id AND rp.active = 1 AND p.active = 1
 				 ORDER BY p.name
 				 FOR JSON PATH) AS role_permissions
-			FROM ` + entityid.Role + ` r
+			FROM `+entityid.Role+` r
 			%s
 		),
 		counted AS (

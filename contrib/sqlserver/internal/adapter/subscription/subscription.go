@@ -18,15 +18,15 @@ package subscription
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"slices"
 
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
@@ -770,7 +770,7 @@ func (r *SQLServerSubscriptionRepository) CountActiveByClientIds(ctx context.Con
 		}
 		query := fmt.Sprintf(`
 			SELECT client_id, CAST(COUNT(*) AS INT) AS cnt
-			  FROM ` + entityid.Subscription + `
+			  FROM `+entityid.Subscription+`
 			 WHERE active = 1
 			   AND (@p1 = '' OR workspace_id = @p1)
 			   AND client_id IN (%s)
@@ -779,7 +779,7 @@ func (r *SQLServerSubscriptionRepository) CountActiveByClientIds(ctx context.Con
 	} else {
 		rows, err = exec.QueryContext(ctx, `
 			SELECT client_id, CAST(COUNT(*) AS INT) AS cnt
-			  FROM ` + entityid.Subscription + `
+			  FROM `+entityid.Subscription+`
 			 WHERE active = 1
 			   AND (@p1 = '' OR workspace_id = @p1)
 			 GROUP BY client_id`,

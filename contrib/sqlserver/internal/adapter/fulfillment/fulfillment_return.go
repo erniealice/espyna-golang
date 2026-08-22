@@ -5,7 +5,7 @@ package fulfillment
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/fulfillment"
 )
 
@@ -216,7 +216,7 @@ func (r *SQLServerFulfillmentReturnRepository) DeleteFulfillmentReturn(ctx conte
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
 	_, err := exec.ExecContext(ctx,
-		`UPDATE ` + entityid.FulfillmentReturn + ` SET active = 0 WHERE id = @p1`,
+		`UPDATE `+entityid.FulfillmentReturn+` SET active = 0 WHERE id = @p1`,
 		id,
 	)
 	if err != nil {

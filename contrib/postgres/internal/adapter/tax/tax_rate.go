@@ -5,7 +5,7 @@ package tax
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	taxratepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_rate"
 )
 
@@ -121,7 +121,7 @@ func (r *PostgresTaxRateRepository) FindApplicable(ctx context.Context, workspac
 	}
 
 	row := r.db.QueryRowContext(ctx,
-		`SELECT row_to_json(tr) FROM ` + entityid.TaxRate + ` tr
+		`SELECT row_to_json(tr) FROM `+entityid.TaxRate+` tr
 		 WHERE tr.jurisdiction = $1
 		   AND tr.authority_code = $2
 		   AND tr.kind = $3

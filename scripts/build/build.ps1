@@ -26,7 +26,7 @@ param(
     [ValidateSet("google", "aws", "microsoft", "none")]
             [string]$CloudProvider = "",
     
-    [ValidateSet("google_uuidv7", "local_uuid", "mock_id")]
+    [ValidateSet("uuidv7", "local_uuid", "mock_id")]
     [string]$IdGenerator = "",
     
     # Build configuration
@@ -46,7 +46,7 @@ $ProfileConfigurations = @{
         Storage = "local_storage"
         Email = "mock_email"
                 CloudProvider = "none"
-        idgenerator = "google_uuidv7"
+        idgenerator = "uuidv7"
         Description = "Local development with mock database and local file storage"
     }
     "dev-postgres" = @{
@@ -56,7 +56,7 @@ $ProfileConfigurations = @{
         Storage = "local_storage"
         Email = "mock_email"
         CloudProvider = "none"
-        idgenerator = "google_uuidv7"
+        idgenerator = "uuidv7"
         Description = "Local development with real database"
     }
     "gcp-full" = @{
@@ -66,7 +66,7 @@ $ProfileConfigurations = @{
         Storage = "gcp_storage"
         Email = "gmail"
                 CloudProvider = "google"
-        idgenerator = "google_uuidv7"
+        idgenerator = "uuidv7"
         Description = "Complete Google Cloud Platform deployment"
     }
     "gcp-hybrid" = @{
@@ -76,7 +76,7 @@ $ProfileConfigurations = @{
         Storage = "gcp_storage"
         Email = "microsoftgraph"
         CloudProvider = "microsoft"
-        IdGenerator = "google_uuidv7"
+        IdGenerator = "uuidv7"
         Description = "GCP with Microsoft Graph email integration"
     }
     "aws-standard" = @{
@@ -86,7 +86,7 @@ $ProfileConfigurations = @{
         Storage = "s3"
         Email = "mock_email"
         CloudProvider = "aws"
-        IdGenerator = "google_uuidv7"
+        IdGenerator = "uuidv7"
         Description = "Standard AWS deployment with PostgreSQL and S3"
     }
     "azure-standard" = @{
@@ -96,7 +96,7 @@ $ProfileConfigurations = @{
         Storage = "local_storage"
         Email = "microsoftgraph"
         CloudProvider = "microsoft"
-        IdGenerator = "google_uuidv7"
+        IdGenerator = "uuidv7"
         Description = "Microsoft Azure deployment with Microsoft Graph"
     }
     "hybrid-postgres" = @{
@@ -106,7 +106,7 @@ $ProfileConfigurations = @{
         Storage = "local_storage"
         Email = "mock_email"
         CloudProvider = "none"
-        IdGenerator = "google_uuidv7"
+        IdGenerator = "uuidv7"
         Description = "Database-focused deployment without cloud dependencies"
     }
     "hybrid-firestore" = @{
@@ -116,7 +116,7 @@ $ProfileConfigurations = @{
         Storage = "local_storage"
         Email = "mock_email"
         CloudProvider = "none"
-        IdGenerator = "google_uuidv7"
+        IdGenerator = "uuidv7"
         Description = "Firestore with local services"
     }
     "testing-integration" = @{
@@ -126,7 +126,7 @@ $ProfileConfigurations = @{
         Storage = "local_storage"
         Email = "mock_email"
         CloudProvider = "none"
-        IdGenerator = "google_uuidv7"
+        IdGenerator = "uuidv7"
         Description = "Integration testing with external services"
     }
     "minimal-api" = @{
@@ -136,7 +136,7 @@ $ProfileConfigurations = @{
         Storage = "mock_storage"
         Email = "mock_email"
         CloudProvider = "none"
-        IdGenerator = "google_uuidv7"
+        IdGenerator = "uuidv7"
         Description = "Lightweight API server"
     }
 }

@@ -5,14 +5,14 @@ package inventory
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"time"
 
 	sqlserverCore "github.com/erniealice/espyna-golang/contrib/sqlserver/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	inventoryattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_attribute"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -210,7 +210,7 @@ func (r *SQLServerInventoryAttributeRepository) GetInventoryAttributeListPageDat
 				ia.inventory_item_id,
 				ia.attribute_id,
 				ia.value
-			FROM ` + entityid.InventoryAttribute + ` ia
+			FROM `+entityid.InventoryAttribute+` ia
 			WHERE ia.active = 1
 		),
 		counted AS (

@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"log"
@@ -262,14 +263,14 @@ type PayPalLink struct {
 
 // PayPalWebhookEvent represents a webhook event from PayPal
 type PayPalWebhookEvent struct {
-	ID           string          `json:"id"`
-	EventVersion string          `json:"event_version"`
-	CreateTime   string          `json:"create_time"`
-	ResourceType string          `json:"resource_type"`
-	EventType    string          `json:"event_type"`
-	Summary      string          `json:"summary"`
-	Resource     json.RawMessage `json:"resource"`
-	Links        []PayPalLink    `json:"links"`
+	ID           string         `json:"id"`
+	EventVersion string         `json:"event_version"`
+	CreateTime   string         `json:"create_time"`
+	ResourceType string         `json:"resource_type"`
+	EventType    string         `json:"event_type"`
+	Summary      string         `json:"summary"`
+	Resource     jsontext.Value `json:"resource"`
+	Links        []PayPalLink   `json:"links"`
 }
 
 // PayPalWebhookResource represents the resource in a webhook event
@@ -461,8 +462,8 @@ func (p *PayPalProvider) CreateCheckoutSession(ctx context.Context, req *payment
 	log.Printf("[PayPal] 🔗 Return URL Config: baseURL=%q, successPath=%q, cancelPath=%q", p.baseURL, p.successPath, p.cancelPath)
 	log.Printf("[PayPal] 🔗 Built URLs: successURL=%q, cancelURL=%q", successURL, cancelURL)
 
-	// Format amount as string with 2 decimal places
-	amountStr := fmt.Sprintf("%.2f", data.Amount)
+	// PayPal expects major currency units while the port carries centavos.
+	amountStr := fmt.Sprintf("%.2f", float64(data.Amount)/100.0)
 
 	// Create order request
 	orderReq := PayPalOrderRequest{

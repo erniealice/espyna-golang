@@ -178,7 +178,7 @@ Use cases receive foreign key repositories via dependency injection to ensure da
 | **Database** | Data persistence | PostgreSQL, Firestore, Mock |
 | **Auth** | Authentication/Authorization | Firebase Auth, JWT, Mock (AllowAll) |
 | **Storage** | File storage | GCS, Local, Mock |
-| **ID** | Unique ID generation | Google UUID v7, NoOp |
+| **ID** | Unique ID generation | Go standard library UUID v7, NoOp |
 | **Email** | Email sending | Gmail, Microsoft, Mock |
 | **Payment** | Payment processing | AsiaPay, Mock |
 
@@ -194,7 +194,7 @@ CONFIG_AUTH_PROVIDER=mock_auth        # Options: firebase, jwt, mock_auth
 CONFIG_STORAGE_PROVIDER=mock_storage  # Options: gcs, local, mock_storage
 
 # ID Provider
-CONFIG_ID_PROVIDER=google_uuidv7      # Options: google_uuidv7, noop, mock
+CONFIG_ID_PROVIDER=uuidv7      # Options: uuidv7, noop, mock
 
 # Payment Provider (optional)
 CONFIG_PAYMENT_PROVIDER=asiapay       # Options: asiapay, mock
@@ -207,7 +207,7 @@ CONFIG_PAYMENT_PROVIDER=asiapay       # Options: asiapay, mock
 | `postgresql` | Database | Enables PostgreSQL database provider |
 | `mock_auth` | Auth | Enables mock authorization (AllowAll) |
 | `mock_storage` | Storage | Enables mock file storage |
-| `google_uuidv7` | ID | Enables UUID v7 generation |
+| `uuidv7` | ID | Enables UUID v7 generation |
 | `gmail` | Email | Enables Gmail API email provider |
 | `asiapay` | Payment | Enables AsiaPay payment gateway |
 | `gin` | HTTP | Enables Gin HTTP framework |
@@ -219,7 +219,7 @@ CONFIG_PAYMENT_PROVIDER=asiapay       # Options: asiapay, mock
 go build -tags "gin,mock_db,mock_auth,mock_storage" -o main ./cmd/server
 
 # Production with Firestore
-go build -tags "gin,firestore,firebase,gcs,google_uuidv7,gmail,asiapay" -o main ./cmd/server
+go build -tags "gin,firestore,firebase,gcs,uuidv7,gmail,asiapay" -o main ./cmd/server
 ```
 
 ### Provider Initialization Flow

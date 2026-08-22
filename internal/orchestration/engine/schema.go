@@ -2,7 +2,8 @@ package engine
 
 import (
 	"crypto/sha256"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"regexp"
 	"strings"
@@ -554,7 +555,7 @@ func (p *SchemaProcessor) compileSchema(schemaJson string) (*jsonschema.Schema, 
 	effectiveSchema := applyAdditionalPropertiesDefault(schemaJson)
 
 	// Parse the schema string into a JSON value using santhosh-tekuri's decoder,
-	// which preserves number precision via json.Number. AddResource expects a
+	// which preserves number precision via jsontext.Value. AddResource expects a
 	// parsed JSON value (any), NOT a Reader.
 	schemaDoc, err := jsonschema.UnmarshalJSON(strings.NewReader(effectiveSchema))
 	if err != nil {
@@ -582,7 +583,7 @@ func (p *SchemaProcessor) compileSchema(schemaJson string) (*jsonschema.Schema, 
 // unchanged. This ensures that reject-by-default is the IMPLICIT stance and a
 // schema must EXPLICITLY opt out.
 func applyAdditionalPropertiesDefault(schemaJson string) string {
-	var raw map[string]json.RawMessage
+	var raw map[string]jsontext.Value
 	if err := json.Unmarshal([]byte(schemaJson), &raw); err != nil {
 		// If we cannot parse, return as-is — compilation will fail and deny.
 		return schemaJson
@@ -594,7 +595,7 @@ func applyAdditionalPropertiesDefault(schemaJson string) string {
 	}
 
 	// Inject additionalProperties:false.
-	raw["additionalProperties"] = json.RawMessage(`false`)
+	raw["additionalProperties"] = jsontext.Value(`false`)
 	out, err := json.Marshal(raw)
 	if err != nil {
 		return schemaJson

@@ -17,7 +17,7 @@ package common
 // pipeline with the same primitives the adapter uses.
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"testing"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
@@ -158,10 +158,10 @@ func TestAttribute_ConstraintColumns_ZeroIsNotNull(t *testing.T) {
 // 20260717000000) plus the W2 use-case validator, NOT this serialization layer.
 func TestAttribute_ConstraintBoundaries_ProtoLayerPermissive(t *testing.T) {
 	cases := []struct {
-		name             string
-		minLen, maxLen   int32
-		minVal, maxVal   float64
-		dbWouldReject    bool // documents intent; not asserted here (no DB)
+		name           string
+		minLen, maxLen int32
+		minVal, maxVal float64
+		dbWouldReject  bool // documents intent; not asserted here (no DB)
 	}{
 		{name: "valid_equal_boundary", minLen: 5, maxLen: 5, minVal: 1, maxVal: 1, dbWouldReject: false},
 		{name: "valid_ordered", minLen: 2, maxLen: 8, minVal: 0, maxVal: 100, dbWouldReject: false},

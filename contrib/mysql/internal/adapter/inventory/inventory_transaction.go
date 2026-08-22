@@ -5,15 +5,15 @@ package inventory
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"time"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	inventorytransactionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/inventory/inventory_transaction"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -294,8 +294,8 @@ func (r *MySQLInventoryTransactionRepository) GetInventoryTransactionListPageDat
 				it.serial_number,
 				it.performed_by,
 				COALESCE(ii.name, '') as inventory_item_name
-			FROM ` + entityid.InventoryTransaction + ` it
-			LEFT JOIN ` + entityid.InventoryItem + ` ii ON it.inventory_item_id = ii.id AND ii.active = 1
+			FROM `+entityid.InventoryTransaction+` it
+			LEFT JOIN `+entityid.InventoryItem+` ii ON it.inventory_item_id = ii.id AND ii.active = 1
 			WHERE it.active = 1
 			  AND (? = '' OR
 			       it.transaction_type LIKE ? OR

@@ -5,18 +5,18 @@ package finance
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	mysqlCore "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/core"
-	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	forexratepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/finance/forex_rate"
 )
 
@@ -121,7 +121,7 @@ func (r *MySQLForexRateRepository) FindMostRecent(ctx context.Context, workspace
 	}
 	var id string
 	row := r.db.QueryRowContext(ctx,
-		`SELECT fr.id FROM ` + entityid.ForexRate + ` fr
+		`SELECT fr.id FROM `+entityid.ForexRate+` fr
 		 WHERE fr.workspace_id = ?
 		   AND fr.from_currency = ?
 		   AND fr.to_currency = ?
@@ -153,7 +153,7 @@ func (r *MySQLForexRateRepository) FindActive(ctx context.Context, workspaceID, 
 	}
 	var id string
 	row := r.db.QueryRowContext(ctx,
-		`SELECT fr.id FROM ` + entityid.ForexRate + ` fr
+		`SELECT fr.id FROM `+entityid.ForexRate+` fr
 		 WHERE fr.workspace_id = ?
 		   AND fr.from_currency = ?
 		   AND fr.to_currency = ?
@@ -203,7 +203,7 @@ func (r *MySQLForexRateRepository) SupersedePrior(ctx context.Context, priorID s
 		return fmt.Errorf("SupersedePrior requires raw *sql.DB")
 	}
 	_, err := r.db.ExecContext(ctx,
-		`UPDATE ` + entityid.ForexRate + ` SET status = 3, effective_to = ?
+		`UPDATE `+entityid.ForexRate+` SET status = 3, effective_to = ?
 		 WHERE id = ?
 		   AND workspace_id = ?
 		   AND status = 2`,

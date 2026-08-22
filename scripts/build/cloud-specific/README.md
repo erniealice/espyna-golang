@@ -150,7 +150,7 @@ SMTP_PASSWORD=your-ses-smtp-password
 ### Container Optimization
 ```dockerfile
 # Google Cloud optimized
-FROM golang:1.24-alpine AS builder
+FROM golang:1.27-alpine AS builder
 RUN ./build-fiber-firebase.ps1
 FROM gcr.io/distroless/base
 COPY --from=builder /app/build/espyna-fiber-firebase /espyna

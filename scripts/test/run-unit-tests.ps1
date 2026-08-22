@@ -12,7 +12,7 @@
 # - noop: Enables no-op implementations for disabled services
 # - vanilla: Enables vanilla HTTP framework support
 # - fiber: Enables Fiber framework support (for HTTP helpers)
-# - google_uuidv7: Enables Google UUID v7 ID generation service
+# - uuidv7: Enables Go standard library UUID v7 ID generation service
 
 # Set UTF-8 encoding for console output to handle Unicode characters properly
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -41,7 +41,7 @@ Write-Host "Log file will be saved to: $logFile"
 
 # Execute go test with the required build tags for mock provider system
 # These tags match the dev-minimal profile build configuration
-$buildTags = "google_uuidv7,mock_auth,mock_db,mock_email,mock_storage,noop,vanilla,fiber"
+$buildTags = "uuidv7,mock_auth,mock_db,mock_email,mock_storage,noop,vanilla,fiber"
 $testArgs = @("test", "-v", "-tags=$buildTags", "./tests/unit/api/...")
 
 Write-Host "Build tags: $buildTags"

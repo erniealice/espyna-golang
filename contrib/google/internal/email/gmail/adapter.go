@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -903,4 +902,3 @@ func (p *GoogleEmailProvider) extractBody(payload *gmailPayload, message *ports.
 var _ = url.Values{}
 var _ = http.NewRequest
 var _ = io.ReadAll
-var _ = json.NewDecoder

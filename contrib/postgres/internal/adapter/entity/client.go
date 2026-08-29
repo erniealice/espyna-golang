@@ -170,14 +170,43 @@ func (r *PostgresClientRepository) ReadClient(ctx context.Context, req *clientpb
 		return nil, fmt.Errorf("client with ID '%s' not found", req.Data.Id)
 	}
 
+	metric := postgresCore.BeginConversionMetric(ctx, r.tableName, "read", "generic-proto")
+	if metric != nil {
+		defer metric.Finish()
+		metric.SetRows(1)
+	}
+	var marshalStarted time.Time
+	if metric != nil {
+		marshalStarted = metric.StartPhase()
+	}
 	resultJSON, err := json.Marshal(result)
+	if metric != nil {
+		metric.EndPhase("json_marshal", marshalStarted)
+	}
 	if err != nil {
+		if metric != nil {
+			metric.AddFailure()
+			metric.Fail("json_marshal")
+		}
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
 	}
 
 	client := &clientpb.Client{}
+	var protoStarted time.Time
+	if metric != nil {
+		protoStarted = metric.StartPhase()
+	}
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, client); err != nil {
+		if metric != nil {
+			metric.EndPhase("protojson_unmarshal", protoStarted)
+			metric.AddFailure()
+			metric.Fail("protojson_unmarshal")
+		}
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
+	}
+	if metric != nil {
+		metric.EndPhase("protojson_unmarshal", protoStarted)
+		metric.Success()
 	}
 
 	// User-table denorm — populate Client.User from the user row.
@@ -395,23 +424,52 @@ func (r *PostgresClientRepository) ListClients(ctx context.Context, req *clientp
 	}
 
 	// Convert results to protobuf slice using protojson
+	metric := postgresCore.BeginConversionMetric(ctx, r.tableName, "list", "generic-proto")
+	if metric != nil {
+		defer metric.Finish()
+		metric.SetRows(len(listResult.Data))
+	}
 	var clients []*clientpb.Client
 	for _, result := range listResult.Data {
+		var marshalStarted time.Time
+		if metric != nil {
+			marshalStarted = metric.StartPhase()
+		}
 		resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
+		if metric != nil {
+			metric.EndPhase("json_marshal", marshalStarted)
+		}
 		if err != nil {
 			// Log error and continue with next item
+			if metric != nil {
+				metric.AddFailure()
+			}
 			continue
 		}
 
 		client := &clientpb.Client{}
+		var protoStarted time.Time
+		if metric != nil {
+			protoStarted = metric.StartPhase()
+		}
 		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, client); err != nil {
 			// Log error and continue with next item
+			if metric != nil {
+				metric.EndPhase("protojson_unmarshal", protoStarted)
+				metric.AddFailure()
+			}
 			continue
+		}
+		if metric != nil {
+			metric.EndPhase("protojson_unmarshal", protoStarted)
 		}
 		if staffScoped && !reachableClients[client.Id] {
 			continue
 		}
 		clients = append(clients, client)
+	}
+	if metric != nil {
+		metric.Success()
 	}
 
 	return &clientpb.ListClientsResponse{
@@ -486,6 +544,11 @@ func (r *PostgresClientRepository) GetClientListPageData(
 ) (*clientpb.GetClientListPageDataResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("get client list page data request is required")
+	}
+	metric := postgresCore.BeginConversionMetric(ctx, r.tableName, "list", "typed-client-page")
+	if metric != nil {
+		defer metric.Finish()
+		metric.SetColumns(33)
 	}
 
 	// Validate sort columns against the extended allowlist (includes "active_subscriptions").
@@ -603,14 +666,28 @@ func (r *PostgresClientRepository) GetClientListPageData(
 	`, activeSubscriptionProjection, activeSubscriptionJoin, whereSQL, orderByClause, limitIdx, offsetIdx)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	var queryStarted time.Time
+	if metric != nil {
+		queryStarted = metric.StartPhase()
+	}
 	rows, err := exec.QueryContext(ctx, query, queryArgs...)
+	if metric != nil {
+		metric.EndPhase("query_open", queryStarted)
+	}
 	if err != nil {
+		if metric != nil {
+			metric.Fail("query_open")
+		}
 		return nil, fmt.Errorf("failed to query client list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var clients []*clientpb.Client
 	var totalCount int64
+	var scanStarted time.Time
+	if metric != nil {
+		scanStarted = metric.StartPhase()
+	}
 
 	for rows.Next() {
 		var (
@@ -685,6 +762,10 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			&total,
 		)
 		if err != nil {
+			if metric != nil {
+				metric.EndPhase("scan_build", scanStarted)
+				metric.Fail("scan_build")
+			}
 			return nil, fmt.Errorf("failed to scan client row: %w", err)
 		}
 
@@ -797,14 +878,34 @@ func (r *PostgresClientRepository) GetClientListPageData(
 	}
 
 	if err = rows.Err(); err != nil {
+		if metric != nil {
+			metric.EndPhase("scan_build", scanStarted)
+			metric.Fail("scan_build")
+		}
 		return nil, fmt.Errorf("error iterating client rows: %w", err)
+	}
+	if metric != nil {
+		metric.EndPhase("scan_build", scanStarted)
+		metric.SetRows(len(clients))
 	}
 
 	// Hydrate category tags for the returned page in one query. Keeping this as
 	// a separate batch avoids multiplying the paginated Client rows while also
 	// avoiding one query per row.
+	var batchStarted time.Time
+	if metric != nil {
+		batchStarted = metric.StartPhase()
+	}
 	if err := hydrateClientCategories(ctx, clients, r.loadClientCategoriesBatch); err != nil {
+		if metric != nil {
+			metric.EndPhase("category_batch", batchStarted)
+			metric.Fail("category_batch")
+		}
 		return nil, err
+	}
+	if metric != nil {
+		metric.EndPhase("category_batch", batchStarted)
+		metric.Success()
 	}
 
 	// Pagination metadata — total_items is the windowed count from the CTE.

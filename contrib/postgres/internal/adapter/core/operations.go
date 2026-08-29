@@ -203,6 +203,10 @@ func (p *PostgresOperations) Read(ctx context.Context, tableName string, id stri
 	if id == "" {
 		return nil, model.NewDatabaseError("record ID is required", "MISSING_RECORD_ID", 400)
 	}
+	metric := BeginConversionMetric(ctx, tableName, "read", "generic-map")
+	if metric != nil {
+		defer metric.Finish()
+	}
 
 	query := fmt.Sprintf("SELECT * FROM \"%s\" WHERE id = $1", tableName)
 
@@ -213,8 +217,19 @@ func (p *PostgresOperations) Read(ctx context.Context, tableName string, id stri
 	// pooled *sql.DB this is masked (a second idle connection serves the
 	// introspection), but inside a *sql.Tx it is fatal — so introspect before
 	// opening the row query.
+	var catalogStarted time.Time
+	if metric != nil {
+		catalogStarted = metric.StartPhase()
+	}
 	resultColumns, err := p.getTableColumns(ctx, tableName)
+	if metric != nil {
+		metric.EndPhase("catalog", catalogStarted)
+		metric.SetColumns(len(resultColumns))
+	}
 	if err != nil {
+		if metric != nil {
+			metric.Fail("catalog")
+		}
 		return nil, model.NewDatabaseError(
 			fmt.Sprintf("failed to get table columns: %v", err),
 			"POSTGRES_SCHEMA_ERROR",
@@ -222,11 +237,21 @@ func (p *PostgresOperations) Read(ctx context.Context, tableName string, id stri
 		)
 	}
 
+	var scanStarted time.Time
+	if metric != nil {
+		scanStarted = metric.StartPhase()
+	}
 	row := p.getExecutor(ctx).QueryRowContext(ctx, query, id)
 
 	// Scan result
 	result, err := p.scanRowToMap(row, resultColumns)
+	if metric != nil {
+		metric.EndPhase("query_scan_normalize", scanStarted)
+	}
 	if err != nil {
+		if metric != nil {
+			metric.Fail("query_scan_normalize")
+		}
 		if err == sql.ErrNoRows {
 			return nil, model.NewDatabaseError("record not found", "RECORD_NOT_FOUND", 404)
 		}
@@ -235,6 +260,10 @@ func (p *PostgresOperations) Read(ctx context.Context, tableName string, id stri
 			"POSTGRES_READ_FAILED",
 			500,
 		)
+	}
+	if metric != nil {
+		metric.SetRows(1)
+		metric.Success()
 	}
 
 	return result, nil
@@ -590,9 +619,24 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 	if err := ValidateSQLIdent(tableName); err != nil || strings.Contains(tableName, ".") {
 		return nil, model.NewDatabaseError("invalid table name", "INVALID_TABLE_NAME", 400)
 	}
+	metric := BeginConversionMetric(ctx, tableName, "list", "generic-map")
+	if metric != nil {
+		defer metric.Finish()
+	}
 
+	var allowlistStarted time.Time
+	if metric != nil {
+		allowlistStarted = metric.StartPhase()
+	}
 	allowedColumns, err := p.listAllowedColumns(ctx, tableName)
+	if metric != nil {
+		metric.EndPhase("allowlist", allowlistStarted)
+		metric.SetColumns(len(allowedColumns))
+	}
 	if err != nil {
+		if metric != nil {
+			metric.Fail("allowlist")
+		}
 		return nil, model.NewDatabaseError(
 			fmt.Sprintf("failed to resolve list columns: %v", err),
 			"POSTGRES_SCHEMA_ERROR",
@@ -600,6 +644,9 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 		)
 	}
 	if err := validateListRequest(params, tableName, allowedColumns); err != nil {
+		if metric != nil {
+			metric.Fail("validation")
+		}
 		return nil, model.NewDatabaseError(err.Error(), "INVALID_LIST_REQUEST", 400)
 	}
 
@@ -685,8 +732,18 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 	)
 
 	var totalItems int32
+	var countStarted time.Time
+	if metric != nil {
+		countStarted = metric.StartPhase()
+	}
 	err = p.getExecutor(ctx).QueryRowContext(ctx, countQuery, values...).Scan(&totalItems)
+	if metric != nil {
+		metric.EndPhase("count", countStarted)
+	}
 	if err != nil {
+		if metric != nil {
+			metric.Fail("count")
+		}
 		return nil, model.NewDatabaseError(
 			fmt.Sprintf("failed to count records: %v", err),
 			"POSTGRES_COUNT_FAILED",
@@ -718,8 +775,18 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 	values = append(values, limit, offset)
 
 	// Execute query
+	var queryStarted time.Time
+	if metric != nil {
+		queryStarted = metric.StartPhase()
+	}
 	rows, err := p.getExecutor(ctx).QueryContext(ctx, query, values...)
+	if metric != nil {
+		metric.EndPhase("query_open", queryStarted)
+	}
 	if err != nil {
+		if metric != nil {
+			metric.Fail("query_open")
+		}
 		return nil, model.NewDatabaseError(
 			fmt.Sprintf("failed to list records: %v", err),
 			"POSTGRES_LIST_FAILED",
@@ -729,8 +796,16 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 	defer rows.Close()
 
 	// Get column names
+	var scanStarted time.Time
+	if metric != nil {
+		scanStarted = metric.StartPhase()
+	}
 	columns, err := rows.Columns()
 	if err != nil {
+		if metric != nil {
+			metric.EndPhase("scan_normalize", scanStarted)
+			metric.Fail("scan_normalize")
+		}
 		return nil, model.NewDatabaseError(
 			fmt.Sprintf("failed to get columns: %v", err),
 			"POSTGRES_LIST_FAILED",
@@ -743,6 +818,10 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 	for rows.Next() {
 		result, err := p.scanRowsToMap(rows, columns)
 		if err != nil {
+			if metric != nil {
+				metric.EndPhase("scan_normalize", scanStarted)
+				metric.Fail("scan_normalize")
+			}
 			return nil, model.NewDatabaseError(
 				fmt.Sprintf("failed to scan row: %v", err),
 				"POSTGRES_LIST_FAILED",
@@ -753,11 +832,21 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 	}
 
 	if err = rows.Err(); err != nil {
+		if metric != nil {
+			metric.EndPhase("scan_normalize", scanStarted)
+			metric.Fail("scan_normalize")
+		}
 		return nil, model.NewDatabaseError(
 			fmt.Sprintf("rows iteration error: %v", err),
 			"POSTGRES_LIST_FAILED",
 			500,
 		)
+	}
+	if metric != nil {
+		metric.EndPhase("scan_normalize", scanStarted)
+		metric.SetColumns(len(columns))
+		metric.SetRows(len(results))
+		metric.Success()
 	}
 
 	// Build pagination response.

@@ -141,6 +141,8 @@ const (
 	envMaxConnections     = "DATABASE_POSTGRES_MAX_CONNECTIONS"
 	defaultMaxConnections = 25
 	maxMaxConnections     = 10_000
+
+	envConversionMetrics = "DATABASE_POSTGRES_CONVERSION_METRICS"
 )
 
 // resolvedTimeout is the typed carrier for one session timeout after strict
@@ -760,6 +762,10 @@ func (a *PostgresAdapter) Initialize(config *dbpb.DatabaseProviderConfig) error 
 	if pgProto == nil {
 		return fmt.Errorf("postgresql adapter requires postgresql configuration")
 	}
+	conversionMetricsSpec := os.Getenv(envConversionMetrics)
+	if err := core.ValidateConversionMetricsSpec(conversionMetricsSpec); err != nil {
+		return err
+	}
 
 	pgConfig, err := resolvePostgresConfig(pgProto)
 	if err != nil {
@@ -792,6 +798,10 @@ func (a *PostgresAdapter) Initialize(config *dbpb.DatabaseProviderConfig) error 
 	if err := db.Ping(); err != nil {
 		db.Close()
 		return fmt.Errorf("failed to connect to PostgreSQL: %w", err)
+	}
+	if err := core.ConfigureConversionMetrics(conversionMetricsSpec); err != nil {
+		db.Close()
+		return err
 	}
 
 	a.attach(db, pgConfig, config.Enabled)

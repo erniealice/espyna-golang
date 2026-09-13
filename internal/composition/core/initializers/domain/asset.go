@@ -24,7 +24,8 @@ func InitializeAsset(
 	// Build the Asset sub-bundle
 	assetSub := assetUseCases.NewUseCases(
 		assetUseCases.AssetRepositories{
-			Asset: repos.Asset,
+			Asset:   repos.Asset,
+			Product: repos.Product,
 		},
 		assetUseCases.AssetServices{
 			Authorizer:       authSvc,

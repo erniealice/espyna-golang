@@ -9,25 +9,28 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 )
 
 const entityAsset = "asset"
 
 // CreateAssetRepositories groups all repository dependencies
 type CreateAssetRepositories struct {
-	Asset assetpb.AssetDomainServiceServer // Primary entity repository
+	Asset   assetpb.AssetDomainServiceServer // Primary entity repository
+	Product productpb.ProductDomainServiceServer
 }
 
 // CreateAssetServices groups all business service dependencies
 type CreateAssetServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // CreateAssetUseCase handles the business logic for creating assets
@@ -55,11 +58,11 @@ func NewCreateAssetUseCaseUngrouped(assetRepo assetpb.AssetDomainServiceServer) 
 	}
 
 	services := CreateAssetServices{
-		Authorizer:  nil,
-		Transactor:  ports.NewNoOpTransactor(),
+		Authorizer:       nil,
+		Transactor:       ports.NewNoOpTransactor(),
 		Translator:       ports.NewNoOpTranslator(),
 		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
-		IDGenerator: ports.NewNoOpIDGenerator(),
+		IDGenerator:      ports.NewNoOpIDGenerator(),
 	}
 
 	return NewCreateAssetUseCase(repositories, services)
@@ -150,6 +153,30 @@ func (uc *CreateAssetUseCase) validateInput(ctx context.Context, req *assetpb.Cr
 	}
 	if req.Data.AssetCategoryId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.category_id_required", "[ERR-DEFAULT] Asset category is required"))
+	}
+	if req.Data.ProductId != nil {
+		if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: entityid.Product, Action: entityid.ActionRead}); err != nil {
+			return err
+		}
+
+		*req.Data.ProductId = strings.TrimSpace(*req.Data.ProductId)
+		if *req.Data.ProductId == "" {
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.product_required", "Product is required"))
+		}
+		if uc.repositories.Product == nil {
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.product_unavailable", "Product unavailable"))
+		}
+		requestIdentity, err := identity.RequireWorkspace(ctx)
+		if err != nil || requestIdentity.WorkspaceID == "" || requestIdentity.PrincipalType == 0 || requestIdentity.PrincipalID == "" {
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.product_unavailable", "Product unavailable"))
+		}
+		if req.Data.GetWorkspaceId() != "" && req.Data.GetWorkspaceId() != requestIdentity.WorkspaceID {
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.product_unavailable", "Product unavailable"))
+		}
+		product, err := uc.repositories.Product.ReadProduct(ctx, &productpb.ReadProductRequest{Data: &productpb.Product{Id: *req.Data.ProductId}})
+		if err != nil || product == nil || len(product.Data) == 0 || product.Data[0].GetWorkspaceId() != requestIdentity.WorkspaceID {
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.product_unavailable", "Product unavailable"))
+		}
 	}
 	return nil
 }

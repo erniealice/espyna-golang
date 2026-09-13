@@ -13,11 +13,13 @@ import (
 	assettxpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_transaction"
 	depschpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/depreciation"
 	deprunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/depreciation_run"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 )
 
 // AssetRepositories contains all asset domain repositories.
 type AssetRepositories struct {
 	Asset                assetpb.AssetDomainServiceServer
+	Product              productpb.ProductDomainServiceServer
 	AssetCategory        assetcategorypb.AssetCategoryDomainServiceServer
 	AssetTransaction     assettxpb.AssetTransactionDomainServiceServer
 	DepreciationSchedule depschpb.DepreciationDomainServiceServer
@@ -41,6 +43,13 @@ func NewAssetRepositories(dbProvider contracts.Provider, tableConfig *registry.T
 	assetRepo, err := repoCreator.CreateRepository(entityid.Asset, conn, tableConfig.TableName(entityid.Asset))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create asset repository: %w", err)
+	}
+	productRepo, err := repoCreator.CreateRepository(entityid.Product, conn, tableConfig.TableName(entityid.Product))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create product repository for asset assignment: %w", err)
+	}
+	if configured, ok := assetRepo.(interface{ SetProductTableName(string) }); ok {
+		configured.SetProductTableName(tableConfig.TableName(entityid.Product))
 	}
 
 	assetCategoryRepo, err := repoCreator.CreateRepository(entityid.AssetCategory, conn, tableConfig.TableName(entityid.AssetCategory))
@@ -79,6 +88,7 @@ func NewAssetRepositories(dbProvider contracts.Provider, tableConfig *registry.T
 
 	return &AssetRepositories{
 		Asset:                assetRepo.(assetpb.AssetDomainServiceServer),
+		Product:              productRepo.(productpb.ProductDomainServiceServer),
 		AssetCategory:        assetCategoryRepo.(assetcategorypb.AssetCategoryDomainServiceServer),
 		AssetTransaction:     assetTxRepo,
 		DepreciationSchedule: depSchRepo,

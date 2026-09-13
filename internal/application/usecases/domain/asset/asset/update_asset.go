@@ -9,21 +9,24 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 )
 
 // UpdateAssetRepositories groups all repository dependencies
 type UpdateAssetRepositories struct {
-	Asset assetpb.AssetDomainServiceServer // Primary entity repository
+	Asset   assetpb.AssetDomainServiceServer // Primary entity repository
+	Product productpb.ProductDomainServiceServer
 }
 
 // UpdateAssetServices groups all business service dependencies
 type UpdateAssetServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -88,6 +91,27 @@ func (uc *UpdateAssetUseCase) validateInput(ctx context.Context, req *assetpb.Up
 	}
 	if req.Data == nil {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.data_required", "[ERR-DEFAULT] Asset data is required"))
+	}
+	if req.Data.ProductId != nil {
+		requestIdentity, err := identity.RequireWorkspace(ctx)
+		if err != nil || requestIdentity.PrincipalType == 0 || requestIdentity.PrincipalID == "" {
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.assignment_unavailable", "Asset assignment unavailable"))
+		}
+		if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{Entity: entityid.Asset, Action: entityid.ActionRead}); err != nil {
+			return err
+		}
+		if uc.repositories.Asset == nil {
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.assignment_unavailable", "Asset assignment unavailable"))
+		}
+		*req.Data.ProductId = strings.TrimSpace(*req.Data.ProductId)
+		current, err := uc.repositories.Asset.ReadAsset(ctx, &assetpb.ReadAssetRequest{Data: &assetpb.Asset{Id: req.Data.Id}})
+		if err != nil || current == nil || len(current.Data) == 0 || current.Data[0].GetWorkspaceId() != requestIdentity.WorkspaceID {
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.assignment_unavailable", "Asset assignment unavailable"))
+		}
+		if current.Data[0].GetProductId() != *req.Data.ProductId {
+			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "asset.validation.product_already_assigned", "Asset already has a product"))
+		}
+		// Generic edits only acknowledge the existing link; they never write it.
 	}
 
 	// Trim leading and trailing spaces

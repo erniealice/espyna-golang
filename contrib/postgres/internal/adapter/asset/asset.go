@@ -14,6 +14,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
 	assetcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset_category"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
@@ -62,8 +63,43 @@ var assetSortSpec = espynahttp.SortSpec{AllowedCols: assetSortableSQLCols}
 // current caller in fycha block.go or anywhere else this adapter unblocks.
 type PostgresAssetRepository struct {
 	assetpb.UnimplementedAssetDomainServiceServer
-	dbOps     interfaces.DatabaseOperation
-	tableName string
+	dbOps            interfaces.DatabaseOperation
+	tableName        string
+	productTableName string
+}
+
+// AssignAssetProduct atomically links an unassigned asset to a product in the
+// request workspace. The conditional predicate makes retries and races safe.
+func (r *PostgresAssetRepository) AssignAssetProduct(ctx context.Context, assetID, productID string) error {
+	id, err := identity.RequireWorkspace(ctx)
+	if err != nil || id.WorkspaceID == "" {
+		return fmt.Errorf("workspace is required")
+	}
+	execProvider, ok := r.dbOps.(executorProvider)
+	if !ok {
+		return fmt.Errorf("asset assignment unavailable")
+	}
+	productTable := r.productTableName
+	if productTable == "" {
+		productTable = entityid.Product
+	}
+	query := `UPDATE ` + r.tableName + ` a
+SET product_id = $1, date_modified = NOW()
+WHERE a.id = $2 AND a.workspace_id = $3
+  AND COALESCE(a.product_id, '') = ''
+  AND EXISTS (SELECT 1 FROM ` + productTable + ` p WHERE p.id = $1 AND p.workspace_id = $3)`
+	result, err := execProvider.GetExecutor(ctx).ExecContext(ctx, query, productID, assetID, id.WorkspaceID)
+	if err != nil {
+		return fmt.Errorf("assign asset product: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("assign asset product rows affected: %w", err)
+	}
+	if rows != 1 {
+		return fmt.Errorf("asset or product unavailable, or asset already assigned")
+	}
+	return nil
 }
 
 // NewPostgresAssetRepository creates a new PostgreSQL asset repository.
@@ -73,8 +109,16 @@ func NewPostgresAssetRepository(dbOps interfaces.DatabaseOperation, tableName st
 	}
 
 	return &PostgresAssetRepository{
-		dbOps:     dbOps,
-		tableName: tableName,
+		dbOps:            dbOps,
+		tableName:        tableName,
+		productTableName: entityid.Product,
+	}
+}
+
+// SetProductTableName supplies the provider's configured product table name.
+func (r *PostgresAssetRepository) SetProductTableName(name string) {
+	if name != "" {
+		r.productTableName = name
 	}
 }
 
@@ -94,7 +138,6 @@ func (r *PostgresAssetRepository) CreateAsset(ctx context.Context, req *assetpb.
 	if err := json.Unmarshal(jsonData, &data); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
-
 	// Create document using common operations
 	result, err := r.dbOps.Create(ctx, r.tableName, data)
 	if err != nil {
@@ -240,6 +283,10 @@ func (r *PostgresAssetRepository) UpdateAsset(ctx context.Context, req *assetpb.
 	if err := json.Unmarshal(jsonData, &data); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
+	// Product assignment is a dedicated, conditional operation. Never let the
+	// broad CRUD update overwrite a concurrent or existing product link.
+	delete(data, "product_id")
+	delete(data, "productId")
 
 	// Update document using common operations
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)

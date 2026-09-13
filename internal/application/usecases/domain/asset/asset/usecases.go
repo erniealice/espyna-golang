@@ -4,20 +4,22 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	assetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/asset/asset"
+	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 )
 
 // AssetRepositories groups all repository dependencies for asset use cases
 type AssetRepositories struct {
-	Asset assetpb.AssetDomainServiceServer // Primary entity repository
+	Asset   assetpb.AssetDomainServiceServer // Primary entity repository
+	Product productpb.ProductDomainServiceServer
 }
 
 // AssetServices groups all business service dependencies for asset use cases
 type AssetServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // UseCases contains all asset-related use cases
@@ -30,6 +32,7 @@ type UseCases struct {
 	GetAssetListPageData *GetAssetListPageDataUseCase
 	GetAssetItemPageData *GetAssetItemPageDataUseCase
 	SetAssetActive       *SetAssetActiveUseCase
+	AssignProduct        *AssignProductUseCase
 }
 
 // NewUseCases creates a new collection of asset use cases
@@ -38,70 +41,72 @@ func NewUseCases(
 	services AssetServices,
 ) *UseCases {
 	// Build individual grouped parameters for each use case
-	createRepos := CreateAssetRepositories(repositories)
+	createRepos := CreateAssetRepositories{Asset: repositories.Asset, Product: repositories.Product}
 	createServices := CreateAssetServices{
-		Authorizer:  services.Authorizer,
-		Transactor:  services.Transactor,
-		Translator:  services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 		ActionGatekeeper: services.ActionGatekeeper,
-		IDGenerator: services.IDGenerator,
+		IDGenerator:      services.IDGenerator,
 	}
 
-	readRepos := ReadAssetRepositories(repositories)
+	readRepos := ReadAssetRepositories{Asset: repositories.Asset}
 	readServices := ReadAssetServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
-	updateRepos := UpdateAssetRepositories(repositories)
+	updateRepos := UpdateAssetRepositories{Asset: repositories.Asset, Product: repositories.Product}
 	updateServices := UpdateAssetServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
-	deleteRepos := DeleteAssetRepositories(repositories)
+	deleteRepos := DeleteAssetRepositories{Asset: repositories.Asset}
 	deleteServices := DeleteAssetServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
-	listRepos := ListAssetsRepositories(repositories)
+	listRepos := ListAssetsRepositories{Asset: repositories.Asset}
 	listServices := ListAssetsServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
-	getListPageDataRepos := GetAssetListPageDataRepositories(repositories)
+	getListPageDataRepos := GetAssetListPageDataRepositories{Asset: repositories.Asset}
 	getListPageDataServices := GetAssetListPageDataServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
-	getItemPageDataRepos := GetAssetItemPageDataRepositories(repositories)
+	getItemPageDataRepos := GetAssetItemPageDataRepositories{Asset: repositories.Asset}
 	getItemPageDataServices := GetAssetItemPageDataServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
-	setAssetActiveRepos := SetAssetActiveRepositories(repositories)
+	setAssetActiveRepos := SetAssetActiveRepositories{Asset: repositories.Asset}
 	setAssetActiveServices := SetAssetActiveServices{
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
+	assignProductRepos := AssignProductRepositories{Asset: repositories.Asset, Product: repositories.Product}
+	assignProductServices := AssignProductServices{Translator: services.Translator, ActionGatekeeper: services.ActionGatekeeper}
 
 	return &UseCases{
 		CreateAsset:          NewCreateAssetUseCase(createRepos, createServices),
@@ -112,6 +117,7 @@ func NewUseCases(
 		GetAssetListPageData: NewGetAssetListPageDataUseCase(getListPageDataRepos, getListPageDataServices),
 		GetAssetItemPageData: NewGetAssetItemPageDataUseCase(getItemPageDataRepos, getItemPageDataServices),
 		SetAssetActive:       NewSetAssetActiveUseCase(setAssetActiveRepos, setAssetActiveServices),
+		AssignProduct:        NewAssignProductUseCase(assignProductRepos, assignProductServices),
 	}
 }
 
@@ -124,8 +130,8 @@ func NewUseCasesUngrouped(assetRepo assetpb.AssetDomainServiceServer) *UseCases 
 	}
 
 	services := AssetServices{
-		Authorizer: nil,
-		Transactor: ports.NewNoOpTransactor(),
+		Authorizer:       nil,
+		Transactor:       ports.NewNoOpTransactor(),
 		Translator:       ports.NewNoOpTranslator(),
 		ActionGatekeeper: actiongate.NewActionGatekeeper(nil, ports.NewNoOpTranslator()),
 	}

@@ -65,6 +65,10 @@ func (r *PostgresPaymentTermRepository) CreatePaymentTerm(ctx context.Context, r
 	if err := json.Unmarshal(jsonData, &data); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
+	// protojson omits zero-valued scalar fields. Keep these persisted columns
+	// explicit so immediate terms and non-default terms do not become NULL.
+	data["netDays"] = req.Data.NetDays
+	data["isDefault"] = req.Data.IsDefault
 
 	// Create document using common operations
 	result, err := r.dbOps.Create(ctx, r.tableName, data)
@@ -103,11 +107,11 @@ func (r *PostgresPaymentTermRepository) ReadPaymentTerm(ctx context.Context, req
 			name,
 			code,
 			type,
-			net_days,
+			COALESCE(net_days, 0) AS net_days,
 			discount_days,
 			discount_percent_bps,
 			entity_scope,
-			is_default,
+			COALESCE(is_default, false) AS is_default,
 			description,
 			display_order
 		FROM ` + r.tableName + `
@@ -188,6 +192,9 @@ func (r *PostgresPaymentTermRepository) UpdatePaymentTerm(ctx context.Context, r
 	if err := json.Unmarshal(jsonData, &data); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
+	// Include zero-valued scalars so updates can intentionally clear a value.
+	data["netDays"] = req.Data.NetDays
+	data["isDefault"] = req.Data.IsDefault
 
 	// Update document using common operations
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
@@ -315,11 +322,11 @@ func (r *PostgresPaymentTermRepository) GetPaymentTermListPageData(
 				name,
 				code,
 				type,
-				net_days,
+				COALESCE(net_days, 0) AS net_days,
 				discount_days,
 				discount_percent_bps,
 				entity_scope,
-				is_default,
+				COALESCE(is_default, false) AS is_default,
 				description,
 				display_order
 			FROM ` + r.tableName + `
@@ -451,11 +458,11 @@ func (r *PostgresPaymentTermRepository) GetPaymentTermItemPageData(
 				name,
 				code,
 				type,
-				net_days,
+				COALESCE(net_days, 0) AS net_days,
 				discount_days,
 				discount_percent_bps,
 				entity_scope,
-				is_default,
+				COALESCE(is_default, false) AS is_default,
 				description,
 				display_order
 			FROM ` + r.tableName + `

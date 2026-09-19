@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
@@ -25,6 +26,7 @@ import (
 // case looks up or creates a matching client-scoped PriceSchedule and stamps
 // its ID before delegating to the repository.
 type CreatePricePlanRepositories struct {
+	Workspace     workspacepb.WorkspaceDomainServiceServer
 	PricePlan     priceplanpb.PricePlanDomainServiceServer
 	Plan          planpb.PlanDomainServiceServer
 	PriceSchedule priceschedulepb.PriceScheduleDomainServiceServer
@@ -33,11 +35,11 @@ type CreatePricePlanRepositories struct {
 
 // CreatePricePlanServices groups all business service dependencies
 type CreatePricePlanServices struct {
-	Authorizer  ports.Authorizer // Current: RBAC and permissions
-	Transactor  ports.Transactor // Current: Database transactions
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer // Current: RBAC and permissions
+	Transactor       ports.Transactor // Current: Database transactions
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // CreatePricePlanUseCase handles the business logic for creating price_plans
@@ -124,6 +126,11 @@ func (uc *CreatePricePlanUseCase) enrichPricePlanData(pricePlan *priceplanpb.Pri
 
 // validateBusinessRules enforces business constraints for price plans
 func (uc *CreatePricePlanUseCase) validateBusinessRules(ctx context.Context, pricePlan *priceplanpb.PricePlan) error {
+	if err := NormalizeAndValidatePricePlanEscalation(pricePlan); err != nil {
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.escalation_invalid", "Check the escalation mode, percentage, application and interval.")
+		return errors.New(msg)
+	}
+
 	// Validate price plan name length — only when a name was provided (optional field).
 	if pricePlan.GetName() != "" {
 		if len(pricePlan.GetName()) < 3 {
@@ -238,6 +245,7 @@ func (uc *CreatePricePlanUseCase) validateEntityReferences(ctx context.Context, 
 		pricePlan,
 		plan.Data[0],
 		uc.repositories.PriceSchedule,
+		uc.repositories.Workspace,
 		uc.repositories.Client,
 		uc.services.IDGenerator,
 		uc.services.Translator,

@@ -85,6 +85,12 @@ func (uc *UpdateSubscriptionUseCase) Execute(ctx context.Context, req *subscript
 	if err := uc.validateEntityReferences(ctx, req.Data); err != nil {
 		return nil, err
 	}
+	if agreementEscalationWasSupplied(req.Data) {
+		billingKind, amountBasis := uc.effectiveEscalationPricing(ctx, req.Data)
+		if err := normalizeAndValidateAgreementEscalation(req.Data, billingKind, amountBasis); err != nil {
+			return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription.validation.escalation_invalid", "Check the escalation mode, percentage, application and interval."))
+		}
+	}
 
 	// Business validation
 	if err := uc.validateBusinessRules(ctx, req.Data); err != nil {

@@ -4,6 +4,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
@@ -15,6 +16,7 @@ import (
 // client-scoped PriceSchedule path on CreatePricePlan / UpdatePricePlan
 // (plan §3.2 / §4.4 of 20260427-plan-client-scope, wired 2026-04-28).
 type PricePlanRepositories struct {
+	Workspace     workspacepb.WorkspaceDomainServiceServer
 	PricePlan     priceplanpb.PricePlanDomainServiceServer
 	Plan          planpb.PlanDomainServiceServer
 	PriceSchedule priceschedulepb.PriceScheduleDomainServiceServer
@@ -51,10 +53,10 @@ func NewUseCases(
 	createRepos := CreatePricePlanRepositories(repositories)
 	createServices := CreatePricePlanServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer:  services.Authorizer,
-		Transactor:  services.Transactor,
-		Translator:  services.Translator,
-		IDGenerator: services.IDGenerator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
+		IDGenerator:      services.IDGenerator,
 	}
 
 	readRepos := ReadPricePlanRepositories{
@@ -62,9 +64,9 @@ func NewUseCases(
 	}
 	readServices := ReadPricePlanServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	updateRepos := UpdatePricePlanRepositories(repositories)
@@ -82,9 +84,9 @@ func NewUseCases(
 	}
 	deleteServices := DeletePricePlanServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listRepos := ListPricePlansRepositories{
@@ -92,9 +94,9 @@ func NewUseCases(
 	}
 	listServices := ListPricePlansServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listPageDataRepos := GetPricePlanListPageDataRepositories{
@@ -102,9 +104,9 @@ func NewUseCases(
 	}
 	listPageDataServices := GetPricePlanListPageDataServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	itemPageDataRepos := GetPricePlanItemPageDataRepositories{
@@ -112,9 +114,9 @@ func NewUseCases(
 	}
 	itemPageDataServices := GetPricePlanItemPageDataServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	return &UseCases{

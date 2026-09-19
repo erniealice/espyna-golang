@@ -1,13 +1,18 @@
 package middleware
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
-// TimezoneConfig is the agnostic declarative slot the Preset carries for the
-// Timezone middleware. It holds ONLY the two request-scoped closures the chain
-// assembler needs; the chain translates them into the contrib
-// NewTimezoneMiddleware(uidFn, lookupFn) form (which owns its own default-zone +
-// store-location behaviour internally). No impl re-export, no build tag.
+// TimezoneConfig supplies calendar lookup and context storage hooks to the
+// HTTP provider. Workspace dates take precedence over personal preferences;
+// unscoped requests retain the user preference and provider fallback.
 type TimezoneConfig struct {
+	// Workspace timezone takes precedence for workspace business dates.
+	LookupWorkspaceTimezone func(context.Context) (string, error)
+	// WithLocation bridges the resolved zone into the UI context.
+	WithLocation func(context.Context, *time.Location) context.Context
 	// GetUserID extracts the authenticated user ID from the request context.
 	GetUserID func(ctx context.Context) string
 

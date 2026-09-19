@@ -79,6 +79,7 @@ func (r *PostgresPricePlanRepository) CreatePricePlan(ctx context.Context, req *
 	if err := json.Unmarshal(jsonData, &data); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
+	writeEscalationTuple(data, "default", req.Data.DefaultEscalationMode, req.Data.DefaultEscalationScope, req.Data.DefaultEscalationRateBps, req.Data.DefaultEscalationFirstAfterMonths, req.Data.DefaultEscalationEveryMonths)
 
 	// Empty optional FK ("" from a blank picker) must arrive at postgres as
 	// SQL NULL — both client_id and the schedule-scoped FK columns. Mirrors
@@ -93,12 +94,11 @@ func (r *PostgresPricePlanRepository) CreatePricePlan(ctx context.Context, req *
 		return nil, fmt.Errorf("failed to create price plan: %w", err)
 	}
 
-	// Convert result back to protobuf using protojson
+	normalizeEscalationReadMap(result, "default")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
+		return nil, fmt.Errorf("failed to marshal normalized result to JSON: %w", err)
 	}
-
 	pricePlan := &priceplanpb.PricePlan{}
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(resultJSON, pricePlan); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
@@ -122,6 +122,7 @@ func (r *PostgresPricePlanRepository) ReadPricePlan(ctx context.Context, req *pr
 	}
 
 	// Convert result to protobuf using protojson
+	normalizeEscalationReadMap(result, "default")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -153,6 +154,7 @@ func (r *PostgresPricePlanRepository) UpdatePricePlan(ctx context.Context, req *
 	if err := json.Unmarshal(jsonData, &data); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
+	writeEscalationTuple(data, "default", req.Data.DefaultEscalationMode, req.Data.DefaultEscalationScope, req.Data.DefaultEscalationRateBps, req.Data.DefaultEscalationFirstAfterMonths, req.Data.DefaultEscalationEveryMonths)
 
 	// Always include active flag — proto3 omits bool=false during JSON marshal,
 	// which would silently skip deactivation via the form toggle.
@@ -175,6 +177,7 @@ func (r *PostgresPricePlanRepository) UpdatePricePlan(ctx context.Context, req *
 	}
 
 	// Convert result back to protobuf using protojson
+	normalizeEscalationReadMap(result, "default")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -239,7 +242,9 @@ func (r *PostgresPricePlanRepository) ListPricePlans(ctx context.Context, req *p
 	// Convert results to protobuf slice using protojson
 	var pricePlans []*priceplanpb.PricePlan
 	for _, result := range listResult.Data {
-		resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
+		denormalized := postgresCore.DenormalizeKeys(result)
+		normalizeEscalationReadMap(denormalized, "default")
+		resultJSON, err := json.Marshal(denormalized)
 		if err != nil {
 			// Log error and continue with next item
 			continue
@@ -303,7 +308,12 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 				pp.billing_cycle_value,
 				pp.billing_cycle_unit,
 				pp.default_term_value,
-				pp.default_term_unit
+				pp.default_term_unit,
+				pp.default_escalation_mode,
+				pp.default_escalation_scope,
+				pp.default_escalation_rate_bps,
+				pp.default_escalation_first_after_months,
+				pp.default_escalation_every_months
 			FROM ` + entityid.PricePlan + ` pp
 			LEFT JOIN ` + entityid.Plan + ` pl ON pp.plan_id = pl.id
 			WHERE pp.active = true
@@ -332,7 +342,9 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 		var billingKindRaw, amountBasisRaw sql.NullInt32
 		var billingCycleValue, defaultTermValue sql.NullInt32
 		var billingCycleUnit, defaultTermUnit sql.NullString
-		if err := rows.Scan(&id, &planId, &billingAmount, &billingCurrency, &name, &description, &active, &dateCreated, &dateModified, &priceScheduleId, &billingKindRaw, &amountBasisRaw, &billingCycleValue, &billingCycleUnit, &defaultTermValue, &defaultTermUnit); err != nil {
+		var escalationMode, escalationScope sql.NullString
+		var escalationRate, escalationFirst, escalationEvery sql.NullInt32
+		if err := rows.Scan(&id, &planId, &billingAmount, &billingCurrency, &name, &description, &active, &dateCreated, &dateModified, &priceScheduleId, &billingKindRaw, &amountBasisRaw, &billingCycleValue, &billingCycleUnit, &defaultTermValue, &defaultTermUnit, &escalationMode, &escalationScope, &escalationRate, &escalationFirst, &escalationEvery); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount++
@@ -366,6 +378,7 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 		if defaultTermUnit.Valid {
 			pricePlan.DefaultTermUnit = &defaultTermUnit.String
 		}
+		applyPricePlanEscalation(pricePlan, escalationMode, escalationScope, escalationRate, escalationFirst, escalationEvery)
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
 			pricePlan.DateCreated = &ts
@@ -407,7 +420,12 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 			billing_cycle_value,
 			billing_cycle_unit,
 			default_term_value,
-			default_term_unit
+			default_term_unit,
+			default_escalation_mode,
+			default_escalation_scope,
+			default_escalation_rate_bps,
+			default_escalation_first_after_months,
+			default_escalation_every_months
 		FROM ` + entityid.PricePlan + `
 		WHERE id = $1
 		  AND active = true`
@@ -421,7 +439,9 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 	var billingKindRaw, amountBasisRaw sql.NullInt32
 	var billingCycleValue, defaultTermValue sql.NullInt32
 	var billingCycleUnit, defaultTermUnit sql.NullString
-	if err := row.Scan(&id, &planId, &billingAmount, &billingCurrency, &name, &description, &active, &dateCreated, &dateModified, &priceScheduleId, &billingKindRaw, &amountBasisRaw, &billingCycleValue, &billingCycleUnit, &defaultTermValue, &defaultTermUnit); err == sql.ErrNoRows {
+	var escalationMode, escalationScope sql.NullString
+	var escalationRate, escalationFirst, escalationEvery sql.NullInt32
+	if err := row.Scan(&id, &planId, &billingAmount, &billingCurrency, &name, &description, &active, &dateCreated, &dateModified, &priceScheduleId, &billingKindRaw, &amountBasisRaw, &billingCycleValue, &billingCycleUnit, &defaultTermValue, &defaultTermUnit, &escalationMode, &escalationScope, &escalationRate, &escalationFirst, &escalationEvery); err == sql.ErrNoRows {
 		return nil, fmt.Errorf("price plan not found")
 	} else if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -456,6 +476,7 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 	if defaultTermUnit.Valid {
 		pricePlan.DefaultTermUnit = &defaultTermUnit.String
 	}
+	applyPricePlanEscalation(pricePlan, escalationMode, escalationScope, escalationRate, escalationFirst, escalationEvery)
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()
 		pricePlan.DateCreated = &ts

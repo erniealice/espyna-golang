@@ -12,13 +12,17 @@ package price_plan
 import (
 	"context"
 	"errors"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	planLocationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan_location"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
@@ -119,10 +123,11 @@ func newScheduleFixture(t *testing.T) (*CreatePricePlanUseCase, *mockPlanRepoFor
 			Client:        clientRepo,
 		},
 		CreatePricePlanServices{
-			Authorizer:  ports.NewNoOpAuthorizer(),
-			Transactor:  noTxnCreate{},
-			Translator:  ports.NewNoOpTranslator(),
-			IDGenerator: &stubIDSvc{},
+			ActionGatekeeper: actiongate.NewActionGatekeeper(ports.NewNoOpAuthorizer(), ports.NewNoOpTranslator()),
+			Authorizer:       ports.NewNoOpAuthorizer(),
+			Transactor:       noTxnCreate{},
+			Translator:       ports.NewNoOpTranslator(),
+			IDGenerator:      &stubIDSvc{},
 		},
 	)
 	return uc, planRepo, ppRepo, scheduleRepo, clientRepo
@@ -263,5 +268,33 @@ func TestCreatePricePlan_ClientScoped_DifferentClientSchedule_Rejected(t *testin
 	var notFoundMarker = "does not exist"
 	if errors.Is(err, errors.New(notFoundMarker)) {
 		t.Errorf("got generic plan-not-found error path; expected schedule mismatch")
+	}
+}
+
+type midnightWorkspaceRepo struct {
+	workspacepb.UnimplementedWorkspaceDomainServiceServer
+}
+
+func (midnightWorkspaceRepo) ReadWorkspace(_ context.Context, req *workspacepb.ReadWorkspaceRequest) (*workspacepb.ReadWorkspaceResponse, error) {
+	zone := "Asia/Manila"
+	return &workspacepb.ReadWorkspaceResponse{Data: []*workspacepb.Workspace{{Id: req.GetData().GetId(), Timezone: &zone}}}, nil
+}
+func TestCreatePricePlanWorkspaceMidnight(t *testing.T) {
+	uc, plans, _, schedules, _ := newScheduleFixture(t)
+	uc.repositories.Workspace = midnightWorkspaceRepo{}
+	plans.plans["plan-cruz"] = seedClientScopedPlan("plan-cruz", "client-cruz", "")
+	ctx := contextutil.WithWorkspaceID(context.Background(), "ws-1")
+	if _, err := uc.Execute(ctx, basePricePlanRequest("plan-cruz")); err != nil {
+		t.Fatal(err)
+	}
+	card := schedules.createCapture
+	loc, err := time.LoadLocation("Asia/Manila")
+	if err != nil {
+		t.Fatal(err)
+	}
+	created := time.UnixMilli(card.GetDateCreated()).In(loc)
+	want := time.Date(created.Year(), created.Month(), created.Day(), 0, 0, 0, 0, loc)
+	if !card.GetDateTimeStart().AsTime().Equal(want) {
+		t.Fatalf("got %v want %v", card.GetDateTimeStart(), want)
 	}
 }

@@ -7,11 +7,12 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
@@ -26,6 +27,7 @@ import (
 // Subscription domains; see plan §4 (20260427-plan-client-scope) for the full
 // algorithm.
 type CustomizePlanForClientRepositories struct {
+	Workspace        workspacepb.WorkspaceDomainServiceServer
 	Plan             planpb.PlanDomainServiceServer
 	ProductPlan      productplanpb.ProductPlanDomainServiceServer
 	PricePlan        priceplanpb.PricePlanDomainServiceServer
@@ -37,11 +39,11 @@ type CustomizePlanForClientRepositories struct {
 
 // CustomizePlanForClientServices groups all business service dependencies.
 type CustomizePlanForClientServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // CustomizePlanForClientRequest carries the inputs to the customize flow.
@@ -275,7 +277,7 @@ func (uc *CustomizePlanForClientUseCase) executeCore(
 	}
 	resolvedSchedule, reused, err := ResolveOrCreateClientPriceSchedule(
 		ctx,
-		&ResolveOrCreateClientScheduleRepos{PriceSchedule: uc.repositories.PriceSchedule},
+		&ResolveOrCreateClientScheduleRepos{PriceSchedule: uc.repositories.PriceSchedule, Workspace: uc.repositories.Workspace},
 		uc.services.IDGenerator,
 		workspaceID,
 		scheduleLocationID(sourceSchedule),

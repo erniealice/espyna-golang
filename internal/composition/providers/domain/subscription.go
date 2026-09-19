@@ -11,6 +11,7 @@ import (
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	clientworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_workspace_user"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
@@ -40,6 +41,7 @@ import (
 
 // SubscriptionRepositories contains all subscription domain repositories
 type SubscriptionRepositories struct {
+	Workspace        workspacepb.WorkspaceDomainServiceServer
 	Balance          balancepb.BalanceDomainServiceServer
 	BalanceAttribute balanceattributepb.BalanceAttributeDomainServiceServer
 	BillingEvent     billingeventpb.BillingEventDomainServiceServer
@@ -100,6 +102,11 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, tableConfig *reg
 	clientRepo, err := repoCreator.CreateRepository(entityid.Client, conn, tableConfig.TableName(entityid.Client))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client repository: %w", err)
+	}
+
+	workspaceRepo, err := repoCreator.CreateRepository(entityid.Workspace, conn, tableConfig.TableName(entityid.Workspace))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create workspace repository: %w", err)
 	}
 
 	invoiceRepo, err := repoCreator.CreateRepository(entityid.Invoice, conn, tableConfig.TableName(entityid.Invoice))
@@ -258,6 +265,7 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, tableConfig *reg
 
 	// Type assert each repository to its interface
 	return &SubscriptionRepositories{
+		Workspace:                         workspaceRepo.(workspacepb.WorkspaceDomainServiceServer),
 		Balance:                           balanceRepo.(balancepb.BalanceDomainServiceServer),
 		BalanceAttribute:                  balanceAttributeRepo.(balanceattributepb.BalanceAttributeDomainServiceServer),
 		BillingEvent:                      billingEventServer,

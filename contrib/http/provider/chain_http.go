@@ -70,6 +70,8 @@ func BuildChain(p consumermw.Preset, inner http.Handler) http.Handler {
 		userIDFromCtx(tz.GetUserID),
 		timezoneLookup(tz.LookupTimezone),
 	)
+	tzMw.LookupWorkspaceTZ = tz.LookupWorkspaceTimezone
+	tzMw.WithLocation = tz.WithLocation
 	handler = tzMw.Handle(handler)
 
 	// ── ActionGuard slot ────────────────────────────────────────────────────

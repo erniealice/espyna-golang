@@ -2,7 +2,7 @@
 
 // timezone.go
 //
-// TimezoneMiddleware resolves the operator's preferred display timezone once
+// TimezoneMiddleware resolves the workspace calendar (or unscoped user timezone) once
 // per request and stashes a *time.Location on the request context. Views and
 // view adapters then call LocationFromContext(ctx) without re-fetching the
 // user row.
@@ -79,7 +79,7 @@ type UserTimezoneLookupFunc func(ctx context.Context, userID string) (string, er
 // context. Returns "" when no user is authenticated.
 type UserIDFromContextFunc func(ctx context.Context) string
 
-// TimezoneMiddleware resolves the operator's preferred display timezone once
+// TimezoneMiddleware resolves the workspace calendar (or unscoped user timezone) once
 // per request and stashes a *time.Location on the request context under the
 // shared timezone key.
 //
@@ -87,6 +87,8 @@ type UserIDFromContextFunc func(ctx context.Context) string
 // from the consumer package (avoiding import cycles). The wiring layer
 // passes consumer.GetUserIDFromContext and a closure around ReadUser.Execute.
 type TimezoneMiddleware struct {
+	// LookupWorkspaceTZ is read fresh per request, avoiding cross-workspace user-cache leakage.
+	LookupWorkspaceTZ func(context.Context) (string, error)
 	// UserIDFromContext extracts the user ID from the request context.
 	// Required. Typically wired to consumer.GetUserIDFromContext.
 	UserIDFromContext UserIDFromContextFunc
@@ -113,8 +115,8 @@ func NewTimezoneMiddleware(
 ) *TimezoneMiddleware {
 	return &TimezoneMiddleware{
 		UserIDFromContext: userIDFromCtx,
-		LookupUserTZ:     lookupUserTZ,
-		cache:            make(map[string]string),
+		LookupUserTZ:      lookupUserTZ,
+		cache:             make(map[string]string),
 	}
 }
 
@@ -131,8 +133,26 @@ func (m *TimezoneMiddleware) Handle(next http.Handler) http.Handler {
 			userID = m.UserIDFromContext(r.Context())
 		}
 
-		userTZ := m.lookupUserTZ(r.Context(), userID)
-		loc := loadLocationOrDefault(userTZ)
+		var workspaceTZ string
+		if m.LookupWorkspaceTZ != nil {
+			var err error
+			workspaceTZ, err = m.LookupWorkspaceTZ(r.Context())
+			if err != nil {
+				http.Error(w, "Workspace timezone unavailable", http.StatusInternalServerError)
+				return
+			}
+		}
+		var loc *time.Location
+		if workspaceTZ != "" {
+			var err error
+			loc, err = time.LoadLocation(workspaceTZ)
+			if err != nil {
+				http.Error(w, "Workspace timezone unavailable", http.StatusInternalServerError)
+				return
+			}
+		} else {
+			loc = loadLocationOrDefault(m.lookupUserTZ(r.Context(), userID))
+		}
 
 		withLoc := m.WithLocation
 		if withLoc == nil {

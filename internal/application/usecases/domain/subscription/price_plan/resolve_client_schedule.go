@@ -12,6 +12,7 @@ import (
 	planUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/plan"
 
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
@@ -35,13 +36,14 @@ import (
 //
 // `data.PriceScheduleId` is mutated to the resolved value when this function
 // resolved-or-created a schedule. The auto-created schedule defaults
-// `date_time_start = now()`; operator can adjust dates from the schedule
+// `date_time_start` to workspace-local midnight; operator can adjust dates from the schedule
 // detail page after.
 func applyClientScopedScheduleRule(
 	ctx context.Context,
 	data *priceplanpb.PricePlan,
 	parentPlan *planpb.Plan,
 	priceScheduleRepo priceschedulepb.PriceScheduleDomainServiceServer,
+	workspaceRepo workspacepb.WorkspaceDomainServiceServer,
 	clientRepo clientpb.ClientDomainServiceServer,
 	idSvc ports.IDGenerator,
 	translation ports.Translator,
@@ -149,13 +151,13 @@ func applyClientScopedScheduleRule(
 	// shouldn't fragment a client into multiple per-location schedules.
 	resolved, _, err := planUseCases.ResolveOrCreateClientPriceSchedule(
 		ctx,
-		&planUseCases.ResolveOrCreateClientScheduleRepos{PriceSchedule: priceScheduleRepo},
+		&planUseCases.ResolveOrCreateClientScheduleRepos{PriceSchedule: priceScheduleRepo, Workspace: workspaceRepo},
 		idSvc,
 		workspaceID,
 		"", // see comment above — no location filter or stamp.
 		parentClientID,
 		derivedName,
-		nil, // no template — helper defaults date_time_start = now().
+		nil, // no template — helper defaults to workspace-local midnight.
 	)
 	if err != nil {
 		return err

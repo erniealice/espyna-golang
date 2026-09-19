@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -19,6 +21,7 @@ import (
 // price_schedule_id for a client-scoped parent Plan (see plan §3.2 / §4.4 of
 // 20260427-plan-client-scope).
 type ResolveOrCreateClientScheduleRepos struct {
+	Workspace     workspacepb.WorkspaceDomainServiceServer
 	PriceSchedule priceschedulepb.PriceScheduleDomainServiceServer
 }
 
@@ -111,12 +114,31 @@ func ResolveOrCreateClientPriceSchedule(
 			create.DateTimeEnd = template.GetDateTimeEnd()
 		}
 	}
-	// date_time_start is NOT NULL on the column; default to "now" when no
-	// template provides one. date_time_end stays nil for an open-ended
-	// schedule — the column is nullable. Operator can adjust later via the
-	// schedule edit drawer.
+	// Automatic cards are effective for the entire workspace calendar day.
+	// Explicit template dates and actual creation timestamps stay unchanged.
 	if create.DateTimeStart == nil {
-		create.DateTimeStart = timestamppb.New(now)
+		loc := time.UTC
+		if workspaceID != "" {
+			if repos.Workspace == nil {
+				return nil, false, errors.New("workspace repository unavailable for schedule timezone")
+			}
+			resp, err := repos.Workspace.ReadWorkspace(ctx, &workspacepb.ReadWorkspaceRequest{Data: &workspacepb.Workspace{Id: workspaceID}})
+			if err != nil {
+				return nil, false, fmt.Errorf("read schedule workspace: %w", err)
+			}
+			if resp == nil || len(resp.GetData()) != 1 || resp.GetData()[0].GetId() != workspaceID {
+				return nil, false, errors.New("schedule workspace not found")
+			}
+			zone := strings.TrimSpace(resp.GetData()[0].GetTimezone())
+			if zone == "" {
+				zone = "UTC"
+			}
+			loc, err = time.LoadLocation(zone)
+			if err != nil {
+				return nil, false, fmt.Errorf("invalid schedule workspace timezone: %w", err)
+			}
+		}
+		create.DateTimeStart = timestamppb.New(clientScheduleDayStart(now, loc))
 	}
 	createResp, err := repos.PriceSchedule.CreatePriceSchedule(ctx, &priceschedulepb.CreatePriceScheduleRequest{
 		Data: create,
@@ -160,3 +182,10 @@ func boolEqFilterShared(field string, value bool) *commonpb.TypedFilter {
 
 func ptrStringShared(s string) *string { v := s; return &v }
 func ptrInt64Shared(v int64) *int64    { c := v; return &c }
+
+// clientScheduleDayStart constructs local midnight rather than truncating UTC
+// to 24 hours, which would be incorrect for offset and DST calendars.
+func clientScheduleDayStart(now time.Time, loc *time.Location) time.Time {
+	local := now.In(loc)
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc).UTC()
+}

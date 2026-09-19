@@ -4,6 +4,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
@@ -20,6 +21,7 @@ import (
 // repointing a Subscription) into a target client's namespace. The legacy
 // CRUD use cases continue to use only the Plan field.
 type PlanRepositories struct {
+	Workspace        workspacepb.WorkspaceDomainServiceServer
 	Plan             planpb.PlanDomainServiceServer                         // Primary entity repository
 	PricePlan        priceplanpb.PricePlanDomainServiceServer               // Cascade target for client_id sync (§3.2) + customize clone
 	ProductPlan      productplanpb.ProductPlanDomainServiceServer           // Customize clone
@@ -61,18 +63,18 @@ func NewUseCases(
 	createRepos := CreatePlanRepositories{Plan: repositories.Plan}
 	createServices := CreatePlanServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer:  services.Authorizer,
-		Transactor:  services.Transactor,
-		Translator:  services.Translator,
-		IDGenerator: services.IDGenerator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
+		IDGenerator:      services.IDGenerator,
 	}
 
 	readRepos := ReadPlanRepositories{Plan: repositories.Plan}
 	readServices := ReadPlanServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	updateRepos := UpdatePlanRepositories{
@@ -90,17 +92,17 @@ func NewUseCases(
 	deleteRepos := DeletePlanRepositories{Plan: repositories.Plan}
 	deleteServices := DeletePlanServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listRepos := ListPlansRepositories{Plan: repositories.Plan}
 	listServices := ListPlansServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listPageDataRepos := GetPlanListPageDataRepositories{
@@ -108,9 +110,9 @@ func NewUseCases(
 	}
 	listPageDataServices := GetPlanListPageDataServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	itemPageDataRepos := GetPlanItemPageDataRepositories{
@@ -118,9 +120,9 @@ func NewUseCases(
 	}
 	itemPageDataServices := GetPlanItemPageDataServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	searchByNameRepos := SearchPlansByNameRepositories{
@@ -128,12 +130,13 @@ func NewUseCases(
 	}
 	searchByNameServices := SearchPlansByNameServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	customizeRepos := CustomizePlanForClientRepositories{
+		Workspace:        repositories.Workspace,
 		Plan:             repositories.Plan,
 		PricePlan:        repositories.PricePlan,
 		ProductPlan:      repositories.ProductPlan,
@@ -144,10 +147,10 @@ func NewUseCases(
 	}
 	customizeServices := CustomizePlanForClientServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer:  services.Authorizer,
-		Transactor:  services.Transactor,
-		Translator:  services.Translator,
-		IDGenerator: services.IDGenerator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
+		IDGenerator:      services.IDGenerator,
 	}
 
 	return &UseCases{

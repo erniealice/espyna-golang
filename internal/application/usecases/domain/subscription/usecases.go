@@ -32,6 +32,7 @@ import (
 	attributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	clientworkspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_workspace_user"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
@@ -61,6 +62,7 @@ import (
 
 // SubscriptionRepositories contains all subscription domain repositories
 type SubscriptionRepositories struct {
+	Workspace        workspacepb.WorkspaceDomainServiceServer
 	Balance          balancepb.BalanceDomainServiceServer
 	BalanceAttribute balanceattributepb.BalanceAttributeDomainServiceServer
 	BillingEvent     billingeventpb.BillingEventDomainServiceServer
@@ -176,6 +178,7 @@ func NewUseCases(
 
 	planUC := planUseCases.NewUseCases(
 		planUseCases.PlanRepositories{
+			Workspace:        repos.Workspace,
 			Plan:             repos.Plan,
 			PricePlan:        repos.PricePlan,
 			ProductPlan:      repos.ProductPlan,
@@ -207,6 +210,7 @@ func NewUseCases(
 
 	pricePlanUC := pricePlanUseCases.NewUseCases(
 		pricePlanUseCases.PricePlanRepositories{
+			Workspace:     repos.Workspace,
 			PricePlan:     repos.PricePlan,
 			Plan:          repos.Plan,
 			PriceSchedule: repos.PriceSchedule,

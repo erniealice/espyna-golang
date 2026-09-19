@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
@@ -22,6 +23,7 @@ import (
 // rationale as CreatePricePlanRepositories. UpdatePricePlan reuses the path
 // when an operator clears the schedule field on a client-scoped PricePlan.
 type UpdatePricePlanRepositories struct {
+	Workspace     workspacepb.WorkspaceDomainServiceServer
 	PricePlan     priceplanpb.PricePlanDomainServiceServer
 	Plan          planpb.PlanDomainServiceServer
 	PriceSchedule priceschedulepb.PriceScheduleDomainServiceServer
@@ -138,6 +140,11 @@ func (uc *UpdatePricePlanUseCase) enrichPricePlanData(pricePlan *priceplanpb.Pri
 
 // validateBusinessRules enforces business constraints for price plans
 func (uc *UpdatePricePlanUseCase) validateBusinessRules(ctx context.Context, pricePlan *priceplanpb.PricePlan) error {
+	if err := NormalizeAndValidatePricePlanEscalation(pricePlan); err != nil {
+		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.escalation_invalid", "Check the escalation mode, percentage, application and interval.")
+		return errors.New(msg)
+	}
+
 	// Validate price plan ID length
 	if len(pricePlan.Id) < 3 {
 		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "price_plan.validation.id_min_length", "price plan ID must be at least 3 characters long")
@@ -243,6 +250,7 @@ func (uc *UpdatePricePlanUseCase) validateEntityReferences(ctx context.Context, 
 		pricePlan,
 		plan.Data[0],
 		uc.repositories.PriceSchedule,
+		uc.repositories.Workspace,
 		uc.repositories.Client,
 		uc.services.IDGenerator,
 		uc.services.Translator,

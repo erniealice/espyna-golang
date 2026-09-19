@@ -24,6 +24,7 @@ func InitializeSubscription(
 	// Use the domain's constructor which properly handles all use case creation
 	return subscription.NewUseCases(
 		subscription.SubscriptionRepositories{
+			Workspace:                         repos.Workspace,
 			Balance:                           repos.Balance,
 			BalanceAttribute:                  repos.BalanceAttribute,
 			BillingEvent:                      repos.BillingEvent,

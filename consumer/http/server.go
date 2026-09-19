@@ -37,6 +37,7 @@ import (
 	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/service/auth"
+	pyezatypes "github.com/erniealice/pyeza-golang/types"
 )
 
 // MiddlewareFunc is a standard HTTP middleware signature. (Demote-to-internal
@@ -705,7 +706,9 @@ func (s *Server) finalizePreset(p consumermw.Preset) consumermw.Preset {
 			}
 			return uid
 		},
-		LookupTimezone: s.buildTimezoneLookup(),
+		LookupTimezone:          s.buildTimezoneLookup(),
+		LookupWorkspaceTimezone: s.buildWorkspaceTimezoneLookup(),
+		WithLocation:            pyezatypes.WithLocation,
 	}
 
 	// ── CSRF slot config — workspace/session claim readers wired to the
@@ -1010,4 +1013,19 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// buildWorkspaceTimezoneLookup resolves the URL/session-selected workspace on
+// every request. User preferences cannot change a workspace business date.
+func (s *Server) buildWorkspaceTimezoneLookup() func(context.Context) (string, error) {
+	return func(ctx context.Context) (string, error) {
+		id := consumer.GetWorkspaceIDFromContext(ctx)
+		if id == "" {
+			return "", nil
+		}
+		if s.useCases == nil || s.useCases.Entity == nil || s.useCases.Entity.Workspace == nil || s.useCases.Entity.Workspace.ReadWorkspace == nil {
+			return "", errors.New("workspace timezone reader unavailable")
+		}
+		return s.useCases.Entity.Workspace.ReadWorkspace.CalendarTimezone(ctx)
+	}
 }

@@ -89,6 +89,7 @@ func (r *PostgresSubscriptionRepository) CreateSubscription(ctx context.Context,
 	if err := json.Unmarshal(jsonData, &data); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
+	writeEscalationTuple(data, "", req.Data.EscalationMode, req.Data.EscalationScope, req.Data.EscalationRateBps, req.Data.EscalationFirstAfterMonths, req.Data.EscalationEveryMonths)
 
 	// Manually inject code field (proto descriptor may not include it yet)
 	if code := req.Data.GetCode(); code != "" {
@@ -109,6 +110,7 @@ func (r *PostgresSubscriptionRepository) CreateSubscription(ctx context.Context,
 	postgresCore.ConvertMillisToRFC3339(result, "date_time_start", "date_time_end")
 
 	// Convert result back to protobuf using protojson
+	normalizeEscalationReadMap(result, "")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -140,6 +142,7 @@ func (r *PostgresSubscriptionRepository) ReadSubscription(ctx context.Context, r
 	postgresCore.ConvertMillisToRFC3339(result, "date_time_start", "date_time_end")
 
 	// Convert result to protobuf using protojson
+	normalizeEscalationReadMap(result, "")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -171,6 +174,7 @@ func (r *PostgresSubscriptionRepository) UpdateSubscription(ctx context.Context,
 	if err := json.Unmarshal(jsonData, &data); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
+	writeEscalationTuple(data, "", req.Data.EscalationMode, req.Data.EscalationScope, req.Data.EscalationRateBps, req.Data.EscalationFirstAfterMonths, req.Data.EscalationEveryMonths)
 
 	// Manually inject code field (see CreateSubscription comment)
 	if code := req.Data.GetCode(); code != "" {
@@ -191,6 +195,7 @@ func (r *PostgresSubscriptionRepository) UpdateSubscription(ctx context.Context,
 	postgresCore.ConvertMillisToRFC3339(result, "date_time_start", "date_time_end")
 
 	// Convert result back to protobuf using protojson
+	normalizeEscalationReadMap(result, "")
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -242,7 +247,9 @@ func (r *PostgresSubscriptionRepository) ListSubscriptions(ctx context.Context, 
 	for _, result := range listResult.Data {
 		// Same date_time_start/date_time_end conversion as CreateSubscription — see comment there.
 		postgresCore.ConvertMillisToRFC3339(result, "date_time_start", "date_time_end")
-		resultJSON, err := json.Marshal(postgresCore.DenormalizeKeys(result))
+		denormalized := postgresCore.DenormalizeKeys(result)
+		normalizeEscalationReadMap(denormalized, "")
+		resultJSON, err := json.Marshal(denormalized)
 		if err != nil {
 			// Log error and continue with next item
 			continue
@@ -362,6 +369,11 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 				sf.active,
 				sf.date_created,
 				sf.date_modified,
+				sf.escalation_mode,
+				sf.escalation_scope,
+				sf.escalation_rate_bps,
+				sf.escalation_first_after_months,
+				sf.escalation_every_months,
 				-- client_name is the top-level sortable column for client sort.
 				-- Prefer c.name (company name); fall back to first_name || last_name
 				-- for individual clients without a company name.
@@ -396,6 +408,11 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 					'name', pp.name,
 					'description', pp.description,
 					'active', pp.active,
+					'default_escalation_mode', pp.default_escalation_mode,
+					'default_escalation_scope', pp.default_escalation_scope,
+					'default_escalation_rate_bps', pp.default_escalation_rate_bps,
+					'default_escalation_first_after_months', pp.default_escalation_first_after_months,
+					'default_escalation_every_months', pp.default_escalation_every_months,
 					'date_created', (EXTRACT(EPOCH FROM pp.date_created) * 1000)::bigint,
 					'date_modified', (EXTRACT(EPOCH FROM pp.date_modified) * 1000)::bigint,
 					'plan', CASE WHEN p.id IS NULL THEN NULL ELSE jsonb_build_object(
@@ -430,6 +447,11 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			e.active,
 			e.date_created,
 			e.date_modified,
+			e.escalation_mode,
+			e.escalation_scope,
+			e.escalation_rate_bps,
+			e.escalation_first_after_months,
+			e.escalation_every_months,
 			e.client,
 			e.price_plan,
 			COUNT(*) OVER () as _total_count
@@ -481,18 +503,23 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 
 	for rows.Next() {
 		var (
-			id            string
-			name          string
-			clientID      string
-			pricePlanID   string
-			dateTimeStart sql.NullTime
-			dateTimeEnd   sql.NullTime
-			active        bool
-			dateCreated   sql.NullTime
-			dateModified  sql.NullTime
-			clientJSON    []byte
-			pricePlanJSON []byte
-			rowTotalCount int32
+			id              string
+			name            string
+			clientID        string
+			pricePlanID     string
+			dateTimeStart   sql.NullTime
+			dateTimeEnd     sql.NullTime
+			active          bool
+			dateCreated     sql.NullTime
+			dateModified    sql.NullTime
+			escalationMode  sql.NullString
+			escalationScope sql.NullString
+			escalationRate  sql.NullInt32
+			escalationFirst sql.NullInt32
+			escalationEvery sql.NullInt32
+			clientJSON      []byte
+			pricePlanJSON   []byte
+			rowTotalCount   int32
 		)
 
 		err := rows.Scan(
@@ -505,6 +532,11 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			&active,
 			&dateCreated,
 			&dateModified,
+			&escalationMode,
+			&escalationScope,
+			&escalationRate,
+			&escalationFirst,
+			&escalationEvery,
 			&clientJSON,
 			&pricePlanJSON,
 			&rowTotalCount,
@@ -538,6 +570,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			ts := dateModified.Time.UnixMilli()
 			subscription.DateModified = &ts
 		}
+		applySubscriptionEscalation(subscription, escalationMode, escalationScope, escalationRate, escalationFirst, escalationEvery)
 
 		// Parse client JSON
 		if len(clientJSON) > 0 {
@@ -555,6 +588,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 		if len(pricePlanJSON) > 0 {
 			var pricePlanData map[string]any
 			if err := json.Unmarshal(pricePlanJSON, &pricePlanData); err == nil {
+				normalizeEscalationReadMap(pricePlanData, "default")
 				pricePlanJSONBytes, _ := json.Marshal(pricePlanData)
 				var pricePlan priceplanpb.PricePlan
 				if err := protojson.Unmarshal(pricePlanJSONBytes, &pricePlan); err == nil {
@@ -615,6 +649,11 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 			s.active,
 			s.date_created,
 			s.date_modified,
+			s.escalation_mode,
+			s.escalation_scope,
+			s.escalation_rate_bps,
+			s.escalation_first_after_months,
+			s.escalation_every_months,
 			jsonb_build_object(
 				'id', c.id,
 				'user_id', c.user_id,
@@ -650,6 +689,11 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 				'billing_cycle_value', pp.billing_cycle_value,
 				'billing_cycle_unit', pp.billing_cycle_unit,
 				'entitled_occurrences', pp.entitled_occurrences,
+				'default_escalation_mode', pp.default_escalation_mode,
+				'default_escalation_scope', pp.default_escalation_scope,
+				'default_escalation_rate_bps', pp.default_escalation_rate_bps,
+				'default_escalation_first_after_months', pp.default_escalation_first_after_months,
+				'default_escalation_every_months', pp.default_escalation_every_months,
 				'date_created', (EXTRACT(EPOCH FROM pp.date_created) * 1000)::bigint,
 				'date_modified', (EXTRACT(EPOCH FROM pp.date_modified) * 1000)::bigint,
 				'plan', CASE WHEN p.id IS NULL THEN NULL ELSE jsonb_build_object(
@@ -683,18 +727,23 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 
 	// Execute query
 	var (
-		id            string
-		name          string
-		clientID      string
-		pricePlanID   string
-		code          sql.NullString
-		dateTimeStart sql.NullTime
-		dateTimeEnd   sql.NullTime
-		active        bool
-		dateCreated   sql.NullTime
-		dateModified  sql.NullTime
-		clientJSON    []byte
-		pricePlanJSON []byte
+		id              string
+		name            string
+		clientID        string
+		pricePlanID     string
+		code            sql.NullString
+		dateTimeStart   sql.NullTime
+		dateTimeEnd     sql.NullTime
+		active          bool
+		dateCreated     sql.NullTime
+		dateModified    sql.NullTime
+		escalationMode  sql.NullString
+		escalationScope sql.NullString
+		escalationRate  sql.NullInt32
+		escalationFirst sql.NullInt32
+		escalationEvery sql.NullInt32
+		clientJSON      []byte
+		pricePlanJSON   []byte
 	)
 
 	wsID := identity.Must(ctx).WorkspaceID
@@ -709,6 +758,11 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 		&active,
 		&dateCreated,
 		&dateModified,
+		&escalationMode,
+		&escalationScope,
+		&escalationRate,
+		&escalationFirst,
+		&escalationEvery,
 		&clientJSON,
 		&pricePlanJSON,
 	)
@@ -746,6 +800,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 		ts := dateModified.Time.UnixMilli()
 		subscription.DateModified = &ts
 	}
+	applySubscriptionEscalation(subscription, escalationMode, escalationScope, escalationRate, escalationFirst, escalationEvery)
 
 	// Parse client JSON
 	if len(clientJSON) > 0 {
@@ -763,6 +818,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionItemPageData(ctx context
 	if len(pricePlanJSON) > 0 {
 		var pricePlanData map[string]any
 		if err := json.Unmarshal(pricePlanJSON, &pricePlanData); err == nil {
+			normalizeEscalationReadMap(pricePlanData, "default")
 			pricePlanJSONBytes, _ := json.Marshal(pricePlanData)
 			var pricePlan priceplanpb.PricePlan
 			if err := protojson.Unmarshal(pricePlanJSONBytes, &pricePlan); err == nil {

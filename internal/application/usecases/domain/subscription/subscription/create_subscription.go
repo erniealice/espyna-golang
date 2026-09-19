@@ -80,6 +80,10 @@ func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, req *subscript
 	if err != nil {
 		return nil, err
 	}
+	copyEscalationDefaultsOnce(req.Data, pricePlan)
+	if err := normalizeAndValidateAgreementEscalation(req.Data, pricePlan.GetBillingKind(), pricePlan.GetAmountBasis()); err != nil {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription.validation.escalation_invalid", "Check the escalation mode, percentage, application and interval."))
+	}
 
 	// Auto-generate subscription.code when the caller did not supply one.
 	// Never overwrite a caller-supplied code, and never block creation on a

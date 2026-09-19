@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
 	paymenttermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/payment_term"
@@ -195,10 +196,11 @@ func buildUseCase(t *testing.T, m *recognizeMocks) (*RecognizeRevenueFromSubscri
 		PaymentTerm:      paymenttermpb.UnimplementedPaymentTermDomainServiceServer{},
 	}
 	services := RecognizeRevenueFromSubscriptionServices{
-		Authorizer:  ports.NewNoOpAuthorizer(),
-		Transactor:  ports.NewNoOpTransactor(),
-		Translator:  ports.NewNoOpTranslator(),
-		IDGenerator: ports.NewNoOpIDGenerator(),
+		Authorizer:       ports.NewNoOpAuthorizer(),
+		Transactor:       ports.NewNoOpTransactor(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(ports.NewNoOpAuthorizer(), ports.NewNoOpTranslator()),
+		IDGenerator:      ports.NewNoOpIDGenerator(),
 	}
 	return NewRecognizeRevenueFromSubscriptionUseCase(repos, services), revenueRepo, rliRepo
 }
@@ -312,6 +314,43 @@ func TestRecognize_RecurringPlan_FirstCycle(t *testing.T) {
 	}
 	if len(resp.GetWarnings()) == 0 {
 		t.Error("expected at least one warning for the skipped usage-based line")
+	}
+}
+
+func TestRecordedEscalationDoesNotRepriceRevenue(t *testing.T) {
+	fixed := priceplanpb.EscalationMode_ESCALATION_MODE_FIXED_PERCENTAGE
+	within := priceplanpb.EscalationScope_ESCALATION_SCOPE_WITHIN_AGREEMENT
+	rate, first, every := int32(5000), int32(1), int32(1)
+	sub := activeSubscription("sub-escalation", "pp-escalation", "client-escalation")
+	sub.EscalationMode = &fixed
+	sub.EscalationScope = &within
+	sub.EscalationRateBps = &rate
+	sub.EscalationFirstAfterMonths = &first
+	sub.EscalationEveryMonths = &every
+
+	mocks := &recognizeMocks{
+		subscription: sub,
+		pricePlan: &priceplanpb.PricePlan{
+			Id:                                "pp-escalation",
+			BillingKind:                       priceplanpb.BillingKind_BILLING_KIND_RECURRING,
+			AmountBasis:                       priceplanpb.AmountBasis_AMOUNT_BASIS_DERIVED_FROM_LINES,
+			BillingCurrency:                   "PHP",
+			DefaultEscalationMode:             &fixed,
+			DefaultEscalationScope:            &within,
+			DefaultEscalationRateBps:          &rate,
+			DefaultEscalationFirstAfterMonths: &first,
+			DefaultEscalationEveryMonths:      &every,
+		},
+		productPricePlans: []*productpriceplanpb.ProductPricePlan{
+			ppp("ppp-escalation", "pp-escalation", 50000, productpriceplanpb.BillingTreatment_BILLING_TREATMENT_RECURRING, "Monthly Rent"),
+		},
+	}
+	uc, revenueRepo, _ := buildUseCase(t, mocks)
+	if _, err := uc.Execute(context.Background(), basicReq("sub-escalation")); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := revenueRepo.created.GetTotalAmount(); got != 50000 {
+		t.Fatalf("record-only escalation repriced revenue to %d; want unchanged 50000", got)
 	}
 }
 
@@ -1025,10 +1064,11 @@ func buildMilestoneUseCase(t *testing.T, m *milestoneMocks) (*RecognizeRevenueFr
 		JobTemplatePhase: m.jobTemplatePhase,
 	}
 	services := RecognizeRevenueFromSubscriptionServices{
-		Authorizer:  ports.NewNoOpAuthorizer(),
-		Transactor:  ports.NewNoOpTransactor(),
-		Translator:  ports.NewNoOpTranslator(),
-		IDGenerator: ports.NewNoOpIDGenerator(),
+		Authorizer:       ports.NewNoOpAuthorizer(),
+		Transactor:       ports.NewNoOpTransactor(),
+		Translator:       ports.NewNoOpTranslator(),
+		ActionGatekeeper: actiongate.NewActionGatekeeper(ports.NewNoOpAuthorizer(), ports.NewNoOpTranslator()),
+		IDGenerator:      ports.NewNoOpIDGenerator(),
 	}
 	return NewRecognizeRevenueFromSubscriptionUseCase(repos, services), revenueRepo, rliRepo
 }

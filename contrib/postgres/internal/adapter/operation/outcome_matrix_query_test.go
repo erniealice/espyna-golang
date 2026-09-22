@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 	matrixpb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/outcome_matrix"
 
@@ -185,6 +186,48 @@ func TestComposePhaseLabel(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			if got := composePhaseLabel(c.phase, c.variant); got != c.want {
 				t.Errorf("composePhaseLabel(%q, %+v) = %q, want %q", c.phase, c.variant, got, c.want)
+			}
+		})
+	}
+}
+
+// TestRatingDescriptionEnumParsing pins the read-side compatibility boundary:
+// generated protojson writes enum names, while older/manual rows may contain
+// the short lower-case aliases. NULL and unknown values must remain
+// UNSPECIFIED so a legacy binding never accidentally enables a preview.
+func TestRatingDescriptionEnumParsing(t *testing.T) {
+	tests := []struct {
+		name string
+		in   sql.NullString
+		want enumspb.RatingMode
+	}{
+		{"null", sql.NullString{}, enumspb.RatingMode_RATING_MODE_UNSPECIFIED},
+		{"proto_name", sql.NullString{String: "RATING_MODE_NUMERIC_WITH_DESCRIPTION", Valid: true}, enumspb.RatingMode_RATING_MODE_NUMERIC_WITH_DESCRIPTION},
+		{"short_alias", sql.NullString{String: "numeric_with_description", Valid: true}, enumspb.RatingMode_RATING_MODE_NUMERIC_WITH_DESCRIPTION},
+		{"standard_alias", sql.NullString{String: "standard", Valid: true}, enumspb.RatingMode_RATING_MODE_STANDARD},
+		{"unknown", sql.NullString{String: "future_mode", Valid: true}, enumspb.RatingMode_RATING_MODE_UNSPECIFIED},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := parseRatingMode(tt.in); got != tt.want {
+				t.Fatalf("parseRatingMode(%+v) = %v, want %v", tt.in, got, tt.want)
+			}
+		})
+	}
+
+	for _, tt := range []struct {
+		name string
+		in   sql.NullString
+		want enumspb.ScaleKind
+	}{
+		{"null", sql.NullString{}, enumspb.ScaleKind_SCALE_KIND_UNSPECIFIED},
+		{"proto_name", sql.NullString{String: "SCALE_KIND_RANGE_MAP", Valid: true}, enumspb.ScaleKind_SCALE_KIND_RANGE_MAP},
+		{"short_alias", sql.NullString{String: "exact_map", Valid: true}, enumspb.ScaleKind_SCALE_KIND_EXACT_MAP},
+		{"unknown", sql.NullString{String: "future_kind", Valid: true}, enumspb.ScaleKind_SCALE_KIND_UNSPECIFIED},
+	} {
+		t.Run("scale_"+tt.name, func(t *testing.T) {
+			if got := parseScaleKind(tt.in); got != tt.want {
+				t.Fatalf("parseScaleKind(%+v) = %v, want %v", tt.in, got, tt.want)
 			}
 		})
 	}

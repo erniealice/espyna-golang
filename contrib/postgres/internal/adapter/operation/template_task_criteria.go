@@ -260,7 +260,9 @@ func (r *PostgresTemplateTaskCriteriaRepository) GetTemplateTaskCriteriaListPage
 				ttc.job_template_task_id,
 				ttc.outcome_criteria_id,
 				ttc.sequence_order,
-				ttc.required_override
+				ttc.required_override,
+				ttc.rating_mode,
+				ttc.rating_scale_id
 			FROM ` + entityid.TemplateTaskCriteria + ` ttc
 			WHERE ttc.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
@@ -294,6 +296,8 @@ func (r *PostgresTemplateTaskCriteriaRepository) GetTemplateTaskCriteriaListPage
 			outcomeCriteriaID string
 			sequenceOrder     int32
 			requiredOverride  sql.NullBool
+			ratingMode        sql.NullString
+			ratingScaleID     sql.NullString
 			total             int64
 		)
 
@@ -305,6 +309,8 @@ func (r *PostgresTemplateTaskCriteriaRepository) GetTemplateTaskCriteriaListPage
 			&outcomeCriteriaID,
 			&sequenceOrder,
 			&requiredOverride,
+			&ratingMode,
+			&ratingScaleID,
 			&total,
 		)
 		if err != nil {
@@ -321,6 +327,7 @@ func (r *PostgresTemplateTaskCriteriaRepository) GetTemplateTaskCriteriaListPage
 			SequenceOrder:     sequenceOrder,
 			RequiredOverride:  nilBoolPtr(requiredOverride),
 		}
+		applyRatingConfiguration(ttc, ratingMode, ratingScaleID)
 
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
@@ -377,7 +384,9 @@ func (r *PostgresTemplateTaskCriteriaRepository) GetTemplateTaskCriteriaItemPage
 			ttc.job_template_task_id,
 			ttc.outcome_criteria_id,
 			ttc.sequence_order,
-			ttc.required_override
+			ttc.required_override,
+			ttc.rating_mode,
+			ttc.rating_scale_id
 		FROM ` + entityid.TemplateTaskCriteria + ` ttc
 		WHERE ttc.id = $1 AND ttc.active = true
 	`
@@ -392,6 +401,8 @@ func (r *PostgresTemplateTaskCriteriaRepository) GetTemplateTaskCriteriaItemPage
 		outcomeCriteriaID string
 		sequenceOrder     int32
 		requiredOverride  sql.NullBool
+		ratingMode        sql.NullString
+		ratingScaleID     sql.NullString
 	)
 
 	err := row.Scan(
@@ -402,6 +413,8 @@ func (r *PostgresTemplateTaskCriteriaRepository) GetTemplateTaskCriteriaItemPage
 		&outcomeCriteriaID,
 		&sequenceOrder,
 		&requiredOverride,
+		&ratingMode,
+		&ratingScaleID,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("template task criteria with ID '%s' not found", req.TemplateTaskCriteriaId)
@@ -418,6 +431,7 @@ func (r *PostgresTemplateTaskCriteriaRepository) GetTemplateTaskCriteriaItemPage
 		SequenceOrder:     sequenceOrder,
 		RequiredOverride:  nilBoolPtr(requiredOverride),
 	}
+	applyRatingConfiguration(ttc, ratingMode, ratingScaleID)
 
 	if !dateCreated.IsZero() {
 		ts := dateCreated.UnixMilli()
@@ -449,7 +463,9 @@ func (r *PostgresTemplateTaskCriteriaRepository) ListByTemplateTask(
 			ttc.job_template_task_id,
 			ttc.outcome_criteria_id,
 			ttc.sequence_order,
-			ttc.required_override
+			ttc.required_override,
+			ttc.rating_mode,
+			ttc.rating_scale_id
 		FROM ` + entityid.TemplateTaskCriteria + ` ttc
 		WHERE ttc.job_template_task_id = $1 AND ttc.active = true
 		ORDER BY ttc.sequence_order ASC
@@ -489,7 +505,9 @@ func (r *PostgresTemplateTaskCriteriaRepository) ListByCriteria(
 			ttc.job_template_task_id,
 			ttc.outcome_criteria_id,
 			ttc.sequence_order,
-			ttc.required_override
+			ttc.required_override,
+			ttc.rating_mode,
+			ttc.rating_scale_id
 		FROM ` + entityid.TemplateTaskCriteria + ` ttc
 		WHERE ttc.outcome_criteria_id = $1 AND ttc.active = true
 		ORDER BY ttc.sequence_order ASC
@@ -524,6 +542,8 @@ func scanTemplateTaskCriteriaRows(rows *sql.Rows) ([]*pb.TemplateTaskCriteria, e
 			outcomeCriteriaID string
 			sequenceOrder     int32
 			requiredOverride  sql.NullBool
+			ratingMode        sql.NullString
+			ratingScaleID     sql.NullString
 		)
 
 		err := rows.Scan(
@@ -534,6 +554,8 @@ func scanTemplateTaskCriteriaRows(rows *sql.Rows) ([]*pb.TemplateTaskCriteria, e
 			&outcomeCriteriaID,
 			&sequenceOrder,
 			&requiredOverride,
+			&ratingMode,
+			&ratingScaleID,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan template task criteria row: %w", err)
@@ -547,6 +569,7 @@ func scanTemplateTaskCriteriaRows(rows *sql.Rows) ([]*pb.TemplateTaskCriteria, e
 			SequenceOrder:     sequenceOrder,
 			RequiredOverride:  nilBoolPtr(requiredOverride),
 		}
+		applyRatingConfiguration(ttc, ratingMode, ratingScaleID)
 
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
@@ -563,6 +586,24 @@ func scanTemplateTaskCriteriaRows(rows *sql.Rows) ([]*pb.TemplateTaskCriteria, e
 	}
 
 	return ttcs, nil
+}
+
+// applyRatingConfiguration preserves NULL as the legacy/default behavior while
+// making the additive binding configuration available to authoring and list
+// consumers. The matrix query owns the same tolerant enum parser so old rows
+// and symbolic values remain compatible.
+func applyRatingConfiguration(ttc *pb.TemplateTaskCriteria, mode sql.NullString, scaleID sql.NullString) {
+	if ttc == nil {
+		return
+	}
+	if mode.Valid {
+		parsed := parseRatingMode(mode)
+		ttc.RatingMode = &parsed
+	}
+	if scaleID.Valid && scaleID.String != "" {
+		scale := scaleID.String
+		ttc.RatingScaleId = &scale
+	}
 }
 
 func nilBoolPtr(nb sql.NullBool) *bool {

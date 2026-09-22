@@ -352,7 +352,7 @@ func buildSubscriptionGroupOutcomeExportSQL(
 	staffScoped := false
 	staffClause := ""
 	var staffArgs []any
-	if !scope.WorkspaceWide {
+	if narrowStaffReportsToReachableJobs && !scope.WorkspaceWide {
 		if _, applies := principalscope.StaffRowScope(ctx); applies {
 			staffScoped = true
 			staffClause, staffArgs = principalscope.StaffReachableJobClause(ctx, "j", 9)
@@ -696,10 +696,59 @@ func (q *PostgresSubscriptionGroupOutcomeExportQuery) ResolveSubscriptionGroupOu
 		return renderDocumentMiss(), nil
 	}
 
+	built := buildSubscriptionGroupOutcomeDocumentResolverSQL(ctx, id, req, scope)
+	rows, err := adaptercore.ExecutorFromContext(ctx, q.db).QueryContext(ctx, built.statement, built.args...)
+	if err != nil {
+		return nil, fmt.Errorf("subscription group outcome document resolver query: %w", err)
+	}
+	defer rows.Close()
+
+	type candidate struct {
+		profile, category, container, key string
+		rank                              int
+	}
+	var candidates []candidate
+	for rows.Next() {
+		var value candidate
+		if err := rows.Scan(&value.profile, &value.category, &value.container, &value.key, &value.rank); err != nil {
+			return nil, fmt.Errorf("subscription group outcome document resolver scan: %w", err)
+		}
+		candidates = append(candidates, value)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("subscription group outcome document resolver rows: %w", err)
+	}
+	if len(candidates) == 0 {
+		return renderDocumentMiss(), nil
+	}
+	if len(candidates) > 1 && candidates[0].rank == candidates[1].rank {
+		return nil, fmt.Errorf("subscription group outcome document resolver found ambiguous candidates")
+	}
+	profileValue, ok := bindingpb.RenderProfile_value[candidates[0].profile]
+	if !ok {
+		return nil, fmt.Errorf("subscription group outcome document resolver returned an unknown render profile")
+	}
+	return &exportpb.ResolveSubscriptionGroupOutcomeDocumentForRenderResponse{
+		Found: true, Success: true,
+		Document: &exportpb.ResolvedSubscriptionGroupOutcomeDocument{
+			StorageContainer: strings.TrimSpace(candidates[0].container),
+			StorageKey:       strings.TrimSpace(candidates[0].key),
+			RenderProfile:    bindingpb.RenderProfile(profileValue),
+			JobCategoryId:    candidates[0].category,
+		},
+	}, nil
+}
+
+func buildSubscriptionGroupOutcomeDocumentResolverSQL(
+	ctx context.Context,
+	id *identity.RequestIdentity,
+	req *exportpb.ResolveSubscriptionGroupOutcomeDocumentForRenderRequest,
+	scope ports.SubscriptionGroupOutcomeExportScope,
+) exportScopeSQL {
 	staffScoped := false
 	staffClause := ""
 	var staffArgs []any
-	if !scope.WorkspaceWide {
+	if narrowStaffReportsToReachableJobs && !scope.WorkspaceWide {
 		if _, applies := principalscope.StaffRowScope(ctx); applies {
 			staffScoped = true
 			staffClause, staffArgs = principalscope.StaffReachableJobClause(ctx, "j", 9)
@@ -760,47 +809,11 @@ SELECT render_profile, job_category_id, storage_container, storage_key, match_ra
   FROM candidates
  ORDER BY match_rank, version DESC`,
 		expectedPlanP, expectedScheduleP, profileP, publishedP, asOfP, asOfP, purposeP)
-	statement := renderOutcomeExportTables(outcomeExportCTEs(staffClause) + resolverSQL)
-	rows, err := adaptercore.ExecutorFromContext(ctx, q.db).QueryContext(ctx, statement, args...)
-	if err != nil {
-		return nil, fmt.Errorf("subscription group outcome document resolver query: %w", err)
+	return exportScopeSQL{
+		statement:   renderOutcomeExportTables(outcomeExportCTEs(staffClause) + resolverSQL),
+		args:        args,
+		staffScoped: staffScoped,
 	}
-	defer rows.Close()
-
-	type candidate struct {
-		profile, category, container, key string
-		rank                              int
-	}
-	var candidates []candidate
-	for rows.Next() {
-		var value candidate
-		if err := rows.Scan(&value.profile, &value.category, &value.container, &value.key, &value.rank); err != nil {
-			return nil, fmt.Errorf("subscription group outcome document resolver scan: %w", err)
-		}
-		candidates = append(candidates, value)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("subscription group outcome document resolver rows: %w", err)
-	}
-	if len(candidates) == 0 {
-		return renderDocumentMiss(), nil
-	}
-	if len(candidates) > 1 && candidates[0].rank == candidates[1].rank {
-		return nil, fmt.Errorf("subscription group outcome document resolver found ambiguous candidates")
-	}
-	profileValue, ok := bindingpb.RenderProfile_value[candidates[0].profile]
-	if !ok {
-		return nil, fmt.Errorf("subscription group outcome document resolver returned an unknown render profile")
-	}
-	return &exportpb.ResolveSubscriptionGroupOutcomeDocumentForRenderResponse{
-		Found: true, Success: true,
-		Document: &exportpb.ResolvedSubscriptionGroupOutcomeDocument{
-			StorageContainer: strings.TrimSpace(candidates[0].container),
-			StorageKey:       strings.TrimSpace(candidates[0].key),
-			RenderProfile:    bindingpb.RenderProfile(profileValue),
-			JobCategoryId:    candidates[0].category,
-		},
-	}, nil
 }
 
 func optionalStringValue(value *string) any {

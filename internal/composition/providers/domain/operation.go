@@ -44,6 +44,7 @@ import (
 	taskoutcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 	taskoutcomecheckpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
 	templatetaskcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
+	templatetaskcriteriaratingdescriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria_rating_description"
 	workrequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
 	workrequesttypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
@@ -81,10 +82,13 @@ type OperationRepositories struct {
 	CriteriaThreshold    criteriathresholdpb.CriteriaThresholdDomainServiceServer
 	CriteriaOption       criteriaoptionpb.CriteriaOptionDomainServiceServer
 	TemplateTaskCriteria templatetaskcriteriapb.TemplateTaskCriteriaDomainServiceServer
-	TaskOutcome          taskoutcomepb.TaskOutcomeDomainServiceServer
-	TaskOutcomeCheck     taskoutcomecheckpb.TaskOutcomeCheckDomainServiceServer
-	PhaseOutcomeSummary  phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer
-	JobOutcomeSummary    joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer
+	// TemplateTaskCriteriaRatingDescription stores binding-specific wording for
+	// reusable score-scale bands. It is optional during rolling schema upgrades.
+	TemplateTaskCriteriaRatingDescription templatetaskcriteriaratingdescriptionpb.TemplateTaskCriteriaRatingDescriptionDomainServiceServer
+	TaskOutcome                           taskoutcomepb.TaskOutcomeDomainServiceServer
+	TaskOutcomeCheck                      taskoutcomecheckpb.TaskOutcomeCheckDomainServiceServer
+	PhaseOutcomeSummary                   phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer
+	JobOutcomeSummary                     joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer
 
 	// Education grading (20260616 v1). Single-repo CRUD entities.
 	ScoringScheme            scoringschemepb.ScoringSchemeDomainServiceServer
@@ -251,6 +255,13 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 		return nil, fmt.Errorf("failed to create template_task_criteria repository: %w", err)
 	}
 
+	var templateTaskCriteriaRatingDescriptionServer templatetaskcriteriaratingdescriptionpb.TemplateTaskCriteriaRatingDescriptionDomainServiceServer
+	if repo, e := repoCreator.CreateRepository(entityid.TemplateTaskCriteriaRatingDescription, conn, tableConfig.TableName(entityid.TemplateTaskCriteriaRatingDescription)); e == nil {
+		templateTaskCriteriaRatingDescriptionServer = repo.(templatetaskcriteriaratingdescriptionpb.TemplateTaskCriteriaRatingDescriptionDomainServiceServer)
+	} else {
+		log.Printf("operation provider: template_task_criteria_rating_description repository unavailable: %v", e)
+	}
+
 	taskOutcomeRepo, err := repoCreator.CreateRepository(entityid.TaskOutcome, conn, tableConfig.TableName(entityid.TaskOutcome))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task_outcome repository: %w", err)
@@ -368,29 +379,30 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 	}
 
 	return &OperationRepositories{
-		Job:                               jobRepo.(jobpb.JobDomainServiceServer),
-		JobPhase:                          jobPhaseRepo.(jobphasepb.JobPhaseDomainServiceServer),
-		JobTask:                           jobTaskRepo.(jobtaskpb.JobTaskDomainServiceServer),
-		JobTemplate:                       jobTemplateRepo.(jobtemplatepb.JobTemplateDomainServiceServer),
-		JobTemplatePhase:                  jobTemplatePhaseRepo.(jobtemplatephasepb.JobTemplatePhaseDomainServiceServer),
-		JobTemplateTask:                   jobTemplateTaskRepo.(jobtemplatetaskpb.JobTemplateTaskDomainServiceServer),
-		JobTemplateRelation:               jobTemplateRelationServer,
-		PlanJobTemplate:                   planJobTemplateServer,
-		JobActivity:                       jobActivityRepo.(jobactivitypb.JobActivityDomainServiceServer),
-		JobCategory:                       jobCategoryRepo.(jobcategorypb.JobCategoryDomainServiceServer),
-		Product:                           productServer,
-		JobOutcomeSummaryDocumentTemplate: jobOutcomeSummaryDocumentTemplateRepo.(joboutcomesummarydoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer),
-		JobTemplateDocumentTemplate:       jobTemplateDocumentTemplateRepo.(jobtemplatedoctmplpb.JobTemplateDocumentTemplateDomainServiceServer),
-		SubscriptionGroupDocumentTemplate: subscriptionGroupDocumentTemplateRepo.(subscriptiongroupdoctmplpb.SubscriptionGroupDocumentTemplateDomainServiceServer),
-		DocumentTemplate:                  documentTemplateRepo.(documenttemplatepb.DocumentTemplateDomainServiceServer),
-		OutcomeCriteria:                   outcomeCriteriaRepo.(outcomecriteriapb.OutcomeCriteriaDomainServiceServer),
-		CriteriaThreshold:                 criteriaThresholdRepo.(criteriathresholdpb.CriteriaThresholdDomainServiceServer),
-		CriteriaOption:                    criteriaOptionRepo.(criteriaoptionpb.CriteriaOptionDomainServiceServer),
-		TemplateTaskCriteria:              templateTaskCriteriaRepo.(templatetaskcriteriapb.TemplateTaskCriteriaDomainServiceServer),
-		TaskOutcome:                       taskOutcomeRepo.(taskoutcomepb.TaskOutcomeDomainServiceServer),
-		TaskOutcomeCheck:                  taskOutcomeCheckRepo.(taskoutcomecheckpb.TaskOutcomeCheckDomainServiceServer),
-		PhaseOutcomeSummary:               phaseOutcomeSummaryRepo.(phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer),
-		JobOutcomeSummary:                 jobOutcomeSummaryRepo.(joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer),
+		Job:                                   jobRepo.(jobpb.JobDomainServiceServer),
+		JobPhase:                              jobPhaseRepo.(jobphasepb.JobPhaseDomainServiceServer),
+		JobTask:                               jobTaskRepo.(jobtaskpb.JobTaskDomainServiceServer),
+		JobTemplate:                           jobTemplateRepo.(jobtemplatepb.JobTemplateDomainServiceServer),
+		JobTemplatePhase:                      jobTemplatePhaseRepo.(jobtemplatephasepb.JobTemplatePhaseDomainServiceServer),
+		JobTemplateTask:                       jobTemplateTaskRepo.(jobtemplatetaskpb.JobTemplateTaskDomainServiceServer),
+		JobTemplateRelation:                   jobTemplateRelationServer,
+		PlanJobTemplate:                       planJobTemplateServer,
+		JobActivity:                           jobActivityRepo.(jobactivitypb.JobActivityDomainServiceServer),
+		JobCategory:                           jobCategoryRepo.(jobcategorypb.JobCategoryDomainServiceServer),
+		Product:                               productServer,
+		JobOutcomeSummaryDocumentTemplate:     jobOutcomeSummaryDocumentTemplateRepo.(joboutcomesummarydoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer),
+		JobTemplateDocumentTemplate:           jobTemplateDocumentTemplateRepo.(jobtemplatedoctmplpb.JobTemplateDocumentTemplateDomainServiceServer),
+		SubscriptionGroupDocumentTemplate:     subscriptionGroupDocumentTemplateRepo.(subscriptiongroupdoctmplpb.SubscriptionGroupDocumentTemplateDomainServiceServer),
+		DocumentTemplate:                      documentTemplateRepo.(documenttemplatepb.DocumentTemplateDomainServiceServer),
+		OutcomeCriteria:                       outcomeCriteriaRepo.(outcomecriteriapb.OutcomeCriteriaDomainServiceServer),
+		CriteriaThreshold:                     criteriaThresholdRepo.(criteriathresholdpb.CriteriaThresholdDomainServiceServer),
+		CriteriaOption:                        criteriaOptionRepo.(criteriaoptionpb.CriteriaOptionDomainServiceServer),
+		TemplateTaskCriteria:                  templateTaskCriteriaRepo.(templatetaskcriteriapb.TemplateTaskCriteriaDomainServiceServer),
+		TemplateTaskCriteriaRatingDescription: templateTaskCriteriaRatingDescriptionServer,
+		TaskOutcome:                           taskOutcomeRepo.(taskoutcomepb.TaskOutcomeDomainServiceServer),
+		TaskOutcomeCheck:                      taskOutcomeCheckRepo.(taskoutcomecheckpb.TaskOutcomeCheckDomainServiceServer),
+		PhaseOutcomeSummary:                   phaseOutcomeSummaryRepo.(phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer),
+		JobOutcomeSummary:                     jobOutcomeSummaryRepo.(joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer),
 
 		ScoringScheme:            scoringSchemeRepo.(scoringschemepb.ScoringSchemeDomainServiceServer),
 		ScoringComponent:         scoringComponentRepo.(scoringcomponentpb.ScoringComponentDomainServiceServer),

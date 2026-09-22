@@ -300,14 +300,15 @@ const (
 
 // Operation domain — Layer 7: Outcome
 const (
-	OutcomeCriteria      = "outcome_criteria"
-	CriteriaThreshold    = "criteria_threshold"
-	CriteriaOption       = "criteria_option"
-	TemplateTaskCriteria = "template_task_criteria"
-	TaskOutcome          = "task_outcome"
-	TaskOutcomeCheck     = "task_outcome_check"
-	PhaseOutcomeSummary  = "phase_outcome_summary"
-	JobOutcomeSummary    = "job_outcome_summary"
+	OutcomeCriteria                       = "outcome_criteria"
+	CriteriaThreshold                     = "criteria_threshold"
+	CriteriaOption                        = "criteria_option"
+	TemplateTaskCriteria                  = "template_task_criteria"
+	TemplateTaskCriteriaRatingDescription = "template_task_criteria_rating_description"
+	TaskOutcome                           = "task_outcome"
+	TaskOutcomeCheck                      = "task_outcome_check"
+	PhaseOutcomeSummary                   = "phase_outcome_summary"
+	JobOutcomeSummary                     = "job_outcome_summary"
 )
 
 // Operation domain — Grading scoring-primitives (education-grading R5 — 2026-06-22)
@@ -551,7 +552,7 @@ var OperationEntities = []string{
 // OperationOutcomeEntities lists all entity IDs in the Operation Layer 7 Outcome domain.
 var OperationOutcomeEntities = []string{
 	OutcomeCriteria, CriteriaThreshold, CriteriaOption,
-	TemplateTaskCriteria,
+	TemplateTaskCriteria, TemplateTaskCriteriaRatingDescription,
 	TaskOutcome, TaskOutcomeCheck,
 	PhaseOutcomeSummary, JobOutcomeSummary,
 	// Grading scoring-primitives (R5 — 2026-06-22)

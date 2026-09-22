@@ -22,6 +22,7 @@ import (
 	scoringcomponentcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_component_criteria"
 	scoringschemepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_scheme"
 	subscriptiongroupdoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/subscription_group_document_template"
+	templatetaskcriteriaratingdescriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria_rating_description"
 )
 
 // ConfigureOperationDomain configures routes for the Operation domain.
@@ -820,6 +821,62 @@ func ConfigureOperationDomain(operationUseCases *operationuc.OperationUseCases) 
 				Method:  "POST",
 				Path:    "/api/operation/reporting-checkpoint/get-item-page-data",
 				Handler: contracts.NewGenericHandler(operationUseCases.ReportingCheckpoint.GetReportingCheckpointItemPageData, &reportingcheckpointpb.GetReportingCheckpointItemPageDataRequest{}),
+			})
+		}
+	}
+
+	// TemplateTaskCriteriaRatingDescription routes. The table is a child
+	// configuration surface for template_task_criteria; its binding-specific
+	// wording is intentionally separate from reusable score-scale bands.
+	if operationUseCases.TemplateTaskCriteriaRatingDescription != nil {
+		b := operationUseCases.TemplateTaskCriteriaRatingDescription
+		if b.CreateTemplateTaskCriteriaRatingDescription != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/template-task-criteria-rating-description/create",
+				Handler: contracts.NewGenericHandler(b.CreateTemplateTaskCriteriaRatingDescription, &templatetaskcriteriaratingdescriptionpb.CreateTemplateTaskCriteriaRatingDescriptionRequest{}),
+			})
+		}
+		if b.ReadTemplateTaskCriteriaRatingDescription != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/template-task-criteria-rating-description/read",
+				Handler: contracts.NewGenericHandler(b.ReadTemplateTaskCriteriaRatingDescription, &templatetaskcriteriaratingdescriptionpb.ReadTemplateTaskCriteriaRatingDescriptionRequest{}),
+			})
+		}
+		if b.UpdateTemplateTaskCriteriaRatingDescription != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/template-task-criteria-rating-description/update",
+				Handler: contracts.NewGenericHandler(b.UpdateTemplateTaskCriteriaRatingDescription, &templatetaskcriteriaratingdescriptionpb.UpdateTemplateTaskCriteriaRatingDescriptionRequest{}),
+			})
+		}
+		if b.DeleteTemplateTaskCriteriaRatingDescription != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/template-task-criteria-rating-description/delete",
+				Handler: contracts.NewGenericHandler(b.DeleteTemplateTaskCriteriaRatingDescription, &templatetaskcriteriaratingdescriptionpb.DeleteTemplateTaskCriteriaRatingDescriptionRequest{}),
+			})
+		}
+		if b.ListTemplateTaskCriteriaRatingDescriptions != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/template-task-criteria-rating-description/list",
+				Handler: contracts.NewGenericHandler(b.ListTemplateTaskCriteriaRatingDescriptions, &templatetaskcriteriaratingdescriptionpb.ListTemplateTaskCriteriaRatingDescriptionsRequest{}),
+			})
+		}
+		if b.GetTemplateTaskCriteriaRatingDescriptionListPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/template-task-criteria-rating-description/get-list-page-data",
+				Handler: contracts.NewGenericHandler(b.GetTemplateTaskCriteriaRatingDescriptionListPageData, &templatetaskcriteriaratingdescriptionpb.GetTemplateTaskCriteriaRatingDescriptionListPageDataRequest{}),
+			})
+		}
+		if b.GetTemplateTaskCriteriaRatingDescriptionItemPageData != nil {
+			routes = append(routes, contracts.RouteConfiguration{
+				Method:  "POST",
+				Path:    "/api/operation/template-task-criteria-rating-description/get-item-page-data",
+				Handler: contracts.NewGenericHandler(b.GetTemplateTaskCriteriaRatingDescriptionItemPageData, &templatetaskcriteriaratingdescriptionpb.GetTemplateTaskCriteriaRatingDescriptionItemPageDataRequest{}),
 			})
 		}
 	}

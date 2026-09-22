@@ -36,6 +36,7 @@ func TestWorkspaceScopePolicyRegistryCoversLockedSchoolTables(t *testing.T) {
 		entityid.CriteriaOption,
 		entityid.CriteriaThreshold,
 		entityid.TemplateTaskCriteria,
+		entityid.TemplateTaskCriteriaRatingDescription,
 		entityid.TaskOutcome,
 		entityid.TaskOutcomeCheck,
 		entityid.PhaseOutcomeSummary,

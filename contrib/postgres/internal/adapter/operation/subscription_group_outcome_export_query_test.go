@@ -13,6 +13,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/shared/identity"
+	bindingpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/subscription_group_document_template"
 	exportpb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/subscription_group_outcome_export"
 )
 
@@ -274,37 +275,42 @@ func TestBuildSubscriptionGroupOutcomeExportSQL_StaffScopeVariants(t *testing.T)
 		SubscriptionGroupId: "sg-1",
 	}
 
-	t.Run("staff non-wide", func(t *testing.T) {
+	// Policy (owner decision 2026-09-21, narrowStaffReportsToReachableJobs=false):
+	// a non-wide STAFF caller is NOT narrowed to its reachable-job graph; the
+	// section-assignment (sgwu) EXISTS gate in group_context is the row gate, so
+	// an assigned STAFF principal reads the whole assigned section, read-only.
+	t.Run("staff non-wide sees the whole assigned section", func(t *testing.T) {
+		if narrowStaffReportsToReachableJobs {
+			t.Skip("policy switched back to reachable-job narrowing")
+		}
 		ctx := identityContext("ws-1", "user-1", principalscope.PrincipalTypeStaff, "staff-9")
 		built := buildSubscriptionGroupOutcomeExportSQL(ctx, requestIdentityFromContext(t, ctx), req, ports.SubscriptionGroupOutcomeExportScope{}, "options", "")
-		if !built.staffScoped {
-			t.Fatal("staffScoped = false, want true")
+		if built.staffScoped {
+			t.Fatal("staffScoped = true, want false under the whole-assigned-section policy")
 		}
-		if got := len(built.args); got != 10 {
-			t.Fatalf("arg count = %d, want 10", got)
+		if got := len(built.args); got != 8 {
+			t.Fatalf("arg count = %d, want 8 (no staff-clause args)", got)
 		}
-		if got := built.args[8].(string); got != "staff-9" {
-			t.Errorf("staff arg = %q, want staff-9", got)
+		if strings.Contains(built.statement, "j.id IN (SELECT jp.job_id") {
+			t.Fatal("policy off: statement must omit StaffReachableJobClause")
 		}
-		if got := built.args[9].(string); got != "ws-1" {
-			t.Errorf("workspace arg = %q, want ws-1", got)
+		// The section assignment stays the fail-closed row gate.
+		if !strings.Contains(built.statement, "subscription_group_workspace_user") || !strings.Contains(built.statement, "$4::boolean") {
+			t.Fatal("section-assignment (sgwu) gate must remain in group_context")
 		}
-		if !strings.Contains(built.statement, " AND j.id IN (SELECT jp.job_id FROM") {
-			t.Fatalf("staff clause should include StaffReachableJobClause")
+		if got := built.args[2].(string); got == "" {
+			t.Error("acting workspace_user id must still be bound for the sgwu gate")
 		}
 	})
 
-	t.Run("malformed staff", func(t *testing.T) {
+	t.Run("malformed staff without a workspace_user still fails closed at the sgwu gate", func(t *testing.T) {
 		ctx := identityContext("ws-1", "user-1", principalscope.PrincipalTypeStaff, "")
 		built := buildSubscriptionGroupOutcomeExportSQL(ctx, requestIdentityFromContext(t, ctx), req, ports.SubscriptionGroupOutcomeExportScope{}, "options", "")
-		if !built.staffScoped {
-			t.Fatal("malformed staff should set staffScoped=true")
+		if built.staffScoped || len(built.args) != 8 {
+			t.Fatalf("staffScoped=%v args=%d, want false/8", built.staffScoped, len(built.args))
 		}
-		if len(built.args) != 8 {
-			t.Fatalf("arg count = %d, want 8", len(built.args))
-		}
-		if !strings.Contains(built.statement, "AND 1=0") {
-			t.Fatal("malformed staff should emit fail-closed 1=0 clause")
+		if !strings.Contains(built.statement, "wu.id = $3") {
+			t.Fatal("the sgwu gate must key on the acting workspace_user ($3) so an empty binding matches no assignment")
 		}
 	})
 
@@ -321,6 +327,40 @@ func TestBuildSubscriptionGroupOutcomeExportSQL_StaffScopeVariants(t *testing.T)
 			t.Fatal("workspace-wide call must omit StaffReachableJobClause")
 		}
 	})
+}
+
+func TestBuildSubscriptionGroupOutcomeDocumentResolverSQL_StaffWholeSection(t *testing.T) {
+	t.Parallel()
+
+	ctx := identityContext("ws-1", "user-1", principalscope.PrincipalTypeStaff, "staff-9")
+	req := &exportpb.ResolveSubscriptionGroupOutcomeDocumentForRenderRequest{
+		SubscriptionGroupId: "sg-1",
+		JobCategoryId:       "cat-1",
+		RenderProfile:       bindingpb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_OUTCOME_MATRIX_SINGLE_PERIOD_11_V1,
+	}
+	built := buildSubscriptionGroupOutcomeDocumentResolverSQL(ctx, requestIdentityFromContext(t, ctx), req, ports.SubscriptionGroupOutcomeExportScope{})
+
+	if built.staffScoped {
+		t.Fatal("staffScoped = true, want false under the whole-assigned-section policy")
+	}
+	if strings.Contains(built.statement, "j.id IN (SELECT jp.job_id") || strings.Contains(built.statement, "1=0") {
+		t.Fatal("policy off: document resolver must omit StaffReachableJobClause and its fail-closed branch")
+	}
+	if !strings.Contains(built.statement, "subscription_group_workspace_user") || !strings.Contains(built.statement, "sgwu.active = true") {
+		t.Fatal("section-assignment (sgwu) gate must remain in the document resolver")
+	}
+	if !strings.Contains(built.statement, "wu.id = $3") {
+		t.Fatal("document resolver must bind the acting workspace_user id at $3")
+	}
+	if got := built.args[2].(string); got != "workspace-user-1" {
+		t.Fatalf("args[2] = %q, want acting workspace_user id", got)
+	}
+}
+
+func TestNarrowStaffReportsPolicyDocumentedOff(t *testing.T) {
+	if narrowStaffReportsToReachableJobs {
+		t.Fatal("narrowStaffReportsToReachableJobs must stay false; flipping it requires a conscious review in docs/plan/20260921-section-manager-report-card-access/plan.md")
+	}
 }
 
 func TestBuildSubscriptionGroupOutcomeExportSQL_PlaceholdersAndTables(t *testing.T) {

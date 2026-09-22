@@ -53,7 +53,8 @@ func InitializeOperation(
 		// through here, leaving ListTemplateTaskCriteriaUseCase's repo nil (a
 		// nil-deref the moment the builder lists criteria; ordering then degraded
 		// to a stable criteria-id fallback). Threading it restores sequence_order.
-		TemplateTaskCriteria: repos.TemplateTaskCriteria,
+		TemplateTaskCriteria:                  repos.TemplateTaskCriteria,
+		TemplateTaskCriteriaRatingDescription: repos.TemplateTaskCriteriaRatingDescription,
 		// Education grading (20260616 v1).
 		ScoringScheme:            repos.ScoringScheme,
 		ScoringComponent:         repos.ScoringComponent,

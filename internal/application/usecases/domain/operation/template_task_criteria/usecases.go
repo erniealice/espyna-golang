@@ -7,6 +7,7 @@ import (
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
 	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
+	scorescalepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
 )
 
@@ -20,15 +21,16 @@ type TemplateTaskCriteriaRepositories struct {
 	JobTemplatePhase     jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
 	JobTemplate          jobtemplatepb.JobTemplateDomainServiceServer
 	OutcomeCriteria      outcomecriteriapb.OutcomeCriteriaDomainServiceServer
+	ScoreScale           scorescalepb.ScoreScaleDomainServiceServer
 }
 
 // TemplateTaskCriteriaServices groups all business service dependencies
 type TemplateTaskCriteriaServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // UseCases contains all template_task_criteria-related use cases
@@ -55,13 +57,14 @@ func NewUseCases(
 		JobTemplatePhase:     repositories.JobTemplatePhase,
 		JobTemplate:          repositories.JobTemplate,
 		OutcomeCriteria:      repositories.OutcomeCriteria,
+		ScoreScale:           repositories.ScoreScale,
 	}
 	createServices := CreateTemplateTaskCriteriaServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer:  services.Authorizer,
-		Transactor:  services.Transactor,
-		Translator:  services.Translator,
-		IDGenerator: services.IDGenerator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
+		IDGenerator:      services.IDGenerator,
 	}
 
 	readRepos := ReadTemplateTaskCriteriaRepositories{
@@ -72,9 +75,9 @@ func NewUseCases(
 	}
 	readServices := ReadTemplateTaskCriteriaServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	updateRepos := UpdateTemplateTaskCriteriaRepositories{
@@ -83,12 +86,13 @@ func NewUseCases(
 		JobTemplatePhase:     repositories.JobTemplatePhase,
 		JobTemplate:          repositories.JobTemplate,
 		OutcomeCriteria:      repositories.OutcomeCriteria,
+		ScoreScale:           repositories.ScoreScale,
 	}
 	updateServices := UpdateTemplateTaskCriteriaServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	deleteRepos := DeleteTemplateTaskCriteriaRepositories{
@@ -99,9 +103,9 @@ func NewUseCases(
 	}
 	deleteServices := DeleteTemplateTaskCriteriaServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listRepos := ListTemplateTaskCriteriaRepositories{
@@ -109,9 +113,9 @@ func NewUseCases(
 	}
 	listServices := ListTemplateTaskCriteriaServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listPageDataRepos := GetTemplateTaskCriteriaListPageDataRepositories{
@@ -119,9 +123,9 @@ func NewUseCases(
 	}
 	listPageDataServices := GetTemplateTaskCriteriaListPageDataServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	itemPageDataRepos := GetTemplateTaskCriteriaItemPageDataRepositories{
@@ -129,9 +133,9 @@ func NewUseCases(
 	}
 	itemPageDataServices := GetTemplateTaskCriteriaItemPageDataServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listByTemplateTaskRepos := ListByTemplateTaskRepositories{
@@ -142,9 +146,9 @@ func NewUseCases(
 	}
 	listByTemplateTaskServices := ListByTemplateTaskServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listByCriteriaRepos := ListByCriteriaRepositories{
@@ -152,9 +156,9 @@ func NewUseCases(
 	}
 	listByCriteriaServices := ListByCriteriaServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	return &UseCases{

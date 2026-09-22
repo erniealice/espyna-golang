@@ -97,7 +97,7 @@ func buildSubscriptionGroupOutcomeLandingSQL(
 	staffScoped := false
 	staffClause := ""
 	var staffArgs []any
-	if !scope.WorkspaceWide {
+	if narrowStaffReportsToReachableJobs && !scope.WorkspaceWide {
 		if _, applies := principalscope.StaffRowScope(ctx); applies {
 			staffScoped = true
 			staffClause, staffArgs = principalscope.StaffReachableJobClause(ctx, "j", 6)
@@ -183,6 +183,18 @@ WITH visible_groups AS (
              AND historical_jt.workspace_id = $1
         )))
      )` + staffClause + `
+), member_counts AS (
+  -- Aggregate each side PER GROUP before joining. Joining eligible_members to
+  -- eligible_jobs on subscription_group_id and counting DISTINCT afterwards
+  -- materializes members x jobs per group (~225k rows for 13 groups, ~16 s);
+  -- the counts are identical without the fan-out.
+  SELECT subscription_group_id, COUNT(DISTINCT member_id) AS member_count
+    FROM eligible_members
+   GROUP BY subscription_group_id
+), job_template_counts AS (
+  SELECT subscription_group_id, COUNT(DISTINCT job_template_id) AS job_template_count
+    FROM eligible_jobs
+   GROUP BY subscription_group_id
 )
 SELECT g.price_schedule_id,
        g.price_schedule_name,
@@ -191,17 +203,13 @@ SELECT g.price_schedule_id,
        g.subscription_group_id,
        g.subscription_group_name,
        g.subscription_group_active,
-       COUNT(DISTINCT em.member_id) AS member_count,
-       COUNT(DISTINCT ej.job_template_id) AS job_template_count
+       COALESCE(mc.member_count, 0) AS member_count,
+       COALESCE(jc.job_template_count, 0) AS job_template_count
   FROM visible_groups g
-  LEFT JOIN eligible_members em
-    ON em.subscription_group_id = g.subscription_group_id
-  LEFT JOIN eligible_jobs ej
-    ON ej.subscription_group_id = g.subscription_group_id
- GROUP BY g.price_schedule_id, g.price_schedule_name,
-          g.price_schedule_active, g.price_schedule_sort_order,
-          g.subscription_group_id, g.subscription_group_name,
-          g.subscription_group_active
+  LEFT JOIN member_counts mc
+    ON mc.subscription_group_id = g.subscription_group_id
+  LEFT JOIN job_template_counts jc
+    ON jc.subscription_group_id = g.subscription_group_id
  ORDER BY g.price_schedule_sort_order NULLS LAST,
           lower(btrim(g.price_schedule_name)), g.price_schedule_id,
           lower(btrim(g.subscription_group_name)), g.subscription_group_id

@@ -7,12 +7,13 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 	jobtemplatetaskpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
 	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
+	scorescalepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
 )
 
@@ -26,14 +27,15 @@ type CreateTemplateTaskCriteriaRepositories struct {
 	// OutcomeCriteria anchors the pinned-criterion workspace check (the criterion
 	// carries its own workspace_id).
 	OutcomeCriteria outcomecriteriapb.OutcomeCriteriaDomainServiceServer
+	ScoreScale      scorescalepb.ScoreScaleDomainServiceServer
 }
 
 type CreateTemplateTaskCriteriaServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // CreateTemplateTaskCriteriaUseCase handles the business logic for creating template task criteria
@@ -158,6 +160,9 @@ func (uc *CreateTemplateTaskCriteriaUseCase) validateBusinessRules(ctx context.C
 	}
 	if data.OutcomeCriteriaId == "" {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "template_task_criteria.validation.criteria_id_required", "[ERR-DEFAULT] Outcome criteria ID is required"))
+	}
+	if err := validateRatingConfiguration(ctx, data, uc.repositories.OutcomeCriteria, uc.repositories.ScoreScale, uc.services.Translator); err != nil {
+		return err
 	}
 
 	return nil

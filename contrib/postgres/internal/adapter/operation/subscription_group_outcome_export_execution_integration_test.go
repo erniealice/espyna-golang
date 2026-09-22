@@ -338,15 +338,27 @@ func TestIntegration_SubscriptionGroupOutcomeExport_RollbackMatrixScopeAndEviden
 			return fmt.Errorf("missing SGWU scope must be empty: err=%v context=%v", err, noGrant.GetContext())
 		}
 
-		// Staff reachability is independent of SGWU: the assigned task reaches
-		// job-alpha-001, while job-beta-001 is intentionally not assigned.
+		// Whole-assigned-section policy (narrowStaffReportsToReachableJobs=false,
+		// owner decision 2026-09-21): reachability no longer narrows a STAFF
+		// principal. With an SGWU assignment it reads exactly what a non-staff
+		// assigned principal reads (job-alpha-001 AND job-beta-001 columns),
+		// read-only; without the assignment it gets the empty foreign-group shape.
+		assignedMatrix, err := query.GetSubscriptionGroupOutcomeExportScoped(narrowCtx, phaseReq, ports.SubscriptionGroupOutcomeExportScope{})
+		if err != nil {
+			return fmt.Errorf("assigned non-staff matrix query: %w", err)
+		}
 		staffCtx := transplantExportTransaction(exportIdentityContext("ws-main", "user-main", principalscope.PrincipalTypeStaff, "staff-1"), txCtx)
 		staffMatrix, err := query.GetSubscriptionGroupOutcomeExportScoped(staffCtx, phaseReq, ports.SubscriptionGroupOutcomeExportScope{})
 		if err != nil {
 			return fmt.Errorf("staff matrix query: %w", err)
 		}
-		if got := strings.Join(exportColumnIDs(staffMatrix), ","); got != "jt-alpha" {
-			return fmt.Errorf("staff scope must retain only assigned job, got columns %q", got)
+		if got, want := strings.Join(exportColumnIDs(staffMatrix), ","), strings.Join(exportColumnIDs(assignedMatrix), ","); got != want || !strings.Contains(got, "jt-alpha") || !strings.Contains(got, "jt-beta") {
+			return fmt.Errorf("assigned STAFF must read the whole assigned section like a non-staff assignee: staff columns %q, non-staff columns %q", got, want)
+		}
+		staffNoGrantCtx := transplantExportTransaction(exportIdentityContext("ws-main", "user-other", principalscope.PrincipalTypeStaff, "staff-1"), txCtx)
+		staffNoGrant, err := query.GetSubscriptionGroupOutcomeExportScoped(staffNoGrantCtx, phaseReq, ports.SubscriptionGroupOutcomeExportScope{})
+		if err != nil || staffNoGrant.GetContext() != nil {
+			return fmt.Errorf("STAFF without an SGWU assignment must stay empty even when the staff record is reachable: err=%v context=%v", err, staffNoGrant.GetContext())
 		}
 
 		return rollback

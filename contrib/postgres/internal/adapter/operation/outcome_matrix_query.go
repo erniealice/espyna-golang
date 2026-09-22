@@ -45,6 +45,14 @@ type PostgresOutcomeMatrixQuery struct {
 	db *sql.DB
 }
 
+// outcomeMatrixRowsQueryer is the smallest database seam needed by the
+// template-column projection. Both *sql.DB and *sql.Tx satisfy it, which lets
+// the projection integration test exercise the real SQL and scan path inside a
+// rolled-back transaction. Production reads continue to use *sql.DB.
+type outcomeMatrixRowsQueryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
 // NewPostgresOutcomeMatrixQuery constructs the PG-backed outcome-matrix reader.
 func NewPostgresOutcomeMatrixQuery(db *sql.DB) matrixpb.OutcomeMatrixServiceServer {
 	return &PostgresOutcomeMatrixQuery{db: db}
@@ -597,6 +605,10 @@ func (a *PostgresOutcomeMatrixQuery) loadTemplateName(ctx context.Context, jobTe
 // carries a sub-deliverable (output_product_variant_id → product_variant) its
 // variant name is appended as a parenthetical ("Semester 1 (Visual Arts)").
 func (a *PostgresOutcomeMatrixQuery) loadColumnTree(ctx context.Context, jobTemplateID, workspaceID string) ([]*matrixpb.PhaseColumn, error) {
+	return a.loadColumnTreeFrom(ctx, a.db, jobTemplateID, workspaceID)
+}
+
+func (a *PostgresOutcomeMatrixQuery) loadColumnTreeFrom(ctx context.Context, queryer outcomeMatrixRowsQueryer, jobTemplateID, workspaceID string) ([]*matrixpb.PhaseColumn, error) {
 	q := `
 SELECT
     jtp.id                        AS phase_id,
@@ -621,7 +633,15 @@ SELECT
     oc.max_text_length,
     oc.text_prompt,
     oc.weight,
-    oc.required
+    oc.required,
+    ttc.rating_mode,
+    ttc.rating_scale_id,
+    ss.scale_kind,
+    ssb.input_min,
+    ssb.input_max,
+    ssb.input_match,
+    rd.description,
+    rd.sequence_order AS rating_description_sequence
 FROM ` + entityid.JobTemplatePhase + ` jtp
 JOIN ` + entityid.JobTemplateTask + ` jtt
        ON jtt.job_template_phase_id = jtp.id AND jtt.active
@@ -631,6 +651,19 @@ JOIN ` + entityid.OutcomeCriteria + ` oc
        ON oc.id = ttc.outcome_criteria_id AND oc.active
 LEFT JOIN ` + entityid.ProductVariant + ` pv
        ON pv.id = jtp.output_product_variant_id AND pv.active
+LEFT JOIN ` + entityid.ScoreScale + ` ss
+       ON ss.id = ttc.rating_scale_id
+      AND ss.active
+      AND (ss.workspace_id = $2 OR ss.workspace_id IS NULL)
+LEFT JOIN ` + entityid.ScoreScaleBand + ` ssb
+       ON ssb.score_scale_id = ss.id
+      AND ssb.active
+      AND (ssb.workspace_id = $2 OR ssb.workspace_id IS NULL)
+LEFT JOIN ` + entityid.TemplateTaskCriteriaRatingDescription + ` rd
+       ON rd.template_task_criteria_id = ttc.id
+      AND rd.score_scale_band_id = ssb.id
+      AND rd.active
+      AND (rd.workspace_id = $2 OR rd.workspace_id IS NULL)
 WHERE jtp.job_template_id = $1
   AND jtp.active
   AND EXISTS (
@@ -639,9 +672,10 @@ WHERE jtp.job_template_id = $1
           AND (jt.workspace_id = $2 OR jt.workspace_id IS NULL)
           AND jt.active
       )
-ORDER BY jtp.phase_order, jtt.step_order, ttc.sequence_order`
+ORDER BY jtp.phase_order, jtt.step_order, ttc.sequence_order,
+         rd.sequence_order, rd.id`
 
-	rows, err := a.db.QueryContext(ctx, q, jobTemplateID, workspaceID)
+	rows, err := queryer.QueryContext(ctx, q, jobTemplateID, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("outcome_matrix: column tree query: %w", err)
 	}
@@ -650,6 +684,7 @@ ORDER BY jtp.phase_order, jtt.step_order, ttc.sequence_order`
 	var phases []*matrixpb.PhaseColumn
 	phaseByID := map[string]*matrixpb.PhaseColumn{}
 	taskByID := map[string]*matrixpb.TaskColumn{}
+	criterionByKey := map[string]*matrixpb.CriterionColumn{}
 
 	for rows.Next() {
 		var (
@@ -671,6 +706,13 @@ ORDER BY jtp.phase_order, jtt.step_order, ttc.sequence_order`
 			textPrompt               sql.NullString
 			weight                   sql.NullFloat64
 			required                 sql.NullBool
+			ratingMode               sql.NullString
+			ratingScaleID            sql.NullString
+			scaleKind                sql.NullString
+			inputMin, inputMax       sql.NullFloat64
+			inputMatch               sql.NullString
+			ratingDescription        sql.NullString
+			descriptionSequence      sql.NullInt64
 		)
 		if err := rows.Scan(
 			&phaseID, &phaseName, &phaseCode, &variantName, &phaseOrder,
@@ -679,6 +721,8 @@ ORDER BY jtp.phase_order, jtt.step_order, ttc.sequence_order`
 			&criteriaID, &criteriaName, &criteriaType,
 			&unit, &decimalPlaces, &minScore, &maxScore, &scoreIncrement,
 			&passLabel, &failLabel, &maxTextLength, &textPrompt, &weight, &required,
+			&ratingMode, &ratingScaleID, &scaleKind, &inputMin, &inputMax,
+			&inputMatch, &ratingDescription, &descriptionSequence,
 		); err != nil {
 			return nil, fmt.Errorf("outcome_matrix: scan column tree: %w", err)
 		}
@@ -710,29 +754,46 @@ ORDER BY jtp.phase_order, jtt.step_order, ttc.sequence_order`
 			phase.Tasks = append(phase.Tasks, task)
 		}
 
-		crit := &matrixpb.CriterionColumn{
-			ColumnKey:     taskID + ":" + criteriaID,
-			SequenceOrder: seqOrder,
-			Required:      required.Valid && required.Bool,
-			Criteria: &criteriapb.OutcomeCriteria{
-				Id:             criteriaID,
-				Name:           criteriaName,
-				CriteriaType:   parseCriteriaType(criteriaType),
-				Unit:           nullStringPtr(unit),
-				DecimalPlaces:  nullInt32Ptr(decimalPlaces),
-				MinScore:       nullInt32Ptr(minScore),
-				MaxScore:       nullInt32Ptr(maxScore),
-				ScoreIncrement: nullFloat64Ptr(scoreIncrement),
-				PassLabel:      nullStringPtr(passLabel),
-				FailLabel:      nullStringPtr(failLabel),
-				MaxTextLength:  nullInt32Ptr(maxTextLength),
-				TextPrompt:     nullStringPtr(textPrompt),
-				Weight:         nullFloat64Val(weight),
-				Required:       required.Valid && required.Bool,
-				Active:         true,
-			},
+		criterionKey := taskID + ":" + criteriaID
+		crit := criterionByKey[criterionKey]
+		if crit == nil {
+			crit = &matrixpb.CriterionColumn{
+				ColumnKey:     criterionKey,
+				SequenceOrder: seqOrder,
+				Required:      required.Valid && required.Bool,
+				RatingMode:    parseRatingMode(ratingMode),
+				RatingScaleId: nullStringVal(ratingScaleID),
+				Criteria: &criteriapb.OutcomeCriteria{
+					Id:             criteriaID,
+					Name:           criteriaName,
+					CriteriaType:   parseCriteriaType(criteriaType),
+					Unit:           nullStringPtr(unit),
+					DecimalPlaces:  nullInt32Ptr(decimalPlaces),
+					MinScore:       nullInt32Ptr(minScore),
+					MaxScore:       nullInt32Ptr(maxScore),
+					ScoreIncrement: nullFloat64Ptr(scoreIncrement),
+					PassLabel:      nullStringPtr(passLabel),
+					FailLabel:      nullStringPtr(failLabel),
+					MaxTextLength:  nullInt32Ptr(maxTextLength),
+					TextPrompt:     nullStringPtr(textPrompt),
+					Weight:         nullFloat64Val(weight),
+					Required:       required.Valid && required.Bool,
+					Active:         true,
+				},
+			}
+			criterionByKey[criterionKey] = crit
+			task.Criteria = append(task.Criteria, crit)
 		}
-		task.Criteria = append(task.Criteria, crit)
+
+		if crit.GetRatingMode() == enumspb.RatingMode_RATING_MODE_NUMERIC_WITH_DESCRIPTION && ratingDescription.Valid && strings.TrimSpace(ratingDescription.String) != "" {
+			crit.RatingDescriptions = append(crit.RatingDescriptions, &matrixpb.RatingDescription{
+				ScaleKind:   parseScaleKind(scaleKind),
+				InputMin:    nullFloat64Ptr(inputMin),
+				InputMax:    nullFloat64Ptr(inputMax),
+				InputMatch:  nullStringPtr(inputMatch),
+				Description: ratingDescription.String,
+			})
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("outcome_matrix: column tree rows: %w", err)
@@ -1006,6 +1067,42 @@ func parseCriteriaType(s sql.NullString) enumspb.CriteriaType {
 		return enumspb.CriteriaType(v)
 	}
 	return enumspb.CriteriaType_CRITERIA_TYPE_UNSPECIFIED
+}
+
+// parseRatingMode keeps legacy rows safe: NULL/unknown values remain
+// UNSPECIFIED, which the contract resolves as standard behavior in the view.
+func parseRatingMode(s sql.NullString) enumspb.RatingMode {
+	if !s.Valid {
+		return enumspb.RatingMode_RATING_MODE_UNSPECIFIED
+	}
+	if v, ok := enumspb.RatingMode_value[s.String]; ok {
+		return enumspb.RatingMode(v)
+	}
+	switch strings.ToLower(strings.TrimSpace(s.String)) {
+	case "standard", "rating_mode_standard":
+		return enumspb.RatingMode_RATING_MODE_STANDARD
+	case "numeric_with_description", "numeric-description", "rating_mode_numeric_with_description":
+		return enumspb.RatingMode_RATING_MODE_NUMERIC_WITH_DESCRIPTION
+	default:
+		return enumspb.RatingMode_RATING_MODE_UNSPECIFIED
+	}
+}
+
+func parseScaleKind(s sql.NullString) enumspb.ScaleKind {
+	if !s.Valid {
+		return enumspb.ScaleKind_SCALE_KIND_UNSPECIFIED
+	}
+	if v, ok := enumspb.ScaleKind_value[s.String]; ok {
+		return enumspb.ScaleKind(v)
+	}
+	switch strings.ToLower(strings.TrimSpace(s.String)) {
+	case "exact_map", "exact-map":
+		return enumspb.ScaleKind_SCALE_KIND_EXACT_MAP
+	case "range_map", "range-map":
+		return enumspb.ScaleKind_SCALE_KIND_RANGE_MAP
+	default:
+		return enumspb.ScaleKind_SCALE_KIND_UNSPECIFIED
+	}
 }
 
 func nullStringPtr(s sql.NullString) *string {

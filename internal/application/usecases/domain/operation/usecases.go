@@ -39,6 +39,7 @@ import (
 	taskOutcomeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/task_outcome"
 	taskOutcomeCheckUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/task_outcome_check"
 	templateTaskCriteriaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/template_task_criteria"
+	templateTaskCriteriaRatingDescriptionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/template_task_criteria_rating_description"
 	workRequestUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/work_request"
 	workRequestTypeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/work_request_type"
 
@@ -82,6 +83,7 @@ import (
 	taskoutcomepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 	taskoutcomecheckpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
 	templatetaskcriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria"
+	templatetaskcriteriaratingdescriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/template_task_criteria_rating_description"
 	workrequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request"
 	workrequesttypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/work_request_type"
 
@@ -137,15 +139,16 @@ type OperationRepositories struct {
 	// SubscriptionGroupDocumentTemplate — section-group template binding sibling.
 	SubscriptionGroupDocumentTemplate subscriptiongroupdoctmplpb.SubscriptionGroupDocumentTemplateDomainServiceServer
 	// DocumentTemplate — shared layout source for template upload pair operations.
-	DocumentTemplate     documenttemplatepb.DocumentTemplateDomainServiceServer
-	OutcomeCriteria      outcomecriteriapb.OutcomeCriteriaDomainServiceServer
-	CriteriaThreshold    criteriathresholdpb.CriteriaThresholdDomainServiceServer
-	CriteriaOption       criteriaoptionpb.CriteriaOptionDomainServiceServer
-	TemplateTaskCriteria templatetaskcriteriapb.TemplateTaskCriteriaDomainServiceServer
-	TaskOutcome          taskoutcomepb.TaskOutcomeDomainServiceServer
-	TaskOutcomeCheck     taskoutcomecheckpb.TaskOutcomeCheckDomainServiceServer
-	PhaseOutcomeSummary  phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer
-	JobOutcomeSummary    joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer
+	DocumentTemplate                      documenttemplatepb.DocumentTemplateDomainServiceServer
+	OutcomeCriteria                       outcomecriteriapb.OutcomeCriteriaDomainServiceServer
+	CriteriaThreshold                     criteriathresholdpb.CriteriaThresholdDomainServiceServer
+	CriteriaOption                        criteriaoptionpb.CriteriaOptionDomainServiceServer
+	TemplateTaskCriteria                  templatetaskcriteriapb.TemplateTaskCriteriaDomainServiceServer
+	TemplateTaskCriteriaRatingDescription templatetaskcriteriaratingdescriptionpb.TemplateTaskCriteriaRatingDescriptionDomainServiceServer
+	TaskOutcome                           taskoutcomepb.TaskOutcomeDomainServiceServer
+	TaskOutcomeCheck                      taskoutcomecheckpb.TaskOutcomeCheckDomainServiceServer
+	PhaseOutcomeSummary                   phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer
+	JobOutcomeSummary                     joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer
 
 	// Education grading (20260616 v1). Single-repo CRUD entities.
 	ScoringScheme            scoringschemepb.ScoringSchemeDomainServiceServer
@@ -202,15 +205,16 @@ type OperationUseCases struct {
 	// JobTemplateDocumentTemplate — sheet-family (grade-sheet) template binding (20260720).
 	JobTemplateDocumentTemplate *jobTemplateDocumentTemplateUseCases.UseCases
 	// SubscriptionGroupDocumentTemplate — section-group template binding sibling.
-	SubscriptionGroupDocumentTemplate *subscriptionGroupDocumentTemplateUseCases.UseCases
-	OutcomeCriteria                   *outcomeCriteriaUseCases.UseCases
-	CriteriaThreshold                 *criteriaThresholdUseCases.UseCases
-	CriteriaOption                    *criteriaOptionUseCases.UseCases
-	TemplateTaskCriteria              *templateTaskCriteriaUseCases.UseCases
-	TaskOutcome                       *taskOutcomeUseCases.UseCases
-	TaskOutcomeCheck                  *taskOutcomeCheckUseCases.UseCases
-	PhaseOutcomeSummary               *phaseOutcomeSummaryUseCases.UseCases
-	JobOutcomeSummary                 *jobOutcomeSummaryUseCases.UseCases
+	SubscriptionGroupDocumentTemplate     *subscriptionGroupDocumentTemplateUseCases.UseCases
+	OutcomeCriteria                       *outcomeCriteriaUseCases.UseCases
+	CriteriaThreshold                     *criteriaThresholdUseCases.UseCases
+	CriteriaOption                        *criteriaOptionUseCases.UseCases
+	TemplateTaskCriteria                  *templateTaskCriteriaUseCases.UseCases
+	TemplateTaskCriteriaRatingDescription *templateTaskCriteriaRatingDescriptionUseCases.UseCases
+	TaskOutcome                           *taskOutcomeUseCases.UseCases
+	TaskOutcomeCheck                      *taskOutcomeCheckUseCases.UseCases
+	PhaseOutcomeSummary                   *phaseOutcomeSummaryUseCases.UseCases
+	JobOutcomeSummary                     *jobOutcomeSummaryUseCases.UseCases
 
 	// Education grading (20260616 v1). Single-repo CRUD entities.
 	ScoringScheme            *scoringSchemeUseCases.UseCases
@@ -443,8 +447,25 @@ func NewUseCases(
 			JobTemplatePhase:     repos.JobTemplatePhase,
 			JobTemplate:          repos.JobTemplate,
 			OutcomeCriteria:      repos.OutcomeCriteria,
+			ScoreScale:           repos.ScoreScale,
 		},
 		templateTaskCriteriaUseCases.TemplateTaskCriteriaServices{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	templateTaskCriteriaRatingDescriptionUC := templateTaskCriteriaRatingDescriptionUseCases.NewUseCases(
+		templateTaskCriteriaRatingDescriptionUseCases.Repositories{
+			TemplateTaskCriteriaRatingDescription: repos.TemplateTaskCriteriaRatingDescription,
+			TemplateTaskCriteria:                  repos.TemplateTaskCriteria,
+			OutcomeCriteria:                       repos.OutcomeCriteria,
+			ScoreScaleBand:                        repos.ScoreScaleBand,
+		},
+		templateTaskCriteriaRatingDescriptionUseCases.Services{
 			Authorizer:       authSvc,
 			Transactor:       txSvc,
 			Translator:       i18nSvc,
@@ -721,27 +742,28 @@ func NewUseCases(
 	)
 
 	return &OperationUseCases{
-		Job:                               jobUC,
-		JobPhase:                          jobPhaseUC,
-		JobTask:                           jobTaskUC,
-		JobTemplate:                       jobTemplateUC,
-		JobTemplatePhase:                  jobTemplatePhaseUC,
-		JobTemplateRelation:               jobTemplateRelationUC,
-		PlanJobTemplate:                   planJobTemplateUC,
-		JobTemplateTask:                   jobTemplateTaskUC,
-		JobActivity:                       jobActivityUC,
-		JobCategory:                       jobCategoryUC,
-		JobOutcomeSummaryDocumentTemplate: jobOutcomeSummaryDocumentTemplateUC,
-		JobTemplateDocumentTemplate:       jobTemplateDocumentTemplateUC,
-		SubscriptionGroupDocumentTemplate: subscriptionGroupDocumentTemplateUC,
-		OutcomeCriteria:                   outcomeCriteriaUC,
-		CriteriaThreshold:                 criteriaThresholdUC,
-		CriteriaOption:                    criteriaOptionUC,
-		TemplateTaskCriteria:              templateTaskCriteriaUC,
-		TaskOutcome:                       taskOutcomeUC,
-		TaskOutcomeCheck:                  taskOutcomeCheckUC,
-		PhaseOutcomeSummary:               phaseOutcomeSummaryUC,
-		JobOutcomeSummary:                 jobOutcomeSummaryUC,
+		Job:                                   jobUC,
+		JobPhase:                              jobPhaseUC,
+		JobTask:                               jobTaskUC,
+		JobTemplate:                           jobTemplateUC,
+		JobTemplatePhase:                      jobTemplatePhaseUC,
+		JobTemplateRelation:                   jobTemplateRelationUC,
+		PlanJobTemplate:                       planJobTemplateUC,
+		JobTemplateTask:                       jobTemplateTaskUC,
+		JobActivity:                           jobActivityUC,
+		JobCategory:                           jobCategoryUC,
+		JobOutcomeSummaryDocumentTemplate:     jobOutcomeSummaryDocumentTemplateUC,
+		JobTemplateDocumentTemplate:           jobTemplateDocumentTemplateUC,
+		SubscriptionGroupDocumentTemplate:     subscriptionGroupDocumentTemplateUC,
+		OutcomeCriteria:                       outcomeCriteriaUC,
+		CriteriaThreshold:                     criteriaThresholdUC,
+		CriteriaOption:                        criteriaOptionUC,
+		TemplateTaskCriteria:                  templateTaskCriteriaUC,
+		TemplateTaskCriteriaRatingDescription: templateTaskCriteriaRatingDescriptionUC,
+		TaskOutcome:                           taskOutcomeUC,
+		TaskOutcomeCheck:                      taskOutcomeCheckUC,
+		PhaseOutcomeSummary:                   phaseOutcomeSummaryUC,
+		JobOutcomeSummary:                     jobOutcomeSummaryUC,
 
 		ScoringScheme:            scoringSchemeUC,
 		ScoringComponent:         scoringComponentUC,

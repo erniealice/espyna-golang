@@ -68,9 +68,11 @@ func (s Services) reportScope(ctx context.Context) (ports.SubscriptionGroupOutco
 		// Exact allowlist. Operator principals may bypass group servicing grants
 		// only when their active binding also holds workspace:list, matching the
 		// established report-card landing scope. Otherwise OPERATOR_STAFF stays
-		// servicing-grant scoped. STAFF always keeps that boundary and additionally
-		// intersects the reachable-job graph, even if one of its roles happens to
-		// carry workspace:list.
+		// servicing-grant scoped. STAFF stays servicing-grant scoped even if one of
+		// its roles happens to carry workspace:list. Since the 2026-09-21 owner
+		// decision an assigned STAFF principal reads the WHOLE assigned section
+		// (read-only): the adapter no longer intersects the reachable-job graph
+		// (see narrowStaffReportsToReachableJobs in the postgres adapter).
 	default:
 		return ports.SubscriptionGroupOutcomeExportScope{}, fmt.Errorf("subscription group outcome export is unavailable for the active principal")
 	}

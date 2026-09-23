@@ -205,14 +205,19 @@ func TestIntegration_D7OwnershipMatrix_CoalesceModel(t *testing.T) {
 		})
 	})
 
-	t.Run("secondary_role_denies", func(t *testing.T) {
+	t.Run("secondary_role_allows", func(t *testing.T) {
+		// 2026-09-24 owner decision (submit-role-widen): a class-edge teacher may
+		// SUBMIT for review regardless of edge role — 'secondary' must NOT be
+		// excluded. This intentionally diverges from the cell-edit guard
+		// (outcome_matrix_query.go's classEdgeExpr), which is untouched and still
+		// requires role='primary'.
 		inTx(t, db, func(ctx context.Context, tx *sql.Tx) {
 			if _, err := tx.ExecContext(ctx, `
 				UPDATE subscription_group_product_plan_staff SET role = 'secondary'
 				WHERE staff_id = $1 AND active = true`, fx.edgeFacet); err != nil {
 				t.Fatalf("in-tx demote edges: %v", err)
 			}
-			assertOwned(t, probe(ctx, tx, fx.edgeFacet), false, "secondary-role edge")
+			assertOwned(t, probe(ctx, tx, fx.edgeFacet), true, "secondary-role edge")
 		})
 	})
 

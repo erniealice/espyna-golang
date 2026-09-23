@@ -593,21 +593,37 @@ func resolveStaffFacet(ctx context.Context, exec sqlexec.DBExecutor, wsID string
 
 // classEdgeOwnedSQL returns the class-edge ownership EXISTS fragment of the
 // 2026-07-26 COALESCE model (owner decision, plan 20260726-grade-cell-edit-guard
-// §3): the acting staff facet holds an ACTIVE PRIMARY
-// subscription_group_product_plan_staff edge on the client's CURRENT section's
-// class for the job's output product — member(client, active, workspace-bound) →
-// subscription_group.status='current' → class (active, workspace-bound) →
-// product_plan.product_id = j.output_product_id → sgpps edge (active,
-// role='primary', staff = facet, workspace-bound, f14 NULL or PHASE-ORDER
+// §3), as narrowed by the 2026-09-24 owner decision (plan submit-role-widen):
+// the acting staff facet holds an ACTIVE
+// subscription_group_product_plan_staff edge — ANY active role value
+// ('primary' or 'secondary'; the role column carries no CHECK constraint, so
+// this is deliberately not an IN-list of a closed set) — on the client's
+// CURRENT section's class for the job's output product — member(client,
+// active, workspace-bound) → subscription_group.status='current' → class
+// (active, workspace-bound) → product_plan.product_id = j.output_product_id →
+// sgpps edge (active, staff = facet, workspace-bound, f14 NULL or PHASE-ORDER
 // matched). Phase-scoped edges (f14, the G10 rotation) match by phase ORDER, not
 // id: a deportment sibling template's phases carry different ids from the
 // academic template's phases the edge was scoped to, but the same order.
 //
-// The fragment MIRRORS the outcome_matrix cells query's classEdgeExpr
-// (outcome_matrix_query.go, the cell-edit guard) term for term — the submit gate
-// and the cell-edit guard must never disagree about who owns an unassigned task
-// (the Q-VAR variant axis is explicitly deferred by the plan; do not add terms
-// here first). Only the placeholder indexes differ, so both are caller-supplied.
+// SUBMIT-ONLY. This is the D7 submit-ownership gate consumed exclusively by
+// SubmitJobPhaseApproval (via assertAllTasksOwned / taskUnownedProbeSQL) —
+// VerifyJobPhaseApproval / PublishJobPhaseApproval / ReturnJobPhaseApproval
+// carry NO row-ownership predicate of their own (they gate purely on RBAC verb
+// via ActionGatekeeper/strict-authorizer, see job_phase submit/verify/publish/
+// return use cases), so the 2026-09-24 role widening applies to submit only
+// and cannot desync verify/publish/return.
+//
+// Prior to 2026-09-24 this fragment additionally required `e.role = 'primary'`,
+// which meant a class edge with role='secondary' could never submit even
+// though the D7 rule is otherwise about edge EXISTENCE + activeness, not role
+// rank — the first 2026-09-24 owner decision removed that restriction here,
+// submit-only. A same-day follow-up owner decision (DEC-6) widened the
+// record/edit ownership guard too (outcome_matrix_query.go's classEdgeExpr,
+// the cell-edit guard) to the identical any-active-role rule, so as of DEC-6
+// the two fragments are back in term-for-term lockstep (no divergence) —
+// only the placeholder indexes differ across both, so both are
+// caller-supplied.
 // Correlates on the outer aliases j (job) and jp (job_phase).
 //
 // A LEGACY job (output_product_id NULL — AY 25-26, out of the class model per
@@ -624,7 +640,7 @@ func classEdgeOwnedSQL(facetArgN, wsArgN int) string {
 			JOIN `+entityid.ProductPlan+` pp
 			       ON pp.id = c.product_plan_id AND pp.product_id = j.output_product_id
 			JOIN `+entityid.SubscriptionGroupProductPlanStaff+` e
-			       ON e.subscription_group_product_plan_id = c.id AND e.active AND e.role = 'primary'
+			       ON e.subscription_group_product_plan_id = c.id AND e.active
 			      AND e.staff_id = $%[1]d AND e.workspace_id = $%[2]d
 			      AND (e.job_template_phase_id IS NULL OR EXISTS (
 			             SELECT 1
@@ -692,7 +708,7 @@ func assertAllTasksOwned(ctx context.Context, exec sqlexec.DBExecutor, templateI
 		return fmt.Errorf("job_phase submit: ownership probe: %w", err)
 	}
 	if unowned {
-		return fmt.Errorf("job_phase submit: not every active task is owned by the acting staff (D7 ownership: explicit assignment or primary class edge) — fail closed")
+		return fmt.Errorf("job_phase submit: not every active task is owned by the acting staff (D7 ownership: explicit assignment or an active class edge, any role) — fail closed")
 	}
 	// (B) any phase member with zero active tasks (cannot prove ownership)?
 	emptyNarrow, emptyNarrowArgs := groupNarrowPredicate(groupID, 4, 3)

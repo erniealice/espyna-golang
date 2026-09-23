@@ -8,15 +8,18 @@ import (
 )
 
 // Shape suite for the D7 submit-ownership gate under the 2026-07-26 COALESCE
-// model (plan 20260726-grade-cell-edit-guard §3). These tests pin the SQL
-// structure without a database; the behavioral ownership matrix lives in
+// model (plan 20260726-grade-cell-edit-guard §3), as narrowed by the
+// 2026-09-24 owner decision widening the submit edge role to ANY active role
+// (not just 'primary'). These tests pin the SQL structure without a database;
+// the behavioral ownership matrix lives in
 // job_phase_ownership_integration_test.go (TEST_DATABASE_URL-gated).
 
 // TestClassEdgeOwnedSQLShape locks the submit-side class-edge fragment to the
 // locked model's term set. Every load-bearing term of the cells query's
-// classEdgeExpr (outcome_matrix_query.go — the cell-edit guard) must appear here
-// too: the submit gate and the cell-edit guard must never disagree about who
-// owns an unassigned task.
+// classEdgeExpr (outcome_matrix_query.go — the cell-edit guard) must appear
+// here too, including the role term: DEC-6 (2026-09-24) widened both the
+// submit gate and the cell-edit guard to any active role in lockstep, so
+// neither fragment restricts to role='primary' any more.
 func TestClassEdgeOwnedSQLShape(t *testing.T) {
 	sql := classEdgeOwnedSQL(4, 3)
 	for _, frag := range []string{
@@ -30,8 +33,9 @@ func TestClassEdgeOwnedSQLShape(t *testing.T) {
 		// product match — a legacy NULL output_product_id can never satisfy this,
 		// so legacy tasks stay ownable ONLY via explicit assigned_to
 		"pp.product_id = j.output_product_id",
-		// the edge: active, PRIMARY only, the acting facet, workspace-bound
-		"e.active AND e.role = 'primary'",
+		// the edge: ACTIVE (any role — 'primary' or 'secondary'), the acting
+		// facet, workspace-bound
+		"e.active",
 		"e.staff_id = $4",
 		"e.workspace_id = $3",
 		// f14: class-wide (NULL) or phase-scoped by ORDER, not id
@@ -43,6 +47,12 @@ func TestClassEdgeOwnedSQLShape(t *testing.T) {
 		if !strings.Contains(sql, frag) {
 			t.Errorf("class-edge fragment missing %q:\n%s", frag, sql)
 		}
+	}
+	// The submit fragment must NOT restrict the edge to role='primary' —
+	// removing that restriction is the exact content of the 2026-09-24 owner
+	// decision (a secondary-role edge must be able to submit).
+	if strings.Contains(sql, "role = 'primary'") || strings.Contains(sql, "role='primary'") {
+		t.Errorf("submit class-edge fragment still restricts to role='primary':\n%s", sql)
 	}
 }
 
@@ -91,11 +101,16 @@ func TestTaskUnownedProbeSQLShape(t *testing.T) {
 		"AND NOT (",
 		// the edge leg is the mirrored class-edge chain
 		"sg.status = 'current'",
-		"e.role = 'primary'",
+		"e.active",
 	} {
 		if !strings.Contains(sql, frag) {
 			t.Errorf("unowned probe missing %q:\n%s", frag, sql)
 		}
+	}
+	// 2026-09-24 owner decision: the submit edge leg must accept any active
+	// role, not just 'primary'.
+	if strings.Contains(sql, "role = 'primary'") || strings.Contains(sql, "role='primary'") {
+		t.Errorf("unowned probe's edge leg still restricts to role='primary':\n%s", sql)
 	}
 }
 

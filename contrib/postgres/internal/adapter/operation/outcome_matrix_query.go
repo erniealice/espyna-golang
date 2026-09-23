@@ -797,6 +797,16 @@ ORDER BY jtp.phase_order, jtt.step_order, ttc.sequence_order,
 // + principalscope (MINE only). Every template leaf under a client's job_task
 // yields a cell; the cell is blank+editable when no outcome exists yet.
 func (a *PostgresOutcomeMatrixQuery) loadRows(ctx context.Context, req *matrixpb.GetOutcomeMatrixRequest, workspaceID string) ([]*matrixpb.OutcomeRow, error) {
+	return a.loadRowsFrom(ctx, a.db, req, workspaceID)
+}
+
+// loadRowsFrom is loadRows over an injectable queryer — the same seam
+// loadColumnTreeFrom uses — so the class-edge editable fallback (classEdgeOK /
+// DEC-6 2026-09-24 role widening) can be exercised against the real SQL and
+// scan path inside a rolled-back transaction (*sql.Tx satisfies
+// outcomeMatrixRowsQueryer) instead of only via a DB-free unit test on
+// computeCellEditable's boolean logic.
+func (a *PostgresOutcomeMatrixQuery) loadRowsFrom(ctx context.Context, queryer outcomeMatrixRowsQueryer, req *matrixpb.GetOutcomeMatrixRequest, workspaceID string) ([]*matrixpb.OutcomeRow, error) {
 	args := []any{req.GetJobTemplateId(), workspaceID}
 	where := "WHERE j.job_template_id = $1 AND j.workspace_id = $2 AND j.active"
 	nextParam := 3
@@ -832,41 +842,35 @@ func (a *PostgresOutcomeMatrixQuery) loadRows(ctx context.Context, req *matrixpb
 		nextParam += len(scopeArgs)
 	}
 
-	// Class-edge editable fallback column (owner decision 2026-07-26): an
-	// UNASSIGNED empty cell falls back to the class's active PRIMARY sgpps
-	// edge — resolved via the job's output product to the member's section's
-	// class, the same product-match idiom as the seat branch in
-	// principalscope. Bound from the SESSION identity only. Phase-scoped
-	// edges (f14, the G10 rotation) match by PHASE ORDER, not id — a
-	// deportment sibling template's phases carry different ids from the
-	// academic template's phases the edge was scoped to, but the same order
-	// ("the S1 edge covers S1 across the offering's sibling templates").
-	// For a non-staff principal the fallback is constant FALSE — emit the
-	// literal instead of the correlated EXISTS so the widest rosters
-	// (operator scope=ALL) pay zero extra query cost.
+	// Class-edge editable fallback column (owner decision 2026-07-26, ROLE
+	// WIDENED 2026-09-24 — DEC-6): an UNASSIGNED empty cell falls back to the
+	// class's ACTIVE sgpps edge (any role — 'primary' or 'secondary'; the
+	// role column carries no CHECK constraint, so this is deliberately not
+	// an IN-list of a closed set) — resolved via the job's output product to
+	// the member's section's class, the same product-match idiom as the seat
+	// branch in principalscope. Bound from the SESSION identity only.
+	// Phase-scoped edges (f14, the G10 rotation) match by PHASE ORDER, not
+	// id — a deportment sibling template's phases carry different ids from
+	// the academic template's phases the edge was scoped to, but the same
+	// order ("the S1 edge covers S1 across the offering's sibling
+	// templates"). For a non-staff principal the fallback is constant FALSE
+	// — emit the literal instead of the correlated EXISTS so the widest
+	// rosters (operator scope=ALL) pay zero extra query cost.
+	//
+	// Prior to 2026-09-24 this fragment additionally required
+	// `e.role = 'primary'`, matching the submit-side classEdgeOwnedSQL in
+	// job_phase_approval.go at the time. DEC-6 widened BOTH the submit gate
+	// and this record/edit gate to any active role in lockstep. To make that
+	// lockstep structural rather than merely documented (M lens — one
+	// authoring site, not two hand-synced copies), this fallback now calls
+	// classEdgeOwnedSQL directly (job_phase_approval.go, same package) instead
+	// of carrying its own copy of the fragment: the outer aliases j/job and
+	// jp/job_phase are identical between the two call sites, and the
+	// workspace placeholder here is always $2, so classEdgeOwnedSQL(nextParam,
+	// 2) is byte-identical to what used to be hand-duplicated here.
 	classEdgeExpr := "false"
 	if fallbackStaff, isStaff := principalscope.StaffRowScope(ctx); isStaff && fallbackStaff != "" {
-		classEdgeExpr = `EXISTS (
-         SELECT 1
-         FROM ` + entityid.SubscriptionGroupMember + ` m
-         JOIN ` + entityid.SubscriptionGroup + ` sg
-                ON sg.id = m.subscription_group_id AND sg.status = 'current'
-         JOIN ` + entityid.SubscriptionGroupProductPlan + ` c
-                ON c.subscription_group_id = m.subscription_group_id AND c.active AND c.workspace_id = $2
-         JOIN ` + entityid.ProductPlan + ` pp
-                ON pp.id = c.product_plan_id AND pp.product_id = j.output_product_id
-         JOIN ` + entityid.SubscriptionGroupProductPlanStaff + ` e
-                ON e.subscription_group_product_plan_id = c.id AND e.active AND e.role = 'primary'
-               AND e.staff_id = ` + fmt.Sprintf("$%d", nextParam) + ` AND e.workspace_id = $2
-               AND (e.job_template_phase_id IS NULL OR EXISTS (
-                      SELECT 1
-                      FROM ` + entityid.JobTemplatePhase + ` ep, ` + entityid.JobTemplatePhase + ` jpp
-                      WHERE ep.id = e.job_template_phase_id
-                        AND jpp.id = jp.template_phase_id
-                        AND ep.phase_order = jpp.phase_order
-                    ))
-         WHERE m.client_id = j.client_id AND m.active AND m.workspace_id = $2
-       )`
+		classEdgeExpr = classEdgeOwnedSQL(nextParam, 2)
 		args = append(args, fallbackStaff)
 	}
 
@@ -901,7 +905,7 @@ LEFT JOIN ` + entityid.TaskOutcome + ` t
 ` + where + `
 ORDER BY j.client_id, jt.id, ttc.id, t.recorded_date DESC NULLS LAST, t.id DESC`
 
-	rows, err := a.db.QueryContext(ctx, q, args...)
+	rows, err := queryer.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("outcome_matrix: cells query: %w", err)
 	}
@@ -1042,14 +1046,15 @@ func newPhaseColumn(phaseID, phaseName string, phaseCode, variantName sql.NullSt
 // roster read-only via the authorized ALL widen). RECORDED cells (an outcome
 // exists) keep recorder-only semantics UNCHANGED — editable iff the acting staff is
 // the recorder. EMPTY cells (no outcome yet) follow the COALESCE rule (owner
-// decision 2026-07-26): an explicit assignee (job_task.assigned_to) is a per-task
-// OVERRIDE and alone decides — on a merged, multi-deliverer class this stops one
-// strand's teacher from entering grades into the other strand's unassessed cells
-// (design §E hazard); an UNASSIGNED empty cell (assigned_to == "") falls back to
-// the class edge — editable iff the acting staff holds the class's active PRIMARY
-// sgpps edge (classEdgeOK, computed per row in loadRows' cells query, phase-order
-// matched for f14-scoped edges). An unassigned cell with no matching edge stays
-// uneditable (fail-closed).
+// decision 2026-07-26, role widened 2026-09-24 DEC-6): an explicit assignee
+// (job_task.assigned_to) is a per-task OVERRIDE and alone decides — on a
+// merged, multi-deliverer class this stops one strand's teacher from entering
+// grades into the other strand's unassessed cells (design §E hazard); an
+// UNASSIGNED empty cell (assigned_to == "") falls back to the class edge —
+// editable iff the acting staff holds an ACTIVE class edge of ANY role
+// ('primary' or 'secondary' — classEdgeOK, computed per row in loadRows'
+// cells query, phase-order matched for f14-scoped edges). An unassigned cell
+// with no matching edge stays uneditable (fail-closed).
 func computeCellEditable(hasOutcome, staffOK bool, recordedBy, assignedTo, actingStaff, jobTaskID string, classEdgeOK bool) bool {
 	if !staffOK {
 		return false

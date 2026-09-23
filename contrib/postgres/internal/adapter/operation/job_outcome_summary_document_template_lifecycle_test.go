@@ -31,11 +31,12 @@ func TestCreateBinding_ForcesDraftUnversionedStripsPublishAudit(t *testing.T) {
 	// A caller supplies a hostile PUBLISHED status + a fake version + publish audit.
 	_, err := r.CreateJobOutcomeSummaryDocumentTemplate(context.Background(), &pb.CreateJobOutcomeSummaryDocumentTemplateRequest{
 		Data: &pb.JobOutcomeSummaryDocumentTemplate{
-			Id:                 "b-1",
-			DocumentTemplateId: "dt-1",
-			VersionStatus:      enums.VersionStatus_VERSION_STATUS_PUBLISHED,
-			Version:            99,
-			PublishedBy:        strptr("attacker"),
+			Id:                   "b-1",
+			DocumentTemplateId:   "dt-1",
+			JobTemplatePhaseCode: strptr("progress_report"),
+			VersionStatus:        enums.VersionStatus_VERSION_STATUS_PUBLISHED,
+			Version:              99,
+			PublishedBy:          strptr("attacker"),
 		},
 	})
 	if err != nil {
@@ -52,6 +53,9 @@ func TestCreateBinding_ForcesDraftUnversionedStripsPublishAudit(t *testing.T) {
 	}
 	if _, ok := fake.lastCreate["published_at"]; ok {
 		t.Error("Create must strip client-supplied published_at")
+	}
+	if got := fake.lastCreate["job_template_phase_code"]; got != "progress_report" {
+		t.Errorf("Create must retain phase scope, got %v", got)
 	}
 }
 
@@ -73,20 +77,21 @@ func TestUpdateBinding_ScopeFieldsNeverReachWrite_EvenWhenRowReadsDraft(t *testi
 	ms := int64(1700000000000)
 	_, err := r.UpdateJobOutcomeSummaryDocumentTemplate(context.Background(), &pb.UpdateJobOutcomeSummaryDocumentTemplateRequest{
 		Data: &pb.JobOutcomeSummaryDocumentTemplate{
-			Id:                  "b-1",
-			DocumentTemplateId:  "dt-HOSTILE",   // scope — must be dropped
-			PriceScheduleId:     strptr("ps-X"), // scope — must be dropped
-			SupersedesBindingId: strptr("b-0"),  // scope — must be dropped
-			Version:             42,             // server-owned — must be dropped
-			PublishedBy:         strptr("attacker"),
-			DateModified:        &ms, // audit stamp — must survive
+			Id:                   "b-1",
+			DocumentTemplateId:   "dt-HOSTILE",   // scope — must be dropped
+			PriceScheduleId:      strptr("ps-X"), // scope — must be dropped
+			JobTemplatePhaseCode: strptr("s1"),   // scope — must be dropped
+			SupersedesBindingId:  strptr("b-0"),  // scope — must be dropped
+			Version:              42,             // server-owned — must be dropped
+			PublishedBy:          strptr("attacker"),
+			DateModified:         &ms, // audit stamp — must survive
 		},
 	})
 	if err != nil {
 		t.Fatalf("UpdateJobOutcomeSummaryDocumentTemplate returned error: %v", err)
 	}
 	for _, frozen := range []string{
-		"document_template_id", "price_schedule_id", "supersedes_binding_id",
+		"document_template_id", "price_schedule_id", "job_template_phase_code", "supersedes_binding_id",
 		"validity_start", "validity_end", "version", "version_status",
 		"published_at", "published_by", "workspace_id", "id",
 	} {
@@ -162,6 +167,7 @@ func TestFindApplicableSQL_HasFailClosedPredicateShape(t *testing.T) {
 		"exact-before-fallback ord": "ORDER BY match_rank, b.version DESC",
 		"ambiguity guard":           "LIMIT 2",
 		"scope match":               "b.price_schedule_id = rs.price_schedule_id OR b.price_schedule_id IS NULL",
+		"phase scope match":         "b.job_template_phase_code IS NOT DISTINCT FROM NULLIF($5, '')",
 	}
 	for name, sub := range mustContain {
 		if !strings.Contains(q, sub) {

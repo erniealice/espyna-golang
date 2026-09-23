@@ -2,12 +2,17 @@ package domain
 
 import (
 	"context"
+	"errors"
 
 	documenttemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/template"
 	jobcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_category"
 	jobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
 	exportpb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/subscription_group_outcome_export"
 )
+
+// ErrClientReportNotFound intentionally does not distinguish a missing group,
+// foreign client, or absent membership at the report projection boundary.
+var ErrClientReportNotFound = errors.New("client report not found")
 
 // JobListTabSupportRequest carries the server-derived per-kind include flags for
 // the job-list tabstrip support read (the 20260718 courses-list-perf Rank-1
@@ -73,6 +78,18 @@ type SubscriptionGroupOutcomeExportQueryService interface {
 		req *exportpb.ResolveSubscriptionGroupOutcomeDocumentForRenderRequest,
 		scope SubscriptionGroupOutcomeExportScope,
 	) (*exportpb.ResolveSubscriptionGroupOutcomeDocumentForRenderResponse, error)
+}
+
+// SubscriptionGroupClientReportCardQueryService is an in-process, one-client
+// projection port. It is deliberately separate from the generated gRPC server
+// contract so the sensitive typed render source cannot become a transport
+// endpoint by adding this query.
+type SubscriptionGroupClientReportCardQueryService interface {
+	GetSubscriptionGroupClientReportCardScoped(
+		ctx context.Context,
+		req *exportpb.GetSubscriptionGroupClientReportCardRequest,
+		scope SubscriptionGroupOutcomeExportScope,
+	) (*exportpb.GetSubscriptionGroupClientReportCardResponse, error)
 }
 
 // Backward-compatible names for the canonical provider-neutral Esqyma landing

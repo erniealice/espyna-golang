@@ -199,15 +199,18 @@ type (
 // contrib/postgres adapter (a separate Go module) can implement the job-list
 // tabstrip support read (20260718 courses-list-perf Rank-1).
 type (
-	JobListTabSupportQueryService               = internal.JobListTabSupportQueryService
-	JobListTabSupportRequest                    = internal.JobListTabSupportRequest
-	JobListTabSupportResponse                   = internal.JobListTabSupportResponse
-	SubscriptionGroupOutcomeExportScope         = internal.SubscriptionGroupOutcomeExportScope
-	SubscriptionGroupOutcomeLandingRequest      = internal.SubscriptionGroupOutcomeLandingRequest
-	SubscriptionGroupOutcomeLandingRow          = internal.SubscriptionGroupOutcomeLandingRow
-	SubscriptionGroupOutcomeLandingResponse     = internal.SubscriptionGroupOutcomeLandingResponse
-	SubscriptionGroupOutcomeLandingQueryService = internal.SubscriptionGroupOutcomeLandingQueryService
+	JobListTabSupportQueryService                 = internal.JobListTabSupportQueryService
+	JobListTabSupportRequest                      = internal.JobListTabSupportRequest
+	JobListTabSupportResponse                     = internal.JobListTabSupportResponse
+	SubscriptionGroupOutcomeExportScope           = internal.SubscriptionGroupOutcomeExportScope
+	SubscriptionGroupClientReportCardQueryService = internal.SubscriptionGroupClientReportCardQueryService
+	SubscriptionGroupOutcomeLandingRequest        = internal.SubscriptionGroupOutcomeLandingRequest
+	SubscriptionGroupOutcomeLandingRow            = internal.SubscriptionGroupOutcomeLandingRow
+	SubscriptionGroupOutcomeLandingResponse       = internal.SubscriptionGroupOutcomeLandingResponse
+	SubscriptionGroupOutcomeLandingQueryService   = internal.SubscriptionGroupOutcomeLandingQueryService
 )
+
+var ErrClientReportNotFound = internal.ErrClientReportNotFound
 
 // Translation types
 type Translator = internal.Translator

@@ -3,6 +3,7 @@ package job_outcome_summary_document_template
 import (
 	"context"
 	"errors"
+	"regexp"
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
@@ -10,11 +11,40 @@ import (
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	enums "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
+	phasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
+var bindingPhaseCodePattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+
+func validBindingPhaseCode(code *string) bool {
+	return code == nil || bindingPhaseCodePattern.MatchString(*code)
+}
+
 type CreateUseCase struct {
-	repo pb.JobOutcomeSummaryDocumentTemplateDomainServiceServer
-	svc  Services
+	repo       pb.JobOutcomeSummaryDocumentTemplateDomainServiceServer
+	phaseCodes PhaseCodeReader
+	svc        Services
+}
+
+func (uc *CreateUseCase) validSchedulePhaseCode(ctx context.Context, scheduleID, code string) error {
+	if uc.phaseCodes == nil {
+		return status.Error(codes.Internal, "period scope validation unavailable")
+	}
+	response, err := uc.phaseCodes.ListPhaseCodesByPriceSchedule(ctx, &phasepb.ListPhaseCodesByPriceScheduleRequest{PriceScheduleId: scheduleID})
+	if err != nil {
+		return status.Error(codes.Internal, "period scope validation unavailable")
+	}
+	if response == nil || !response.GetSuccess() {
+		return status.Error(codes.Internal, "period scope validation unavailable")
+	}
+	for _, option := range response.GetOptions() {
+		if option.GetCode() == code {
+			return nil
+		}
+	}
+	return status.Error(codes.InvalidArgument, "invalid period scope")
 }
 
 func (uc *CreateUseCase) Execute(ctx context.Context, req *pb.CreateJobOutcomeSummaryDocumentTemplateRequest) (*pb.CreateJobOutcomeSummaryDocumentTemplateResponse, error) {
@@ -30,6 +60,15 @@ func (uc *CreateUseCase) Execute(ctx context.Context, req *pb.CreateJobOutcomeSu
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.svc.Translator,
 			"job_outcome_summary_document_template.validation.document_template_required",
 			"A document template is required [DEFAULT]"))
+	}
+	if !validBindingPhaseCode(req.Data.JobTemplatePhaseCode) ||
+		(req.Data.JobTemplatePhaseCode != nil && req.Data.GetPriceScheduleId() == "") {
+		return nil, status.Error(codes.InvalidArgument, "invalid period scope")
+	}
+	if req.Data.JobTemplatePhaseCode != nil {
+		if err := uc.validSchedulePhaseCode(ctx, req.Data.GetPriceScheduleId(), req.Data.GetJobTemplatePhaseCode()); err != nil {
+			return nil, err
+		}
 	}
 	// Tenancy is assigned from the trusted request context by the persistence
 	// layer; never honor a client-supplied workspace on write (gate H1).

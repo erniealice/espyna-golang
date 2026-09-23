@@ -2,6 +2,7 @@ package service
 
 import (
 	"database/sql"
+	"log"
 
 	summarypb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/job_template_summary"
 	matrixpb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/outcome_matrix"
@@ -94,9 +95,17 @@ func initServiceOperationJobListTabSupport(db *sql.DB, i18nSvc ports.Translator,
 // subscription-group outcome export read (service/operation/subscription_group_outcome_export).
 func initServiceOperationSubscriptionGroupOutcomeExport(db *sql.DB, landingInput internalregistry.SubscriptionGroupOutcomeLandingFactoryInput, i18nSvc ports.Translator, actionGate *actiongate.ActionGatekeeper) *subscriptiongroupexportusecases.UseCases {
 	query := subscriptionGroupOutcomeExportQueryFromDB(db)
+	var clientReportCardQuery ports.SubscriptionGroupClientReportCardQueryService
+	if query != nil {
+		var ok bool
+		clientReportCardQuery, ok = query.(ports.SubscriptionGroupClientReportCardQueryService)
+		if !ok {
+			log.Printf("subscription group client report projection is unavailable: registered export query does not implement the projection capability")
+		}
+	}
 	landingQuery := subscriptionGroupOutcomeLandingQueryFromProvider(landingInput)
 	return subscriptiongroupexportusecases.NewUseCases(
-		subscriptiongroupexportusecases.Repositories{Query: query, LandingQuery: landingQuery},
+		subscriptiongroupexportusecases.Repositories{Query: query, ClientReportCardQuery: clientReportCardQuery, LandingQuery: landingQuery},
 		subscriptiongroupexportusecases.Services{Translator: i18nSvc, ActionGatekeeper: actionGate},
 	)
 }

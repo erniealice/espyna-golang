@@ -370,7 +370,10 @@ func NewUseCases(
 
 	// JobOutcomeSummaryDocumentTemplate — report-card template binding (20260714).
 	jobOutcomeSummaryDocumentTemplateUC := jobOutcomeSummaryDocumentTemplateUseCases.NewUseCases(
-		jobOutcomeSummaryDocumentTemplateUseCases.Repositories{JobOutcomeSummaryDocumentTemplate: repos.JobOutcomeSummaryDocumentTemplate},
+		jobOutcomeSummaryDocumentTemplateUseCases.Repositories{
+			JobOutcomeSummaryDocumentTemplate: repos.JobOutcomeSummaryDocumentTemplate,
+			PhaseCodes:                        repos.JobTemplatePhase,
+		},
 		jobOutcomeSummaryDocumentTemplateUseCases.Services{
 			Authorizer:       authSvc,
 			Transactor:       txSvc,

@@ -8,8 +8,10 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"log"
+	"math"
 	"time"
 
+	"github.com/lib/pq"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
@@ -817,4 +819,72 @@ func convertMillisToTime(data map[string]any, jsonKey string) {
 			data[jsonKey] = time.UnixMilli(int64(val))
 		}
 	}
+}
+
+// phaseCodesByScheduleSQL counts distinct reachable templates per phase code.
+// Every tenant-bearing relation is independently bound to the trusted workspace.
+// The subscription-origin token prevents unrelated job origin IDs from matching.
+const phaseCodesByScheduleSQL = `WITH reachable AS (
+    SELECT DISTINCT jtp.code, jtp.name, jt.id AS template_id
+    FROM ` + entityid.PriceSchedule + ` ps
+    JOIN ` + entityid.PricePlan + ` pp
+      ON pp.price_schedule_id = ps.id AND pp.workspace_id = $1 AND pp.active
+    JOIN ` + entityid.Subscription + ` s
+      ON s.price_plan_id = pp.id AND s.workspace_id = $1 AND s.active
+    JOIN ` + entityid.Job + ` j
+      ON j.origin_id = s.id AND j.origin_type = 'ORIGIN_TYPE_SUBSCRIPTION'
+     AND j.workspace_id = $1 AND j.active
+    JOIN ` + entityid.JobTemplate + ` jt
+      ON jt.id = j.job_template_id AND jt.workspace_id = $1 AND jt.active
+    JOIN ` + entityid.JobTemplatePhase + ` jtp
+      ON jtp.job_template_id = jt.id AND jtp.active
+    WHERE ps.id = $2 AND ps.workspace_id = $1 AND ps.active
+      AND jtp.code IS NOT NULL AND btrim(jtp.code) <> ''
+), names AS (
+    SELECT DISTINCT code, COALESCE(NULLIF(btrim(name), ''), code) AS name
+    FROM reachable
+), code_names AS (
+    SELECT code, array_agg(name ORDER BY name) AS names
+    FROM names GROUP BY code
+), counts AS (
+    SELECT code, count(DISTINCT template_id) AS template_count
+    FROM reachable GROUP BY code
+)
+SELECT c.code, n.names, c.template_count
+FROM counts c JOIN code_names n USING (code)
+ORDER BY c.code`
+
+func (r *PostgresJobTemplatePhaseRepository) ListPhaseCodesByPriceSchedule(ctx context.Context, req *pb.ListPhaseCodesByPriceScheduleRequest) (*pb.ListPhaseCodesByPriceScheduleResponse, error) {
+	if req == nil || req.GetPriceScheduleId() == "" {
+		return nil, fmt.Errorf("price schedule ID is required")
+	}
+	id, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r == nil || r.db == nil {
+		return nil, fmt.Errorf("phase code database is unavailable")
+	}
+	rows, err := r.executor(ctx).QueryContext(ctx, phaseCodesByScheduleSQL, id.WorkspaceID, req.GetPriceScheduleId())
+	if err != nil {
+		return nil, fmt.Errorf("list phase codes by price schedule: %w", err)
+	}
+	defer rows.Close()
+	response := &pb.ListPhaseCodesByPriceScheduleResponse{Success: true}
+	for rows.Next() {
+		option := &pb.PhaseCodeOption{}
+		var count int64
+		if err := rows.Scan(&option.Code, pq.Array(&option.Names), &count); err != nil {
+			return nil, fmt.Errorf("scan phase code: %w", err)
+		}
+		if count > math.MaxInt32 {
+			return nil, fmt.Errorf("phase code template count overflow")
+		}
+		option.TemplateCount = int32(count)
+		response.Options = append(response.Options, option)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read phase code rows: %w", err)
+	}
+	return response, nil
 }

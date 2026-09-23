@@ -450,3 +450,41 @@ func TestCreateUploadPair_InvalidInputsRejected_AndNoCalls(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateUploadPair_CategoryScopeIsProfileSpecific(t *testing.T) {
+	t.Parallel()
+
+	t.Run("matrix profile still requires an exact category", func(t *testing.T) {
+		req := validPairRequest()
+		req.Binding.RenderProfile = pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_OUTCOME_MATRIX_SINGLE_PERIOD_11_V1
+		req.Binding.JobCategoryId = nil
+		uc := newUC(&fakeDocumentTemplateRepo{}, &fakeBindingRepo{}, &testTransactor{supports: true}, allowedAuthorizer())
+		if err := uc.validateAndNormalize(newContext(), req.Artifact, req.Binding); err == nil {
+			t.Fatal("matrix profile accepted a NULL category")
+		}
+	})
+
+	t.Run("phase report accepts whole-report NULL category", func(t *testing.T) {
+		req := validPairRequest()
+		req.Binding.RenderProfile = pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1
+		req.Binding.JobCategoryId = nil
+		uc := newUC(&fakeDocumentTemplateRepo{}, &fakeBindingRepo{}, &testTransactor{supports: true}, allowedAuthorizer())
+		if err := uc.validateAndNormalize(newContext(), req.Artifact, req.Binding); err != nil {
+			t.Fatalf("phase profile rejected NULL category: %v", err)
+		}
+		if req.Binding.JobCategoryId != nil {
+			t.Fatalf("whole-report category normalized to %q; want NULL", *req.Binding.JobCategoryId)
+		}
+	})
+
+	t.Run("phase report rejects exact category", func(t *testing.T) {
+		req := validPairRequest()
+		req.Binding.RenderProfile = pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1
+		categoryID := "category-1"
+		req.Binding.JobCategoryId = &categoryID
+		uc := newUC(&fakeDocumentTemplateRepo{}, &fakeBindingRepo{}, &testTransactor{supports: true}, allowedAuthorizer())
+		if err := uc.validateAndNormalize(newContext(), req.Artifact, req.Binding); err == nil {
+			t.Fatal("phase profile accepted an exact-category binding")
+		}
+	})
+}

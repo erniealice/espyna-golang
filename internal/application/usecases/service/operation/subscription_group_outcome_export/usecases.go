@@ -20,8 +20,9 @@ const (
 )
 
 type Repositories struct {
-	Query        ports.SubscriptionGroupOutcomeExportQueryService
-	LandingQuery ports.SubscriptionGroupOutcomeLandingQueryService
+	Query                 ports.SubscriptionGroupOutcomeExportQueryService
+	ClientReportCardQuery ports.SubscriptionGroupClientReportCardQueryService
+	LandingQuery          ports.SubscriptionGroupOutcomeLandingQueryService
 }
 
 type Services struct {
@@ -31,6 +32,7 @@ type Services struct {
 
 type UseCases struct {
 	GetSubscriptionGroupOutcomeExport                *GetUseCase
+	GetSubscriptionGroupClientReportCard             *GetClientReportCardUseCase
 	ResolveSubscriptionGroupOutcomeDocumentForRender *ResolveDocumentUseCase
 	ListSubscriptionGroupOutcomeLanding              *ListSubscriptionGroupOutcomeLandingUseCase
 }
@@ -46,6 +48,7 @@ func NewUseCases(repositories Repositories, services Services) *UseCases {
 	}
 	return &UseCases{
 		GetSubscriptionGroupOutcomeExport:                &GetUseCase{repositories: repositories, services: services},
+		GetSubscriptionGroupClientReportCard:             &GetClientReportCardUseCase{repositories: repositories, services: services},
 		ResolveSubscriptionGroupOutcomeDocumentForRender: &ResolveDocumentUseCase{repositories: repositories, services: services},
 		ListSubscriptionGroupOutcomeLanding:              &ListSubscriptionGroupOutcomeLandingUseCase{repositories: repositories, services: services},
 	}

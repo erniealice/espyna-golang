@@ -425,3 +425,75 @@ func TestResolveSubscriptionGroupOutcomeDocumentForRender_TableDriven(t *testing
 	}
 
 }
+
+func TestValidateResolveRequestProfileScopes(t *testing.T) {
+	cases := []struct {
+		name      string
+		req       *exportpb.ResolveSubscriptionGroupOutcomeDocumentForRenderRequest
+		wantError string
+	}{
+		{
+			name: "matrix profile requires exact category",
+			req: &exportpb.ResolveSubscriptionGroupOutcomeDocumentForRenderRequest{
+				SubscriptionGroupId: "group-1",
+				RenderProfile:       domainpb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_OUTCOME_MATRIX_SINGLE_PERIOD_11_V1,
+			},
+			wantError: "requires an exact job_category_id",
+		},
+		{
+			name: "matrix profile accepts exact category",
+			req: &exportpb.ResolveSubscriptionGroupOutcomeDocumentForRenderRequest{
+				SubscriptionGroupId: "group-1", JobCategoryId: "category-1",
+				RenderProfile: domainpb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_OUTCOME_MATRIX_SINGLE_PERIOD_11_V1,
+			},
+		},
+		{
+			name: "client phase profile requires whole-report scope",
+			req: &exportpb.ResolveSubscriptionGroupOutcomeDocumentForRenderRequest{
+				SubscriptionGroupId: "group-1",
+				RenderProfile:       domainpb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1,
+			},
+		},
+		{
+			name: "client phase profile rejects category selection",
+			req: &exportpb.ResolveSubscriptionGroupOutcomeDocumentForRenderRequest{
+				SubscriptionGroupId: "group-1", JobCategoryId: "category-1",
+				RenderProfile: domainpb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1,
+			},
+			wantError: "requires whole-report category scope",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateResolveRequest(tc.req)
+			if tc.wantError == "" && err != nil {
+				t.Fatalf("validateResolveRequest() error = %v", err)
+			}
+			if tc.wantError != "" && (err == nil || !strings.Contains(err.Error(), tc.wantError)) {
+				t.Fatalf("validateResolveRequest() error = %v, want %q", err, tc.wantError)
+			}
+		})
+	}
+}
+
+func TestResolveClientPhaseProfileAcceptsNullCategoryHit(t *testing.T) {
+	const profile = domainpb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1
+	query := &resolveFakePort{resp: &exportpb.ResolveSubscriptionGroupOutcomeDocumentForRenderResponse{
+		Success: true,
+		Found:   true,
+		Document: &exportpb.ResolvedSubscriptionGroupOutcomeDocument{
+			StorageContainer: "templates", StorageKey: "progress-report.docx",
+			RenderProfile: profile, JobCategoryId: "",
+		},
+	}}
+	useCase := resolveUseCase(query, exportPerm())
+	_, err := useCase.Execute(resolveContext(), &exportpb.ResolveSubscriptionGroupOutcomeDocumentForRenderRequest{
+		SubscriptionGroupId: "group-1", RenderProfile: profile,
+	})
+	if err != nil {
+		t.Fatalf("Execute() error = %v, want null-category phase profile hit", err)
+	}
+	if !query.called || query.gotReq.GetJobCategoryId() != "" {
+		t.Fatalf("resolver query = %+v, called=%v; want whole-report null-category request", query.gotReq, query.called)
+	}
+}

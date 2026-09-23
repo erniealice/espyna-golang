@@ -191,6 +191,26 @@ func TestComposePhaseLabel(t *testing.T) {
 	}
 }
 
+func TestPhaseColumnRawAndDisplayFields(t *testing.T) {
+	variant := sql.NullString{String: "  VISUAL-ARTS  ", Valid: true}
+	phase := newPhaseColumn("phase-1", "Semester 1", sql.NullString{}, variant, 1)
+	if phase.GetPhaseName() != "Semester 1" {
+		t.Errorf("PhaseName = %q, want raw phase name %q", phase.GetPhaseName(), "Semester 1")
+	}
+	if phase.GetVariantLabel() != "VISUAL-ARTS" {
+		t.Errorf("VariantLabel = %q, want trimmed SKU", phase.GetVariantLabel())
+	}
+	if phase.GetLabel() != "Semester 1 (VISUAL-ARTS)" {
+		t.Errorf("Label = %q, want unchanged composed label", phase.GetLabel())
+	}
+
+	for _, missing := range []sql.NullString{{}, {String: "   ", Valid: true}} {
+		if got := trimmedVariantLabel(missing); got != "" {
+			t.Errorf("trimmedVariantLabel(%+v) = %q, want empty", missing, got)
+		}
+	}
+}
+
 // TestRatingDescriptionEnumParsing pins the read-side compatibility boundary:
 // generated protojson writes enum names, while older/manual rows may contain
 // the short lower-case aliases. NULL and unknown values must remain

@@ -19,6 +19,8 @@ func TestFindApplicableSubscriptionGroupDocumentTemplateSQL_BucketsAndStorefront
 	for _, required := range []string{
 		"b.job_category_id IS NOT NULL",
 		"b.job_category_id = rs.job_category_id",
+		"$6 = 'RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1' AND b.job_category_id IS NULL",
+		"$6 = 'RENDER_PROFILE_SUBSCRIPTION_GROUP_OUTCOME_MATRIX_SINGLE_PERIOD_11_V1'",
 		"b.plan_id = rs.plan_id AND b.price_schedule_id = rs.price_schedule_id THEN 0",
 		"b.plan_id = rs.plan_id AND b.price_schedule_id IS NULL THEN 1",
 		"b.plan_id IS NULL AND b.price_schedule_id = rs.price_schedule_id THEN 2",
@@ -34,6 +36,21 @@ func TestFindApplicableSubscriptionGroupDocumentTemplateSQL_BucketsAndStorefront
 		if !strings.Contains(q, required) {
 			t.Fatalf("applicability SQL missing %q", required)
 		}
+	}
+}
+
+func TestFindApplicableSubscriptionGroupDocumentTemplate_AllCategoryProfileUsesNullCategory(t *testing.T) {
+	profile := pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1
+	if err := validateProfileCategoryScope(profile, ""); err != nil {
+		t.Fatalf("whole-report profile rejected NULL category scope: %v", err)
+	}
+	query := strings.Join(strings.Fields(findApplicableSubscriptionGroupDocumentTemplateSQL()), " ")
+	want := "$6 = 'RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1' AND b.job_category_id IS NULL"
+	if !strings.Contains(query, want) {
+		t.Fatalf("all-category resolver SQL does not bind profile to NULL category: %s", query)
+	}
+	if err := validateProfileCategoryScope(profile, "category-1"); err == nil {
+		t.Fatal("whole-report profile accepted a selected category")
 	}
 }
 

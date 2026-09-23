@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json/v2"
 	"fmt"
+	"regexp"
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
@@ -19,6 +20,8 @@ import (
 	enums "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -32,6 +35,8 @@ const (
 	versionStatusPublished  = "VERSION_STATUS_PUBLISHED"
 	versionStatusDeprecated = "VERSION_STATUS_DEPRECATED"
 )
+
+var persistedPhaseCodePattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
 func init() {
 	registry.RegisterRepositoryFactory("postgresql", entityid.JobOutcomeSummaryDocumentTemplate, func(conn any, tableName string) (any, error) {
@@ -106,6 +111,9 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) CreateJobOutcomeSu
 	// empty optional FK ("" from a form) → SQL NULL so the FK constraint holds.
 	if v, ok := data["price_schedule_id"].(string); ok && v == "" {
 		data["price_schedule_id"] = nil
+	}
+	if v, ok := data["job_template_phase_code"].(string); ok && v == "" {
+		data["job_template_phase_code"] = nil
 	}
 	if v, ok := data["supersedes_binding_id"].(string); ok && v == "" {
 		data["supersedes_binding_id"] = nil
@@ -300,7 +308,7 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) executor(ctx conte
 // guard) is unit-testable without a live DB.
 //
 // Params: $1=workspace(ctx), $2=price_schedule_id, $3='VERSION_STATUS_PUBLISHED',
-// $4=as_of.
+// $4=as_of, $5=job_template_phase_code (empty means whole-year only).
 func findApplicableSQL() string {
 	return fmt.Sprintf(`
 		WITH requested_scope AS (
@@ -310,7 +318,7 @@ func findApplicableSQL() string {
 			              WHERE ps.id = NULLIF($2, '') AND ps.workspace_id = $1)
 		)
 		SELECT
-			b.id, b.workspace_id, b.document_template_id, b.price_schedule_id, b.version,
+			b.id, b.workspace_id, b.document_template_id, b.price_schedule_id, b.job_template_phase_code, b.version,
 			b.version_status, b.validity_start, b.validity_end, b.supersedes_binding_id,
 			b.active, b.created_by, b.published_at, b.published_by, b.date_created, b.date_modified,
 			dt.id, dt.name, dt.description, dt.active, dt.workspace_id, dt.template_type,
@@ -334,6 +342,7 @@ func findApplicableSQL() string {
 			AND (b.validity_start IS NULL OR b.validity_start <= $4)
 			AND (b.validity_end IS NULL OR $4 < b.validity_end)
 			AND (b.price_schedule_id = rs.price_schedule_id OR b.price_schedule_id IS NULL)
+			AND b.job_template_phase_code IS NOT DISTINCT FROM NULLIF($5, '')
 		ORDER BY match_rank, b.version DESC
 		LIMIT 2`,
 		entityid.JobOutcomeSummaryDocumentTemplate, entityid.DocumentTemplate, entityid.PriceSchedule)
@@ -369,7 +378,7 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) FindApplicableJobO
 		asOf = req.AsOf.AsTime().UTC()
 	}
 
-	rows, err := ex.QueryContext(ctx, findApplicableSQL(), wsID, req.GetPriceScheduleId(), versionStatusPublished, asOf)
+	rows, err := ex.QueryContext(ctx, findApplicableSQL(), wsID, req.GetPriceScheduleId(), versionStatusPublished, asOf, req.GetJobTemplatePhaseCode())
 	if err != nil {
 		return nil, fmt.Errorf("resolver query failed: %w", err)
 	}
@@ -383,13 +392,13 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) FindApplicableJobO
 	var results []scanned
 	for rows.Next() {
 		var (
-			bID, bWorkspaceID, bDocTmplID                             string
-			bPriceScheduleID, bVersionStatus, bSupersedes, bCreatedBy sql.NullString
-			bPublishedBy                                              sql.NullString
-			bVersion                                                  sql.NullInt32
-			bActive                                                   sql.NullBool
-			bValidityStart, bValidityEnd                              sql.NullTime
-			bPublishedAt, bDateCreated, bDateModified                 sql.NullInt64
+			bID, bWorkspaceID, bDocTmplID                                         string
+			bPriceScheduleID, bPhaseCode, bVersionStatus, bSupersedes, bCreatedBy sql.NullString
+			bPublishedBy                                                          sql.NullString
+			bVersion                                                              sql.NullInt32
+			bActive                                                               sql.NullBool
+			bValidityStart, bValidityEnd                                          sql.NullTime
+			bPublishedAt, bDateCreated, bDateModified                             sql.NullInt64
 
 			dtID                                                   string
 			dtName, dtDescription, dtWorkspaceID, dtTemplateType   sql.NullString
@@ -404,7 +413,7 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) FindApplicableJobO
 			matchRank int
 		)
 		if err := rows.Scan(
-			&bID, &bWorkspaceID, &bDocTmplID, &bPriceScheduleID, &bVersion,
+			&bID, &bWorkspaceID, &bDocTmplID, &bPriceScheduleID, &bPhaseCode, &bVersion,
 			&bVersionStatus, &bValidityStart, &bValidityEnd, &bSupersedes,
 			&bActive, &bCreatedBy, &bPublishedAt, &bPublishedBy, &bDateCreated, &bDateModified,
 			&dtID, &dtName, &dtDescription, &dtActive, &dtWorkspaceID, &dtTemplateType,
@@ -431,6 +440,9 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) FindApplicableJobO
 		}
 		if bPriceScheduleID.Valid {
 			binding.PriceScheduleId = &bPriceScheduleID.String
+		}
+		if bPhaseCode.Valid {
+			binding.JobTemplatePhaseCode = &bPhaseCode.String
 		}
 		if bValidityStart.Valid {
 			binding.ValidityStart = timestamppb.New(bValidityStart.Time)
@@ -607,16 +619,17 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) PublishJobOutcomeS
 	// published/deprecated/inactive row.
 	var (
 		targetPriceScheduleID sql.NullString
+		targetPhaseCode       sql.NullString
 		targetValidityStart   sql.NullTime
 		targetVersionStatus   sql.NullString
 		targetActive          sql.NullBool
 	)
 	err = tx.QueryRowContext(ctx,
-		fmt.Sprintf(`SELECT price_schedule_id, validity_start, version_status, active
+		fmt.Sprintf(`SELECT price_schedule_id, job_template_phase_code, validity_start, version_status, active
 			   FROM %s
 			  WHERE id = $1 AND workspace_id = $2
 			  FOR UPDATE`, tbl), req.Id, wsID).
-		Scan(&targetPriceScheduleID, &targetValidityStart, &targetVersionStatus, &targetActive)
+		Scan(&targetPriceScheduleID, &targetPhaseCode, &targetValidityStart, &targetVersionStatus, &targetActive)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("binding not found")
 	}
@@ -628,6 +641,24 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) PublishJobOutcomeS
 	}
 	if !targetVersionStatus.Valid || targetVersionStatus.String != versionStatusDraft {
 		return nil, fmt.Errorf("only a draft binding can be published (current status: %q)", targetVersionStatus.String)
+	}
+	if targetPhaseCode.Valid && (!persistedPhaseCodePattern.MatchString(targetPhaseCode.String) || !targetPriceScheduleID.Valid) {
+		return nil, status.Error(codes.InvalidArgument, "invalid period scope")
+	}
+	// Recheck the phase membership after locking the draft and before publication.
+	// Reusing the schedule-scoped query keeps create and publish on the same
+	// subscription-origin, active-template definition of a valid phase code.
+	if targetPhaseCode.Valid {
+		var availableCode string
+		err = tx.QueryRowContext(ctx,
+			`SELECT code FROM (`+phaseCodesByScheduleSQL+`) AS available WHERE code = $3 LIMIT 1`,
+			wsID, targetPriceScheduleID.String, targetPhaseCode.String).Scan(&availableCode)
+		if err == sql.ErrNoRows {
+			return nil, status.Error(codes.InvalidArgument, "invalid period scope")
+		}
+		if err != nil {
+			return nil, status.Error(codes.Internal, "period scope validation unavailable")
+		}
 	}
 
 	// Allocate the next version in the lineage (workspace + price_schedule bucket),
@@ -655,10 +686,11 @@ func (r *PostgresJobOutcomeSummaryDocumentTemplateRepository) PublishJobOutcomeS
 			    SET validity_end = $1, date_modified = $2
 			  WHERE workspace_id = $3
 			    AND COALESCE(price_schedule_id, '') = COALESCE($4, '')
+			    AND job_template_phase_code IS NOT DISTINCT FROM $7
 			    AND id <> $5
 			    AND version_status = $6
 			    AND (validity_end IS NULL OR validity_end > $1)`, tbl),
-		closeAt.Time, nowMillis, wsID, targetPriceScheduleID, req.Id, versionStatusPublished); err != nil {
+		closeAt.Time, nowMillis, wsID, targetPriceScheduleID, req.Id, versionStatusPublished, targetPhaseCode); err != nil {
 		return nil, fmt.Errorf("close prior sibling: %w", err)
 	}
 

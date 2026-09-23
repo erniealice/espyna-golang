@@ -53,6 +53,33 @@ func TestSubscriptionGroupDocumentTemplateMapperPreservesBigintAuditFields(t *te
 	}
 }
 
+func TestSubscriptionGroupDocumentTemplateCategoryScopeRules(t *testing.T) {
+	t.Parallel()
+	matrix := pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_OUTCOME_MATRIX_SINGLE_PERIOD_11_V1
+	phaseReport := pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1
+	if !profileIsSupported(matrix) || !profileRequiresExactCategory(matrix) {
+		t.Fatal("matrix profile must remain supported and require an exact category")
+	}
+	if !profileIsSupported(phaseReport) || profileRequiresExactCategory(phaseReport) {
+		t.Fatal("phase report must be supported and permit a NULL category")
+	}
+	if err := validateProfileCategoryScope(matrix, "category-1"); err != nil {
+		t.Fatalf("matrix profile rejected exact category: %v", err)
+	}
+	if err := validateProfileCategoryScope(matrix, ""); err == nil {
+		t.Fatal("matrix profile accepted NULL category")
+	}
+	if err := validateProfileCategoryScope(phaseReport, ""); err != nil {
+		t.Fatalf("phase report rejected whole-report NULL category: %v", err)
+	}
+	if err := validateProfileCategoryScope(phaseReport, "category-1"); err == nil {
+		t.Fatal("phase report accepted exact category")
+	}
+	if profileIsSupported(pb.RenderProfile_RENDER_PROFILE_UNSPECIFIED) {
+		t.Fatal("unspecified profile must remain unsupported")
+	}
+}
+
 func TestFindApplicableSubscriptionGroupDocumentTemplateSQLRanksAllFallbackBuckets(t *testing.T) {
 	t.Parallel()
 	query := strings.Join(strings.Fields(findApplicableSubscriptionGroupDocumentTemplateSQL()), " ")

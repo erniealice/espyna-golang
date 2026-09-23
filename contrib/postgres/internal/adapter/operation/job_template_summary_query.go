@@ -54,15 +54,10 @@ const originTypeSubscriptionToken = "ORIGIN_TYPE_SUBSCRIPTION"
 // outer join can never null out. A linked-but-missing pps row yields NULL (not
 // TRUE) and is dropped: fail-closed.
 //
-// Placement is the OUTER WHERE, deliberately NOT the class_primary_edges CTE
-// that picks the deterministic primary. Its DISTINCT ON pick rule is mirrored
-// verbatim by fayna's fetchClassEdgeTeachers; adding the predicate there would
-// change WHICH edge wins and desynchronise the two. Here it only suppresses
-// attribution for the already-picked edge. Consequence to know: dd is
-// INNER-joined to jj, so a section whose only picked primary has a revoked
-// eligibility (and no subscription_seat) drops out of the courses list rather
-// than showing a stale teacher. Zero live rows are in that state today (all 108 product_plan_staff
-// rows are active).
+// Placement is the dd WHERE after the class-primary edge selection. Each revoked
+// eligibility suppresses only its own edge, leaving other active, eligible
+// primary teachers visible. If a class has no eligible primary and no seat,
+// the inner join to dd omits it rather than showing a stale teacher.
 const classEdgeEligibilityLivePredicate = "AND (e.product_plan_staff_id IS NULL OR pps.active)"
 
 // maxJobTemplateSummaryLimit caps a requested page size (the common
@@ -847,21 +842,16 @@ func jobTemplateSummaryCTEs(jjWhere string) string {
            ON jt.id = j.job_template_id AND jt.workspace_id = $1 AND jt.active
     ` + jjWhere + `
 ),
--- Pick the newest active primary class edge set-wise, once per
--- (subscription_group_id, product_plan_id).  Do not apply the eligibility
--- liveness gate here: a newly revoked edge must suppress attribution rather
--- than make an older primary edge appear current.
+-- Include every active primary class edge. The dd eligibility predicate
+-- suppresses each revoked edge individually.
 class_primary_edges AS MATERIALIZED (
-    SELECT DISTINCT ON (e.subscription_group_id, e.product_plan_id)
-        e.id,
+    SELECT e.id,
         e.subscription_group_id,
         e.product_plan_id,
         e.staff_id,
         e.product_plan_staff_id
     FROM ` + entityid.SubscriptionGroupProductPlanStaff + ` e
     WHERE e.active AND e.workspace_id = $1 AND e.role = 'primary'
-    ORDER BY e.subscription_group_id, e.product_plan_id,
-             e.date_created DESC, e.id DESC
 ),
 dd AS MATERIALIZED (
     -- Branch (a): the SUBSCRIPTION_SEAT deliverer/group side (the original dd).
@@ -917,10 +907,8 @@ dd AS MATERIALIZED (
            ON st.id = COALESCE(pps.staff_id, e.staff_id) AND st.workspace_id = $1
     LEFT JOIN "` + entityid.User + `" u
            ON u.id = st.user_id AND u.active
-    -- CF-3: class_primary_edges has already picked ONE primary edge for each
-    -- (group, product_plan), deterministically (newest date_created, id breaks
-    -- ties). Apply the eligibility gate only after that pick so a newer revoked
-    -- edge suppresses attribution rather than falling back to an older edge.
+    -- Filter linked but revoked eligibility per edge. The downstream
+    -- delivery_staff DISTINCT and ordered ARRAY_AGG dedupe and sort names.
     WHERE TRUE
       ` + classEdgeEligibilityLivePredicate + `
 )`

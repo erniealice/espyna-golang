@@ -18,11 +18,11 @@ type JobTemplatePhaseRepositories struct {
 
 // JobTemplatePhaseServices groups all business service dependencies
 type JobTemplatePhaseServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // UseCases contains all job_template_phase-related use cases
@@ -35,6 +35,7 @@ type UseCases struct {
 	GetJobTemplatePhaseListPageData *GetJobTemplatePhaseListPageDataUseCase
 	GetJobTemplatePhaseItemPageData *GetJobTemplatePhaseItemPageDataUseCase
 	ListByJobTemplate               *ListByJobTemplateUseCase
+	ListPhaseCodesByPriceSchedule   *ListPhaseCodesByPriceScheduleUseCase
 }
 
 // NewUseCases creates a new collection of job_template_phase use cases
@@ -49,10 +50,10 @@ func NewUseCases(
 	}
 	createServices := CreateJobTemplatePhaseServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer:  services.Authorizer,
-		Transactor:  services.Transactor,
-		Translator:  services.Translator,
-		IDGenerator: services.IDGenerator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
+		IDGenerator:      services.IDGenerator,
 	}
 
 	readRepos := ReadJobTemplatePhaseRepositories{
@@ -60,9 +61,9 @@ func NewUseCases(
 	}
 	readServices := ReadJobTemplatePhaseServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	updateRepos := UpdateJobTemplatePhaseRepositories{
@@ -72,9 +73,9 @@ func NewUseCases(
 	}
 	updateServices := UpdateJobTemplatePhaseServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	deleteRepos := DeleteJobTemplatePhaseRepositories{
@@ -82,9 +83,9 @@ func NewUseCases(
 	}
 	deleteServices := DeleteJobTemplatePhaseServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listRepos := ListJobTemplatePhasesRepositories{
@@ -92,9 +93,9 @@ func NewUseCases(
 	}
 	listServices := ListJobTemplatePhasesServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listPageDataRepos := GetJobTemplatePhaseListPageDataRepositories{
@@ -102,9 +103,9 @@ func NewUseCases(
 	}
 	listPageDataServices := GetJobTemplatePhaseListPageDataServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	itemPageDataRepos := GetJobTemplatePhaseItemPageDataRepositories{
@@ -112,9 +113,9 @@ func NewUseCases(
 	}
 	itemPageDataServices := GetJobTemplatePhaseItemPageDataServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listByJobTemplateRepos := ListByJobTemplateRepositories{
@@ -122,9 +123,9 @@ func NewUseCases(
 	}
 	listByJobTemplateServices := ListByJobTemplateServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	return &UseCases{
@@ -136,5 +137,6 @@ func NewUseCases(
 		GetJobTemplatePhaseListPageData: NewGetJobTemplatePhaseListPageDataUseCase(listPageDataRepos, listPageDataServices),
 		GetJobTemplatePhaseItemPageData: NewGetJobTemplatePhaseItemPageDataUseCase(itemPageDataRepos, itemPageDataServices),
 		ListByJobTemplate:               NewListByJobTemplateUseCase(listByJobTemplateRepos, listByJobTemplateServices),
+		ListPhaseCodesByPriceSchedule:   NewListPhaseCodesByPriceScheduleUseCase(repositories.JobTemplatePhase, services.ActionGatekeeper),
 	}
 }

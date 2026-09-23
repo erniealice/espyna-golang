@@ -18,11 +18,17 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
+	phasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
 )
+
+type PhaseCodeReader interface {
+	ListPhaseCodesByPriceSchedule(context.Context, *phasepb.ListPhaseCodesByPriceScheduleRequest) (*phasepb.ListPhaseCodesByPriceScheduleResponse, error)
+}
 
 // Repositories groups the primary repository dependency.
 type Repositories struct {
 	JobOutcomeSummaryDocumentTemplate pb.JobOutcomeSummaryDocumentTemplateDomainServiceServer
+	PhaseCodes                        PhaseCodeReader
 }
 
 // Services groups the shared business-service dependencies.
@@ -48,7 +54,7 @@ type UseCases struct {
 // NewUseCases wires the binding use cases.
 func NewUseCases(r Repositories, s Services) *UseCases {
 	return &UseCases{
-		CreateJobOutcomeSummaryDocumentTemplate:         &CreateUseCase{repo: r.JobOutcomeSummaryDocumentTemplate, svc: s},
+		CreateJobOutcomeSummaryDocumentTemplate:         &CreateUseCase{repo: r.JobOutcomeSummaryDocumentTemplate, phaseCodes: r.PhaseCodes, svc: s},
 		ReadJobOutcomeSummaryDocumentTemplate:           &ReadUseCase{repo: r.JobOutcomeSummaryDocumentTemplate, svc: s},
 		UpdateJobOutcomeSummaryDocumentTemplate:         &UpdateUseCase{repo: r.JobOutcomeSummaryDocumentTemplate, svc: s},
 		DeleteJobOutcomeSummaryDocumentTemplate:         &DeleteUseCase{repo: r.JobOutcomeSummaryDocumentTemplate, svc: s},

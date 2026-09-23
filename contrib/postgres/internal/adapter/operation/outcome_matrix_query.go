@@ -729,16 +729,7 @@ ORDER BY jtp.phase_order, jtt.step_order, ttc.sequence_order,
 
 		phase := phaseByID[phaseID]
 		if phase == nil {
-			phase = &matrixpb.PhaseColumn{
-				JobTemplatePhaseId: phaseID,
-				Label:              composePhaseLabel(phaseName, variantName),
-				SequenceOrder:      phaseOrder,
-				// Q8 (20260720 export drawer): the stable s1/s2 period anchor,
-				// COALESCE'd to "" when the phase carries no code (heals the 22
-				// inactive NULL-code duplicates — those are jtp.active=false and
-				// excluded above anyway; a live NULL still renders empty).
-				Code: nullStringVal(phaseCode),
-			}
+			phase = newPhaseColumn(phaseID, phaseName, phaseCode, variantName, phaseOrder)
 			phaseByID[phaseID] = phase
 			phases = append(phases, phase)
 		}
@@ -1025,6 +1016,25 @@ func composePhaseLabel(name string, variantName sql.NullString) string {
 		}
 	}
 	return name
+}
+
+func trimmedVariantLabel(variantName sql.NullString) string {
+	if !variantName.Valid {
+		return ""
+	}
+	return strings.TrimSpace(variantName.String)
+}
+
+func newPhaseColumn(phaseID, phaseName string, phaseCode, variantName sql.NullString, phaseOrder int32) *matrixpb.PhaseColumn {
+	return &matrixpb.PhaseColumn{
+		JobTemplatePhaseId: phaseID,
+		Label:              composePhaseLabel(phaseName, variantName),
+		PhaseName:          phaseName,
+		VariantLabel:       trimmedVariantLabel(variantName),
+		SequenceOrder:      phaseOrder,
+		// Q8 (20260720 export drawer): stable period anchor; a live NULL code renders empty.
+		Code: nullStringVal(phaseCode),
+	}
 }
 
 // computeCellEditable decides whether the acting STAFF principal may edit a matrix

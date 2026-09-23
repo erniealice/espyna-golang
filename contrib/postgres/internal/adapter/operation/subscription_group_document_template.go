@@ -100,8 +100,24 @@ func profileRequiresExactCategory(profile pb.RenderProfile) bool {
 	return profile == pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_OUTCOME_MATRIX_SINGLE_PERIOD_11_V1
 }
 
+func profileRequiresAllCategories(profile pb.RenderProfile) bool {
+	return profile == pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1
+}
+
+func validateProfileCategoryScope(profile pb.RenderProfile, categoryID string) error {
+	categoryID = normalizedOptionalID(categoryID)
+	if profileRequiresExactCategory(profile) && categoryID == "" {
+		return fmt.Errorf("job_category_id is required for render_profile=%s", pb.RenderProfile_name[int32(profile)])
+	}
+	if profileRequiresAllCategories(profile) && categoryID != "" {
+		return fmt.Errorf("job_category_id must be NULL for render_profile=%s", pb.RenderProfile_name[int32(profile)])
+	}
+	return nil
+}
+
 func profileIsSupported(profile pb.RenderProfile) bool {
-	return profile == pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_OUTCOME_MATRIX_SINGLE_PERIOD_11_V1
+	return profile == pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_OUTCOME_MATRIX_SINGLE_PERIOD_11_V1 ||
+		profile == pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1
 }
 
 func (r *PostgresSubscriptionGroupDocumentTemplateRepository) executor(ctx context.Context) sqlexec.DBExecutor {
@@ -181,8 +197,8 @@ func validateBindingReferencesWithExecutor(ctx context.Context, ex sqlexec.DBExe
 	if !profileIsSupported(req.RenderProfile) {
 		return fmt.Errorf("unsupported render profile: %q", req.GetRenderProfile())
 	}
-	if profileRequiresExactCategory(req.RenderProfile) && normalizedOptionalID(req.GetJobCategoryId()) == "" {
-		return fmt.Errorf("job_category_id is required for render_profile=%s", pb.RenderProfile_name[int32(req.RenderProfile)])
+	if err := validateProfileCategoryScope(req.GetRenderProfile(), req.GetJobCategoryId()); err != nil {
+		return err
 	}
 	if normalizedOptionalID(req.GetPriceScheduleId()) != "" {
 		if err := validateReferencedEntityWorkspaceWithExecutor(ctx, ex, entityid.PriceSchedule, req.GetPriceScheduleId(), workspaceID); err != nil {
@@ -608,8 +624,13 @@ func findApplicableSubscriptionGroupDocumentTemplateSQL() string {
 		  AND dt.document_purpose = $8
 		  AND (b.validity_start IS NULL OR b.validity_start <= $7)
 		  AND (b.validity_end IS NULL OR $7 < b.validity_end)
-		  AND b.job_category_id IS NOT NULL
-		  AND (b.job_category_id = rs.job_category_id)
+		  AND (
+		       ($6 = 'RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1'
+		        AND b.job_category_id IS NULL)
+	       OR ($6 = 'RENDER_PROFILE_SUBSCRIPTION_GROUP_OUTCOME_MATRIX_SINGLE_PERIOD_11_V1'
+	           AND b.job_category_id IS NOT NULL
+	           AND b.job_category_id = rs.job_category_id)
+	  )
 		  AND (b.plan_id = rs.plan_id OR b.plan_id IS NULL)
 		  AND (b.price_schedule_id = rs.price_schedule_id OR b.price_schedule_id IS NULL)
 		ORDER BY match_rank, b.version DESC
@@ -858,8 +879,8 @@ func (r *PostgresSubscriptionGroupDocumentTemplateRepository) FindApplicableSubs
 	if !profileIsSupported(req.GetRenderProfile()) {
 		return nil, fmt.Errorf("unsupported render profile: %q", req.GetRenderProfile())
 	}
-	if profileRequiresExactCategory(req.GetRenderProfile()) && normalizedOptionalID(req.GetJobCategoryId()) == "" {
-		return nil, fmt.Errorf("job_category_id is required for render_profile=%s", pb.RenderProfile_name[int32(req.GetRenderProfile())])
+	if err := validateProfileCategoryScope(req.GetRenderProfile(), req.GetJobCategoryId()); err != nil {
+		return nil, err
 	}
 	if strings.TrimSpace(req.GetDocumentPurpose()) != subscriptionGroupOutcomeSummaryDocumentPurpose {
 		return nil, fmt.Errorf("document_purpose must be %q", subscriptionGroupOutcomeSummaryDocumentPurpose)
@@ -1177,8 +1198,12 @@ func (r *PostgresSubscriptionGroupDocumentTemplateRepository) PublishSubscriptio
 	if !profileIsSupported(targetProfile) {
 		return nil, fmt.Errorf("unsupported render profile: %q", targetRenderProfile.String)
 	}
-	if profileRequiresExactCategory(targetProfile) && (!targetJobCategoryID.Valid || targetJobCategoryID.String == "") {
-		return nil, fmt.Errorf("target job_category_id is required for render_profile=%s", targetRenderProfile.String)
+	targetCategoryID := ""
+	if targetJobCategoryID.Valid {
+		targetCategoryID = targetJobCategoryID.String
+	}
+	if err := validateProfileCategoryScope(targetProfile, targetCategoryID); err != nil {
+		return nil, fmt.Errorf("target binding has invalid category scope: %w", err)
 	}
 	if !targetDocTemplateID.Valid || strings.TrimSpace(targetDocTemplateID.String) == "" {
 		return nil, fmt.Errorf("target document_template_id is required")

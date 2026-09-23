@@ -19,6 +19,8 @@ import (
 	"github.com/erniealice/espyna-golang/shared/identity"
 	bindingpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/subscription_group_document_template"
 	exportpb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/subscription_group_outcome_export"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 const subscriptionGroupOutcomeDocumentPurpose = "subscription_group_outcome_summary"
@@ -59,6 +61,139 @@ func (q *PostgresSubscriptionGroupOutcomeExportQuery) GetSubscriptionGroupOutcom
 	req *exportpb.GetSubscriptionGroupOutcomeExportRequest,
 ) (*exportpb.GetSubscriptionGroupOutcomeExportResponse, error) {
 	return q.GetSubscriptionGroupOutcomeExportScoped(ctx, req, ports.SubscriptionGroupOutcomeExportScope{})
+}
+
+// GetSubscriptionGroupClientReportCardScoped is an in-process projection read
+// for one client enrollment. It intentionally is not an RPC method: its input
+// attribute allowlist is supplied by trusted application composition, while
+// the workspace and acting workspace-user always come from request identity.
+func (q *PostgresSubscriptionGroupOutcomeExportQuery) GetSubscriptionGroupClientReportCardScoped(
+	ctx context.Context,
+	req *exportpb.GetSubscriptionGroupClientReportCardRequest,
+	scope ports.SubscriptionGroupOutcomeExportScope,
+) (*exportpb.GetSubscriptionGroupClientReportCardResponse, error) {
+	if q == nil || q.db == nil {
+		return nil, fmt.Errorf("subscription group client report card requires PostgreSQL")
+	}
+	response := &exportpb.GetSubscriptionGroupClientReportCardResponse{Success: true}
+	if req == nil || strings.TrimSpace(req.GetSubscriptionGroupId()) == "" || strings.TrimSpace(req.GetClientId()) == "" {
+		return response, nil
+	}
+	id, ok := identity.FromContext(ctx)
+	if !ok || id == nil || strings.TrimSpace(id.WorkspaceID) == "" {
+		return response, nil
+	}
+
+	codes := req.GetClientAttributeCodes()
+	if codes == nil {
+		codes = []string{}
+	}
+	codesJSON, err := json.Marshal(codes)
+	if err != nil {
+		return nil, fmt.Errorf("subscription group client report card attribute codes: %w", err)
+	}
+	built := buildSubscriptionGroupClientReportCardSQL(id, req, scope, string(codesJSON))
+	rows, err := adaptercore.ExecutorFromContext(ctx, q.db).QueryContext(ctx, built.statement, built.args...)
+	if err != nil {
+		return nil, fmt.Errorf("subscription group client report card query: %w", err)
+	}
+	defer rows.Close()
+
+	projection := &exportpb.ClientReportCardProjection{}
+	for rows.Next() {
+		var kind string
+		var payload []byte
+		if err := rows.Scan(&kind, &payload); err != nil {
+			return nil, fmt.Errorf("subscription group client report card scan: %w", err)
+		}
+		if err := appendClientReportCardPayload(projection, kind, payload); err != nil {
+			return nil, fmt.Errorf("subscription group client report card %s payload: %w", kind, err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("subscription group client report card rows: %w", err)
+	}
+	if projection.GetContext() != nil && projection.GetClient() != nil && len(projection.GetClientSubscriptionIds()) > 0 {
+		response.ReportCard = projection
+	}
+	return response, nil
+}
+
+// appendClientReportCardPayload decodes one explicit SQL JSON object into the
+// matching typed projection field. protojson accepts the snake_case SQL keys
+// and validates each row against the generated DTO, rejecting accidental
+// expansion of this report-only boundary.
+func appendClientReportCardPayload(projection *exportpb.ClientReportCardProjection, kind string, payload []byte) error {
+	field, repeated := "", true
+	switch kind {
+	case "context":
+		field, repeated = "context", false
+	case "client":
+		field, repeated = "client", false
+	case "client_subscription":
+		field = "client_subscription_ids"
+	case "attribute":
+		field = "attributes"
+	case "job":
+		field = "jobs"
+	case "job_template":
+		field = "job_templates"
+	case "job_category":
+		field = "job_categories"
+	case "job_phase":
+		field = "job_phases"
+	case "job_template_phase":
+		field = "job_template_phases"
+	case "job_template_task":
+		field = "job_template_tasks"
+	case "job_task":
+		field = "job_tasks"
+	case "task_outcome":
+		field = "task_outcomes"
+	case "outcome_criteria":
+		field = "outcome_criteria"
+	case "template_task_criteria":
+		field = "template_task_criteria"
+	case "rating_description":
+		field = "rating_descriptions"
+	case "phase_outcome_summary":
+		field = "phase_outcome_summaries"
+	case "job_outcome_summary":
+		field = "job_outcome_summaries"
+	case "job_outcome_line":
+		field = "job_outcome_lines"
+	case "staff":
+		field = "staff"
+	case "teacher_assignment":
+		field = "teacher_assignments"
+	case "render_gate_job_id":
+		field = "render_gate_job_ids"
+	case "render_gate_group_id":
+		field, repeated = "render_gate_applied_subscription_group_id", false
+	case "render_gate_sheet":
+		field = "render_gate_sheets"
+	default:
+		return fmt.Errorf("unknown projection row kind %q", kind)
+	}
+
+	wrapped := make([]byte, 0, len(payload)+len(field)+12)
+	wrapped = append(wrapped, '{', '"')
+	wrapped = append(wrapped, field...)
+	wrapped = append(wrapped, '"', ':')
+	if repeated {
+		wrapped = append(wrapped, '[')
+	}
+	wrapped = append(wrapped, payload...)
+	if repeated {
+		wrapped = append(wrapped, ']')
+	}
+	wrapped = append(wrapped, '}')
+	row := &exportpb.ClientReportCardProjection{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(wrapped, row); err != nil {
+		return err
+	}
+	proto.Merge(projection, row)
+	return nil
 }
 
 type exportContextJSON struct {
@@ -110,6 +245,445 @@ type exportScopeSQL struct {
 	args        []any
 	staffScoped bool
 }
+
+func buildSubscriptionGroupClientReportCardSQL(
+	id *identity.RequestIdentity,
+	req *exportpb.GetSubscriptionGroupClientReportCardRequest,
+	scope ports.SubscriptionGroupOutcomeExportScope,
+	codesJSON string,
+) exportScopeSQL {
+	args := []any{id.WorkspaceID, req.GetSubscriptionGroupId(), id.WorkspaceUserID, req.GetClientId(), codesJSON, scope.WorkspaceWide}
+	gateNarrow, gateArgs := groupNarrowPredicate(req.GetSubscriptionGroupId(), 7, 1)
+	args = append(args, gateArgs...)
+	return exportScopeSQL{
+		statement: renderOutcomeExportTables(strings.ReplaceAll(clientReportCardCTEs, "{{render_gate_group_narrow}}", gateNarrow) + clientReportCardRowsSQL),
+		args:      args,
+	}
+}
+
+// The source tables below deliberately use explicit JSON field lists. In
+// particular, client attributes are keyed by the server-configured request
+// codes, and task outcomes/staff/client data cross this boundary only through
+// their narrow report-card DTOs. Tables without workspace_id (client_attribute,
+// attribute, product_plan, and user) are constrained through a workspace-owned
+// client, SGPP/job chain, or staff row respectively.
+const clientReportCardCTEs = `
+WITH group_context AS MATERIALIZED (
+  SELECT sg.id, sg.name, sg.active, NOT sg.active AS historical,
+         sg.price_schedule_id, COALESCE(ps.name, '') AS price_schedule_name,
+         sg.plan_id, COALESCE(pl.name, '') AS plan_name
+    FROM {{subscription_group}} sg
+    LEFT JOIN {{price_schedule}} ps
+      ON ps.id = sg.price_schedule_id AND ps.workspace_id = sg.workspace_id
+    LEFT JOIN {{plan}} pl
+      ON pl.id = sg.plan_id AND pl.workspace_id = sg.workspace_id
+   WHERE sg.id = $2 AND sg.workspace_id = $1
+     AND (sg.price_schedule_id IS NULL OR ps.id IS NOT NULL)
+     AND (sg.plan_id IS NULL OR pl.id IS NOT NULL)
+     AND (
+       $6::boolean
+       OR EXISTS (
+         SELECT 1
+           FROM {{workspace_user}} wu
+           JOIN {{subscription_group_workspace_user}} sgwu
+             ON sgwu.workspace_user_id = wu.id
+            AND sgwu.workspace_id = wu.workspace_id
+            AND sgwu.subscription_group_id = sg.id
+            AND sgwu.active = true
+          WHERE wu.workspace_id = $1 AND wu.id = $3 AND wu.active = true
+       )
+     )
+), member_anchor AS MATERIALIZED (
+  -- Exact target-client membership is proven before the job graph is read.
+  SELECT g.id AS subscription_group_id, g.historical, m.subscription_id,
+         c.id AS client_id,
+         COALESCE(NULLIF(c.name, ''), btrim(concat_ws(' ', c.first_name, c.last_name)), c.id) AS client_name,
+         COALESCE(c.first_name, '') AS client_first_name,
+         COALESCE(c.last_name, '') AS client_last_name
+    FROM group_context g
+    JOIN {{subscription_group_member}} m
+      ON m.subscription_group_id = g.id AND m.workspace_id = $1
+     AND m.client_id = $4
+    JOIN {{subscription}} s
+      ON s.id = m.subscription_id AND s.workspace_id = $1 AND s.client_id = m.client_id
+    JOIN {{client}} c
+      ON c.id = m.client_id AND c.workspace_id = $1
+     AND (g.historical OR c.active = true)
+   WHERE g.historical OR (m.active = true AND s.active = true)
+), job_rows AS MATERIALIZED (
+  -- Match the section matrix's deterministic one-job-per-client/template grain.
+  SELECT DISTINCT ON (a.client_id, j.job_template_id)
+         j.id, j.workspace_id, j.client_id, j.origin_id, j.origin_type,
+         j.job_template_id, j.job_category_id, j.output_product_id, j.active,
+         COALESCE(local_jt.job_category_id, j.job_category_id) AS effective_category_id,
+         a.historical, a.client_id AS anchored_client_id
+    FROM member_anchor a
+    JOIN {{job}} j
+      ON j.origin_type = 'ORIGIN_TYPE_SUBSCRIPTION'
+     AND j.origin_id = a.subscription_id
+     AND j.client_id = a.client_id
+     AND j.workspace_id = $1
+    LEFT JOIN {{job_template}} local_jt
+      ON local_jt.id = j.job_template_id AND local_jt.workspace_id = $1
+   WHERE (
+       (a.historical = false AND j.active = true AND local_jt.id IS NOT NULL AND local_jt.active = true)
+       OR (
+         a.historical = true
+         AND (local_jt.id IS NOT NULL OR NOT EXISTS (
+           SELECT 1 FROM {{job_template}} foreign_jt WHERE foreign_jt.id = j.job_template_id
+         ))
+       )
+     )
+   ORDER BY a.client_id, j.job_template_id, j.id ASC
+), local_templates AS MATERIALIZED (
+  SELECT DISTINCT jt.id, jt.workspace_id, jt.name, jt.template_code, jt.job_category_id, jt.active
+    FROM job_rows j
+    JOIN {{job_template}} jt
+      ON jt.id = j.job_template_id AND jt.workspace_id = $1
+   WHERE j.historical OR jt.active = true
+), local_categories AS MATERIALIZED (
+  SELECT DISTINCT jc.id, jc.workspace_id, jc.code, jc.name, jc.sort_order, jc.active
+    FROM job_rows j
+    LEFT JOIN local_templates jt ON jt.id = j.job_template_id
+    JOIN {{job_category}} jc
+      ON jc.id = j.effective_category_id
+     AND jc.workspace_id = $1
+   WHERE j.historical OR jc.active = true
+), job_phases AS MATERIALIZED (
+  SELECT jp.id, jp.workspace_id, jp.job_id, jp.template_phase_id, jp.phase_order, jp.active,
+         jp.approval_status, jp.submitted_by, jp.submitted_at, jp.verified_by, jp.verified_at,
+         jp.published_by, jp.published_at, jp.return_reason, jp.returned_by, jp.returned_at
+    FROM job_rows j
+    JOIN {{job_phase}} jp
+      ON jp.job_id = j.id AND jp.workspace_id = $1
+   WHERE j.historical OR jp.active = true
+), template_phases AS MATERIALIZED (
+  SELECT DISTINCT jtp.id, jtp.workspace_id, jtp.job_template_id, jtp.code, jtp.name, jtp.phase_order, jtp.active,
+         j.historical
+    FROM job_phases jp
+    JOIN job_rows j ON j.id = jp.job_id
+    JOIN {{job_template_phase}} jtp
+      ON jtp.id = jp.template_phase_id AND jtp.workspace_id = $1
+   WHERE j.historical OR jtp.active = true
+), template_tasks AS MATERIALIZED (
+  SELECT DISTINCT jtt.id, jtt.workspace_id, jtt.job_template_phase_id,
+         jtt.name, jtt.code, jtt.step_order, jtt.active, tp.historical
+    FROM template_phases tp
+    JOIN {{job_template_task}} jtt
+      ON jtt.job_template_phase_id = tp.id AND jtt.workspace_id = $1
+   WHERE tp.historical OR jtt.active = true
+), job_tasks AS MATERIALIZED (
+  SELECT jt.id, jt.workspace_id, jt.job_phase_id, jt.template_task_id, jt.assigned_to, jt.active,
+         jp.historical
+    FROM job_phases jp
+    JOIN {{job_task}} jt
+      ON jt.job_phase_id = jp.id AND jt.workspace_id = $1
+   WHERE jp.historical OR jt.active = true
+), template_task_criteria AS MATERIALIZED (
+  SELECT DISTINCT ttc.id, ttc.workspace_id, ttc.job_template_task_id,
+         ttc.outcome_criteria_id, ttc.sequence_order, ttc.required_override,
+         ttc.weight_override, ttc.active, tt.historical
+    FROM template_tasks tt
+    JOIN {{template_task_criteria}} ttc
+      ON ttc.job_template_task_id = tt.id AND ttc.workspace_id = $1
+   WHERE tt.historical OR ttc.active = true
+), outcome_criteria AS MATERIALIZED (
+  SELECT DISTINCT oc.id, oc.workspace_id, oc.name, oc.code, oc.unit,
+         oc.decimal_places, oc.min_score, oc.max_score, oc.score_increment,
+         oc.pass_label, oc.fail_label, oc.required, oc.active, ttc.historical
+    FROM template_task_criteria ttc
+    JOIN {{outcome_criteria}} oc
+      ON oc.id = ttc.outcome_criteria_id AND oc.workspace_id = $1
+   WHERE ttc.historical OR oc.active = true
+), latest_task_outcomes AS MATERIALIZED (
+  SELECT DISTINCT ON (jt.id, ttc.id)
+         jt.id AS job_task_id, ttc.id AS template_task_criteria_id,
+         o.numeric_value, o.categorical_value AS scaled_label,
+         o.determination_note,
+         floor(extract(epoch FROM o.recorded_date) * 1000)::bigint AS recorded_date
+    FROM job_tasks jt
+    JOIN template_tasks tt ON tt.id = jt.template_task_id
+    JOIN template_task_criteria ttc ON ttc.job_template_task_id = tt.id
+    JOIN {{task_outcome}} o
+      ON o.job_task_id = jt.id AND o.criteria_version_id = ttc.outcome_criteria_id
+     AND o.workspace_id = $1 AND (jt.historical OR o.active = true)
+   ORDER BY jt.id, ttc.id, o.recorded_date DESC NULLS LAST, o.id DESC
+), latest_phase_summaries AS MATERIALIZED (
+  SELECT DISTINCT ON (pos.job_phase_id)
+         pos.id, pos.workspace_id, pos.job_id, pos.job_phase_id,
+         pos.scaled_label, pos.scaled_score, pos.summary_score,
+         pos.total_criteria_count, pos.pass_count, pos.fail_count,
+         pos.conditional_count, pos.deferred_count, pos.na_count, pos.narrative,
+         pos.active,
+         floor(extract(epoch FROM pos.date_created) * 1000)::bigint AS date_created
+    FROM job_phases jp
+    JOIN {{phase_outcome_summary}} pos
+      ON pos.job_phase_id = jp.id AND pos.job_id = jp.job_id
+     AND pos.workspace_id = $1 AND pos.active = true
+   ORDER BY pos.job_phase_id, pos.date_created DESC NULLS LAST, pos.id DESC
+), latest_job_summaries AS MATERIALIZED (
+  SELECT DISTINCT ON (jos.job_id)
+         jos.id, jos.workspace_id, jos.job_id, jos.client_id, jos.scaled_label, jos.scaled_score,
+         jos.summary_score, jos.total_criteria_count, jos.pass_count, jos.fail_count,
+         jos.conditional_count, jos.deferred_count, jos.na_count, jos.narrative,
+         jos.active, floor(extract(epoch FROM jos.date_created) * 1000)::bigint AS date_created
+    FROM job_rows j
+    JOIN {{job_outcome_summary}} jos
+      ON jos.job_id = j.id AND jos.workspace_id = $1 AND jos.active = true
+     AND (jos.client_id IS NULL OR jos.client_id = j.client_id)
+   ORDER BY jos.job_id, jos.date_created DESC NULLS LAST, jos.id DESC
+), outcome_lines AS MATERIALIZED (
+  SELECT jol.id, jol.workspace_id, jol.client_id, jol.job_outcome_summary_id,
+         jol.label, jol.weight_or_credits, jol.output_value, jol.output_label, jol.active
+    FROM latest_job_summaries jos
+    JOIN job_rows j ON j.id = jos.job_id
+    JOIN {{job_outcome_line}} jol
+      ON jol.job_outcome_summary_id = jos.id AND jol.workspace_id = $1 AND jol.active = true
+     AND (jol.client_id IS NULL OR jol.client_id = j.client_id)
+), rating_description_rows AS MATERIALIZED (
+  SELECT DISTINCT td.id, td.workspace_id, td.template_task_criteria_id,
+         td.description, td.sequence_order, td.active
+    FROM template_task_criteria ttc
+    JOIN {{template_task_criteria_rating_description}} td
+      ON td.template_task_criteria_id = ttc.id
+     AND td.workspace_id = $1 AND (ttc.historical OR td.active = true)
+), render_gate_template_sheets AS MATERIALIZED (
+  SELECT jp.template_phase_id,
+         COUNT(*)::int AS target_count,
+         BOOL_OR(
+           ` + gateAnyWorkflowEnteredSQLExpr + `
+         ) AS any_workflow_entered,
+         BOOL_AND(jp.approval_status = 'PHASE_APPROVAL_STATUS_PUBLISHED') AS all_published,
+         BOOL_OR(EXISTS (
+           SELECT 1
+             FROM {{job_task}} gate_task
+             JOIN {{task_outcome}} gate_outcome
+               ON gate_outcome.job_task_id = gate_task.id
+              AND gate_outcome.workspace_id = $1 AND gate_outcome.active = true
+            WHERE gate_task.job_phase_id = jp.id
+              AND gate_task.workspace_id = $1 AND gate_task.active = true
+         )) AS has_data
+    FROM {{job_phase}} jp
+    JOIN {{job}} j ON j.id = jp.job_id
+   WHERE jp.template_phase_id IN (
+           SELECT DISTINCT projected.template_phase_id
+             FROM job_phases projected
+            WHERE projected.active = true AND projected.template_phase_id IS NOT NULL
+         )
+     AND j.workspace_id = $1 AND jp.workspace_id = $1 AND jp.active = true
+     AND jp.template_phase_id IS NOT NULL{{render_gate_group_narrow}}
+   GROUP BY jp.template_phase_id
+), render_gate_singletons AS MATERIALIZED (
+  SELECT jp.id AS job_phase_id,
+         (` + gateAnyWorkflowEnteredSQLExpr + `) AS any_workflow_entered,
+         (jp.approval_status = 'PHASE_APPROVAL_STATUS_PUBLISHED') AS all_published,
+         EXISTS (
+           SELECT 1
+             FROM {{job_task}} gate_task
+             JOIN {{task_outcome}} gate_outcome
+               ON gate_outcome.job_task_id = gate_task.id
+              AND gate_outcome.workspace_id = $1 AND gate_outcome.active = true
+            WHERE gate_task.job_phase_id = jp.id
+              AND gate_task.workspace_id = $1 AND gate_task.active = true
+         ) AS has_data
+    FROM job_phases projected
+    JOIN {{job_phase}} jp ON jp.id = projected.id AND jp.workspace_id = $1
+   WHERE projected.active = true AND projected.template_phase_id IS NULL AND jp.active = true
+), attribute_rows AS MATERIALIZED (
+  SELECT DISTINCT attr.code, ca.value
+    FROM member_anchor a
+    JOIN {{client_attribute}} ca ON ca.client_id = a.client_id AND ca.active = true
+    JOIN {{attribute}} attr ON attr.id = ca.attribute_id AND attr.active = true
+   WHERE attr.code IN (SELECT jsonb_array_elements_text($5::jsonb))
+), teacher_candidates AS MATERIALIZED (
+  -- Direct task assignees are the override. A class-edge fallback is used only
+  -- for phases with no valid active direct assignee. SGPP is scoped by workspace
+  -- and exact group; product_plan has no workspace_id in the current schema and
+  -- is therefore reached only through that edge plus this job's output product.
+  SELECT DISTINCT j.id AS job_id, jp.id AS job_phase_id, s.id AS staff_id,
+         COALESCE(NULLIF(btrim(concat_ws(' ', u.first_name, u.last_name)), ''), s.id) AS display_name,
+         0 AS source_order, ''::text AS edge_sort
+    FROM job_rows j
+    JOIN job_phases jp ON jp.job_id = j.id
+    JOIN job_tasks jt ON jt.job_phase_id = jp.id AND jt.assigned_to IS NOT NULL AND btrim(jt.assigned_to) <> ''
+    JOIN {{staff}} s ON s.id = jt.assigned_to AND s.workspace_id = $1 AND s.active = true
+    LEFT JOIN "{{user}}" u ON u.id = s.user_id AND u.active = true
+  UNION ALL
+  SELECT j.id, jp.id, s.id,
+         COALESCE(NULLIF(btrim(concat_ws(' ', u.first_name, u.last_name)), ''), s.id),
+         1, picked.edge_sort
+    FROM job_rows j
+    JOIN job_phases jp ON jp.job_id = j.id
+    JOIN LATERAL (
+      SELECT sgpps.staff_id, sgpps.id AS edge_sort
+        FROM {{subscription_group_product_plan_staff}} sgpps
+        JOIN {{product_plan}} pp ON pp.id = sgpps.product_plan_id
+       WHERE sgpps.subscription_group_id = $2
+         AND sgpps.workspace_id = $1 AND sgpps.active = true
+         AND pp.product_id = j.output_product_id
+         AND (sgpps.job_template_phase_id IS NULL OR sgpps.job_template_phase_id = jp.template_phase_id)
+       ORDER BY sgpps.date_created DESC NULLS LAST, sgpps.id DESC
+       LIMIT 1
+    ) picked ON true
+    JOIN {{staff}} s ON s.id = picked.staff_id AND s.workspace_id = $1 AND s.active = true
+    LEFT JOIN "{{user}}" u ON u.id = s.user_id AND u.active = true
+   WHERE NOT EXISTS (
+     SELECT 1 FROM job_tasks direct_task
+       JOIN {{staff}} direct_staff
+         ON direct_staff.id = direct_task.assigned_to
+        AND direct_staff.workspace_id = $1 AND direct_staff.active = true
+      WHERE direct_task.job_phase_id = jp.id
+   )
+), teacher_assignments AS MATERIALIZED (
+  SELECT DISTINCT ON (job_id, job_phase_id, staff_id)
+         job_id, job_phase_id, staff_id, display_name
+    FROM teacher_candidates
+   ORDER BY job_id, job_phase_id, staff_id, source_order, edge_sort
+), staff_rows AS MATERIALIZED (
+  SELECT DISTINCT staff_id, display_name FROM teacher_assignments
+)
+`
+
+const clientReportCardRowsSQL = `
+SELECT kind, payload
+  FROM (
+    SELECT 0 AS kind_order, 'context'::text AS kind, ''::text AS sort_key_1, ''::text AS sort_key_2,
+           jsonb_build_object('subscription_group_id', g.id, 'subscription_group_name', g.name,
+             'price_schedule_id', g.price_schedule_id, 'price_schedule_name', g.price_schedule_name,
+             'plan_id', g.plan_id, 'plan_name', g.plan_name, 'historical', g.historical) AS payload
+      FROM group_context g
+     WHERE EXISTS (SELECT 1 FROM member_anchor a WHERE a.subscription_group_id = g.id)
+    UNION ALL
+    SELECT DISTINCT 1, 'client', a.client_id, '', jsonb_build_object('client_id', a.client_id, 'name', a.client_name,
+             'first_name', a.client_first_name, 'last_name', a.client_last_name)
+      FROM member_anchor a
+    UNION ALL
+    SELECT DISTINCT 2, 'client_subscription', a.subscription_id, '', to_jsonb(a.subscription_id)
+      FROM member_anchor a
+    UNION ALL
+    SELECT 3, 'attribute', a.code, a.value, jsonb_build_object('code', a.code, 'value', a.value)
+      FROM attribute_rows a
+    UNION ALL
+    SELECT 4, 'job', j.id, '', jsonb_build_object('id', j.id, 'workspace_id', j.workspace_id,
+             'client_id', j.client_id, 'origin_id', j.origin_id, 'origin_type', j.origin_type,
+             'job_template_id', j.job_template_id, 'job_category_id', j.effective_category_id,
+             'output_product_id', j.output_product_id, 'active', j.active)
+      FROM job_rows j
+    UNION ALL
+    SELECT 5, 'job_template', jt.id, '', jsonb_build_object('id', jt.id, 'workspace_id', jt.workspace_id,
+             'name', jt.name, 'template_code', jt.template_code,
+             'job_category_id', jt.job_category_id, 'active', jt.active)
+      FROM local_templates jt
+    UNION ALL
+    SELECT 6, 'job_category', jc.id, '', jsonb_build_object('id', jc.id, 'workspace_id', jc.workspace_id,
+             'code', jc.code, 'name', jc.name, 'sort_order', jc.sort_order, 'active', jc.active)
+      FROM local_categories jc
+    UNION ALL
+    SELECT 7, 'job_phase', jp.id, '', jsonb_build_object('id', jp.id, 'workspace_id', jp.workspace_id,
+             'job_id', jp.job_id, 'template_phase_id', jp.template_phase_id, 'phase_order', jp.phase_order,
+             'active', jp.active, 'approval_status', jp.approval_status, 'submitted_by', jp.submitted_by,
+             'submitted_at', jp.submitted_at, 'verified_by', jp.verified_by, 'verified_at', jp.verified_at,
+             'published_by', jp.published_by, 'published_at', jp.published_at,
+             'return_reason', jp.return_reason, 'returned_by', jp.returned_by, 'returned_at', jp.returned_at)
+      FROM job_phases jp
+    UNION ALL
+    SELECT 8, 'job_template_phase', tp.id, '', jsonb_build_object('id', tp.id, 'workspace_id', tp.workspace_id,
+             'job_template_id', tp.job_template_id, 'code', tp.code, 'name', tp.name,
+             'phase_order', tp.phase_order, 'active', tp.active)
+      FROM template_phases tp
+    UNION ALL
+    SELECT 9, 'job_template_task', tt.id, '', jsonb_build_object('id', tt.id, 'workspace_id', tt.workspace_id,
+             'job_template_phase_id', tt.job_template_phase_id, 'name', tt.name, 'code', tt.code,
+             'step_order', tt.step_order, 'active', tt.active)
+      FROM template_tasks tt
+    UNION ALL
+    SELECT 10, 'job_task', jt.id, '', jsonb_build_object('id', jt.id, 'workspace_id', jt.workspace_id,
+             'job_phase_id', jt.job_phase_id, 'template_task_id', jt.template_task_id,
+             'assigned_to', jt.assigned_to, 'active', jt.active)
+      FROM job_tasks jt
+    UNION ALL
+    SELECT 11, 'task_outcome', o.job_task_id, o.template_task_criteria_id,
+           jsonb_build_object('job_task_id', o.job_task_id, 'template_task_criteria_id', o.template_task_criteria_id,
+             'numeric_value', o.numeric_value, 'scaled_label', o.scaled_label,
+             'determination_note', o.determination_note, 'recorded_date', o.recorded_date)
+      FROM latest_task_outcomes o
+    UNION ALL
+    SELECT 12, 'outcome_criteria', oc.id, '', jsonb_build_object('id', oc.id, 'workspace_id', oc.workspace_id,
+             'name', oc.name, 'code', oc.code, 'unit', oc.unit, 'decimal_places', oc.decimal_places,
+             'min_score', oc.min_score, 'max_score', oc.max_score, 'score_increment', oc.score_increment,
+             'pass_label', oc.pass_label, 'fail_label', oc.fail_label, 'required', oc.required, 'active', oc.active)
+      FROM outcome_criteria oc
+    UNION ALL
+    SELECT 13, 'template_task_criteria', ttc.id, '', jsonb_build_object('id', ttc.id, 'workspace_id', ttc.workspace_id,
+             'job_template_task_id', ttc.job_template_task_id, 'outcome_criteria_id', ttc.outcome_criteria_id,
+             'sequence_order', ttc.sequence_order, 'required_override', ttc.required_override,
+             'weight_override', ttc.weight_override, 'active', ttc.active)
+      FROM template_task_criteria ttc
+    UNION ALL
+    SELECT 14, 'rating_description', td.id, '', jsonb_build_object('id', td.id,
+             'workspace_id', td.workspace_id, 'template_task_criteria_id', td.template_task_criteria_id,
+             'description', td.description, 'sequence_order', td.sequence_order, 'active', td.active)
+      FROM rating_description_rows td
+    UNION ALL
+    SELECT 15, 'phase_outcome_summary', pos.id, '', jsonb_build_object('id', pos.id, 'workspace_id', pos.workspace_id,
+             'job_id', pos.job_id, 'job_phase_id', pos.job_phase_id, 'scaled_label', pos.scaled_label,
+             'scaled_score', pos.scaled_score, 'summary_score', pos.summary_score,
+             'total_criteria_count', pos.total_criteria_count, 'pass_count', pos.pass_count,
+             'fail_count', pos.fail_count, 'conditional_count', pos.conditional_count,
+             'deferred_count', pos.deferred_count, 'na_count', pos.na_count, 'narrative', pos.narrative,
+             'active', pos.active, 'date_created', pos.date_created)
+      FROM latest_phase_summaries pos
+    UNION ALL
+    SELECT 16, 'job_outcome_summary', jos.id, '', jsonb_build_object('id', jos.id, 'workspace_id', jos.workspace_id,
+             'client_id', jos.client_id,
+             'job_id', jos.job_id, 'scaled_label', jos.scaled_label, 'scaled_score', jos.scaled_score,
+             'summary_score', jos.summary_score, 'total_criteria_count', jos.total_criteria_count,
+             'pass_count', jos.pass_count, 'fail_count', jos.fail_count,
+             'conditional_count', jos.conditional_count, 'deferred_count', jos.deferred_count,
+             'na_count', jos.na_count, 'narrative', jos.narrative,
+             'active', jos.active, 'date_created', jos.date_created)
+      FROM latest_job_summaries jos
+    UNION ALL
+    SELECT 17, 'job_outcome_line', jol.id, '', jsonb_build_object('id', jol.id, 'workspace_id', jol.workspace_id,
+             'client_id', jol.client_id,
+             'job_outcome_summary_id', jol.job_outcome_summary_id, 'label', jol.label,
+             'weight_or_credits', jol.weight_or_credits, 'output_value', jol.output_value,
+             'output_label', jol.output_label, 'active', jol.active)
+      FROM outcome_lines jol
+    UNION ALL
+    SELECT 18, 'staff', s.staff_id, '', jsonb_build_object('staff_id', s.staff_id, 'display_name', s.display_name)
+      FROM staff_rows s
+    UNION ALL
+    SELECT 19, 'teacher_assignment', ta.job_id, ta.job_phase_id || ':' || ta.staff_id,
+           jsonb_build_object('job_id', ta.job_id, 'job_phase_id', ta.job_phase_id,
+             'staff_id', ta.staff_id, 'display_name', ta.display_name)
+      FROM teacher_assignments ta
+    UNION ALL
+    SELECT DISTINCT 20, 'render_gate_job_id', j.id, '', to_jsonb(j.id)
+      FROM job_rows j
+    UNION ALL
+    SELECT 21, 'render_gate_group_id', '', '', to_jsonb($7::text)
+    UNION ALL
+    SELECT 22, 'render_gate_sheet', 'template:' || s.template_phase_id, '', jsonb_build_object(
+             'job_template_phase_id', s.template_phase_id,
+             'applied_subscription_group_id', $7::text,
+             'target_count', s.target_count,
+             'any_workflow_entered', s.any_workflow_entered,
+             'all_published', s.all_published,
+             'has_data', s.has_data)
+      FROM render_gate_template_sheets s
+    UNION ALL
+    SELECT 22, 'render_gate_sheet', 'singleton:' || s.job_phase_id, '', jsonb_build_object(
+             'job_phase_id', s.job_phase_id,
+             'applied_subscription_group_id', $7::text,
+             'target_count', 1,
+             'any_workflow_entered', s.any_workflow_entered,
+             'all_published', s.all_published,
+             'has_data', s.has_data)
+      FROM render_gate_singletons s
+  ) projection_rows
+ ORDER BY kind_order, sort_key_1, sort_key_2
+`
 
 func exportSelector(req *exportpb.GetSubscriptionGroupOutcomeExportRequest) (kind, phaseCode string) {
 	if req == nil {
@@ -677,6 +1251,17 @@ func renderOutcomeExportTables(statement string) string {
 		"{{plan}}", entityid.Plan,
 		"{{subscription_group_document_template}}", entityid.SubscriptionGroupDocumentTemplate,
 		"{{document_template}}", entityid.DocumentTemplate,
+		"{{client_attribute}}", entityid.ClientAttribute,
+		"{{attribute}}", entityid.Attribute,
+		"{{job_template_task}}", entityid.JobTemplateTask,
+		"{{template_task_criteria}}", entityid.TemplateTaskCriteria,
+		"{{template_task_criteria_rating_description}}", entityid.TemplateTaskCriteriaRatingDescription,
+		"{{outcome_criteria}}", entityid.OutcomeCriteria,
+		"{{job_outcome_line}}", entityid.JobOutcomeLine,
+		"{{staff}}", entityid.Staff,
+		"{{user}}", entityid.User,
+		"{{subscription_group_product_plan_staff}}", entityid.SubscriptionGroupProductPlanStaff,
+		"{{product_plan}}", entityid.ProductPlan,
 	).Replace(statement)
 }
 
@@ -688,7 +1273,19 @@ func (q *PostgresSubscriptionGroupOutcomeExportQuery) ResolveSubscriptionGroupOu
 	if q == nil || q.db == nil {
 		return nil, fmt.Errorf("subscription group outcome document resolver requires PostgreSQL")
 	}
-	if req == nil || req.GetRenderProfile() != bindingpb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_OUTCOME_MATRIX_SINGLE_PERIOD_11_V1 {
+	if req == nil {
+		return nil, fmt.Errorf("subscription group outcome document resolver received an unsupported request")
+	}
+	switch req.GetRenderProfile() {
+	case bindingpb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_OUTCOME_MATRIX_SINGLE_PERIOD_11_V1:
+		if strings.TrimSpace(req.GetJobCategoryId()) == "" {
+			return nil, fmt.Errorf("matrix document resolver requires an exact job category")
+		}
+	case bindingpb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1:
+		if strings.TrimSpace(req.GetJobCategoryId()) != "" {
+			return nil, fmt.Errorf("client phase document resolver requires whole-report category scope")
+		}
+	default:
 		return nil, fmt.Errorf("subscription group outcome document resolver received an unsupported request")
 	}
 	id, ok := identity.FromContext(ctx)
@@ -745,6 +1342,17 @@ func buildSubscriptionGroupOutcomeDocumentResolverSQL(
 	req *exportpb.ResolveSubscriptionGroupOutcomeDocumentForRenderRequest,
 	scope ports.SubscriptionGroupOutcomeExportScope,
 ) exportScopeSQL {
+	wholeReport := req.GetRenderProfile() == bindingpb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1
+	categoryAvailabilityPredicate := `EXISTS (
+       SELECT 1 FROM outcome_capable_jobs cj
+        JOIN category_options co ON co.job_category_id = cj.category_bucket_id
+       WHERE co.job_category_id = $5
+     )`
+	bindingCategoryPredicate := `b.job_category_id = $5`
+	if wholeReport {
+		categoryAvailabilityPredicate = `EXISTS (SELECT 1 FROM outcome_capable_jobs)`
+		bindingCategoryPredicate = `b.job_category_id IS NULL AND NULLIF($5, '') IS NULL`
+	}
 	staffScoped := false
 	staffClause := ""
 	var staffArgs []any
@@ -769,11 +1377,7 @@ func buildSubscriptionGroupOutcomeDocumentResolverSQL(
     FROM group_context g
    WHERE g.plan_id IS NOT DISTINCT FROM $%d::text
      AND g.price_schedule_id IS NOT DISTINCT FROM $%d::text
-     AND EXISTS (
-       SELECT 1 FROM outcome_capable_jobs cj
-        JOIN category_options co ON co.job_category_id = cj.effective_category_id
-       WHERE co.job_category_id = $5
-     )
+     AND %s
 ), candidates AS (
   SELECT b.render_profile, b.job_category_id, dt.storage_container, dt.storage_key, b.version,
          CASE
@@ -786,7 +1390,7 @@ func buildSubscriptionGroupOutcomeDocumentResolverSQL(
     JOIN {{subscription_group_document_template}} b
       ON b.workspace_id = $1
      AND b.render_profile = $%d
-     AND b.job_category_id = $5
+     AND %s
      AND b.active = true
      AND b.version_status = $%d
      AND (b.validity_start IS NULL OR b.validity_start <= $%d)
@@ -805,10 +1409,10 @@ func buildSubscriptionGroupOutcomeDocumentResolverSQL(
    ORDER BY match_rank, b.version DESC
    LIMIT 2
 )
-SELECT render_profile, job_category_id, storage_container, storage_key, match_rank
+SELECT render_profile, COALESCE(job_category_id, ''), storage_container, storage_key, match_rank
   FROM candidates
  ORDER BY match_rank, version DESC`,
-		expectedPlanP, expectedScheduleP, profileP, publishedP, asOfP, asOfP, purposeP)
+		expectedPlanP, expectedScheduleP, categoryAvailabilityPredicate, profileP, bindingCategoryPredicate, publishedP, asOfP, asOfP, purposeP)
 	return exportScopeSQL{
 		statement:   renderOutcomeExportTables(outcomeExportCTEs(staffClause) + resolverSQL),
 		args:        args,

@@ -55,10 +55,20 @@ func validateResolveRequest(req *exportpb.ResolveSubscriptionGroupOutcomeDocumen
 	if strings.TrimSpace(req.GetSubscriptionGroupId()) == "" || req.GetSubscriptionGroupId() != strings.TrimSpace(req.GetSubscriptionGroupId()) {
 		return fmt.Errorf("subscription_group_id must be nonempty and canonical")
 	}
-	if strings.TrimSpace(req.GetJobCategoryId()) == "" || req.GetJobCategoryId() != strings.TrimSpace(req.GetJobCategoryId()) {
-		return fmt.Errorf("job_category_id must be nonempty and canonical")
+	categoryID := strings.TrimSpace(req.GetJobCategoryId())
+	if req.GetJobCategoryId() != categoryID {
+		return fmt.Errorf("job_category_id must be canonical")
 	}
-	if req.GetRenderProfile() != pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_OUTCOME_MATRIX_SINGLE_PERIOD_11_V1 {
+	switch req.GetRenderProfile() {
+	case pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_OUTCOME_MATRIX_SINGLE_PERIOD_11_V1:
+		if categoryID == "" {
+			return fmt.Errorf("matrix profile requires an exact job_category_id")
+		}
+	case pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1:
+		if categoryID != "" {
+			return fmt.Errorf("client phase profile requires whole-report category scope")
+		}
+	default:
 		return fmt.Errorf("unsupported render profile")
 	}
 	if req.ExpectedPlanId != nil && (strings.TrimSpace(req.GetExpectedPlanId()) == "" || req.GetExpectedPlanId() != strings.TrimSpace(req.GetExpectedPlanId())) {

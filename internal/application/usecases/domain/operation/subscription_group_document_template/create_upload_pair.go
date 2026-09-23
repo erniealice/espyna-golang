@@ -160,8 +160,11 @@ func (uc *CreateUploadPairUseCase) validateAndNormalize(ctx context.Context, art
 	}
 
 	jobCategoryID := strings.TrimSpace(binding.GetJobCategoryId())
-	if jobCategoryID == "" {
+	if jobCategoryID == "" && binding.GetRenderProfile() != pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1 {
 		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_group_document_template.validation.job_category_required", "job_category_id is required for this render profile [DEFAULT]"))
+	}
+	if jobCategoryID != "" && binding.GetRenderProfile() == pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1 {
+		return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription_group_document_template_settings.category_forbidden_for_profile", "This layout profile does not accept a specific category [DEFAULT]"))
 	}
 
 	templateType := strings.TrimSpace(artifact.GetTemplateType())
@@ -203,7 +206,11 @@ func (uc *CreateUploadPairUseCase) validateAndNormalize(ctx context.Context, art
 	binding.DocumentTemplate = nil
 	binding.PriceSchedule = nil
 	binding.Plan = nil
-	binding.JobCategoryId = &jobCategoryID
+	if jobCategoryID == "" {
+		binding.JobCategoryId = nil
+	} else {
+		binding.JobCategoryId = &jobCategoryID
+	}
 	binding.VersionStatus = enums.VersionStatus_VERSION_STATUS_DRAFT
 	binding.Version = 0
 	binding.SupersedesBindingId = nil
@@ -236,6 +243,8 @@ func (uc *CreateUploadPairUseCase) validateAndNormalize(ctx context.Context, art
 func isSupportedRenderProfile(profile pb.RenderProfile) bool {
 	switch profile {
 	case pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_OUTCOME_MATRIX_SINGLE_PERIOD_11_V1:
+		return true
+	case pb.RenderProfile_RENDER_PROFILE_SUBSCRIPTION_GROUP_CLIENT_PHASE_OUTCOME_REPORT_V1:
 		return true
 	default:
 		return false

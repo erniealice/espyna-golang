@@ -124,7 +124,7 @@ func TestJobTemplateSummarySQL_TableNamesFromEntityID(t *testing.T) {
 //   - filters role='primary' ONLY — the teacher-of-record RECORD semantic (§B):
 //     a 'primary' edge generates the class row + the Teacher/Deliverer column; an
 //     'access' edge is visibility-only (principalscope) and must NOT surface here;
-//   - picks newest primary edges set-wise in class_primary_edges, then binds
+//   - includes every active primary edge in class_primary_edges, then binds
 //     the staff ($1);
 //   - projects the member-sourced (subscription_id, client_id, subscription_group_id)
 //   - edge-plan product_id so the emitted column set is byte-identical to the
@@ -177,36 +177,26 @@ func TestJobTemplateSummarySQL_ClassEdgeDelivererBranch(t *testing.T) {
 		t.Errorf("eligibility-liveness moved into the LEFT JOIN condition — that form is a no-op against the legacy f10 fallback; keep it in the WHERE\nSQL:\n%s", sql)
 	}
 
-	// CF-3: two DIFFERENT active primary edges for one (group, product_plan) must
-	// collapse to a SINGLE deterministic pick (newest date_created, id breaks ties)
-	// so the deliverer is stable across renders and agrees with the grade-sheet's
-	// class-edge teacher. DISTINCT ON does this set-wise; do not restore a
-	// per-row correlated pick.
+	// DP-10: every active primary edge must reach the delivery fold. A revoked
+	// eligibility filters only its own edge; the DISTINCT staff fold removes
+	// duplicate teachers and its ARRAY_AGG gives deterministic name order.
 	for _, frag := range []string{
 		"class_primary_edges AS MATERIALIZED",
-		"SELECT DISTINCT ON (e.subscription_group_id, e.product_plan_id)",
-		"ORDER BY e.subscription_group_id, e.product_plan_id,",
-		"e.date_created DESC, e.id DESC",
+		"SELECT e.id,",
 		"FROM class_primary_edges e",
+		"SELECT DISTINCT job_template_id, subscription_group_id, price_schedule_id,",
+		"ARRAY_AGG(staff_name ORDER BY staff_name, staff_id)",
 	} {
 		if !strings.Contains(sql, frag) {
-			t.Errorf("class-edge branch missing CF-3 deterministic-pick fragment %q\nSQL:\n%s", frag, sql)
+			t.Errorf("class-edge multi-primary fold missing %q\nSQL:\n%s", frag, sql)
 		}
 	}
-	for _, forbidden := range []string{
-		"e.id = (\n          SELECT e2.id",
-		"e2.subscription_group_id = e.subscription_group_id",
-	} {
-		if strings.Contains(sql, forbidden) {
-			t.Errorf("class-primary selection must be set-oriented, found correlated pick %q\nSQL:\n%s", forbidden, sql)
-		}
+	if strings.Contains(sql, "SELECT DISTINCT ON (e.subscription_group_id, e.product_plan_id)") {
+		t.Errorf("class-edge branch still picks only one primary per class\nSQL:\n%s", sql)
 	}
-	// The CTE selects the newest primary edge without eligibility filtering. The
-	// gate remains in dd, after FROM class_primary_edges e, so a newest revoked
-	// edge suppresses rather than falls back to an older primary.
 	if !strings.Contains(sql, "FROM class_primary_edges e") ||
 		strings.Contains(sql, "WHERE e.active AND e.workspace_id = $1 AND e.role = 'primary'\n      "+classEdgeEligibilityLivePredicate) {
-		t.Errorf("eligibility gate must be applied after, not within, class-primary selection\nSQL:\n%s", sql)
+		t.Errorf("eligibility gate must apply per edge in dd\nSQL:\n%s", sql)
 	}
 
 	// The branch projects the member-sourced keys (m.*) + the edge-plan product so

@@ -43,6 +43,7 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, req *pb.UpdateJobOutcomeSu
 	// Scope changes go through delete-draft + re-create.
 	req.Data.DocumentTemplateId = ""
 	req.Data.PriceScheduleId = nil
+	req.Data.JobTemplatePhaseCode = nil
 	req.Data.ValidityStart = nil
 	req.Data.ValidityEnd = nil
 	req.Data.SupersedesBindingId = nil

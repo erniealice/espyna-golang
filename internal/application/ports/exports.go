@@ -230,10 +230,13 @@ type (
 type JobListTabSupportQueryService = domain.JobListTabSupportQueryService
 type SubscriptionGroupOutcomeExportScope = domain.SubscriptionGroupOutcomeExportScope
 type SubscriptionGroupOutcomeExportQueryService = domain.SubscriptionGroupOutcomeExportQueryService
+type SubscriptionGroupClientReportCardQueryService = domain.SubscriptionGroupClientReportCardQueryService
 type SubscriptionGroupOutcomeLandingRequest = domain.SubscriptionGroupOutcomeLandingRequest
 type SubscriptionGroupOutcomeLandingRow = domain.SubscriptionGroupOutcomeLandingRow
 type SubscriptionGroupOutcomeLandingResponse = domain.SubscriptionGroupOutcomeLandingResponse
 type SubscriptionGroupOutcomeLandingQueryService = domain.SubscriptionGroupOutcomeLandingQueryService
+
+var ErrClientReportNotFound = domain.ErrClientReportNotFound
 
 type (
 	JobListTabSupportRequest  = domain.JobListTabSupportRequest

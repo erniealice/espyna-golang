@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 
+	jobdoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
 	summarypb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/job_template_summary"
 	matrixpb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/outcome_matrix"
 
@@ -13,6 +14,7 @@ import (
 	jobtemplatesummaryusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/job_template_summary"
 	outcomematrixusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/outcome_matrix"
 	subscriptiongroupexportusecases "github.com/erniealice/espyna-golang/internal/application/usecases/service/operation/subscription_group_outcome_export"
+	"github.com/erniealice/espyna-golang/internal/composition/providers/domain"
 	internalregistry "github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 )
 
@@ -93,7 +95,17 @@ func initServiceOperationJobListTabSupport(db *sql.DB, i18nSvc ports.Translator,
 
 // initServiceOperationSubscriptionGroupOutcomeExport wires the service-layer
 // subscription-group outcome export read (service/operation/subscription_group_outcome_export).
-func initServiceOperationSubscriptionGroupOutcomeExport(db *sql.DB, landingInput internalregistry.SubscriptionGroupOutcomeLandingFactoryInput, i18nSvc ports.Translator, actionGate *actiongate.ActionGatekeeper) *subscriptiongroupexportusecases.UseCases {
+//
+// operationRepos threads through the SAME josdt repository the domain
+// package's list-gated FindApplicableUseCase wraps (repos.
+// JobOutcomeSummaryDocumentTemplate — see providers/domain/operation.go),
+// so this package's render-scoped ResolvePublishedReportCardTemplate use case
+// (R3 / DEC-3) can call FindApplicableJobOutcomeSummaryDocumentTemplate
+// directly under subscription_group_outcome_export:read instead of the
+// management-only job_outcome_summary_document_template:list gate. Nil-safe:
+// a nil operationRepos (or an unwired josdt repo) leaves the field nil, and
+// the use case fails closed with an "unavailable" error rather than a panic.
+func initServiceOperationSubscriptionGroupOutcomeExport(db *sql.DB, landingInput internalregistry.SubscriptionGroupOutcomeLandingFactoryInput, i18nSvc ports.Translator, actionGate *actiongate.ActionGatekeeper, operationRepos *domain.OperationRepositories) *subscriptiongroupexportusecases.UseCases {
 	query := subscriptionGroupOutcomeExportQueryFromDB(db)
 	var clientReportCardQuery ports.SubscriptionGroupClientReportCardQueryService
 	if query != nil {
@@ -104,8 +116,17 @@ func initServiceOperationSubscriptionGroupOutcomeExport(db *sql.DB, landingInput
 		}
 	}
 	landingQuery := subscriptionGroupOutcomeLandingQueryFromProvider(landingInput)
+	var reportCardTemplateRepo jobdoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer
+	if operationRepos != nil {
+		reportCardTemplateRepo = operationRepos.JobOutcomeSummaryDocumentTemplate
+	}
 	return subscriptiongroupexportusecases.NewUseCases(
-		subscriptiongroupexportusecases.Repositories{Query: query, ClientReportCardQuery: clientReportCardQuery, LandingQuery: landingQuery},
+		subscriptiongroupexportusecases.Repositories{
+			Query:                             query,
+			ClientReportCardQuery:             clientReportCardQuery,
+			LandingQuery:                      landingQuery,
+			JobOutcomeSummaryDocumentTemplate: reportCardTemplateRepo,
+		},
 		subscriptiongroupexportusecases.Services{Translator: i18nSvc, ActionGatekeeper: actionGate},
 	)
 }

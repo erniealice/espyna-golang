@@ -550,6 +550,53 @@ func TestBuildSubscriptionGroupClientReportCardSQL_IsClientAnchoredTenantScopedA
 	}
 }
 
+// TestBuildSubscriptionGroupClientReportCardSQL_TeacherFallbackPrimaryEligibleAllQualifying
+// pins the T-F5 fix: the class-edge teacher fallback in teacher_candidates
+// (a) considers only role='primary' edges (DP-10/DP-11), (b) applies the
+// product_plan_staff eligibility gate mirrored from job_template_summary_query.go's
+// classEdgeEligibilityLivePredicate (a linked-but-revoked eligibility must be
+// dropped), and (c) never truncates to a single "newest" edge via LIMIT 1 — a
+// demoted-to-secondary staff member's newer edge must never eclipse a still
+// -active primary teacher's older one.
+func TestBuildSubscriptionGroupClientReportCardSQL_TeacherFallbackPrimaryEligibleAllQualifying(t *testing.T) {
+	t.Parallel()
+
+	ctx := identityContext("ws-1", "user-1", 1, "non-staff-1")
+	id := requestIdentityFromContext(t, ctx)
+	req := &exportpb.GetSubscriptionGroupClientReportCardRequest{
+		SubscriptionGroupId: "sg-1",
+		ClientId:            "client-9",
+	}
+	built := buildSubscriptionGroupClientReportCardSQL(id, req, ports.SubscriptionGroupOutcomeExportScope{}, `[]`)
+	statement := built.statement
+
+	fallbackAt := strings.Index(statement, "JOIN LATERAL (")
+	fallbackEndAt := strings.Index(statement, ") picked ON true")
+	if fallbackAt < 0 || fallbackEndAt < 0 || fallbackAt >= fallbackEndAt {
+		t.Fatalf("could not locate the class-edge teacher fallback LATERAL (start=%d end=%d)", fallbackAt, fallbackEndAt)
+	}
+	fallback := statement[fallbackAt:fallbackEndAt]
+
+	for _, fragment := range []string{
+		"sgpps.role = 'primary'",
+		"LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = sgpps.product_plan_staff_id",
+		"sgpps.product_plan_staff_id IS NULL OR pps.active",
+		"sgpps.workspace_id = $1 AND sgpps.active = true",
+		"pp.product_id = j.output_product_id",
+		"sgpps.job_template_phase_id IS NULL OR sgpps.job_template_phase_id = jp.template_phase_id",
+	} {
+		if !strings.Contains(fallback, fragment) {
+			t.Errorf("teacher fallback missing required predicate/join %q; fallback=%s", fragment, fallback)
+		}
+	}
+	if strings.Contains(fallback, "LIMIT 1") {
+		t.Fatal("teacher fallback must return ALL qualifying primary edges, not the newest via LIMIT 1")
+	}
+	if strings.Contains(statement, "{{") || strings.Contains(statement, "}}") {
+		t.Fatal("client report card SQL contains an unrendered table placeholder")
+	}
+}
+
 func TestAppendClientReportCardPayloadDecodesTypedNarrowRows(t *testing.T) {
 	t.Parallel()
 

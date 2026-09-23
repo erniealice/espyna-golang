@@ -822,13 +822,15 @@ func convertMillisToTime(data map[string]any, jsonKey string) {
 }
 
 // phaseCodesByScheduleSQL counts distinct reachable templates per phase code.
-// Every tenant-bearing relation is independently bound to the trusted workspace.
-// The subscription-origin token prevents unrelated job origin IDs from matching.
+// Every tenant-bearing relation is independently bound to the trusted workspace;
+// price_plan has no workspace_id and is scoped through its workspace-bound
+// price_schedule. The subscription-origin token prevents unrelated job origin
+// IDs from matching.
 const phaseCodesByScheduleSQL = `WITH reachable AS (
     SELECT DISTINCT jtp.code, jtp.name, jt.id AS template_id
     FROM ` + entityid.PriceSchedule + ` ps
     JOIN ` + entityid.PricePlan + ` pp
-      ON pp.price_schedule_id = ps.id AND pp.workspace_id = $1 AND pp.active
+      ON pp.price_schedule_id = ps.id AND pp.active
     JOIN ` + entityid.Subscription + ` s
       ON s.price_plan_id = pp.id AND s.workspace_id = $1 AND s.active
     JOIN ` + entityid.Job + ` j

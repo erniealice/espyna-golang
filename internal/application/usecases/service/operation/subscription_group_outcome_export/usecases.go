@@ -10,6 +10,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/shared/identity"
+	jobdoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
 )
 
 const (
@@ -23,6 +24,14 @@ type Repositories struct {
 	Query                 ports.SubscriptionGroupOutcomeExportQueryService
 	ClientReportCardQuery ports.SubscriptionGroupClientReportCardQueryService
 	LandingQuery          ports.SubscriptionGroupOutcomeLandingQueryService
+	// JobOutcomeSummaryDocumentTemplate is the SAME josdt repository the domain
+	// package's FindApplicableUseCase wraps (job_outcome_summary_document_template:
+	// list, a MANAGEMENT-only gate). ResolvePublishedReportCardTemplateUseCase
+	// calls FindApplicableJobOutcomeSummaryDocumentTemplate on it DIRECTLY,
+	// bypassing that gate, and authorizes instead via this package's report
+	// scope (subscription_group_outcome_export:read) — see R3 / DEC-3. Nil-safe:
+	// an absent repo makes the render-scoped resolver return "unavailable".
+	JobOutcomeSummaryDocumentTemplate jobdoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer
 }
 
 type Services struct {
@@ -35,6 +44,12 @@ type UseCases struct {
 	GetSubscriptionGroupClientReportCard             *GetClientReportCardUseCase
 	ResolveSubscriptionGroupOutcomeDocumentForRender *ResolveDocumentUseCase
 	ListSubscriptionGroupOutcomeLanding              *ListSubscriptionGroupOutcomeLandingUseCase
+	// ResolvePublishedReportCardTemplate is the render-scoped josdt resolver
+	// (R3 / DEC-3): same repository call as the domain package's
+	// FindApplicableJobOutcomeSummaryDocumentTemplate, but authorized against
+	// subscription_group_outcome_export:read so a STAFF principal (type 7) can
+	// resolve the published binding it is already entitled to read/export.
+	ResolvePublishedReportCardTemplate *ResolvePublishedReportCardTemplateUseCase
 }
 
 func NewUseCases(repositories Repositories, services Services) *UseCases {
@@ -51,6 +66,7 @@ func NewUseCases(repositories Repositories, services Services) *UseCases {
 		GetSubscriptionGroupClientReportCard:             &GetClientReportCardUseCase{repositories: repositories, services: services},
 		ResolveSubscriptionGroupOutcomeDocumentForRender: &ResolveDocumentUseCase{repositories: repositories, services: services},
 		ListSubscriptionGroupOutcomeLanding:              &ListSubscriptionGroupOutcomeLandingUseCase{repositories: repositories, services: services},
+		ResolvePublishedReportCardTemplate:               &ResolvePublishedReportCardTemplateUseCase{repositories: repositories, services: services},
 	}
 }
 

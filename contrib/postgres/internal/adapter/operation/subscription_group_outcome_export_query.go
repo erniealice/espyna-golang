@@ -352,7 +352,8 @@ WITH group_context AS MATERIALIZED (
 ), job_phases AS MATERIALIZED (
   SELECT jp.id, jp.workspace_id, jp.job_id, jp.template_phase_id, jp.phase_order, jp.active,
          jp.approval_status, jp.submitted_by, jp.submitted_at, jp.verified_by, jp.verified_at,
-         jp.published_by, jp.published_at, jp.return_reason, jp.returned_by, jp.returned_at
+         jp.published_by, jp.published_at, jp.return_reason, jp.returned_by, jp.returned_at,
+         j.historical
     FROM job_rows j
     JOIN {{job_phase}} jp
       ON jp.job_id = j.id AND jp.workspace_id = $1
@@ -500,6 +501,11 @@ WITH group_context AS MATERIALIZED (
   -- for phases with no valid active direct assignee. SGPP is scoped by workspace
   -- and exact group; product_plan has no workspace_id in the current schema and
   -- is therefore reached only through that edge plus this job's output product.
+  -- The fallback considers only PRIMARY edges (DP-10/DP-11; mirrors the courses
+  -- list's classEdgeEligibilityLivePredicate in job_template_summary_query.go)
+  -- and returns EVERY qualifying primary edge, not just the newest one: a
+  -- demoted-to-secondary staff member must never outrank a still-active
+  -- primary teacher just because their edge sorts newer.
   SELECT DISTINCT j.id AS job_id, jp.id AS job_phase_id, s.id AS staff_id,
          COALESCE(NULLIF(btrim(concat_ws(' ', u.first_name, u.last_name)), ''), s.id) AS display_name,
          0 AS source_order, ''::text AS edge_sort
@@ -518,12 +524,14 @@ WITH group_context AS MATERIALIZED (
       SELECT sgpps.staff_id, sgpps.id AS edge_sort
         FROM {{subscription_group_product_plan_staff}} sgpps
         JOIN {{product_plan}} pp ON pp.id = sgpps.product_plan_id
+        LEFT JOIN {{product_plan_staff}} pps ON pps.id = sgpps.product_plan_staff_id
        WHERE sgpps.subscription_group_id = $2
          AND sgpps.workspace_id = $1 AND sgpps.active = true
+         AND sgpps.role = 'primary'
          AND pp.product_id = j.output_product_id
          AND (sgpps.job_template_phase_id IS NULL OR sgpps.job_template_phase_id = jp.template_phase_id)
+         AND (sgpps.product_plan_staff_id IS NULL OR pps.active)
        ORDER BY sgpps.date_created DESC NULLS LAST, sgpps.id DESC
-       LIMIT 1
     ) picked ON true
     JOIN {{staff}} s ON s.id = picked.staff_id AND s.workspace_id = $1 AND s.active = true
     LEFT JOIN "{{user}}" u ON u.id = s.user_id AND u.active = true
@@ -1262,6 +1270,7 @@ func renderOutcomeExportTables(statement string) string {
 		"{{user}}", entityid.User,
 		"{{subscription_group_product_plan_staff}}", entityid.SubscriptionGroupProductPlanStaff,
 		"{{product_plan}}", entityid.ProductPlan,
+		"{{product_plan_staff}}", entityid.ProductPlanStaff,
 	).Replace(statement)
 }
 

@@ -9,7 +9,7 @@ import (
 
 func TestPhaseCodesByScheduleSQLScopeAndGrain(t *testing.T) {
 	for _, fragment := range []string{
-		"pp.price_schedule_id = ps.id AND pp.workspace_id = $1 AND pp.active",
+		"pp.price_schedule_id = ps.id AND pp.active",
 		"s.price_plan_id = pp.id AND s.workspace_id = $1 AND s.active",
 		"j.origin_id = s.id AND j.origin_type = 'ORIGIN_TYPE_SUBSCRIPTION'",
 		"j.workspace_id = $1 AND j.active",

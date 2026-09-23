@@ -12,6 +12,7 @@ package http
 
 import (
 	"context"
+	"encoding/json/v2"
 	"log"
 	"net/http"
 	"os"
@@ -430,11 +431,67 @@ func (a *ViewAdapter) handleError(w http.ResponseWriter, r *http.Request, result
 	http.Error(w, result.Error.Error(), statusCode)
 }
 
+// workspaceNavURL prefixes a navigational URL with the request's pinned
+// /w/{slug} lane. Outside the lane (empty slug) it returns u unchanged.
+// PrependWorkspaceSlug is idempotent and passes through /action/, /auth/, /me/,
+// /assets/, /static/, /healthz and /w/.
+//
+// LEGACY LANE — /app/* is left alone. PrependWorkspaceSlug STRIPS a leading
+// /app/ before prefixing ("/app/profile" -> "/w/{slug}/profile"), which is right
+// for a stale pre-P4 workspace route but WRONG for the URLs still genuinely
+// served at /app/* (the sidebar profile menu's personal.* routes). Rewriting
+// those would move the route SHAPE; the legacy-route migration is separate.
+func workspaceNavURL(ctx context.Context, u string) string {
+	slug := consumermw.GetURLWorkspaceSlugFromContext(ctx)
+	if slug == "" || u == "" {
+		return u
+	}
+	if strings.HasPrefix(u, "/app/") || u == "/app" {
+		return u
+	}
+	return consumer.PrependWorkspaceSlug(u, slug, consumermw.GetActingAsClientIDFromContext(ctx))
+}
+
+// workspaceNavHeader prefixes a navigation header value. HX-Location may carry
+// a JSON object ({"path": ..., "target": ...}); only its path is rewritten and
+// every other field is preserved. Unparseable JSON is left unchanged.
+func workspaceNavHeader(ctx context.Context, value string) string {
+	trimmed := strings.TrimSpace(value)
+	if !strings.HasPrefix(trimmed, "{") {
+		return workspaceNavURL(ctx, value)
+	}
+	var loc map[string]any
+	if err := json.Unmarshal([]byte(trimmed), &loc); err != nil {
+		return value
+	}
+	path, ok := loc["path"].(string)
+	if !ok {
+		return value
+	}
+	loc["path"] = workspaceNavURL(ctx, path)
+	out, err := json.Marshal(loc)
+	if err != nil {
+		return value
+	}
+	return string(out)
+}
+
+// isNavigationHeader reports whether a response header carries a URL the
+// browser navigates to (htmx redirect/location or a plain Location).
+func isNavigationHeader(key string) bool {
+	switch http.CanonicalHeaderKey(key) {
+	case "Hx-Redirect", "Hx-Location", "Location":
+		return true
+	}
+	return false
+}
+
 func (a *ViewAdapter) handleRedirect(w http.ResponseWriter, r *http.Request, result view.ViewResult) {
 	statusCode := result.StatusCode
 	if statusCode == 0 {
 		statusCode = http.StatusSeeOther
 	}
+	result.Redirect = workspaceNavURL(r.Context(), result.Redirect)
 
 	if isHTMX(r) && !isHistoryRestoreRequest(r) {
 		w.Header().Set("HX-Redirect", result.Redirect)
@@ -479,24 +536,9 @@ func (a *ViewAdapter) handleRender(w http.ResponseWriter, r *http.Request, resul
 	// composition rewriter reads), never a client-supplied value. Outside the
 	// /w/{slug} lane the slug is empty and this whole block is skipped, so
 	// /app/* pages keep emitting bare URLs exactly as before.
-	if slug := consumermw.GetURLWorkspaceSlugFromContext(ctx); slug != "" {
-		actingAsClientID := consumermw.GetActingAsClientIDFromContext(ctx)
+	if consumermw.GetURLWorkspaceSlugFromContext(ctx) != "" {
 		a.pipeline.RewriteNavURLs(result.Data, func(u string) string {
-			// LEGACY LANE — leave /app/* alone.
-			//
-			// PrependWorkspaceSlug STRIPS a leading /app/ before prefixing
-			// ("/app/profile" -> "/w/{slug}/profile"), which is right for a
-			// stale pre-P4 workspace route but WRONG for the handful of URLs
-			// that are genuinely still served at /app/* (the sidebar profile
-			// menu's personal.* routes: /app/profile, /app/account,
-			// /app/billing, /app/preferences — all live 200s today, while
-			// /w/{slug}/profile is not). Rewriting those would move the route
-			// SHAPE, which this pass is explicitly not allowed to do; the
-			// legacy-route migration is someone else's plan.
-			if strings.HasPrefix(u, "/app/") || u == "/app" {
-				return u
-			}
-			return consumer.PrependWorkspaceSlug(u, slug, actingAsClientID)
+			return workspaceNavURL(ctx, u)
 		})
 	}
 
@@ -505,8 +547,13 @@ func (a *ViewAdapter) handleRender(w http.ResponseWriter, r *http.Request, resul
 		statusCode = http.StatusOK
 	}
 
-	// Write custom headers (for HTMX triggers, etc.)
+	// Write custom headers (for HTMX triggers, etc.). Navigation headers carry
+	// URLs a view built from boot-time routes, so they get the same workspace
+	// prefix as page data.
 	for key, value := range result.Headers {
+		if isNavigationHeader(key) {
+			value = workspaceNavHeader(ctx, value)
+		}
 		w.Header().Set(key, value)
 	}
 

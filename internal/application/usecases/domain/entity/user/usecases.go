@@ -17,6 +17,8 @@ type UseCases struct {
 	GetUserListPageData *GetUserListPageDataUseCase
 	GetUserItemPageData *GetUserItemPageDataUseCase
 	ResolveUserByEmail  *ResolveUserByEmailUseCase
+	// ReadSelfDisplay reads the caller's own first/last name (session user only; no gate).
+	ReadSelfDisplay *ReadSelfDisplayUseCase
 	// Admin user-lifecycle use cases (provider-abstracted via AuthService).
 	DisableUser        *DisableUserUseCase
 	EnableUser         *EnableUserUseCase
@@ -146,6 +148,7 @@ func NewUseCases(
 		GetUserListPageData: NewGetUserListPageDataUseCase(getUserListPageDataRepos, getUserListPageDataServices),
 		GetUserItemPageData: NewGetUserItemPageDataUseCase(getUserItemPageDataRepos, getUserItemPageDataServices),
 		ResolveUserByEmail:  NewResolveUserByEmailUseCase(resolveByEmailRepos, resolveByEmailServices),
+		ReadSelfDisplay:     NewReadSelfDisplayUseCase(ReadSelfDisplayRepositories(repositories)),
 		DisableUser:         NewDisableUserUseCase(disableRepos, disableServices),
 		EnableUser:          NewEnableUserUseCase(enableRepos, enableServices),
 		AdminResetPassword:  NewAdminResetPasswordUseCase(adminResetServices),

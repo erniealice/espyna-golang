@@ -90,7 +90,7 @@ func (a *PostgresOutcomeMatrixQuery) GetOutcomeMatrix(
 	workspaceID := id.WorkspaceID
 	jobTemplateID := req.GetJobTemplateId()
 
-	templateName, err := a.loadTemplateName(ctx, jobTemplateID, workspaceID)
+	templateName, categoryCode, err := a.loadTemplateName(ctx, jobTemplateID, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -118,6 +118,7 @@ func (a *PostgresOutcomeMatrixQuery) GetOutcomeMatrix(
 	return &matrixpb.GetOutcomeMatrixResponse{
 		JobTemplateId:   jobTemplateID,
 		JobTemplateName: templateName,
+		JobCategoryCode: categoryCode,
 		Phases:          phases,
 		Rows:            rows,
 		ApprovalRollups: rollups,
@@ -608,18 +609,24 @@ func (a *PostgresOutcomeMatrixQuery) scanPhaseIDSet(ctx context.Context, query s
 
 // loadTemplateName resolves the template display name (tolerates a NULL/shared
 // workspace_id but rejects a template owned by a DIFFERENT workspace).
-func (a *PostgresOutcomeMatrixQuery) loadTemplateName(ctx context.Context, jobTemplateID, workspaceID string) (string, error) {
-	q := `SELECT name FROM ` + entityid.JobTemplate + `
-	WHERE id = $1 AND (workspace_id = $2 OR workspace_id IS NULL) AND active`
-	var name string
-	err := a.db.QueryRowContext(ctx, q, jobTemplateID, workspaceID).Scan(&name)
+func (a *PostgresOutcomeMatrixQuery) loadTemplateName(ctx context.Context, jobTemplateID, workspaceID string) (string, string, error) {
+	// The category code rides this already-authorized sheet read so views can
+	// scope display rules by category without a separate (permission-gated)
+	// job_category read. The category must be active and in the same workspace
+	// (or shared); otherwise the code is blank.
+	q := `SELECT t.name, COALESCE(c.code, '') FROM ` + entityid.JobTemplate + ` t
+	LEFT JOIN ` + entityid.JobCategory + ` c
+	  ON c.id = t.job_category_id AND c.active AND (c.workspace_id = $2 OR c.workspace_id IS NULL)
+	WHERE t.id = $1 AND (t.workspace_id = $2 OR t.workspace_id IS NULL) AND t.active`
+	var name, code string
+	err := a.db.QueryRowContext(ctx, q, jobTemplateID, workspaceID).Scan(&name, &code)
 	if err == sql.ErrNoRows {
-		return "", nil
+		return "", "", nil
 	}
 	if err != nil {
-		return "", fmt.Errorf("outcome_matrix: load template name: %w", err)
+		return "", "", fmt.Errorf("outcome_matrix: load template name: %w", err)
 	}
-	return name, nil
+	return name, code, nil
 }
 
 // loadColumnTree builds the phase→task→criterion column tree from the TEMPLATE

@@ -75,6 +75,25 @@ func (uc *ComputePhaseOutcomeUseCase) Execute(ctx context.Context, req *ComputeP
 		return nil, err
 	}
 
+	return uc.run(ctx, req)
+}
+
+// ExecuteAfterRecord runs the same roll-up when it is triggered by a grade the
+// caller just recorded (the grade-sheet save). A recompute only derives numbers
+// from already-authorized grades, so it is authorized by the RECORD grant
+// (task_outcome:create or :update) instead of phase_outcome_summary:create, which
+// staff roles never hold. It is wired only into the post-record seam; direct
+// callers (tools) keep Execute and its summary grant.
+func (uc *ComputePhaseOutcomeUseCase) ExecuteAfterRecord(ctx context.Context, req *ComputePhaseOutcomeRequest) (*ComputePhaseOutcomeResponse, error) {
+	if err := checkRecordGrant(ctx, uc.services.ActionGatekeeper); err != nil {
+		return nil, err
+	}
+	return uc.run(ctx, req)
+}
+
+// run is the roll-up body shared by Execute and ExecuteAfterRecord (both
+// authorize first).
+func (uc *ComputePhaseOutcomeUseCase) run(ctx context.Context, req *ComputePhaseOutcomeRequest) (*ComputePhaseOutcomeResponse, error) {
 	if req == nil || req.JobPhaseId == "" {
 		return nil, errors.New(uc.msg(ctx, "grade_compute.validation.job_phase_id_required", "[ERR-DEFAULT] Job phase ID is required"))
 	}

@@ -153,7 +153,13 @@ func ComputeJobOutcome(ctx context.Context, container *core.Container, jobID str
 // and the save still succeeds with a stale rating.
 func NewComputePhaseOutcomeAdapter(container *core.Container) func(ctx context.Context, jobPhaseID string) (bool, error) {
 	return func(ctx context.Context, jobPhaseID string) (bool, error) {
-		if _, err := ComputePhaseOutcome(ctx, container, jobPhaseID, ""); err != nil {
+		// Post-record seam: authorized by the caller's record grant (see
+		// ComputePhaseOutcomeUseCase.ExecuteAfterRecord), not the summary grant.
+		uc := gradeComputeUseCases(container)
+		if uc == nil || uc.ComputePhaseOutcome == nil {
+			return false, fmt.Errorf("grade compute: ComputePhaseOutcome use-case not wired on the operation rollup")
+		}
+		if _, err := uc.ComputePhaseOutcome.ExecuteAfterRecord(ctx, &grade_compute.ComputePhaseOutcomeRequest{JobPhaseId: jobPhaseID}); err != nil {
 			return false, err
 		}
 		return true, nil
@@ -167,7 +173,11 @@ func NewComputePhaseOutcomeAdapter(container *core.Container) func(ctx context.C
 // pinned grade is never clobbered and the save is never failed for it.
 func NewComputeJobOutcomeAdapter(container *core.Container) func(ctx context.Context, jobID string) (bool, error) {
 	return func(ctx context.Context, jobID string) (bool, error) {
-		if _, err := ComputeJobOutcome(ctx, container, jobID); err != nil {
+		uc := gradeComputeUseCases(container)
+		if uc == nil || uc.ComputeJobOutcome == nil {
+			return false, fmt.Errorf("grade compute: ComputeJobOutcome use-case not wired on the operation rollup")
+		}
+		if _, err := uc.ComputeJobOutcome.ExecuteAfterRecord(ctx, &grade_compute.ComputeJobOutcomeRequest{JobId: jobID}); err != nil {
 			if errors.Is(err, grade_compute.ErrSummaryFrozen) {
 				return false, nil // frozen/authoritative → not recomputed, not stale
 			}
@@ -206,4 +216,17 @@ func NewRecomputeEligibilityAdapter(container *core.Container) func(ctx context.
 	return func(ctx context.Context, jobPhaseID string) (bool, map[string]bool, error) {
 		return CheckRecomputeEligibility(ctx, container, jobPhaseID)
 	}
+}
+
+// gradeComputeUseCases returns the operation rollup's grade-compute use cases,
+// or nil when the container or rollup is not wired.
+func gradeComputeUseCases(container *core.Container) *grade_compute.UseCases {
+	if container == nil {
+		return nil
+	}
+	uc := container.GetUseCases()
+	if uc == nil || uc.Operation == nil {
+		return nil
+	}
+	return uc.Operation.GradeCompute
 }

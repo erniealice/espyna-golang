@@ -347,6 +347,11 @@ func rosterScopeClause(ctx context.Context, scope matrixpb.OutcomeMatrixScope, n
 	if scope == matrixpb.OutcomeMatrixScope_OUTCOME_MATRIX_SCOPE_ALL {
 		return "", nil, true
 	}
+	// A STAFF principal holding approval_scope:workspace reads MINE as the whole
+	// workspace (plan 20260924-approval-role-workflow D3) — exact loadRows parity.
+	if principalscope.WorkspaceWideStaff(ctx) {
+		return "", nil, true
+	}
 	if _, applies := principalscope.StaffRowScope(ctx); !applies {
 		return "", nil, false
 	}
@@ -396,6 +401,8 @@ WITH full_sheet AS MATERIALIZED (
   SELECT jp.id AS job_phase_id,
          jp.template_phase_id,
          jp.approval_status,
+         jp.returned_at,
+         jp.return_reason,
          j.id AS job_id,
          j.client_id,
          j.origin_id,
@@ -484,6 +491,17 @@ frozen_rollup AS (
             AND ps.closed = true
         )
   GROUP BY fs.template_phase_id
+),
+-- Latest non-blank return reason per template phase over the scoped sheet
+-- (plan 20260924-approval-role-workflow D5). Only IN_PROGRESS members carry a
+-- live return (a later submit clears returned_* and return_reason).
+return_rollup AS (
+  SELECT DISTINCT ON (template_phase_id) template_phase_id, return_reason
+  FROM scoped_sheet
+  WHERE approval_status = 'PHASE_APPROVAL_STATUS_IN_PROGRESS'
+    AND returned_at IS NOT NULL
+    AND btrim(COALESCE(return_reason, '')) <> ''
+  ORDER BY template_phase_id, returned_at DESC
 )
 SELECT sr.template_phase_id,
        sr.target_count,
@@ -491,11 +509,13 @@ SELECT sr.template_phase_id,
        sr.distinct_statuses,
        COALESCE(dr.has_data, false) AS has_data,
        COALESCE(br.blank_required_count, 0) AS blank_required_count,
-       COALESCE(fr.hard_frozen, false) AS hard_frozen
+       COALESCE(fr.hard_frozen, false) AS hard_frozen,
+       COALESCE(rr.return_reason, '') AS last_return_reason
 FROM status_rollup sr
 LEFT JOIN data_rollup dr ON dr.template_phase_id = sr.template_phase_id
 LEFT JOIN blank_rollup br ON br.template_phase_id = sr.template_phase_id
 LEFT JOIN frozen_rollup fr ON fr.template_phase_id = sr.template_phase_id
+LEFT JOIN return_rollup rr ON rr.template_phase_id = sr.template_phase_id
 LEFT JOIN ` + entityid.JobTemplatePhase + ` jtp ON jtp.id = sr.template_phase_id
 ORDER BY jtp.phase_order NULLS LAST, sr.template_phase_id`
 }
@@ -524,6 +544,7 @@ func (a *PostgresOutcomeMatrixQuery) loadApprovalRollups(ctx context.Context, jo
 			hasData            bool
 			blankRequiredCount int32
 			hardFrozen         bool
+			lastReturnReason   string
 		)
 		if err := rows.Scan(
 			&phaseID,
@@ -533,6 +554,7 @@ func (a *PostgresOutcomeMatrixQuery) loadApprovalRollups(ctx context.Context, jo
 			&hasData,
 			&blankRequiredCount,
 			&hardFrozen,
+			&lastReturnReason,
 		); err != nil {
 			return nil, fmt.Errorf("outcome_matrix: scan approval roll-up: %w", err)
 		}
@@ -551,6 +573,9 @@ func (a *PostgresOutcomeMatrixQuery) loadApprovalRollups(ctx context.Context, jo
 		// submit-eligible state — the confirm dialog is a submit-only affordance).
 		if status == jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_IN_PROGRESS && !mixed {
 			rollup.BlankRequiredCount = blankRequiredCount
+			// D5 (20260924-approval-role-workflow): a returned, editable-again sheet
+			// shows the grade entrant why it came back.
+			rollup.LastReturnReason = lastReturnReason
 		}
 		out = append(out, rollup)
 	}
@@ -832,7 +857,10 @@ func (a *PostgresOutcomeMatrixQuery) loadRowsFrom(ctx context.Context, queryer o
 	// staff.id, which a non-staff identity can never hold) — fail closed to
 	// ZERO rows rather than fall through unscoped; operators reach the roster
 	// only via the authorized ALL widen.
-	if req.GetScope() != matrixpb.OutcomeMatrixScope_OUTCOME_MATRIX_SCOPE_ALL {
+	// A STAFF principal holding approval_scope:workspace reads MINE as the whole
+	// workspace (plan 20260924-approval-role-workflow D3); rosterScopeClause
+	// mirrors this exactly.
+	if req.GetScope() != matrixpb.OutcomeMatrixScope_OUTCOME_MATRIX_SCOPE_ALL && !principalscope.WorkspaceWideStaff(ctx) {
 		if _, applies := principalscope.StaffRowScope(ctx); !applies {
 			return nil, nil
 		}
@@ -869,7 +897,9 @@ func (a *PostgresOutcomeMatrixQuery) loadRowsFrom(ctx context.Context, queryer o
 	// workspace placeholder here is always $2, so classEdgeOwnedSQL(nextParam,
 	// 2) is byte-identical to what used to be hand-duplicated here.
 	classEdgeExpr := "false"
-	if fallbackStaff, isStaff := principalscope.StaffRowScope(ctx); isStaff && fallbackStaff != "" {
+	// ActingStaff, not StaffRowScope: editability is about WHO is acting, so a
+	// workspace-wide staff principal still edits only the cells it owns.
+	if fallbackStaff, isStaff := principalscope.ActingStaff(ctx); isStaff && fallbackStaff != "" {
 		classEdgeExpr = classEdgeOwnedSQL(nextParam, 2)
 		args = append(args, fallbackStaff)
 	}
@@ -914,7 +944,7 @@ ORDER BY j.client_id, jt.id, ttc.id, t.recorded_date DESC NULLS LAST, t.id DESC`
 	// Acting staff for the editable computation — from the SESSION identity,
 	// never a request param. staffOK is false for any non-staff principal, so
 	// scope=ALL viewers (operators) get read-only cells across the board.
-	actingStaff, isStaff := principalscope.StaffRowScope(ctx)
+	actingStaff, isStaff := principalscope.ActingStaff(ctx)
 	staffOK := isStaff && actingStaff != ""
 
 	var out []*matrixpb.OutcomeRow

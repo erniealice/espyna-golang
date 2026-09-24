@@ -97,3 +97,33 @@ func SubmitDecisionFromContext(ctx context.Context) (d SubmitDecision, ok bool) 
 	d, ok = ctx.Value(contextKey{}).(SubmitDecision)
 	return d, ok
 }
+
+type scopeKey struct{}
+
+// ScopeDecision carries the approval-policy capabilities a transition resolved
+// with a STRICT, fresh, in-transaction verdict (plan 20260924-approval-role-workflow
+// D3/D4). Every field defaults to false (fail closed). The adapter reads it inside
+// the locked transition transaction; it is never carried across the tx boundary.
+type ScopeDecision struct {
+	// WorkspaceScope: the caller holds approval_scope:workspace — a STAFF session
+	// may act on every sheet in the workspace (no reviewer-edge requirement).
+	WorkspaceScope bool
+	// VerifyOwn: the caller holds job_phase:verify_own — separation of duties is
+	// waived, so they may verify a sheet they submitted themselves.
+	VerifyOwn bool
+	// PublishUnverified: the caller holds job_phase:publish_unverified — publish
+	// may also start from a uniformly FOR_REVIEW sheet (skipping VERIFIED).
+	PublishUnverified bool
+}
+
+// WithScopeDecision stores the resolved ScopeDecision on ctx.
+func WithScopeDecision(ctx context.Context, d ScopeDecision) context.Context {
+	return context.WithValue(ctx, scopeKey{}, d)
+}
+
+// ScopeDecisionFromContext returns the ScopeDecision, or the zero (all-false,
+// fail-closed) value when none was stored.
+func ScopeDecisionFromContext(ctx context.Context) (d ScopeDecision, ok bool) {
+	d, ok = ctx.Value(scopeKey{}).(ScopeDecision)
+	return d, ok
+}

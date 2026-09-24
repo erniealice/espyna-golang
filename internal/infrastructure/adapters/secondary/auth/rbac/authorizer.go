@@ -156,23 +156,30 @@ func parseEnforce(v string) bool {
 // workspace (e.g. CLIENT + OPERATOR_STAFF) gets ONLY the active binding's
 // codes, matching the UI gate instead of the more-permissive union.
 //
-// FAIL-CLOSED / non-session preservation: when the ctx does NOT carry a real
-// binding (kind 0 — service-to-service, no session, or a pre-selection session
-// whose binding LookupSessionPrincipal could not resolve) we pass the EXACT
-// zero binding pair, which buildPermissionQuerySQL routes to the legacy
-// userRolesUnionCTE (union across every binding the user holds in this
-// workspace). This deliberately preserves the prior backstop behaviour for
-// non-session contexts so they are NOT broken by binding-scoping. A PARTIAL
-// hint never reaches the query: we normalise any non-real binding to the full
-// zero tuple, and buildPermissionQuerySQL itself fails closed (empty set) on
-// any partial/ out-of-range combination it does receive.
+// FAIL-CLOSED / non-session preservation: when the ctx carries NO binding at
+// all (the EXACT zero pair: kind 0 AND no principal id — service-to-service,
+// no session, or a pre-selection session whose binding LookupSessionPrincipal
+// could not resolve) we pass the zero pair, which buildPermissionQuerySQL routes
+// to the legacy userRolesUnionCTE (union across every binding the user holds in
+// this workspace) — the documented backstop for non-session contexts. A PARTIAL
+// binding (kind without principal id, or the reverse) is a malformed session: it
+// never reaches the query and resolves to the EMPTY set (partialBinding; plan
+// 20260924-approval-role-workflow review wave-2 #1) — it must never widen to the
+// union.
 func (a *PermissionAuthorizer) loadCodes(ctx context.Context, userID, workspaceID string) ([]string, error) {
 	kind, principalID, actingAsClientID, actingAsSupplierID := contextutil.ExtractBindingFromContext(ctx)
 
-	// Only a COMPLETE, real binding scopes the lookup. Anything else collapses
-	// to the zero tuple → legacy union CTE (the documented non-session backstop).
-	if !(kind != 0 && principalID != "") {
-		kind, principalID, actingAsClientID, actingAsSupplierID = 0, "", "", ""
+	// Only a COMPLETE, real binding scopes the lookup; the EXACT zero pair is the
+	// documented non-session backstop (legacy union CTE). A PARTIAL binding (kind
+	// set without a principal id, or vice versa) is a malformed session and fails
+	// closed to the empty set — it must never widen to the union across every
+	// binding (plan 20260924-approval-role-workflow, review wave-2 #1), matching
+	// the view-layer permission loader's partial-hint contract.
+	if partialBinding(kind, principalID) {
+		return []string{}, nil
+	}
+	if kind == 0 {
+		principalID, actingAsClientID, actingAsSupplierID = "", "", ""
 	}
 
 	key := permCacheKey{
@@ -209,6 +216,12 @@ func (a *PermissionAuthorizer) loadCodes(ctx context.Context, userID, workspaceI
 	return codes, nil
 }
 
+// partialBinding reports a malformed session binding: exactly one of (kind,
+// principal id) is set. The exact zero pair is NOT partial (legacy backstop).
+func partialBinding(kind int32, principalID string) bool {
+	return (kind != 0) != (principalID != "")
+}
+
 // queryCodesFresh resolves the effective ALLOW-minus-DENY code set DIRECTLY from
 // the authoritative PermissionQuery, BYPASSING the TTL cache entirely. The binding
 // is extracted from ctx the same way loadCodes does (only a complete, real binding
@@ -219,8 +232,11 @@ func (a *PermissionAuthorizer) loadCodes(ctx context.Context, userID, workspaceI
 // immediately rather than served from a ≤5-min-stale cache entry (codex P3 §A1).
 func (a *PermissionAuthorizer) queryCodesFresh(ctx context.Context, userID, workspaceID string) ([]string, error) {
 	kind, principalID, actingAsClientID, actingAsSupplierID := contextutil.ExtractBindingFromContext(ctx)
-	if !(kind != 0 && principalID != "") {
-		kind, principalID, actingAsClientID, actingAsSupplierID = 0, "", "", ""
+	if partialBinding(kind, principalID) {
+		return []string{}, nil // malformed session: fail closed (see loadCodes)
+	}
+	if kind == 0 {
+		principalID, actingAsClientID, actingAsSupplierID = "", "", ""
 	}
 	codes, err := a.query.GetUserPermissionCodes(ctx, userID, workspaceID, kind, principalID, actingAsClientID, actingAsSupplierID)
 	if err != nil {

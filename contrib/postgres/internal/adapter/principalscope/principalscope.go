@@ -31,6 +31,12 @@ import (
 // operational reads must be confined to that staff member's own rows.
 const PrincipalTypeStaff int32 = 7
 
+// Operator principal kinds (esqyma PRINCIPAL_TYPE_OPERATOR_OWNER / _STAFF).
+const (
+	principalTypeOperatorOwner int32 = 1
+	principalTypeOperatorStaff int32 = 2
+)
+
 // originTypeSubscription is the text token the job table stores for the esqyma
 // domain.operation.v1.OriginType member ORIGIN_TYPE_SUBSCRIPTION (jobs persist
 // the full protojson enum name). The subscription_seat tier below matches it
@@ -66,6 +72,32 @@ const originTypeSubscription = "ORIGIN_TYPE_SUBSCRIPTION"
 // predicate (the other M5 consumer) — keep the two in step.
 const classEdgeEligibilityLive = " AND (e.product_plan_staff_id IS NULL OR pps.active)"
 
+// ProductPlanStaffRoleReviewer is the product_plan_staff.role value that makes a
+// staff member the REVIEWER (subject coordinator) of a product plan offering —
+// every section taking that offering — rather than an eligible deliverer (plan
+// 20260924-approval-role-workflow D3). The column is free text; this is the one
+// value the approval scope and the reviewer visibility tier key on.
+const ProductPlanStaffRoleReviewer = "reviewer"
+
+// reviewerTierSQL is the reviewer-edge visibility tier (plan
+// 20260924-approval-role-workflow D3): jobs whose client's section takes a
+// product plan offering the acting staff reviews (product_plan_staff row with
+// role = 'reviewer', active), matched to the job's deliverable via
+// product_plan.product_id == job.output_product_id and to the job's origin
+// subscription through the section membership. selectExpr is the projected
+// column ("jr.id" or "jr.client_id"); extra is an optional trailing predicate on
+// jr (e.g. " AND jr.id = $2"). s/w are the staff and workspace placeholders.
+// Every workspace-bearing row is bound to w; an empty staff/workspace bind
+// matches no product_plan_staff row, so the tier is fail-closed.
+func reviewerTierSQL(selectExpr, s, w, extra string) string {
+	return "SELECT " + selectExpr + " FROM " + entityid.ProductPlanStaff + " r" +
+		" JOIN " + entityid.SubscriptionGroupProductPlan + " rc ON rc.product_plan_id = r.product_plan_id AND rc.active AND rc.workspace_id = " + w +
+		" JOIN " + entityid.SubscriptionGroupMember + " rm ON rm.subscription_group_id = rc.subscription_group_id AND rm.active AND rm.workspace_id = " + w +
+		" JOIN " + entityid.ProductPlan + " rpp ON rpp.id = r.product_plan_id" +
+		" JOIN " + entityid.Job + " jr ON jr.origin_id = rm.subscription_id AND jr.output_product_id = rpp.product_id AND jr.workspace_id = " + w +
+		" WHERE r.staff_id = " + s + " AND r.role = '" + ProductPlanStaffRoleReviewer + "' AND r.active AND r.workspace_id = " + w + extra
+}
+
 // StaffRowScope reports whether the active session principal is a STAFF principal
 // and, if so, the staff.id its operational reads must be confined to.
 //
@@ -78,7 +110,61 @@ const classEdgeEligibilityLive = " AND (e.product_plan_staff_id IS NULL OR pps.a
 // FAIL-CLOSED: a STAFF principal with an empty PrincipalID (a malformed session)
 // returns staffID=="" with applies==true; the *Clause helpers turn that into an
 // always-false predicate, so such a session sees zero rows.
+//
+// WORKSPACE ROW SCOPE (plan 20260924-approval-role-workflow D3): a staff session
+// whose active binding holds approval_scope:workspace (the Principal approver)
+// is marked by the permission installer (identity.WithWorkspaceRowScope); such a
+// session is NOT row-scoped here — it reads the whole trusted workspace exactly
+// like an operator session. The workspace bind itself is unaffected (every
+// adapter keeps its own workspace predicate). Use ActingStaff, not this, when
+// the question is "which staff row is acting" rather than "which rows are
+// visible".
 func StaffRowScope(ctx context.Context) (staffID string, applies bool) {
+	staffID, isStaff := ActingStaff(ctx)
+	if !isStaff {
+		return "", false
+	}
+	// A malformed STAFF session (empty principal id) stays fail-closed even when
+	// marked: the marker never lifts scope for an unresolved staff identity.
+	if staffID != "" && identity.HasWorkspaceRowScope(ctx) {
+		return "", false
+	}
+	return staffID, true
+}
+
+// WorkspaceWideStaff reports whether the acting principal is a STAFF session that
+// holds the workspace-wide row scope (approval_scope:workspace; plan
+// 20260924-approval-role-workflow D3). Reads whose "MINE" contract would
+// otherwise fail closed to zero rows for an un-scoped principal use this to
+// widen to the whole workspace instead. False for operators (they reach the
+// workspace via their own authorized ALL widen) and for unmarked staff.
+func WorkspaceWideStaff(ctx context.Context) bool {
+	staffID, isStaff := ActingStaff(ctx)
+	if !isStaff || staffID == "" {
+		return false
+	}
+	return identity.HasWorkspaceRowScope(ctx)
+}
+
+// IsOperatorSession reports whether the active session principal is an OPERATOR
+// (PRINCIPAL_TYPE_OPERATOR_OWNER = 1 or PRINCIPAL_TYPE_OPERATOR_STAFF = 2 —
+// WorkspaceUser-backed). Approval code keeps operator behaviour unchanged (plan
+// 20260924-approval-role-workflow D-RUN-3) ONLY for these two kinds; every other
+// non-staff kind (unresolved 0, portal 3-6) fails closed.
+func IsOperatorSession(ctx context.Context) bool {
+	id, ok := identity.FromContext(ctx)
+	if !ok || id == nil {
+		return false
+	}
+	return id.PrincipalType == principalTypeOperatorOwner || id.PrincipalType == principalTypeOperatorStaff
+}
+
+// ActingStaff reports whether the active session principal is a STAFF principal
+// and, if so, its staff.id — independent of any row-scope widening. It answers
+// "who is acting" (e.g. the approval transitions' staff facet and scope checks),
+// never "which rows are visible" (that is StaffRowScope). A STAFF principal with
+// an empty PrincipalID returns ("", true) so callers can fail closed.
+func ActingStaff(ctx context.Context) (staffID string, isStaff bool) {
 	id, ok := identity.FromContext(ctx)
 	if !ok || id == nil {
 		return "", false
@@ -169,7 +255,10 @@ func reachableClientUnion(staffP, wsP int) string {
 		" JOIN " + entityid.Job + " jce ON jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id AND jce.workspace_id = " + w +
 		" LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id AND pps.workspace_id = " + w +
 		" WHERE COALESCE(pps.staff_id, e.staff_id) = " + s + classEdgeEligibilityLive +
-		" AND e.active AND e.workspace_id = " + w
+		" AND e.active AND e.workspace_id = " + w +
+		" UNION " +
+		// Reviewer tier (20260924-approval-role-workflow D3).
+		reviewerTierSQL("jr.client_id", s, w, "")
 }
 
 // reachableJobUnion is the graph-derived set of job.id values the acting staff.id
@@ -234,7 +323,10 @@ func reachableJobUnion(staffP, wsP int) string {
 		" JOIN " + entityid.Job + " jce ON jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id AND jce.workspace_id = " + w +
 		" LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id AND pps.workspace_id = " + w +
 		" WHERE COALESCE(pps.staff_id, e.staff_id) = " + s + classEdgeEligibilityLive +
-		" AND e.active AND e.workspace_id = " + w
+		" AND e.active AND e.workspace_id = " + w +
+		" UNION " +
+		// Reviewer tier (20260924-approval-role-workflow D3).
+		reviewerTierSQL("jr.id", s, w, "")
 }
 
 // StaffScopeClause returns a SQL predicate fragment that confines a read to the
@@ -385,6 +477,9 @@ func StaffReachableClientExistsSQL() string {
 		" LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id" +
 		" WHERE COALESCE(pps.staff_id, e.staff_id) = $1" + classEdgeEligibilityLive +
 		" AND e.active AND e.workspace_id = $3 AND jce.client_id = $2" +
+		" UNION " +
+		// Reviewer tier (mirrors reachableClientUnion's 5th branch).
+		reviewerTierSQL("1", "$1", "$3", " AND jr.client_id = $2") +
 		")"
 }
 
@@ -432,6 +527,9 @@ func StaffReachableJobExistsSQL() string {
 		" LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id" +
 		" WHERE COALESCE(pps.staff_id, e.staff_id) = $1" + classEdgeEligibilityLive +
 		" AND e.active AND e.workspace_id = $3 AND jce.id = $2" +
+		" UNION " +
+		// Reviewer tier (mirrors reachableJobUnion's 5th branch).
+		reviewerTierSQL("1", "$1", "$3", " AND jr.id = $2") +
 		")"
 }
 

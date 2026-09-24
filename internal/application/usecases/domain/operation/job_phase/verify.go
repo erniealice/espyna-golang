@@ -4,13 +4,16 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
+	"github.com/erniealice/espyna-golang/internal/application/shared/approvalctx"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 )
 
 // VerifyJobPhaseApprovalUseCase transitions a full sheet FOR_REVIEW -> VERIFIED.
-// Operator-tier verb (D4: verify is {1,2}, no staff-ownership scope); the adapter
-// enforces workspace ancestry, uniform source state, and the hard-frozen gate
-// inside the locked transaction.
+// Gate: job_phase:verify ({1,2,7}). Inside the locked transaction the adapter
+// enforces workspace ancestry, the STAFF approval scope (workspace scope or a
+// reviewer edge — plan 20260924-approval-role-workflow D3), uniform source
+// state, separation of duties (job_phase:verify_own waives it — D4), and the
+// hard-frozen gate.
 type VerifyJobPhaseApprovalUseCase struct {
 	repositories transitionRepositories
 	services     transitionServices
@@ -47,7 +50,10 @@ func (uc *VerifyJobPhaseApprovalUseCase) Execute(ctx context.Context, req *pb.Ve
 		if err := requireStrictVerbFresh(txCtx, sa, actionVerify); err != nil {
 			return err
 		}
-		res, err := uc.repositories.JobPhase.VerifyJobPhaseApproval(txCtx, req)
+		// Approval scope + policy capabilities (plan 20260924-approval-role-workflow
+		// D3/D4), resolved fresh INSIDE the transaction and enforced by the adapter.
+		dctx := approvalctx.WithScopeDecision(txCtx, resolveScopeDecision(txCtx, sa, true, false))
+		res, err := uc.repositories.JobPhase.VerifyJobPhaseApproval(dctx, req)
 		if err != nil {
 			return err
 		}

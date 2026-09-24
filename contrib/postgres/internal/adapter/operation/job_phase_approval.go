@@ -547,7 +547,7 @@ func resolveStaffFacet(ctx context.Context, exec sqlexec.DBExecutor, wsID string
 		return "", fmt.Errorf("job_phase submit: no trusted identity to resolve a staff facet")
 	}
 
-	staffPrincipalID, isStaff := principalscope.StaffRowScope(ctx)
+	staffPrincipalID, isStaff := principalscope.ActingStaff(ctx)
 	if isStaff && staffPrincipalID == "" {
 		// A malformed STAFF session (kind STAFF, empty principal id) fails closed.
 		return "", fmt.Errorf("job_phase submit: staff session has no resolved principal id — fail closed")
@@ -608,11 +608,12 @@ func resolveStaffFacet(ctx context.Context, exec sqlexec.DBExecutor, wsID string
 //
 // SUBMIT-ONLY. This is the D7 submit-ownership gate consumed exclusively by
 // SubmitJobPhaseApproval (via assertAllTasksOwned / taskUnownedProbeSQL) —
-// VerifyJobPhaseApproval / PublishJobPhaseApproval / ReturnJobPhaseApproval
-// carry NO row-ownership predicate of their own (they gate purely on RBAC verb
-// via ActionGatekeeper/strict-authorizer, see job_phase submit/verify/publish/
-// return use cases), so the 2026-09-24 role widening applies to submit only
-// and cannot desync verify/publish/return.
+// VerifyJobPhaseApproval / PublishJobPhaseApproval / ReturnJobPhaseApproval do
+// not use this class-edge fragment: for STAFF sessions they gate on the
+// approval scope instead (job_phase_approval_scope.go — workspace scope or a
+// reviewer edge; plan 20260924-approval-role-workflow D3), and operator
+// sessions stay RBAC-only, so the 2026-09-24 role widening applies to submit
+// only and cannot desync verify/publish/return.
 //
 // Prior to 2026-09-24 this fragment additionally required `e.role = 'primary'`,
 // which meant a class edge with role='secondary' could never submit even
@@ -680,6 +681,7 @@ func taskUnownedProbeSQL(narrow string) string {
 			  AND NOT (
 			    (COALESCE(jt.assigned_to, '') <> '' AND jt.assigned_to = $4)
 			    OR (COALESCE(jt.assigned_to, '') = '' AND ` + classEdgeOwnedSQL(4, 3) + `)
+			    OR ` + reviewerEdgeOwnedSQL(4, 3) + `
 			  )
 		)`
 }
@@ -958,9 +960,11 @@ func (r *PostgresJobPhaseRepository) SubmitJobPhaseApproval(ctx context.Context,
 		return nil, err
 	}
 
-	// Actor authorization (D7). Admin override (proven job_phase:publish authority)
-	// resolved by the use case and threaded via context; default fail-closed to
-	// the strict all-task ownership check.
+	// Actor authorization (D7). Override resolved by the use case and threaded via
+	// context (staff session: approval_scope:workspace only; operator session:
+	// job_phase:publish or approval_scope:workspace — plan 20260924-approval-role-
+	// workflow D3); default fail-closed to the strict all-task ownership check,
+	// which a reviewer edge on the job's offering also satisfies.
 	decision, _ := approvalctx.SubmitDecisionFromContext(ctx)
 	if !decision.AdminOverride {
 		facet, ferr := resolveStaffFacet(ctx, exec, wsID)
@@ -1056,7 +1060,13 @@ func (r *PostgresJobPhaseRepository) VerifyJobPhaseApproval(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
+	if err := assertApprovalScope(ctx, exec, "verify", templateID, phaseID, wsID, groupID); err != nil {
+		return nil, err
+	}
 	if err := requireUniformSource(locked, apForReview); err != nil {
+		return nil, err
+	}
+	if err := assertNotSelfVerify(ctx, exec, locked, identity.Must(ctx).UserID); err != nil {
 		return nil, err
 	}
 	frozen, err := sheetHardFrozen(ctx, exec, templateID, phaseID, wsID, groupID)
@@ -1122,7 +1132,11 @@ func (r *PostgresJobPhaseRepository) PublishJobPhaseApproval(ctx context.Context
 	if err != nil {
 		return nil, err
 	}
-	if err := requireUniformSource(locked, apVerified); err != nil {
+	if err := assertApprovalScope(ctx, exec, "publish", templateID, phaseID, wsID, groupID); err != nil {
+		return nil, err
+	}
+	source, err := publishSourceState(ctx, locked)
+	if err != nil {
 		return nil, err
 	}
 	frozen, err := sheetHardFrozen(ctx, exec, templateID, phaseID, wsID, groupID)
@@ -1137,11 +1151,11 @@ func (r *PostgresJobPhaseRepository) PublishJobPhaseApproval(ctx context.Context
 	ts := nowMillis()
 	// Publish preserves submitted/verified pairs; sets the published pair.
 	setSQL := `approval_status = '` + apPublished + `', published_by = $2, published_at = $3, date_modified = now()`
-	affected, err := bulkUpdateAndVerify(ctx, exec, locked, setSQL, ` AND approval_status = '`+apVerified+`'`, actor, ts)
+	affected, err := bulkUpdateAndVerify(ctx, exec, locked, setSQL, ` AND approval_status = '`+source+`'`, actor, ts)
 	if err != nil {
 		return nil, err
 	}
-	if err := r.writeTransitionAudit(ctx, wsID, templateID, phaseID, groupID, "job_phase:publish", "PublishJobPhaseApproval", apVerified, apPublished, "", affected, -1); err != nil {
+	if err := r.writeTransitionAudit(ctx, wsID, templateID, phaseID, groupID, "job_phase:publish", "PublishJobPhaseApproval", source, apPublished, "", affected, -1); err != nil {
 		return nil, err
 	}
 	return &pb.PublishJobPhaseApprovalResponse{
@@ -1171,6 +1185,9 @@ func (r *PostgresJobPhaseRepository) ReturnJobPhaseApproval(ctx context.Context,
 
 	locked, err := lockParentAndSheet(ctx, exec, templateID, phaseID, wsID, groupID)
 	if err != nil {
+		return nil, err
+	}
+	if err := assertApprovalScope(ctx, exec, "return", templateID, phaseID, wsID, groupID); err != nil {
 		return nil, err
 	}
 

@@ -199,3 +199,29 @@ func FromContext(ctx context.Context) (*RequestIdentity, bool) {
 	id, ok := ctx.Value(contextKey{}).(*RequestIdentity)
 	return id, ok && id != nil
 }
+
+// workspaceRowScopeKey marks a request whose acting principal holds the
+// workspace-wide row-scope capability (RBAC code approval_scope:workspace).
+type workspaceRowScopeKey struct{}
+
+// WorkspaceRowScopePermission is the RBAC capability code that lifts per-principal
+// STAFF row scoping to the whole workspace (plan 20260924-approval-role-workflow
+// D3: the Principal / Education Admin approver). It is a generic code; business
+// vocabulary lives in role names and labels.
+const WorkspaceRowScopePermission = "approval_scope:workspace"
+
+// WithWorkspaceRowScope marks the request as holding the workspace-wide row-scope
+// capability. Only the per-request permission installer calls this, after it has
+// loaded the ACTIVE binding's (tag-narrowed) permission codes and found
+// WorkspaceRowScopePermission among them. The marker is never derived from a
+// request parameter.
+func WithWorkspaceRowScope(ctx context.Context) context.Context {
+	return context.WithValue(ctx, workspaceRowScopeKey{}, true)
+}
+
+// HasWorkspaceRowScope reports whether WithWorkspaceRowScope marked the request.
+// Absent marker → false (fail closed: staff sessions stay row-scoped).
+func HasWorkspaceRowScope(ctx context.Context) bool {
+	v, _ := ctx.Value(workspaceRowScopeKey{}).(bool)
+	return v
+}

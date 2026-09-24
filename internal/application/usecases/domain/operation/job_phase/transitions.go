@@ -6,7 +6,9 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
+	"github.com/erniealice/espyna-golang/internal/application/shared/approvalctx"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 )
 
@@ -135,15 +137,37 @@ func requireStrictVerbFresh(ctx context.Context, sa strictAuthorizer, verb strin
 	return nil
 }
 
-// resolveAdminOverride reports whether the acting user holds the D4 admin
-// override — the separately proven job_phase:publish authority — using a STRICT,
-// deny-capable verdict (never shadow's allow-on-deny). nil authorizer, missing
-// user, lookup error, or a real deny all yield NO override (fail closed); the
-// adapter's strict D7 all-task ownership check then runs. MUST be resolved INSIDE
-// the transition transaction so a permission revocation between request receipt
-// and commit is honoured — never a pre-tx allow bit carried across the boundary
-// (codex §1 MEDIUM).
-func resolveAdminOverride(ctx context.Context, sa strictAuthorizer) bool {
+// Approval-policy capability codes (plan 20260924-approval-role-workflow D3/D4).
+// Generic codes; business vocabulary lives only in role names and labels.
+const (
+	permApprovalScopeWorkspace = "approval_scope:workspace"
+	permVerifyOwn              = "job_phase:verify_own"
+	permPublishUnverified      = "job_phase:publish_unverified"
+)
+
+// Principal kinds, mirroring esqyma domain.entity.v1.PrincipalType (the values
+// the session binding stamps on identity.PrincipalType; contrib/postgres
+// principalscope carries the same constants — the application layer cannot
+// import that adapter package).
+const (
+	principalTypeOperatorOwner int32 = 1
+	principalTypeOperatorStaff int32 = 2
+	principalTypeStaff         int32 = 7
+)
+
+// sessionKind returns the acting session's principal kind (0 when absent). A
+// malformed binding (kind set without a principal id) reports 0 so it can never
+// take the staff or operator branch (review wave-2 #1).
+func sessionKind(ctx context.Context) int32 {
+	if id, ok := identity.FromContext(ctx); ok && id != nil && id.PrincipalID != "" {
+		return id.PrincipalType
+	}
+	return 0
+}
+
+// hasFresh is the fail-closed fresh strict verdict for one code: nil authorizer,
+// missing user, lookup error, or a real deny all yield false.
+func hasFresh(ctx context.Context, sa strictAuthorizer, code string) bool {
 	if sa == nil {
 		return false
 	}
@@ -151,11 +175,53 @@ func resolveAdminOverride(ctx context.Context, sa strictAuthorizer) bool {
 	if err != nil {
 		return false
 	}
-	// FRESH, cache-bypassing, ambient-tx verdict (codex P3 §A1): a publish grant
-	// revoked mid-request must not still mint the admin override from a warm cache.
-	has, err := sa.HasPermissionStrictFresh(ctx, userID, "job_phase:publish")
+	has, err := sa.HasPermissionStrictFresh(ctx, userID, code)
 	if err != nil {
 		return false
 	}
 	return has
+}
+
+// resolveAdminOverride reports whether the acting user may SKIP the D7 all-task
+// ownership check on submit, using STRICT, FRESH, in-transaction verdicts (never
+// shadow's allow-on-deny, never a pre-tx allow bit — codex §1 MEDIUM / P3 §A1).
+//
+//   - STAFF session (kind 7): only approval_scope:workspace (the Principal). Since
+//     2026-09-24 job_phase:publish is staff-holdable, and publish must no longer
+//     imply "submit any sheet" in the staff persona (plan D3).
+//   - operator session (kinds 1/2): job_phase:publish (the original D4 admin
+//     override, preserved — owner D-RUN-3) or approval_scope:workspace.
+//   - any other kind (unresolved 0, portal 3-6): never.
+//
+// Anything else → false, and the adapter's strict ownership check runs.
+func resolveAdminOverride(ctx context.Context, sa strictAuthorizer) bool {
+	switch sessionKind(ctx) {
+	case principalTypeStaff:
+		return hasFresh(ctx, sa, permApprovalScopeWorkspace)
+	case principalTypeOperatorOwner, principalTypeOperatorStaff:
+		return hasFresh(ctx, sa, permApprovalScopeWorkspace) || hasFresh(ctx, sa, "job_phase:publish")
+	default:
+		// Unresolved (0) and portal (3-6) kinds never get the override.
+		return false
+	}
+}
+
+// resolveScopeDecision resolves the approval-policy capabilities for a verify /
+// publish / return transition INSIDE its transaction (fresh strict verdicts).
+// wantVerifyOwn / wantPublishUnverified limit the lookups to the ones the verb
+// consults. Every field fails closed to false.
+func resolveScopeDecision(ctx context.Context, sa strictAuthorizer, wantVerifyOwn, wantPublishUnverified bool) approvalctx.ScopeDecision {
+	switch sessionKind(ctx) {
+	case principalTypeStaff, principalTypeOperatorOwner, principalTypeOperatorStaff:
+	default:
+		return approvalctx.ScopeDecision{} // unresolved / portal / malformed: nothing
+	}
+	d := approvalctx.ScopeDecision{WorkspaceScope: hasFresh(ctx, sa, permApprovalScopeWorkspace)}
+	if wantVerifyOwn {
+		d.VerifyOwn = hasFresh(ctx, sa, permVerifyOwn)
+	}
+	if wantPublishUnverified {
+		d.PublishUnverified = hasFresh(ctx, sa, permPublishUnverified)
+	}
+	return d
 }

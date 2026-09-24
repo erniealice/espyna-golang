@@ -4,13 +4,16 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
+	"github.com/erniealice/espyna-golang/internal/application/shared/approvalctx"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 )
 
 // PublishJobPhaseApprovalUseCase transitions a full sheet VERIFIED -> PUBLISHED.
-// Admin-tier verb (D4: publish is admin-only). The adapter enforces workspace
-// ancestry, uniform VERIFIED source, and the hard-frozen gate inside the locked
-// transaction.
+// Gate: job_phase:publish ({1,2,7} since 2026-09-24). Inside the locked
+// transaction the adapter enforces workspace ancestry, the STAFF approval scope
+// (plan 20260924-approval-role-workflow D3), a uniform VERIFIED source (or
+// uniform FOR_REVIEW with job_phase:publish_unverified — D4), and the
+// hard-frozen gate.
 type PublishJobPhaseApprovalUseCase struct {
 	repositories transitionRepositories
 	services     transitionServices
@@ -47,7 +50,10 @@ func (uc *PublishJobPhaseApprovalUseCase) Execute(ctx context.Context, req *pb.P
 		if err := requireStrictVerbFresh(txCtx, sa, actionPublish); err != nil {
 			return err
 		}
-		res, err := uc.repositories.JobPhase.PublishJobPhaseApproval(txCtx, req)
+		// Approval scope + policy capabilities (plan 20260924-approval-role-workflow
+		// D3/D4), resolved fresh INSIDE the transaction and enforced by the adapter.
+		dctx := approvalctx.WithScopeDecision(txCtx, resolveScopeDecision(txCtx, sa, false, true))
+		res, err := uc.repositories.JobPhase.PublishJobPhaseApproval(dctx, req)
 		if err != nil {
 			return err
 		}

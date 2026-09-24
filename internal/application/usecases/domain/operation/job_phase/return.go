@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
+	"github.com/erniealice/espyna-golang/internal/application/shared/approvalctx"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 )
 
@@ -51,7 +52,10 @@ func (uc *ReturnJobPhaseApprovalUseCase) Execute(ctx context.Context, req *pb.Re
 		if err := requireStrictVerbFresh(txCtx, sa, actionReturn); err != nil {
 			return err
 		}
-		res, err := uc.repositories.JobPhase.ReturnJobPhaseApproval(txCtx, req)
+		// Approval scope + policy capabilities (plan 20260924-approval-role-workflow
+		// D3/D4), resolved fresh INSIDE the transaction and enforced by the adapter.
+		dctx := approvalctx.WithScopeDecision(txCtx, resolveScopeDecision(txCtx, sa, false, false))
+		res, err := uc.repositories.JobPhase.ReturnJobPhaseApproval(dctx, req)
 		if err != nil {
 			return err
 		}

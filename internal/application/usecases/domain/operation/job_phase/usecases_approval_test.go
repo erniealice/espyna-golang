@@ -217,7 +217,9 @@ func TestSubmit_AdminOverrideThreaded(t *testing.T) {
 			}}
 			repo := &capturingRepo{}
 			uc := newUC(t, authz, &fakeTransactor{supports: true}, repo)
-			_, err := uc.SubmitJobPhaseApproval.Execute(ctxWithUser("u1", "ws1"),
+			// Operator session (kind 2): the publish-derived override is operator-only
+			// since plan 20260924-approval-role-workflow D3 (unresolved kinds fail closed).
+			_, err := uc.SubmitJobPhaseApproval.Execute(ctxWithOperator("u1", "ws1"),
 				&pb.SubmitJobPhaseApprovalRequest{JobTemplateId: "t1", JobTemplatePhaseId: "p1"})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)

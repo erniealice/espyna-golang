@@ -21,6 +21,7 @@ import (
 	"github.com/erniealice/espyna-golang/consumer"
 	consumermw "github.com/erniealice/espyna-golang/consumer/http/middleware"
 	"github.com/erniealice/espyna-golang/shared/database/model"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	pyezarender "github.com/erniealice/pyeza-golang/render"
 	"github.com/erniealice/pyeza-golang/types"
 	"github.com/erniealice/pyeza-golang/view"
@@ -319,6 +320,15 @@ func (a *ViewAdapter) injectRequestContext(r *http.Request) *http.Request {
 					if err == nil {
 						perms := types.NewUserPermissions(codes)
 						ctx = view.WithUserPermissions(ctx, perms)
+						// Workspace-wide row scope (plan 20260924-approval-role-workflow
+						// D3): a STAFF binding whose binding-scoped, tag-narrowed codes
+						// include approval_scope:workspace widens staff row scoping to the
+						// workspace. Minted ONLY here — never on the legacy union path
+						// (which merges every binding) nor from a request param; absent
+						// everywhere else (fail closed: staff stay row-scoped).
+						if hint.Kind == pyezarender.PrincipalTypeStaff && hint.BindingID != "" && perms.HasCode(identity.WorkspaceRowScopePermission) {
+							ctx = identity.WithWorkspaceRowScope(ctx)
+						}
 						r = r.WithContext(ctx)
 						log.Printf("[rbac] uid=%s perms=%d path=%s binding=%s/%s acting=(%s,%s)",
 							userID, len(codes), r.URL.Path, hint.Kind, hint.BindingID,

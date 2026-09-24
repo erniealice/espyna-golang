@@ -34,6 +34,41 @@ func TestReadSelfDisplayReadsOnlyTheSessionUser(t *testing.T) {
 	}
 }
 
+func TestReadSelfDisplayWithEmailReadsOnlyTheSessionUser(t *testing.T) {
+	repo := &fakeSelfUserRepo{rows: []*userpb.User{{
+		Id: "u1", FirstName: " Junrey ", LastName: "Tejas",
+		EmailAddress: " junrey.tejas@mmis.edu.ph ", Active: true,
+	}}}
+	first, last, email, err := NewReadSelfDisplayUseCase(ReadSelfDisplayRepositories{User: repo}).ExecuteWithEmail(selfCtx("u1"))
+	if err != nil || first != "Junrey" || last != "Tejas" || email != "junrey.tejas@mmis.edu.ph" {
+		t.Fatalf("got (%q, %q, %q, %v), want (Junrey, Tejas, junrey.tejas@mmis.edu.ph, nil)", first, last, email, err)
+	}
+	if repo.requested != "u1" {
+		t.Fatalf("read user id %q, want the session user u1", repo.requested)
+	}
+}
+
+func TestReadSelfDisplayWithEmailFailsClosed(t *testing.T) {
+	cases := map[string]struct {
+		ctx  context.Context
+		rows []*userpb.User
+	}{
+		"no session user":       {context.Background(), []*userpb.User{{Id: "u1", FirstName: "A", Active: true}}},
+		"inactive user":         {selfCtx("u1"), []*userpb.User{{Id: "u1", FirstName: "A", Active: false}}},
+		"adapter returns other": {selfCtx("u1"), []*userpb.User{{Id: "u2", FirstName: "Other", Active: true}}},
+		"not found":             {selfCtx("u1"), nil},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			repo := &fakeSelfUserRepo{rows: tc.rows}
+			first, last, email, err := NewReadSelfDisplayUseCase(ReadSelfDisplayRepositories{User: repo}).ExecuteWithEmail(tc.ctx)
+			if err == nil || first != "" || last != "" || email != "" {
+				t.Fatalf("got (%q, %q, %q, %v), want an error and no name/email", first, last, email, err)
+			}
+		})
+	}
+}
+
 func TestReadSelfDisplayFailsClosed(t *testing.T) {
 	cases := map[string]struct {
 		ctx  context.Context

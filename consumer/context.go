@@ -53,6 +53,15 @@ func GetWorkspaceUserIDFromContext(ctx context.Context) string {
 	return internalctx.ExtractWorkspaceUserIDFromContext(ctx)
 }
 
+// GetEmailFromContext extracts the session email from context — the typed
+// RequestIdentity struct first, then the legacy per-key value (set by
+// WithSessionIdentity/WithEmail). Returns "" when no session carries an email
+// (e.g. the password-provider session middleware, which resolves email lazily
+// rather than at session-validate time).
+func GetEmailFromContext(ctx context.Context) string {
+	return internalctx.ExtractEmailFromContext(ctx)
+}
+
 func WithSessionIdentity(ctx context.Context, userID, workspaceID, workspaceUserID, email string) context.Context {
 	return internalctx.WithSessionIdentity(ctx, userID, workspaceID, workspaceUserID, email)
 }

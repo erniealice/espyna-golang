@@ -238,9 +238,14 @@ func (s *Server) assertWorkspaceLoader(appCtx *consumerapp.AppContext) Workspace
 }
 
 // buildUserLoader constructs the sidebar profile-button user loader from the
-// Server's own Entity.User.ReadUser use case. The profile URLs come from the
-// merged compose route map. Returns nil (profile button disabled) when the use
-// case is unavailable. Generic: no app/domain template FS.
+// Server's own Entity.User.ReadUser use case, plus a gate-free self-display
+// fallback (Entity.User.ReadSelfDisplay) for principals that lack user:read
+// (e.g. a teacher/staff role under enforced RBAC) reading their OWN record —
+// without it, DBUserLoader falls all the way back to a "Signed In" placeholder
+// derived from an email that per-request context never actually carries. The
+// profile URLs come from the merged compose route map. Returns nil (profile
+// button disabled) when the primary use case is unavailable. Generic: no
+// app/domain template FS.
 func (s *Server) buildUserLoader(cr *compose.Result) UserLoader {
 	if s.useCases == nil || s.useCases.Entity == nil || s.useCases.Entity.User == nil ||
 		s.useCases.Entity.User.ReadUser == nil {
@@ -248,6 +253,34 @@ func (s *Server) buildUserLoader(cr *compose.Result) UserLoader {
 		return nil
 	}
 	readUserUC := s.useCases.Entity.User.ReadUser
+	var selfDisplay SelfDisplayReader
+	if selfDisplayUC := s.useCases.Entity.User.ReadSelfDisplay; selfDisplayUC != nil {
+		selfDisplay = serverSelfDisplayReaderFunc(func(ctx context.Context) (UserDisplay, error) {
+			first, last, email, err := selfDisplayUC.ExecuteWithEmail(ctx)
+			if err != nil {
+				return UserDisplay{}, err
+			}
+			return UserDisplay{FirstName: first, LastName: last, Email: email, Active: true}, nil
+		})
+		log.Printf("  UserLoader: gate-free self-display fallback enabled (Entity.User.ReadSelfDisplay)")
+	}
+	var principalCount PrincipalCountReader
+	if s.useCases.Service != nil && s.useCases.Service.Auth != nil && s.useCases.Service.Auth.ResolvePrincipals != nil {
+		// Reuses the SAME resolver the /auth/select-workspace-role chooser
+		// uses (consumer.BuildPrincipalResolveFn wraps Service.Auth.ResolvePrincipals),
+		// so "Switch Role" visibility and the chooser's card list never disagree.
+		// DBUserLoader caches the count (principalCountCacheTTL) so this does
+		// NOT become a fresh multi-query read on every sidebar render.
+		resolveFn := consumer.BuildPrincipalResolveFn(s.useCases.Service.Auth.ResolvePrincipals)
+		principalCount = serverPrincipalCountReaderFunc(func(ctx context.Context, userID string) (int, error) {
+			data, err := resolveFn(ctx, userID)
+			if err != nil {
+				return 0, err
+			}
+			return len(data), nil
+		})
+		log.Printf("  UserLoader: \"Switch Role\" affordance enabled (Service.Auth.ResolvePrincipals)")
+	}
 	loader := NewDBUserLoader(serverUserReaderFunc(func(
 		ctx context.Context,
 		userID string,
@@ -269,13 +302,14 @@ func (s *Server) buildUserLoader(cr *compose.Result) UserLoader {
 			Email:     u.GetEmailAddress(),
 			Active:    u.GetActive(),
 		}, nil
-	}), ProfileURLs{
-		Profile:      cr.RouteOrEmpty("personal.profile"),
-		Account:      cr.RouteOrEmpty("personal.account"),
-		Billing:      cr.RouteOrEmpty("personal.billing"),
-		Preferences:  cr.RouteOrEmpty("personal.preferences"),
-		Logout:       "/auth/logout",
-		LogoutAction: "/action/auth/logout",
+	}), selfDisplay, principalCount, ProfileURLs{
+		Profile:         cr.RouteOrEmpty("personal.profile"),
+		Account:         cr.RouteOrEmpty("personal.account"),
+		Billing:         cr.RouteOrEmpty("personal.billing"),
+		Preferences:     cr.RouteOrEmpty("personal.preferences"),
+		SwitchPrincipal: cr.RouteOrEmpty("personal.switch_principal"),
+		Logout:          "/auth/logout",
+		LogoutAction:    "/action/auth/logout",
 	})
 	log.Printf("  UserLoader: routed through Entity.User.ReadUser use case (sidebar profile button active)")
 	return loader
@@ -315,6 +349,22 @@ func (f serverPermissionQueryFunc) GetUserPermissionCodes(
 type serverUserReaderFunc func(ctx context.Context, userID string) (UserDisplay, error)
 
 func (f serverUserReaderFunc) ReadUserDisplay(ctx context.Context, userID string) (UserDisplay, error) {
+	return f(ctx, userID)
+}
+
+// serverSelfDisplayReaderFunc adapts a closure to the SelfDisplayReader
+// interface.
+type serverSelfDisplayReaderFunc func(ctx context.Context) (UserDisplay, error)
+
+func (f serverSelfDisplayReaderFunc) ReadSelfDisplay(ctx context.Context) (UserDisplay, error) {
+	return f(ctx)
+}
+
+// serverPrincipalCountReaderFunc adapts a closure to the PrincipalCountReader
+// interface.
+type serverPrincipalCountReaderFunc func(ctx context.Context, userID string) (int, error)
+
+func (f serverPrincipalCountReaderFunc) CountPrincipals(ctx context.Context, userID string) (int, error) {
 	return f(ctx, userID)
 }
 

@@ -524,6 +524,48 @@ type UserReader interface {
 	ReadUserDisplay(ctx context.Context, userID string) (UserDisplay, error)
 }
 
+// PrincipalCountReader reports how many selectable principal bindings the
+// CALLING user holds — used to decide whether the sidebar profile menu shows
+// "Switch Role" (canonical: switch_principal). Backed by the SAME
+// Service.Auth.ResolvePrincipals resolver the /auth/select-workspace-role
+// chooser page uses (see finalize.go and entydad's handleSelectWorkspaceRole),
+// so the visibility rule and the chooser's own card list are always
+// consistent — no direct SQL, no second source of truth.
+type PrincipalCountReader interface {
+	// CountPrincipals returns the number of active principal bindings the
+	// given user holds (operator/staff/client/supplier/delegate, across all
+	// workspaces). A non-nil error means "unknown" — the loader treats that
+	// as "do not show the menu item" (fail closed on the UI affordance, not
+	// on access: the /auth/select-workspace-role page re-resolves independently).
+	CountPrincipals(ctx context.Context, userID string) (int, error)
+}
+
+// principalCountCacheTTL mirrors permissionCacheTTL: principal bindings
+// change about as rarely as role grants, and ResolvePrincipals runs several
+// queries (workspace_user+role, client/supplier portal grants, staff,
+// delegate fan-out) — the sidebar renders on every page, so this must not be
+// a fresh read every request.
+const principalCountCacheTTL = 5 * time.Minute
+
+type cachedPrincipalCount struct {
+	count   int
+	expires time.Time
+}
+
+// SelfDisplayReader is the narrow "read the CALLER's own display fields"
+// contract consumed by DBUserLoader as a gate-free fallback for when the
+// permission-gated UserReader denies a principal that lacks user:read (e.g. a
+// teacher/staff role under enforced RBAC) reading their OWN record. Backed by
+// Entity.User.ReadSelfDisplay, which resolves the id ONLY from the request
+// identity on ctx — it can never read anyone else. See finalize.go.
+type SelfDisplayReader interface {
+	// ReadSelfDisplay returns the CALLING principal's own first name, last
+	// name, and email (Active is implied true — the use case fails closed on
+	// an inactive/missing/mismatched row). A non-nil error means "no usable
+	// self display data"; the loader falls through to the session identity.
+	ReadSelfDisplay(ctx context.Context) (UserDisplay, error)
+}
+
 // UserDisplay carries the read-only display fields the sidebar profile button
 // needs. It deliberately mirrors the three columns the old raw query selected
 // (first_name, last_name, email_address) plus the active flag used to preserve
@@ -540,27 +582,41 @@ type UserDisplay struct {
 // backed by the uc.Entity.User.ReadUser use case. It holds no database handle
 // and runs no SQL; the adapter layer owns the query.
 type DBUserLoader struct {
-	reader      UserReader
-	profileURLs ProfileURLs
+	reader         UserReader
+	selfDisplay    SelfDisplayReader
+	principalCount PrincipalCountReader
+	profileURLs    ProfileURLs
+
+	principalCountMu    sync.RWMutex
+	principalCountCache map[string]cachedPrincipalCount
 }
 
 // ProfileURLs carries the per-app URL conventions for the bottom-of-sidebar
 // menu. service-admin populates these once at startup; the loader passes
 // them through unchanged on every request.
 type ProfileURLs struct {
-	Profile      string
-	Account      string
-	Billing      string
-	Preferences  string
-	Logout       string
-	LogoutAction string
+	Profile         string
+	Account         string
+	Billing         string
+	Preferences     string
+	SwitchPrincipal string // "Switch Role" — see PrincipalCountReader
+	Logout          string
+	LogoutAction    string
 }
 
 // NewDBUserLoader creates a UserLoader backed by the given UserReader.
-// Pass nil to disable — IsEnabled() will report false.
+// Pass nil reader to disable — IsEnabled() will report false. selfDisplay and
+// principalCount may be nil (no gate-free name/email fallback, no "Switch
+// Role" item; the loader still falls back to the session identity as before).
 // Pass the profileURLs you want the sidebar menu to point at.
-func NewDBUserLoader(reader UserReader, profileURLs ProfileURLs) *DBUserLoader {
-	return &DBUserLoader{reader: reader, profileURLs: profileURLs}
+func NewDBUserLoader(reader UserReader, selfDisplay SelfDisplayReader, principalCount PrincipalCountReader, profileURLs ProfileURLs) *DBUserLoader {
+	return &DBUserLoader{
+		reader:              reader,
+		selfDisplay:         selfDisplay,
+		principalCount:      principalCount,
+		profileURLs:         profileURLs,
+		principalCountCache: make(map[string]cachedPrincipalCount),
+	}
 }
 
 // LoadCurrentUser returns the SidebarCurrentUser for the currently
@@ -591,7 +647,10 @@ func (l *DBUserLoader) LoadCurrentUser(ctx context.Context) types.SidebarCurrent
 
 	display, err := l.reader.ReadUserDisplay(ctx, userID)
 	if err != nil {
-		log.Printf("UserLoader: user %s read failed (%v) — falling back to session identity so the sidebar profile still renders", userID, err)
+		log.Printf("UserLoader: user %s read failed (%v) — trying the gate-free self-display read", userID, err)
+		if sd, ok := l.trySelfDisplay(ctx, userID); ok {
+			return l.withProfileURLs(ctx, sd)
+		}
 		return l.currentUserFromSession(ctx, userID)
 	}
 	// Preserve the old `AND active = true` filter at the loader boundary:
@@ -600,9 +659,16 @@ func (l *DBUserLoader) LoadCurrentUser(ctx context.Context) types.SidebarCurrent
 		return types.SidebarCurrentUser{}
 	}
 	// A successful read that carries no name is still unrenderable — the
-	// template slices FirstName/LastName for the avatar initials. Fill from the
-	// session rather than emitting an empty block.
+	// template slices FirstName/LastName for the avatar initials. Try the
+	// gate-free self-display read before giving up on a real name; only then
+	// fall back to the session identity.
 	if display.FirstName == "" && display.LastName == "" {
+		if sd, ok := l.trySelfDisplay(ctx, userID); ok {
+			if sd.Email == "" && display.Email != "" {
+				sd.Email = display.Email
+			}
+			return l.withProfileURLs(ctx, sd)
+		}
 		fallback := l.currentUserFromSession(ctx, userID)
 		if display.Email != "" {
 			fallback.Email = display.Email
@@ -610,7 +676,7 @@ func (l *DBUserLoader) LoadCurrentUser(ctx context.Context) types.SidebarCurrent
 		return fallback
 	}
 
-	return l.withProfileURLs(types.SidebarCurrentUser{
+	return l.withProfileURLs(ctx, types.SidebarCurrentUser{
 		UserID:    userID,
 		FirstName: display.FirstName,
 		LastName:  display.LastName,
@@ -618,15 +684,36 @@ func (l *DBUserLoader) LoadCurrentUser(ctx context.Context) types.SidebarCurrent
 	})
 }
 
+// trySelfDisplay attempts the gate-free self-display read (see
+// SelfDisplayReader) and reports whether it produced a usable (non-empty)
+// name. This is the path that keeps a principal without user:read (e.g. a
+// teacher/staff role under enforced RBAC) from seeing the generic "Signed In"
+// placeholder: the sidebar's own DB lookup was denied, but reading your own
+// name/email is not a privileged operation.
+func (l *DBUserLoader) trySelfDisplay(ctx context.Context, userID string) (types.SidebarCurrentUser, bool) {
+	if l.selfDisplay == nil {
+		return types.SidebarCurrentUser{}, false
+	}
+	sd, err := l.selfDisplay.ReadSelfDisplay(ctx)
+	if err != nil || (sd.FirstName == "" && sd.LastName == "") {
+		return types.SidebarCurrentUser{}, false
+	}
+	return types.SidebarCurrentUser{
+		UserID:    userID,
+		FirstName: sd.FirstName,
+		LastName:  sd.LastName,
+		Email:     sd.Email,
+	}, true
+}
+
 // currentUserFromSession builds a display-only SidebarCurrentUser from the
 // session identity already on ctx — no DB read, no permission gate. Names are
 // derived from the session email's local part so the avatar initials and the
 // tooltip are never empty (the template slices both name fields).
 func (l *DBUserLoader) currentUserFromSession(ctx context.Context, userID string) types.SidebarCurrentUser {
-	// Same ctx key the render pipeline's InjectSessionUser reads.
-	email, _ := ctx.Value("email").(string)
+	email := consumer.GetEmailFromContext(ctx)
 	first, last := namesFromEmail(email)
-	return l.withProfileURLs(types.SidebarCurrentUser{
+	return l.withProfileURLs(ctx, types.SidebarCurrentUser{
 		UserID:    userID,
 		FirstName: first,
 		LastName:  last,
@@ -634,15 +721,53 @@ func (l *DBUserLoader) currentUserFromSession(ctx context.Context, userID string
 	})
 }
 
-// withProfileURLs stamps the per-app profile-menu URLs onto a SidebarCurrentUser.
-func (l *DBUserLoader) withProfileURLs(u types.SidebarCurrentUser) types.SidebarCurrentUser {
+// withProfileURLs stamps the per-app profile-menu URLs onto a SidebarCurrentUser,
+// including the "Switch Role" item's visibility (ShowSwitchPrincipal) and
+// target URL when the user holds more than one selectable principal binding.
+func (l *DBUserLoader) withProfileURLs(ctx context.Context, u types.SidebarCurrentUser) types.SidebarCurrentUser {
 	u.ProfileURL = l.profileURLs.Profile
 	u.AccountURL = l.profileURLs.Account
 	u.BillingURL = l.profileURLs.Billing
 	u.PreferencesURL = l.profileURLs.Preferences
 	u.LogoutURL = l.profileURLs.Logout
 	u.LogoutActionURL = l.profileURLs.LogoutAction
+
+	// Never show a menu item with an empty href: a visible link and its
+	// mounted route are validated together (no route registered = no item),
+	// even if the principal count would otherwise qualify.
+	if u.UserID != "" && l.profileURLs.SwitchPrincipal != "" {
+		if n, ok := l.countPrincipals(ctx, u.UserID); ok && n > 1 {
+			u.ShowSwitchPrincipal = true
+			u.SwitchPrincipalURL = l.profileURLs.SwitchPrincipal
+		}
+	}
 	return u
+}
+
+// countPrincipals returns the cached (or freshly resolved) principal count
+// for userID, and whether a count is available at all (false = unknown/
+// disabled — the caller must not show "Switch Role" in that case).
+func (l *DBUserLoader) countPrincipals(ctx context.Context, userID string) (int, bool) {
+	if l.principalCount == nil {
+		return 0, false
+	}
+
+	l.principalCountMu.RLock()
+	cached, hit := l.principalCountCache[userID]
+	l.principalCountMu.RUnlock()
+	if hit && time.Now().Before(cached.expires) {
+		return cached.count, true
+	}
+
+	n, err := l.principalCount.CountPrincipals(ctx, userID)
+	if err != nil {
+		return 0, false
+	}
+
+	l.principalCountMu.Lock()
+	l.principalCountCache[userID] = cachedPrincipalCount{count: n, expires: time.Now().Add(principalCountCacheTTL)}
+	l.principalCountMu.Unlock()
+	return n, true
 }
 
 // namesFromEmail splits an email local part into a first/last pair for display.

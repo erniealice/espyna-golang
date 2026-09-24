@@ -20,6 +20,7 @@ import (
 	joboutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
+	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
 	phaseoutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
 	scorescalepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale"
 	scorescalebandpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale_band"
@@ -34,9 +35,9 @@ import (
 // provider — no raw SQL, no adapter imports. The single write target is
 // PhaseOutcomeSummary; everything else is read-only config + recorded outcomes.
 type Repositories struct {
-	JobPhase                 jobphasepb.JobPhaseDomainServiceServer
-	JobTemplatePhase         jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
-	ScoringScheme            scoringschemepb.ScoringSchemeDomainServiceServer
+	JobPhase         jobphasepb.JobPhaseDomainServiceServer
+	JobTemplatePhase jobtemplatephasepb.JobTemplatePhaseDomainServiceServer
+	ScoringScheme    scoringschemepb.ScoringSchemeDomainServiceServer
 	// ScoringComponent is the parent of the component<->criteria junction. The
 	// eligibility/roll-up scope read requires the parent component to be ACTIVE
 	// and to belong to the resolved scheme, so the component graph is read here
@@ -44,15 +45,18 @@ type Repositories struct {
 	ScoringComponent         scoringcomponentpb.ScoringComponentDomainServiceServer
 	ScoringComponentCriteria scoringcomponentcriteriapb.ScoringComponentCriteriaDomainServiceServer
 	ScoreScale               scorescalepb.ScoreScaleDomainServiceServer
-	ScoreScaleBand           scorescalebandpb.ScoreScaleBandDomainServiceServer
-	TaskOutcome              taskoutcomepb.TaskOutcomeDomainServiceServer
-	PhaseOutcomeSummary      phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer
+	// OutcomeCriteria supplies each in-scope criterion's aggregation_method
+	// (AVERAGE vs the default MAXIMUM). Optional: nil keeps MAXIMUM everywhere.
+	OutcomeCriteria     outcomecriteriapb.OutcomeCriteriaDomainServiceServer
+	ScoreScaleBand      scorescalebandpb.ScoreScaleBandDomainServiceServer
+	TaskOutcome         taskoutcomepb.TaskOutcomeDomainServiceServer
+	PhaseOutcomeSummary phaseoutcomesummarypb.PhaseOutcomeSummaryDomainServiceServer
 	// Job-level (year-final) roll-up target + source rows. Job supplies the
 	// denormalized client_id/workspace_id (portal-read design) and the subject
 	// label; JobOutcomeSummary/JobOutcomeLine are the write targets.
-	Job                 jobpb.JobDomainServiceServer
-	JobOutcomeSummary   joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer
-	JobOutcomeLine      joboutcomelinepb.JobOutcomeLineDomainServiceServer
+	Job               jobpb.JobDomainServiceServer
+	JobOutcomeSummary joboutcomesummarypb.JobOutcomeSummaryDomainServiceServer
+	JobOutcomeLine    joboutcomelinepb.JobOutcomeLineDomainServiceServer
 }
 
 // Services groups the cross-cutting services (auth gate, transactions, i18n, id).

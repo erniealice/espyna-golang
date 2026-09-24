@@ -69,6 +69,16 @@ func validateClientReportCardRequest(req *exportpb.GetSubscriptionGroupClientRep
 		}
 		seen[code] = struct{}{}
 	}
+	seenPlan := make(map[string]struct{}, len(req.GetPlanAttributeCodes()))
+	for _, code := range req.GetPlanAttributeCodes() {
+		if !canonicalReportCardAttributeCode.MatchString(code) {
+			return fmt.Errorf("plan attribute code must be canonical")
+		}
+		if _, duplicate := seenPlan[code]; duplicate {
+			return fmt.Errorf("client report card request contains duplicate plan attribute code %q", code)
+		}
+		seenPlan[code] = struct{}{}
+	}
 	return nil
 }
 
@@ -116,6 +126,23 @@ func validateClientReportCardResponse(req *exportpb.GetSubscriptionGroupClientRe
 			return fmt.Errorf("client report card contains a duplicate attribute")
 		}
 		attributeCodes[attribute.GetCode()] = struct{}{}
+	}
+	requestedPlanAttributes := make(map[string]struct{}, len(req.GetPlanAttributeCodes()))
+	for _, code := range req.GetPlanAttributeCodes() {
+		requestedPlanAttributes[code] = struct{}{}
+	}
+	planAttributeCodes := make(map[string]struct{}, len(card.GetPlanAttributes()))
+	for _, attribute := range card.GetPlanAttributes() {
+		if attribute == nil || strings.TrimSpace(attribute.GetCode()) == "" {
+			return fmt.Errorf("client report card contains an invalid plan attribute")
+		}
+		if _, requested := requestedPlanAttributes[attribute.GetCode()]; !requested {
+			return fmt.Errorf("client report card contains an unrequested plan attribute")
+		}
+		if _, duplicate := planAttributeCodes[attribute.GetCode()]; duplicate {
+			return fmt.Errorf("client report card contains a duplicate plan attribute")
+		}
+		planAttributeCodes[attribute.GetCode()] = struct{}{}
 	}
 
 	jobIDs := make(map[string]struct{}, len(card.GetJobs()))

@@ -611,6 +611,7 @@ func NewUseCases(
 			ScoringComponentCriteria: repos.ScoringComponentCriteria,
 			ScoreScale:               repos.ScoreScale,
 			ScoreScaleBand:           repos.ScoreScaleBand,
+			OutcomeCriteria:          repos.OutcomeCriteria,
 			TaskOutcome:              repos.TaskOutcome,
 			PhaseOutcomeSummary:      repos.PhaseOutcomeSummary,
 			// Job-level (year-final) roll-up: source job + write targets.

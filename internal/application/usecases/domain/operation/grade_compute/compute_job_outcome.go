@@ -11,6 +11,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/shared/gradecompute"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	jobpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 	joboutcomelinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_line"
@@ -21,7 +22,6 @@ import (
 	scorescalepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale"
 	scorescalebandpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale_band"
 	scoringschemepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/scoring_scheme"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
 // ErrSummaryFrozen is returned (wrapped) by ComputeJobOutcome.Execute when a

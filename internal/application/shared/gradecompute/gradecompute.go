@@ -87,6 +87,43 @@ func IsMaxAggregation(a enumspb.AggregationMethod) bool {
 type CriterionInput struct {
 	CriterionID string
 	Values      []float64
+	// Aggregation is the criterion's outcome_criteria.aggregation_method.
+	// AGGREGATION_METHOD_AVERAGE takes the mean of the recorded values; every
+	// other value (including UNSPECIFIED) keeps the best-fit MAXIMUM.
+	Aggregation enumspb.AggregationMethod
+}
+
+// AverageWithinCriterion is the within-criterion mean
+// (AGGREGATION_METHOD_AVERAGE) over the recorded values only; ok is false when
+// there are none (a missing value is not a zero).
+func AverageWithinCriterion(values []float64) (avg float64, ok bool) {
+	if len(values) == 0 {
+		return 0, false
+	}
+	var total float64
+	for _, v := range values {
+		total += v
+	}
+	return total / float64(len(values)), true
+}
+
+// RoundWhole rounds to a whole number with the scheme's rounding_mode.
+// UNSPECIFIED leaves the value unchanged. Whole-number precision is the fixed
+// rule today (no precision field exists on scoring_scheme).
+func RoundWhole(value float64, mode enumspb.RoundingMode) float64 {
+	switch mode {
+	case enumspb.RoundingMode_ROUNDING_MODE_HALF_UP:
+		return math.Round(value) // halves away from zero
+	case enumspb.RoundingMode_ROUNDING_MODE_HALF_DOWN:
+		if value < 0 {
+			return -math.Ceil(-value - 0.5)
+		}
+		return math.Ceil(value - 0.5)
+	case enumspb.RoundingMode_ROUNDING_MODE_HALF_EVEN:
+		return math.RoundToEven(value)
+	default:
+		return value
+	}
 }
 
 // RollUp is the result of RollUpCriteria: the per-criterion best-fit values, the
@@ -102,8 +139,22 @@ type RollUp struct {
 // criterion with no values contributes nothing (not a zero) — the §8 all-zero
 // suppression / scaffold-synthesis policy is the caller's, not the math's.
 func RollUpCriteria(inputs []CriterionInput) RollUp {
+	return RollUpCriteriaRounded(inputs, enumspb.RoundingMode_ROUNDING_MODE_UNSPECIFIED)
+}
+
+// RollUpCriteriaRounded is RollUpCriteria with the scheme's rounding_mode
+// applied to AVERAGE-aggregated criteria (the only aggregation that produces
+// fractions). MAXIMUM criteria and the SUM composite are untouched, so existing
+// MAX/SUM schemes produce exactly the values they did before.
+func RollUpCriteriaRounded(inputs []CriterionInput, rounding enumspb.RoundingMode) RollUp {
 	per := make(map[string]float64, len(inputs))
 	for _, in := range inputs {
+		if in.Aggregation == enumspb.AggregationMethod_AGGREGATION_METHOD_AVERAGE {
+			if avg, ok := AverageWithinCriterion(in.Values); ok {
+				per[in.CriterionID] = RoundWhole(avg, rounding)
+			}
+			continue
+		}
 		if m, ok := MaxWithinCriterion(in.Values); ok {
 			per[in.CriterionID] = m
 		}

@@ -435,10 +435,10 @@ func TestBuildSubscriptionGroupClientReportCardSQL_IsClientAnchoredTenantScopedA
 	}
 	built := buildSubscriptionGroupClientReportCardSQL(id, req, ports.SubscriptionGroupOutcomeExportScope{}, `[
 		"student_code", "display_name'); SELECT pg_sleep(9); --"
-	]`)
+	]`, `["program_year"]`)
 	statement := built.statement
 
-	if got, want := len(built.args), 7; got != want {
+	if got, want := len(built.args), 8; got != want {
 		t.Fatalf("arg count = %d, want %d", got, want)
 	}
 	for i, want := range []string{"ws-1", "sg-1", "workspace-user-1", "client-9"} {
@@ -454,6 +454,13 @@ func TestBuildSubscriptionGroupClientReportCardSQL_IsClientAnchoredTenantScopedA
 	}
 	if strings.Contains(statement, "display_name'); SELECT pg_sleep(9); --") || !strings.Contains(statement, "jsonb_array_elements_text($5::jsonb)") {
 		t.Fatal("attribute code values must be bound as data, never interpolated into SQL")
+	}
+	if got := built.args[7].(string); got != `["program_year"]` {
+		t.Fatalf("plan attribute codes bind = %q", got)
+	}
+	if !strings.Contains(statement, "jsonb_array_elements_text($8::jsonb)") || strings.Contains(statement, "{{plan_attribute_codes_param}}") ||
+		!strings.Contains(statement, "pa.plan_id = g.plan_id") || strings.Contains(statement, "program_year") {
+		t.Fatal("plan attribute codes must be bound as $8 data and reached only through the scoped group plan")
 	}
 
 	anchorAt := strings.Index(statement, "member_anchor AS MATERIALIZED")
@@ -567,7 +574,7 @@ func TestBuildSubscriptionGroupClientReportCardSQL_TeacherFallbackPrimaryEligibl
 		SubscriptionGroupId: "sg-1",
 		ClientId:            "client-9",
 	}
-	built := buildSubscriptionGroupClientReportCardSQL(id, req, ports.SubscriptionGroupOutcomeExportScope{}, `[]`)
+	built := buildSubscriptionGroupClientReportCardSQL(id, req, ports.SubscriptionGroupOutcomeExportScope{}, `[]`, `[]`)
 	statement := built.statement
 
 	fallbackAt := strings.Index(statement, "JOIN LATERAL (")

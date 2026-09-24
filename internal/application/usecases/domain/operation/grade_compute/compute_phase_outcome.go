@@ -15,6 +15,7 @@ import (
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 	jobtemplatephasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_phase"
+	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
 	phaseoutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
 	scorescalepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale"
 	scorescalebandpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale_band"
@@ -163,8 +164,10 @@ func (uc *ComputePhaseOutcomeUseCase) executeCore(ctx context.Context, req *Comp
 			"[ERR-DEFAULT] scoring scheme %s declares composite_method %v; only SCORING_METHOD_SUM is implemented"), schemeID, scheme.CompositeMethod)
 	}
 
-	// Pure roll-up: within-criterion MAX -> SUM composite.
-	rollUp := gradecompute.RollUpCriteria(inputs)
+	// Pure roll-up: within-criterion MAX (or AVERAGE, rounded with the scheme's
+	// rounding_mode) -> SUM composite.
+	uc.applyCriterionAggregation(ctx, inputs)
+	rollUp := gradecompute.RollUpCriteriaRounded(inputs, scheme.GetRoundingMode())
 
 	// 6. Read the scale + its bands; transmute the composite to a grade band.
 	scale, err := uc.readScoreScale(ctx, *scheme.ScoreScaleId)
@@ -583,3 +586,22 @@ func (uc *ComputePhaseOutcomeUseCase) msg(ctx context.Context, key, def string) 
 
 func ptrInt64(v int64) *int64    { return &v }
 func ptrString(v string) *string { return &v }
+
+// applyCriterionAggregation stamps each in-scope criterion's
+// outcome_criteria.aggregation_method onto its roll-up input. Without the
+// OutcomeCriteria repository, or when a read fails, the input keeps the zero
+// value and therefore today's best-fit MAXIMUM (fail-safe to prior behaviour).
+func (uc *ComputePhaseOutcomeUseCase) applyCriterionAggregation(ctx context.Context, inputs []gradecompute.CriterionInput) {
+	if uc.repositories.OutcomeCriteria == nil {
+		return
+	}
+	for i := range inputs {
+		resp, err := uc.repositories.OutcomeCriteria.ReadOutcomeCriteria(ctx, &outcomecriteriapb.ReadOutcomeCriteriaRequest{
+			Data: &outcomecriteriapb.OutcomeCriteria{Id: inputs[i].CriterionID},
+		})
+		if err != nil || resp == nil || len(resp.GetData()) == 0 || resp.GetData()[0] == nil {
+			continue
+		}
+		inputs[i].Aggregation = resp.GetData()[0].GetAggregationMethod()
+	}
+}

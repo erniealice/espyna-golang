@@ -92,7 +92,15 @@ func (q *PostgresSubscriptionGroupOutcomeExportQuery) GetSubscriptionGroupClient
 	if err != nil {
 		return nil, fmt.Errorf("subscription group client report card attribute codes: %w", err)
 	}
-	built := buildSubscriptionGroupClientReportCardSQL(id, req, scope, string(codesJSON))
+	planCodes := req.GetPlanAttributeCodes()
+	if planCodes == nil {
+		planCodes = []string{}
+	}
+	planCodesJSON, err := json.Marshal(planCodes)
+	if err != nil {
+		return nil, fmt.Errorf("subscription group client report card plan attribute codes: %w", err)
+	}
+	built := buildSubscriptionGroupClientReportCardSQL(id, req, scope, string(codesJSON), string(planCodesJSON))
 	rows, err := adaptercore.ExecutorFromContext(ctx, q.db).QueryContext(ctx, built.statement, built.args...)
 	if err != nil {
 		return nil, fmt.Errorf("subscription group client report card query: %w", err)
@@ -134,6 +142,8 @@ func appendClientReportCardPayload(projection *exportpb.ClientReportCardProjecti
 		field = "client_subscription_ids"
 	case "attribute":
 		field = "attributes"
+	case "plan_attribute":
+		field = "plan_attributes"
 	case "job":
 		field = "jobs"
 	case "job_template":
@@ -251,12 +261,17 @@ func buildSubscriptionGroupClientReportCardSQL(
 	req *exportpb.GetSubscriptionGroupClientReportCardRequest,
 	scope ports.SubscriptionGroupOutcomeExportScope,
 	codesJSON string,
+	planCodesJSON string,
 ) exportScopeSQL {
 	args := []any{id.WorkspaceID, req.GetSubscriptionGroupId(), id.WorkspaceUserID, req.GetClientId(), codesJSON, scope.WorkspaceWide}
 	gateNarrow, gateArgs := groupNarrowPredicate(req.GetSubscriptionGroupId(), 7, 1)
 	args = append(args, gateArgs...)
+	args = append(args, planCodesJSON)
+	planCodesParam := fmt.Sprintf("$%d", len(args))
+	statement := strings.ReplaceAll(clientReportCardCTEs, "{{render_gate_group_narrow}}", gateNarrow) + clientReportCardRowsSQL
+	statement = strings.ReplaceAll(statement, "{{plan_attribute_codes_param}}", planCodesParam)
 	return exportScopeSQL{
-		statement: renderOutcomeExportTables(strings.ReplaceAll(clientReportCardCTEs, "{{render_gate_group_narrow}}", gateNarrow) + clientReportCardRowsSQL),
+		statement: renderOutcomeExportTables(statement),
 		args:      args,
 	}
 }
@@ -496,6 +511,15 @@ WITH group_context AS MATERIALIZED (
     JOIN {{client_attribute}} ca ON ca.client_id = a.client_id AND ca.active = true
     JOIN {{attribute}} attr ON attr.id = ca.attribute_id AND attr.active = true
    WHERE attr.code IN (SELECT jsonb_array_elements_text($5::jsonb))
+), plan_attribute_rows AS MATERIALIZED (
+  -- Configured attributes of the group's plan (the section's grade/level).
+  -- plan_attribute has no workspace_id; it is reached only through the
+  -- workspace-scoped group_context plan.
+  SELECT DISTINCT attr.code, pa.value
+    FROM group_context g
+    JOIN {{plan_attribute}} pa ON pa.plan_id = g.plan_id AND pa.active = true
+    JOIN {{attribute}} attr ON attr.id = pa.attribute_id AND attr.active = true
+   WHERE attr.code IN (SELECT jsonb_array_elements_text({{plan_attribute_codes_param}}::jsonb))
 ), teacher_candidates AS MATERIALIZED (
   -- Direct task assignees are the override. A class-edge fallback is used only
   -- for phases with no valid active direct assignee. SGPP is scoped by workspace
@@ -571,6 +595,9 @@ SELECT kind, payload
     UNION ALL
     SELECT 3, 'attribute', a.code, a.value, jsonb_build_object('code', a.code, 'value', a.value)
       FROM attribute_rows a
+    UNION ALL
+    SELECT 3, 'plan_attribute', a.code, a.value, jsonb_build_object('code', a.code, 'value', a.value)
+      FROM plan_attribute_rows a
     UNION ALL
     SELECT 4, 'job', j.id, '', jsonb_build_object('id', j.id, 'workspace_id', j.workspace_id,
              'client_id', j.client_id, 'origin_id', j.origin_id, 'origin_type', j.origin_type,
@@ -1261,6 +1288,7 @@ func renderOutcomeExportTables(statement string) string {
 		"{{document_template}}", entityid.DocumentTemplate,
 		"{{client_attribute}}", entityid.ClientAttribute,
 		"{{attribute}}", entityid.Attribute,
+		"{{plan_attribute}}", entityid.PlanAttribute,
 		"{{job_template_task}}", entityid.JobTemplateTask,
 		"{{template_task_criteria}}", entityid.TemplateTaskCriteria,
 		"{{template_task_criteria_rating_description}}", entityid.TemplateTaskCriteriaRatingDescription,

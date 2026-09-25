@@ -182,6 +182,8 @@ func appendClientReportCardPayload(projection *exportpb.ClientReportCardProjecti
 		field, repeated = "render_gate_applied_subscription_group_id", false
 	case "render_gate_sheet":
 		field = "render_gate_sheets"
+	case "product_variant":
+		field = "product_variants"
 	default:
 		return fmt.Errorf("unknown projection row kind %q", kind)
 	}
@@ -376,7 +378,7 @@ WITH group_context AS MATERIALIZED (
    WHERE j.historical OR jp.active = true
 ), template_phases AS MATERIALIZED (
   SELECT DISTINCT jtp.id, jtp.workspace_id, jtp.job_template_id, jtp.code, jtp.name, jtp.phase_order, jtp.active,
-         j.historical
+         jtp.output_product_variant_id, j.historical
     FROM job_phases jp
     JOIN job_rows j ON j.id = jp.job_id
     JOIN {{job_template_phase}} jtp
@@ -625,7 +627,8 @@ SELECT kind, payload
     UNION ALL
     SELECT 8, 'job_template_phase', tp.id, '', jsonb_build_object('id', tp.id, 'workspace_id', tp.workspace_id,
              'job_template_id', tp.job_template_id, 'code', tp.code, 'name', tp.name,
-             'phase_order', tp.phase_order, 'active', tp.active)
+             'phase_order', tp.phase_order, 'active', tp.active,
+             'output_product_variant_id', tp.output_product_variant_id)
       FROM template_phases tp
     UNION ALL
     SELECT 9, 'job_template_task', tt.id, '', jsonb_build_object('id', tt.id, 'workspace_id', tt.workspace_id,
@@ -717,6 +720,11 @@ SELECT kind, payload
              'all_published', s.all_published,
              'has_data', s.has_data)
       FROM render_gate_singletons s
+    UNION ALL
+    SELECT DISTINCT 23, 'product_variant', pv.id, '', jsonb_build_object('id', pv.id, 'sku', pv.sku)
+      FROM template_phases tp
+      JOIN {{product_variant}} pv ON pv.id = tp.output_product_variant_id
+      JOIN {{product}} p ON p.id = pv.product_id AND p.workspace_id = $1
   ) projection_rows
  ORDER BY kind_order, sort_key_1, sort_key_2
 `
@@ -1306,6 +1314,8 @@ func renderOutcomeExportTables(statement string) string {
 		"{{subscription_group_product_plan_staff}}", entityid.SubscriptionGroupProductPlanStaff,
 		"{{product_plan}}", entityid.ProductPlan,
 		"{{product_plan_staff}}", entityid.ProductPlanStaff,
+		"{{product_variant}}", entityid.ProductVariant,
+		"{{product}}", entityid.Product,
 	).Replace(statement)
 }
 

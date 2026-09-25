@@ -45,5 +45,26 @@ func (uc *UpdateScoreScaleBandUseCase) Execute(ctx context.Context, req *pb.Upda
 	s := now.Format(time.RFC3339)
 	req.Data.DateModified = &ms
 	req.Data.DateModifiedString = &s
-	return uc.repositories.ScoreScaleBand.UpdateScoreScaleBand(ctx, req)
+
+	// The BAND_LOCKED guard (contrib/postgres score_scale_band.go,
+	// schema-proposal.md §9.3) requires an ambient transaction — it locks the
+	// band row FOR UPDATE and checks for a referencing PUBLISHED/DEPRECATED
+	// entry inside the same statement/transaction. Mirrors
+	// update_rating_description_set_entry.go's Transactor wrapping.
+	if uc.services.Transactor == nil || !uc.services.Transactor.SupportsTransactions() {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "score_scale_band.errors.transactor_unavailable", "[ERR-DEFAULT] Update requires transaction support"))
+	}
+	var resp *pb.UpdateScoreScaleBandResponse
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		r, txErr := uc.repositories.ScoreScaleBand.UpdateScoreScaleBand(txCtx, req)
+		if txErr != nil {
+			return txErr
+		}
+		resp = r
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }

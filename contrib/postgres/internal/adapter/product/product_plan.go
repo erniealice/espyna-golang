@@ -13,6 +13,8 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/database/sqlexec"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -404,4 +406,101 @@ func parseProductPlanTimestamp(ts string) (int64, error) {
 func NewProductPlanRepository(db *sql.DB, tableName string) productplanpb.ProductPlanDomainServiceServer {
 	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresProductPlanRepository(dbOps, tableName)
+}
+
+// executor returns the ambient *sql.Tx from ctx when one is active
+// (interfaces.DatabaseOperation.GetExecutor), otherwise the repository's own
+// *sql.DB — mirrors rating_description_set_product_plan.go's identically
+// named helper, so a caller running inside a transaction (e.g. an
+// integration test seeding fixtures and reading them back before rollback)
+// sees its own uncommitted writes.
+func (r *PostgresProductPlanRepository) executor(ctx context.Context) sqlexec.DBExecutor {
+	if ep, ok := r.dbOps.(interface {
+		GetExecutor(ctx context.Context) sqlexec.DBExecutor
+	}); ok {
+		if e := ep.GetExecutor(ctx); e != nil {
+			return e
+		}
+	}
+	if r.db != nil {
+		return r.db
+	}
+	return nil
+}
+
+// ListWorkspaceScopedProductPlans lists active product_plan rows whose
+// PARENT product AND plan both belong to the caller's workspace — a
+// dedicated join, since product_plan itself carries no workspace_id column
+// of its own (docs/plan/20260925-criterion-descriptors-by-program-year,
+// codex-review-impl3.out.md finding #3: the generic ListProductPlans /
+// dbOps.List path has no predicate for this column-less tenant table).
+// Reuses the exact JOIN shape already proven in
+// rating_description_set_product_plan.go's RelinkLocked step 0 (product ->
+// product.workspace_id, plan -> plan.workspace_id, both = caller). Fails
+// closed on a missing trusted workspace in ctx — implements
+// ports/domain.WorkspaceScopedProductPlanReader.
+func (r *PostgresProductPlanRepository) ListWorkspaceScopedProductPlans(ctx context.Context) ([]*productplanpb.ProductPlan, error) {
+	idn, ok := identity.FromContext(ctx)
+	if !ok || idn == nil || idn.WorkspaceID == "" {
+		return nil, fmt.Errorf("list workspace scoped product plans: no trusted workspace in context (fail closed)")
+	}
+	ex := r.executor(ctx)
+	if ex == nil {
+		return nil, fmt.Errorf("list workspace scoped product plans: no SQL executor available")
+	}
+
+	query := `
+		SELECT pp.id, pp.name, pp.description, pp.product_id, pp.plan_id, pp.product_variant_id, pp.active, pp.date_created, pp.date_modified
+		FROM ` + entityid.ProductPlan + ` pp
+		JOIN ` + entityid.Product + ` p ON p.id = pp.product_id AND p.workspace_id = $1
+		JOIN ` + entityid.Plan + ` pl ON pl.id = pp.plan_id AND pl.workspace_id = $1
+		WHERE pp.active = true
+		ORDER BY pp.id
+	`
+	rows, err := ex.QueryContext(ctx, query, idn.WorkspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("list workspace scoped product plans: %w", err)
+	}
+	defer rows.Close()
+
+	var items []*productplanpb.ProductPlan
+	for rows.Next() {
+		var (
+			id, productId string
+			name          string
+			description   *string
+			planId        *string
+			variantId     *string
+			active        bool
+			dateCreated   time.Time
+			dateModified  time.Time
+		)
+		if err := rows.Scan(&id, &name, &description, &productId, &planId, &variantId, &active, &dateCreated, &dateModified); err != nil {
+			return nil, fmt.Errorf("list workspace scoped product plans: scan: %w", err)
+		}
+
+		item := &productplanpb.ProductPlan{Id: id, Name: name, ProductId: productId, Active: active}
+		if description != nil {
+			item.Description = description
+		}
+		if planId != nil {
+			item.PlanId = *planId
+		}
+		if variantId != nil {
+			item.ProductVariantId = variantId
+		}
+		if !dateCreated.IsZero() {
+			ts := dateCreated.UnixMilli()
+			item.DateCreated = &ts
+		}
+		if !dateModified.IsZero() {
+			ts := dateModified.UnixMilli()
+			item.DateModified = &ts
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list workspace scoped product plans: rows: %w", err)
+	}
+	return items, nil
 }

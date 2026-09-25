@@ -1,8 +1,10 @@
 package domain
 
 import (
+	"errors"
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
@@ -34,6 +36,9 @@ import (
 	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
 	phaseoutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
 	planjobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/plan_job_template"
+	ratingdescriptionsetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/rating_description_set"
+	ratingdescriptionsetentrypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/rating_description_set_entry"
+	ratingdescriptionsetproductplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/rating_description_set_product_plan"
 	reportingcheckpointpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/reporting_checkpoint"
 	scorescalepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale"
 	scorescalebandpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale_band"
@@ -98,6 +103,11 @@ type OperationRepositories struct {
 	ScoreScaleBand           scorescalebandpb.ScoreScaleBandDomainServiceServer
 	JobOutcomeLine           joboutcomelinepb.JobOutcomeLineDomainServiceServer
 	ReportingCheckpoint      reportingcheckpointpb.ReportingCheckpointDomainServiceServer
+
+	// Rating description sets (20260925-criterion-descriptors-by-program-year).
+	RatingDescriptionSet            ratingdescriptionsetpb.RatingDescriptionSetDomainServiceServer
+	RatingDescriptionSetEntry       ratingdescriptionsetentrypb.RatingDescriptionSetEntryDomainServiceServer
+	RatingDescriptionSetProductPlan ratingdescriptionsetproductplanpb.RatingDescriptionSetProductPlanDomainServiceServer
 
 	// Performance Evaluation (20260604 v1). Optional: when an adapter is not
 	// registered (e.g. mock-only tests) the field stays nil and the use cases
@@ -318,6 +328,15 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 		return nil, fmt.Errorf("failed to create reporting_checkpoint repository: %w", err)
 	}
 
+	// Rating description sets (20260925-criterion-descriptors-by-program-year).
+	// OPTIONAL capability (codex-review-impl2 #8): only the postgres provider
+	// registers these factories. A provider without them (mock_db / firestore)
+	// yields nil repositories — the capability is all-or-nothing, so if ANY of
+	// the three is missing all three stay nil — logged once per process. The
+	// operation use-case container then leaves the RatingDescriptionSet*
+	// use cases nil and the fayna block skips mounting their modules.
+	ratingDescriptionSetServer, ratingDescriptionSetEntryServer, ratingDescriptionSetProductPlanServer := newRatingDescriptionRepositories(repoCreator, conn, tableConfig)
+
 	// Performance Evaluation (20260604 v1) — best-effort: nil when no adapter is
 	// registered (mock/firestore builds), mirroring JobTemplateRelation.
 	var evaluationServer evaluationpb.EvaluationDomainServiceServer
@@ -412,6 +431,10 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 		JobOutcomeLine:           jobOutcomeLineRepo.(joboutcomelinepb.JobOutcomeLineDomainServiceServer),
 		ReportingCheckpoint:      reportingCheckpointRepo.(reportingcheckpointpb.ReportingCheckpointDomainServiceServer),
 
+		RatingDescriptionSet:            ratingDescriptionSetServer,
+		RatingDescriptionSetEntry:       ratingDescriptionSetEntryServer,
+		RatingDescriptionSetProductPlan: ratingDescriptionSetProductPlanServer,
+
 		Evaluation:             evaluationServer,
 		EvaluationResponse:     evaluationResponseServer,
 		EvaluationTemplate:     evaluationTemplateServer,
@@ -427,4 +450,41 @@ func NewOperationRepositories(dbProvider contracts.Provider, tableConfig *regist
 		WorkRequestType: workRequestTypeServer,
 		WorkspaceUser:   workspaceUserServer,
 	}, nil
+}
+
+// newRatingDescriptionRepositories creates the three rating-description-set
+// repositories as ONE optional capability (codex-review-impl2 #8): all three
+// or none. A provider that does not register any of them (mock_db, firestore)
+// returns three nils and logs once — never an error.
+func newRatingDescriptionRepositories(repoCreator contracts.RepositoryProvider, conn any, tableConfig *registry.TableConfig) (
+	ratingdescriptionsetpb.RatingDescriptionSetDomainServiceServer,
+	ratingdescriptionsetentrypb.RatingDescriptionSetEntryDomainServiceServer,
+	ratingdescriptionsetproductplanpb.RatingDescriptionSetProductPlanDomainServiceServer,
+) {
+	setRepo, setErr := repoCreator.CreateRepository(entityid.RatingDescriptionSet, conn, tableConfig.TableName(entityid.RatingDescriptionSet))
+	entryRepo, entryErr := repoCreator.CreateRepository(entityid.RatingDescriptionSetEntry, conn, tableConfig.TableName(entityid.RatingDescriptionSetEntry))
+	linkRepo, linkErr := repoCreator.CreateRepository(entityid.RatingDescriptionSetProductPlan, conn, tableConfig.TableName(entityid.RatingDescriptionSetProductPlan))
+	setSrv, setOK := setRepo.(ratingdescriptionsetpb.RatingDescriptionSetDomainServiceServer)
+	entrySrv, entryOK := entryRepo.(ratingdescriptionsetentrypb.RatingDescriptionSetEntryDomainServiceServer)
+	linkSrv, linkOK := linkRepo.(ratingdescriptionsetproductplanpb.RatingDescriptionSetProductPlanDomainServiceServer)
+	if setErr == nil && entryErr == nil && linkErr == nil && setOK && entryOK && linkOK {
+		return setSrv, entrySrv, linkSrv
+	}
+	cause := errors.Join(setErr, entryErr, linkErr)
+	if cause == nil {
+		cause = fmt.Errorf("repository type mismatch (set=%T entry=%T link=%T)", setRepo, entryRepo, linkRepo)
+	}
+	logRatingDescriptionsUnsupportedOnce(cause)
+	return nil, nil, nil
+}
+
+// ratingDescriptionsUnsupportedOnce guards the one-per-process log line for a
+// provider without the rating-description-set repositories
+// (NewOperationRepositories runs several times during composition).
+var ratingDescriptionsUnsupportedOnce sync.Once
+
+func logRatingDescriptionsUnsupportedOnce(cause error) {
+	ratingDescriptionsUnsupportedOnce.Do(func() {
+		log.Printf("operation provider: rating description sets unsupported by this database provider (capability disabled, routes not mounted): %v", cause)
+	})
 }

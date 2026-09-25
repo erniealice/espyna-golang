@@ -76,6 +76,10 @@ func InitializeOperation(
 		JobOutcomeSummary:   repos.JobOutcomeSummary,
 		JobOutcomeLine:      repos.JobOutcomeLine,
 		ReportingCheckpoint: repos.ReportingCheckpoint,
+		// Rating description sets (20260925-criterion-descriptors-by-program-year).
+		RatingDescriptionSet:            repos.RatingDescriptionSet,
+		RatingDescriptionSetEntry:       repos.RatingDescriptionSetEntry,
+		RatingDescriptionSetProductPlan: repos.RatingDescriptionSetProductPlan,
 		// Performance Evaluation (20260604 v1).
 		Evaluation:             repos.Evaluation,
 		EvaluationResponse:     repos.EvaluationResponse,
@@ -96,6 +100,15 @@ func InitializeOperation(
 		opRepos.ProductPricePlan = subRepos.ProductPricePlan
 		// SubscriptionSeat backs the evaluation anchor-ownership IDOR check.
 		opRepos.SubscriptionSeat = subRepos.SubscriptionSeat
+		// Picker-only cross-domain reads for
+		// GetRatingDescriptionSetProductPlanFormPageData
+		// (codex-review-impl2.out.md finding #6 — the offering/academic-year
+		// pickers must not require separate product_plan:list /
+		// price_schedule:list grants). subRepos.ProductPlan is the same
+		// cross-domain (Model D) repo already threaded for job_template's
+		// output_product_variant_id guard elsewhere in this package.
+		opRepos.RatingDescriptionSetProductPlanPickerProductPlan = subRepos.ProductPlan
+		opRepos.RatingDescriptionSetProductPlanPickerPriceSchedule = subRepos.PriceSchedule
 	}
 	return operation.NewUseCases(
 		opRepos,

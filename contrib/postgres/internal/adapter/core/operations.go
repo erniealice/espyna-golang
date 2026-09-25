@@ -613,6 +613,45 @@ func buildListOrderByClause(params *interfaces.ListParams) (string, error) {
 
 // List retrieves records from the specified table with standardized params
 func (p *PostgresOperations) List(ctx context.Context, tableName string, params *interfaces.ListParams) (*interfaces.ListResult, error) {
+	return p.listWithScope(ctx, tableName, nil, params)
+}
+
+// ListWithScope is List with a set of MANDATORY scope filters (e.g. the tenant
+// workspace_id predicate injected by WorkspaceAwareOperations). Scope filters
+// are always AND-ed as separate top-level WHERE clauses, OUTSIDE the caller's
+// FilterRequest group, so the caller's FilterLogic (AND or OR) only ever
+// combines the caller's own filters:
+//
+//	active = true AND <scope_1> AND ... AND (<caller_1> OR <caller_2> ...)
+//
+// This closes the tenant-escape where a prepended workspace_id filter was
+// OR-ed away by a caller-supplied FilterLogic_OR (fix3-tenant-or, 2026-09-25).
+// Scope filters count toward the same filter budget / column allowlist as the
+// caller's filters, exactly as if they had been prepended.
+func (p *PostgresOperations) ListWithScope(ctx context.Context, tableName string, scope []*commonpb.TypedFilter, params *interfaces.ListParams) (*interfaces.ListResult, error) {
+	return p.listWithScope(ctx, tableName, scope, params)
+}
+
+// listScopeValidationParams returns the params the request validator sees:
+// the caller's params with the scope filters prepended (same budget, nil-filter
+// and column-allowlist checks the legacy prepend path enforced). params is
+// never mutated.
+func listScopeValidationParams(scope []*commonpb.TypedFilter, params *interfaces.ListParams) *interfaces.ListParams {
+	if len(scope) == 0 {
+		return params
+	}
+	var cloned interfaces.ListParams
+	if params != nil {
+		cloned = *params
+	}
+	merged := make([]*commonpb.TypedFilter, 0, len(scope)+len(cloned.Filters.GetFilters()))
+	merged = append(merged, scope...)
+	merged = append(merged, cloned.Filters.GetFilters()...)
+	cloned.Filters = &commonpb.FilterRequest{Filters: merged, Logic: cloned.Filters.GetLogic()}
+	return &cloned
+}
+
+func (p *PostgresOperations) listWithScope(ctx context.Context, tableName string, scope []*commonpb.TypedFilter, params *interfaces.ListParams) (*interfaces.ListResult, error) {
 	if tableName == "" {
 		return nil, model.NewDatabaseError("table name is required", "MISSING_TABLE_NAME", 400)
 	}
@@ -643,7 +682,7 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 			500,
 		)
 	}
-	if err := validateListRequest(params, tableName, allowedColumns); err != nil {
+	if err := validateListRequest(listScopeValidationParams(scope, params), tableName, allowedColumns); err != nil {
 		if metric != nil {
 			metric.Fail("validation")
 		}
@@ -671,6 +710,37 @@ func (p *PostgresOperations) List(ctx context.Context, tableName string, params 
 	}
 	values := []any{}
 	paramIndex := 1
+
+	// Mandatory scope filters (tenant predicate): always individual AND-ed
+	// clauses, never part of the caller's Logic group.
+	if len(scope) > 0 {
+		scopeConditions, scopeValues, nextIndex, err := p.buildFilterConditions(&commonpb.FilterRequest{Filters: scope}, paramIndex)
+		if err != nil {
+			return nil, model.NewDatabaseError(
+				fmt.Sprintf("invalid scope filter: %v", err),
+				"INVALID_FILTER_FIELD",
+				400,
+			)
+		}
+		emptyScopeClause := false
+		for _, c := range scopeConditions {
+			if strings.TrimSpace(c) == "" {
+				emptyScopeClause = true
+			}
+		}
+		if len(scopeConditions) != len(scope) || emptyScopeClause {
+			// Every scope filter must yield exactly one clause; anything else
+			// would silently widen the tenant scope. Fail closed.
+			return nil, model.NewDatabaseError(
+				"scope filter did not produce a SQL predicate",
+				"TENANT_SCOPE_UNAVAILABLE",
+				500,
+			)
+		}
+		whereConditions = append(whereConditions, scopeConditions...)
+		values = append(values, scopeValues...)
+		paramIndex = nextIndex
+	}
 
 	// Apply filters from FilterRequest
 	if params != nil && params.Filters != nil {

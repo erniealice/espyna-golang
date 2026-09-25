@@ -39,5 +39,26 @@ func (uc *DeleteScoreScaleUseCase) Execute(ctx context.Context, req *pb.DeleteSc
 	if req == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "score_scale.validation.request_required", "Request is required [DEFAULT]"))
 	}
-	return uc.repositories.ScoreScale.DeleteScoreScale(ctx, req)
+	// fix2-backend (codex impl2 #1): DeleteScoreScale deactivates the scale
+	// (generic Delete sets active=false), which would silently drop every
+	// PUBLISHED/DEPRECATED descriptor entry of its bands from resolution. The
+	// postgres adapter guards it (lock scale FOR UPDATE → BAND_LOCKED when a
+	// band is referenced by a published/deprecated set); that guard requires an
+	// ambient transaction, so the delete runs inside one (no non-tx fallback).
+	if uc.services.Transactor == nil || !uc.services.Transactor.SupportsTransactions() {
+		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "score_scale.errors.transactor_unavailable", "[ERR-DEFAULT] Delete requires transaction support"))
+	}
+	var resp *pb.DeleteScoreScaleResponse
+	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		r, txErr := uc.repositories.ScoreScale.DeleteScoreScale(txCtx, req)
+		if txErr != nil {
+			return txErr
+		}
+		resp = r
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }

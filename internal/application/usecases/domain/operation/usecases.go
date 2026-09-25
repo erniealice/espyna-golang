@@ -29,6 +29,9 @@ import (
 	outcomeCriteriaUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/outcome_criteria"
 	phaseOutcomeSummaryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/phase_outcome_summary"
 	planJobTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/plan_job_template"
+	ratingDescriptionSetUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/rating_description_set"
+	ratingDescriptionSetEntryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/rating_description_set_entry"
+	ratingDescriptionSetProductPlanUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/rating_description_set_product_plan"
 	reportingCheckpointUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/reporting_checkpoint"
 	scoreScaleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/score_scale"
 	scoreScaleBandUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/operation/score_scale_band"
@@ -73,6 +76,9 @@ import (
 	outcomecriteriapb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/outcome_criteria"
 	phaseoutcomesummarypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/phase_outcome_summary"
 	planjobtemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/plan_job_template"
+	ratingdescriptionsetpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/rating_description_set"
+	ratingdescriptionsetentrypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/rating_description_set_entry"
+	ratingdescriptionsetproductplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/rating_description_set_product_plan"
 	reportingcheckpointpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/reporting_checkpoint"
 	scorescalepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale"
 	scorescalebandpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/score_scale_band"
@@ -94,11 +100,22 @@ import (
 	// workspace guard (red-team HIGH #2).
 	productpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product"
 
+	// Cross-domain (product) picker-only read for
+	// GetRatingDescriptionSetProductPlanFormPageData (codex-review-impl2.out.md
+	// finding #6 — the offering picker must not require a separate
+	// product_plan:list grant).
+	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
+
 	// Cross-domain dependency for the OnJobPhaseCompleted hook + the
 	// MaterializeBillingEventsForJob use case (milestone-billing plan §3).
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
+	// PriceSchedule — cross-domain (subscription) picker-only read for
+	// GetRatingDescriptionSetProductPlanFormPageData (finding #6 — the
+	// academic-year picker must not require a separate price_schedule:list
+	// grant).
+	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 	subscriptionseatpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription_seat"
@@ -158,6 +175,19 @@ type OperationRepositories struct {
 	ScoreScaleBand           scorescalebandpb.ScoreScaleBandDomainServiceServer
 	JobOutcomeLine           joboutcomelinepb.JobOutcomeLineDomainServiceServer
 	ReportingCheckpoint      reportingcheckpointpb.ReportingCheckpointDomainServiceServer
+
+	// Rating description sets (20260925-criterion-descriptors-by-program-year).
+	RatingDescriptionSet            ratingdescriptionsetpb.RatingDescriptionSetDomainServiceServer
+	RatingDescriptionSetEntry       ratingdescriptionsetentrypb.RatingDescriptionSetEntryDomainServiceServer
+	RatingDescriptionSetProductPlan ratingdescriptionsetproductplanpb.RatingDescriptionSetProductPlanDomainServiceServer
+	// RatingDescriptionSetProductPlanPickerProductPlan/PriceSchedule —
+	// picker-only cross-domain reads for
+	// GetRatingDescriptionSetProductPlanFormPageData (codex-review-impl2.out.md
+	// finding #6). Sourced from SubscriptionRepositories in InitializeOperation
+	// (mirrors the existing BillingEvent/Plan/Subscription/PricePlan/
+	// ProductPricePlan/SubscriptionSeat threading below) — optional, nil-safe.
+	RatingDescriptionSetProductPlanPickerProductPlan   productplanpb.ProductPlanDomainServiceServer
+	RatingDescriptionSetProductPlanPickerPriceSchedule priceschedulepb.PriceScheduleDomainServiceServer
 
 	// Performance Evaluation (20260604 v1).
 	Evaluation             evaluationpb.EvaluationDomainServiceServer
@@ -224,6 +254,14 @@ type OperationUseCases struct {
 	ScoreScaleBand           *scoreScaleBandUseCases.UseCases
 	JobOutcomeLine           *jobOutcomeLineUseCases.UseCases
 	ReportingCheckpoint      *reportingCheckpointUseCases.UseCases
+
+	// Rating description sets (20260925-criterion-descriptors-by-program-year).
+	// Fayna block accessor path: OperationUseCases.RatingDescriptionSet.<UseCase>,
+	// .RatingDescriptionSetEntry.<UseCase>, .RatingDescriptionSetProductPlan.<UseCase>
+	// — see W3-ESPYNA.done for the full exported use-case name list.
+	RatingDescriptionSet            *ratingDescriptionSetUseCases.UseCases
+	RatingDescriptionSetEntry       *ratingDescriptionSetEntryUseCases.UseCases
+	RatingDescriptionSetProductPlan *ratingDescriptionSetProductPlanUseCases.UseCases
 
 	// Grade roll-up orchestration (20260616 v1) — the "genuine build" that
 	// transmutes recorded task_outcomes into a report-card grade onto
@@ -577,6 +615,73 @@ func NewUseCases(
 		},
 	)
 
+	ratingDescriptionSetEntryUC := ratingDescriptionSetEntryUseCases.NewUseCases(
+		ratingDescriptionSetEntryUseCases.Repositories{
+			RatingDescriptionSetEntry: repos.RatingDescriptionSetEntry,
+			// Picker-only cross-domain reads for
+			// GetRatingDescriptionSetEntryFormPageData (finding #6) — already
+			// available on OperationRepositories, no new threading needed.
+			OutcomeCriteria: repos.OutcomeCriteria,
+			ScoreScaleBand:  repos.ScoreScaleBand,
+			// Parent-authorized read for GetRatingDescriptionSetEntryDrawer-
+			// FormPageData's Level-picker scale scoping (codex-review-impl4
+			// "Update-only drawer").
+			RatingDescriptionSet: repos.RatingDescriptionSet,
+		},
+		ratingDescriptionSetEntryUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	ratingDescriptionSetProductPlanUC := ratingDescriptionSetProductPlanUseCases.NewUseCases(
+		ratingDescriptionSetProductPlanUseCases.Repositories{
+			RatingDescriptionSetProductPlan: repos.RatingDescriptionSetProductPlan,
+			// Picker-only cross-domain reads for
+			// GetRatingDescriptionSetProductPlanFormPageData (finding #6).
+			RatingDescriptionSet: repos.RatingDescriptionSet,
+			ProductPlan:          repos.RatingDescriptionSetProductPlanPickerProductPlan,
+			PriceSchedule:        repos.RatingDescriptionSetProductPlanPickerPriceSchedule,
+		},
+		ratingDescriptionSetProductPlanUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	ratingDescriptionSetUC := ratingDescriptionSetUseCases.NewUseCases(
+		ratingDescriptionSetUseCases.Repositories{
+			RatingDescriptionSet:            repos.RatingDescriptionSet,
+			RatingDescriptionSetEntry:       repos.RatingDescriptionSetEntry,
+			RatingDescriptionSetProductPlan: repos.RatingDescriptionSetProductPlan,
+			// Picker-only cross-domain read for
+			// GetRatingDescriptionSetFormPageData (finding #6).
+			ScoreScale: repos.ScoreScale,
+		},
+		ratingDescriptionSetUseCases.Services{
+			Authorizer:       authSvc,
+			Transactor:       txSvc,
+			Translator:       i18nSvc,
+			IDGenerator:      idService,
+			ActionGatekeeper: actionGate,
+		},
+	)
+
+	// codex-review-impl2 #8: rating description sets are an OPTIONAL,
+	// all-or-nothing provider capability (postgres only). Without all three
+	// repositories the use cases are left nil — the fayna block then skips
+	// mounting the rating_description_set* modules instead of serving routes
+	// whose use cases would dereference a nil repository.
+	if repos.RatingDescriptionSet == nil || repos.RatingDescriptionSetEntry == nil || repos.RatingDescriptionSetProductPlan == nil {
+		ratingDescriptionSetUC, ratingDescriptionSetEntryUC, ratingDescriptionSetProductPlanUC = nil, nil, nil
+	}
+
 	jobOutcomeLineUC := jobOutcomeLineUseCases.NewUseCases(
 		jobOutcomeLineUseCases.Repositories{JobOutcomeLine: repos.JobOutcomeLine},
 		jobOutcomeLineUseCases.Services{
@@ -776,6 +881,10 @@ func NewUseCases(
 		ScoreScaleBand:           scoreScaleBandUC,
 		JobOutcomeLine:           jobOutcomeLineUC,
 		ReportingCheckpoint:      reportingCheckpointUC,
+
+		RatingDescriptionSet:            ratingDescriptionSetUC,
+		RatingDescriptionSetEntry:       ratingDescriptionSetEntryUC,
+		RatingDescriptionSetProductPlan: ratingDescriptionSetProductPlanUC,
 
 		GradeCompute: gradeComputeUC,
 

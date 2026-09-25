@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json/v2"
 	"fmt"
+	"log"
 	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
@@ -78,8 +79,12 @@ func (a *auditAdapter) LogEntry(ctx context.Context, req *infraports.AuditLogReq
 
 	exec := a.getExecutor(ctx)
 
-	// workspace_id comes from the request (set by DiffAndLog or caller).
-	workspaceID := req.WorkspaceID
+	// fix3-backend (codex-review-impl3 #4): workspace_id is stamped from the
+	// TRUSTED request identity, never from request data. The generic
+	// PostgresOperations Create/Update/Delete diff events carry no workspace
+	// (DiffAndLogRequest built from table rows), which left them NULL and
+	// invisible to workspace-filtered audit reads.
+	workspaceID := trustedAuditWorkspaceID(ctx, req.WorkspaceID)
 
 	const entrySQL = `
 		INSERT INTO ` + entityid.AuditEntry + ` (
@@ -416,6 +421,51 @@ func boundedEntityListLimit(requested int) int {
 
 // nullableString returns nil for empty strings, otherwise the string value.
 // Used for optional INET/TEXT columns that accept NULL.
+// trustedAuditWorkspaceID resolves audit_entry.workspace_id:
+//   - a trusted identity workspace (identity.FromContext, stamped by the
+//     session middleware) always wins — a caller-supplied value can neither
+//     replace it nor redirect the event to another tenant (a mismatch is
+//     logged, and the trusted value is written);
+//   - with no trusted workspace (service-to-service / system jobs) the
+//     caller's explicit value is kept, preserving existing behaviour.
+//
+// audit_entry.workspace_id is a uuid column; a trusted value that is not a
+// canonical UUID (test fixtures only — production workspace ids are UUIDs)
+// is NOT stamped, so it can never turn a previously-succeeding audited write
+// into an insert failure. The caller's value is kept in that case.
+func trustedAuditWorkspaceID(ctx context.Context, requested string) string {
+	idn, ok := identity.FromContext(ctx)
+	if !ok || idn == nil || idn.WorkspaceID == "" || !isCanonicalUUID(idn.WorkspaceID) {
+		return requested
+	}
+	if requested != "" && requested != idn.WorkspaceID {
+		log.Printf("WARN audit: caller workspace_id %q differs from trusted identity workspace %q — stamping the trusted value", requested, idn.WorkspaceID)
+	}
+	return idn.WorkspaceID
+}
+
+// isCanonicalUUID reports whether s is a 36-char hyphenated hex UUID (any
+// version) — the text form Postgres' uuid input accepts without surprises.
+func isCanonicalUUID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch i {
+		case 8, 13, 18, 23:
+			if c != '-' {
+				return false
+			}
+		default:
+			if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func nullableString(s string) any {
 	if s == "" {
 		return nil

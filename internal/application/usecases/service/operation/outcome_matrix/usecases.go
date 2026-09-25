@@ -28,6 +28,11 @@ type UseCases struct {
 	GetOutcomeMatrix           *GetOutcomeMatrixUseCase
 	GetOutcomeSummaryRoster    *GetOutcomeSummaryRosterUseCase
 	GetPhaseApprovalGateRollup *GetPhaseApprovalGateRollupUseCase
+	// ResolveCellRatingDescriptions — per-cell rubric-text resolver (PD
+	// 20260925-criterion-descriptors-by-program-year). No permission gate of
+	// its own (see resolve_cell_rating_descriptions.go doc comment) — nil-
+	// safe (a nil Query fails closed per requested cell, never empty).
+	ResolveCellRatingDescriptions *ResolveCellRatingDescriptionsUseCase
 }
 
 // Repositories groups infrastructure dependencies. Query may be nil when no
@@ -68,6 +73,9 @@ func NewUseCases(repositories Repositories, services Services) *UseCases {
 				Translator:       services.Translator,
 				ActionGatekeeper: services.ActionGatekeeper,
 			},
+		),
+		ResolveCellRatingDescriptions: NewResolveCellRatingDescriptionsUseCase(
+			ResolveCellRatingDescriptionsRepositories{Query: repositories.Query},
 		),
 	}
 }

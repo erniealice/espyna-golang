@@ -10,6 +10,7 @@ import (
 	"os"
 	"sync"
 
+	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/database/model"
@@ -53,6 +54,14 @@ var workspaceScopePolicies = map[string]workspaceScopePolicy{
 
 	entityid.TreasuryCollection:   workspaceScopeDirectRequired,
 	entityid.TreasuryDisbursement: workspaceScopeDirectRequired,
+
+	// Rating description sets (20260925-criterion-descriptors-by-program-year).
+	// All 3 tables carry workspace_id NOT NULL in proto and migration
+	// (schema-proposal.md §9.2 "Schema detail fixed"), so generic operations
+	// fail closed the same way as the other direct-required grading tables.
+	entityid.RatingDescriptionSet:            workspaceScopeDirectRequired,
+	entityid.RatingDescriptionSetEntry:       workspaceScopeDirectRequired,
+	entityid.RatingDescriptionSetProductPlan: workspaceScopeDirectRequired,
 }
 
 type workspaceColumnProbe func(context.Context, string) (map[string]bool, error)
@@ -450,6 +459,27 @@ func NewWorkspaceAwareOperationsFromInner(db *sql.DB, inner interfaces.DatabaseO
 	}
 }
 
+// NewAuditedWorkspaceAwareOperations returns a DatabaseOperation that wraps
+// audit-enabled PostgresOperations (NewPostgresOperationsWithAudit) with
+// workspace_id isolation — the audited counterpart to
+// NewWorkspaceAwareOperations (docs/plan/20260925-criterion-descriptors-by-
+// program-year/schema-proposal.md §9.4; codex-review-impl2.out.md finding 9).
+//
+// Both PostgresOperations.getExecutor and the postgres audit adapter's own
+// getExecutor resolve the ambient *sql.Tx from ctx via
+// operations.GetTransactionFromContext, so the row diffs DiffAndLog computes
+// on Create/Update/Delete join the SAME transaction as the caller's business
+// write — rolling that transaction back discards the pending audit rows too,
+// exactly like the mutation itself.
+//
+// auditSvc may be nil (e.g. non-postgres builds, or when no audit provider is
+// registered) — nil behaves exactly like NewWorkspaceAwareOperations, since
+// PostgresOperations' own `if p.auditService != nil` guard makes DiffAndLog a
+// no-op.
+func NewAuditedWorkspaceAwareOperations(db *sql.DB, auditSvc infraports.AuditService) interfaces.DatabaseOperation {
+	return NewWorkspaceAwareOperationsFromInner(db, NewPostgresOperationsWithAudit(db, auditSvc))
+}
+
 // newWorkspaceEnforce reads AUTHZ_ENFORCE once at construction and logs the active
 // mode, mirroring secondary/auth/rbac/authorizer.go NewPermissionAuthorizer. The
 // decorator and the W0 Authorizer share the SAME flag so a single AUTHZ_ENFORCE=on
@@ -479,6 +509,19 @@ func (w *WorkspaceAwareOperations) List(ctx context.Context, tableName string, p
 		// that the esqyma migration added their workspace_id column (they were
 		// removed from columnLessTenantTables) — the StringFilter predicate scopes
 		// them automatically, no parent-JOIN needed.
+		if callerFiltersUseOR(params) {
+			// fix3-tenant-or (2026-09-25): a prepended workspace_id filter would
+			// join the caller's OR group — `(workspace_id = $1 OR <caller> ...)`
+			// — and leak cross-workspace rows. Route through the inner's
+			// mandatory-scope path, which AND-s the tenant predicate OUTSIDE the
+			// caller's group. An inner without that capability cannot prove
+			// tenant scope for an OR request → fail closed.
+			scoped, ok := w.inner.(mandatoryScopeLister)
+			if !ok {
+				return nil, workspaceScopeUnavailable(tableName, "OR filter logic requires a mandatory-scope list", nil)
+			}
+			return scoped.ListWithScope(ctx, tableName, []*commonpb.TypedFilter{workspaceEqualsFilter(wsID)}, params)
+		}
 		params = w.injectWorkspaceFilter(params, wsID)
 	} else if wsID != "" && columnLessTenantTables[tableName] {
 		// W2 step-2 measurement: a column-less TENANT list returns rows across ALL
@@ -875,11 +918,24 @@ func (w *WorkspaceAwareOperations) probeTableColumns(ctx context.Context, tableN
 	return colMap, nil
 }
 
-// injectWorkspaceFilter returns a copy of params with a workspace_id
-// StringFilter prepended. The original params value is never mutated.
-// If params is nil a new ListParams is allocated.
-func (w *WorkspaceAwareOperations) injectWorkspaceFilter(params *interfaces.ListParams, wsID string) *interfaces.ListParams {
-	wsFilter := &commonpb.TypedFilter{
+// mandatoryScopeLister is the optional inner capability (implemented by
+// *PostgresOperations) that lists with scope filters AND-ed outside the
+// caller's FilterRequest group, whatever the caller's FilterLogic.
+type mandatoryScopeLister interface {
+	ListWithScope(ctx context.Context, tableName string, scope []*commonpb.TypedFilter, params *interfaces.ListParams) (*interfaces.ListResult, error)
+}
+
+// callerFiltersUseOR reports whether the caller's filter set is combined with
+// FilterLogic_OR. Only then would a prepended tenant filter be OR-ed away; the
+// AND path keeps the (byte-identical) prepend.
+func callerFiltersUseOR(params *interfaces.ListParams) bool {
+	return params != nil && params.Filters != nil && params.Filters.GetLogic() == commonpb.FilterLogic_OR
+}
+
+// workspaceEqualsFilter is the tenant predicate: case-sensitive
+// workspace_id = <wsID>.
+func workspaceEqualsFilter(wsID string) *commonpb.TypedFilter {
+	return &commonpb.TypedFilter{
 		Field: "workspace_id",
 		FilterType: &commonpb.TypedFilter_StringFilter{
 			StringFilter: &commonpb.StringFilter{
@@ -889,6 +945,17 @@ func (w *WorkspaceAwareOperations) injectWorkspaceFilter(params *interfaces.List
 			},
 		},
 	}
+}
+
+// injectWorkspaceFilter returns a copy of params with a workspace_id
+// StringFilter prepended. The original params value is never mutated.
+// If params is nil a new ListParams is allocated.
+//
+// SAFE ONLY FOR FilterLogic_AND: the prepended filter joins the caller's
+// group, so under OR it would be OR-ed with the caller's filters. List routes
+// OR requests through mandatoryScopeLister instead (fix3-tenant-or).
+func (w *WorkspaceAwareOperations) injectWorkspaceFilter(params *interfaces.ListParams, wsID string) *interfaces.ListParams {
+	wsFilter := workspaceEqualsFilter(wsID)
 
 	if params == nil {
 		return &interfaces.ListParams{

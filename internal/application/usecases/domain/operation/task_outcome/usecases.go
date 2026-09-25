@@ -22,9 +22,12 @@ type TaskOutcomeServices struct {
 
 // UseCases contains all task_outcome-related use cases
 type UseCases struct {
-	CreateTaskOutcome               *CreateTaskOutcomeUseCase
-	ReadTaskOutcome                 *ReadTaskOutcomeUseCase
-	UpdateTaskOutcome               *UpdateTaskOutcomeUseCase
+	CreateTaskOutcome *CreateTaskOutcomeUseCase
+	ReadTaskOutcome   *ReadTaskOutcomeUseCase
+	UpdateTaskOutcome *UpdateTaskOutcomeUseCase
+	// Q26 conditional grade-sheet writes (conditional_write.go).
+	UpdateTaskOutcomeIfUnchanged    *UpdateTaskOutcomeIfUnchangedUseCase
+	CreateTaskOutcomeIfAbsent       *CreateTaskOutcomeIfAbsentUseCase
 	DeleteTaskOutcome               *DeleteTaskOutcomeUseCase
 	ListTaskOutcomes                *ListTaskOutcomesUseCase
 	GetTaskOutcomeListPageData      *GetTaskOutcomeListPageDataUseCase
@@ -155,6 +158,8 @@ func NewUseCases(
 		CreateTaskOutcome:               NewCreateTaskOutcomeUseCase(createRepos, createServices),
 		ReadTaskOutcome:                 NewReadTaskOutcomeUseCase(readRepos, readServices),
 		UpdateTaskOutcome:               NewUpdateTaskOutcomeUseCase(updateRepos, updateServices),
+		UpdateTaskOutcomeIfUnchanged:    NewUpdateTaskOutcomeIfUnchangedUseCase(updateRepos, updateServices),
+		CreateTaskOutcomeIfAbsent:       NewCreateTaskOutcomeIfAbsentUseCase(createRepos, createServices),
 		DeleteTaskOutcome:               NewDeleteTaskOutcomeUseCase(deleteRepos, deleteServices),
 		ListTaskOutcomes:                NewListTaskOutcomesUseCase(listRepos, listServices),
 		GetTaskOutcomeListPageData:      NewGetTaskOutcomeListPageDataUseCase(listPageDataRepos, listPageDataServices),

@@ -326,6 +326,17 @@ const (
 	ReportingCheckpoint      = "reporting_checkpoint"
 )
 
+// Operation domain — Rating description sets
+// (docs/plan/20260925-criterion-descriptors-by-program-year). Reusable rubric
+// text (set header + per-criterion/band entry) linked to an offering
+// (product_plan) x academic year (price_schedule) via
+// rating_description_set_product_plan. Modeled on score_scale/score_scale_band.
+const (
+	RatingDescriptionSet            = "rating_description_set"
+	RatingDescriptionSetEntry       = "rating_description_set_entry"
+	RatingDescriptionSetProductPlan = "rating_description_set_product_plan"
+)
+
 // Operation domain — Performance Evaluation (20260604-performance-evaluation v1)
 const (
 	Evaluation             = "evaluation"
@@ -558,6 +569,8 @@ var OperationOutcomeEntities = []string{
 	// Grading scoring-primitives (R5 — 2026-06-22)
 	ScoringScheme, ScoringComponent, ScoringComponentCriteria,
 	ScoreScale, ScoreScaleBand, JobOutcomeLine, ReportingCheckpoint,
+	// Rating description sets (20260925-criterion-descriptors-by-program-year)
+	RatingDescriptionSet, RatingDescriptionSetEntry, RatingDescriptionSetProductPlan,
 }
 
 // LedgerAccountingEntities lists all entity IDs in the Ledger accounting domain.
@@ -701,6 +714,11 @@ const (
 	ActionEnable        = "enable"         // user:enable
 	ActionResetPassword = "reset-password" // user:reset-password
 	ActionRevoke        = "revoke"         // session:revoke
+
+	// Rating description set lifecycle verbs (interfaces.md §5:
+	// rating_description_set:publish / :deprecate).
+	ActionPublish   = "publish"   // rating_description_set:publish
+	ActionDeprecate = "deprecate" // rating_description_set:deprecate
 )
 
 // EntityPermission builds a permission code from an entity name and action verb.

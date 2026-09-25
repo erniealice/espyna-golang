@@ -121,9 +121,17 @@ func (uc *ComputeJobOutcomeUseCase) run(ctx context.Context, req *ComputeJobOutc
 
 	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *ComputeJobOutcomeResponse
+		// A blank roll-up (ErrNoGradedPhases) is not a failure: its stale-summary
+		// retirement must COMMIT, so the sentinel is carried out of the tx
+		// closure instead of rolling it back.
+		var blankErr error
 		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeJobCore(txCtx, req)
 			if err != nil {
+				if errors.Is(err, ErrNoGradedPhases) {
+					blankErr = err
+					return nil
+				}
 				return err
 			}
 			result = res
@@ -131,6 +139,9 @@ func (uc *ComputeJobOutcomeUseCase) run(ctx context.Context, req *ComputeJobOutc
 		})
 		if err != nil {
 			return nil, err
+		}
+		if blankErr != nil {
+			return nil, blankErr
 		}
 		return result, nil
 	}
@@ -175,6 +186,11 @@ func (uc *ComputeJobOutcomeUseCase) executeJobCore(ctx context.Context, req *Com
 		})
 	}
 	if len(rollups) == 0 {
+		// No graded phase is left (e.g. every value was cleared): retire the
+		// stale year-final summary + its line unless it is authoritative.
+		if err := uc.retireStaleJobSummary(ctx, job.Id); err != nil {
+			return nil, err
+		}
 		// Wrap the sentinel so the submit-time freshness barrier can errors.Is it and
 		// treat an all-blank job as an expected skip; the human %s(job) message is
 		// preserved for every other caller.
@@ -403,6 +419,47 @@ func (uc *ComputeJobOutcomeUseCase) upsertJobSummary(
 			"[ERR-DEFAULT] failed to create job_outcome_summary for job %s: %w"), job.Id, err)
 	}
 	return firstJobSummary(resp.GetData(), data), nil
+}
+
+// retireStaleJobSummary soft-deletes the job's active year-final summary and its
+// transcript line when the job no longer has any graded phase. An authoritative
+// (frozen) summary is left pinned, matching the upsert's freeze guard.
+func (uc *ComputeJobOutcomeUseCase) retireStaleJobSummary(ctx context.Context, jobID string) error {
+	if uc.repositories.JobOutcomeSummary == nil {
+		return nil
+	}
+	existing, err := uc.repositories.JobOutcomeSummary.GetByJob(ctx,
+		&joboutcomesummarypb.GetJobOutcomeSummaryByJobRequest{JobId: jobID})
+	if err != nil {
+		return fmt.Errorf(uc.msg(ctx, "grade_compute.errors.lookup_job_summary_failed",
+			"[ERR-DEFAULT] failed to look up existing job_outcome_summary for job %s: %w"), jobID, err)
+	}
+	if existing == nil || existing.JobOutcomeSummary == nil || existing.JobOutcomeSummary.Id == "" {
+		return nil
+	}
+	prev := existing.JobOutcomeSummary
+	if prev.IsAuthoritative || !prev.Active {
+		return nil
+	}
+	var line *joboutcomelinepb.JobOutcomeLine
+	if uc.repositories.JobOutcomeLine != nil {
+		if line, err = uc.findLineBySummary(ctx, prev.Id); err != nil {
+			return err
+		}
+	}
+	if line != nil && line.Id != "" {
+		if _, err := uc.repositories.JobOutcomeLine.DeleteJobOutcomeLine(ctx,
+			&joboutcomelinepb.DeleteJobOutcomeLineRequest{Data: &joboutcomelinepb.JobOutcomeLine{Id: line.Id}}); err != nil {
+			return fmt.Errorf(uc.msg(ctx, "grade_compute.errors.retire_job_line_failed",
+				"[ERR-DEFAULT] failed to retire stale job_outcome_line for summary %s: %w"), prev.Id, err)
+		}
+	}
+	if _, err := uc.repositories.JobOutcomeSummary.DeleteJobOutcomeSummary(ctx,
+		&joboutcomesummarypb.DeleteJobOutcomeSummaryRequest{Data: &joboutcomesummarypb.JobOutcomeSummary{Id: prev.Id}}); err != nil {
+		return fmt.Errorf(uc.msg(ctx, "grade_compute.errors.retire_job_summary_failed",
+			"[ERR-DEFAULT] failed to retire stale job_outcome_summary for job %s: %w"), jobID, err)
+	}
+	return nil
 }
 
 // upsertJobLine writes the single per-subject transcript line under the summary,

@@ -100,9 +100,17 @@ func (uc *ComputePhaseOutcomeUseCase) run(ctx context.Context, req *ComputePhase
 
 	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
 		var result *ComputePhaseOutcomeResponse
+		// A blank roll-up (ErrNoRecordedValues) is not a failure: its stale-summary
+		// retirement must COMMIT, so the sentinel is carried out of the tx
+		// closure instead of rolling it back.
+		var blankErr error
 		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
 			res, err := uc.executeCore(txCtx, req)
 			if err != nil {
+				if errors.Is(err, ErrNoRecordedValues) {
+					blankErr = err
+					return nil
+				}
 				return err
 			}
 			result = res
@@ -110,6 +118,9 @@ func (uc *ComputePhaseOutcomeUseCase) run(ctx context.Context, req *ComputePhase
 		})
 		if err != nil {
 			return nil, err
+		}
+		if blankErr != nil {
+			return nil, blankErr
 		}
 		return result, nil
 	}
@@ -168,6 +179,13 @@ func (uc *ComputePhaseOutcomeUseCase) executeCore(ctx context.Context, req *Comp
 	}
 	inputs, contributing := bucketByCriterion(outcomes, inScope)
 	if contributing == 0 {
+		// A gradable phase with no recorded values must not keep a previously
+		// computed composite/grade: when the last value is cleared, retire the
+		// stale summary so the Total/Rating columns go blank instead of showing
+		// the grade of values that no longer exist.
+		if err := uc.retireStaleSummary(ctx, req.JobPhaseId); err != nil {
+			return nil, err
+		}
 		// Wrap the sentinel so the submit-time freshness barrier can errors.Is it and
 		// treat a gradable-but-blank phase as an expected skip; the human %s(jobPhase)
 		// message is preserved for every other caller.
@@ -588,6 +606,36 @@ func (uc *ComputePhaseOutcomeUseCase) upsertSummary(
 			"[ERR-DEFAULT] failed to create phase_outcome_summary for job_phase %s: %w"), req.JobPhaseId, err)
 	}
 	return firstSummary(resp.GetData(), data), nil
+}
+
+// retireStaleSummaryMaxRows bounds the retire loop; the model keeps one active
+// summary per phase, so more than a handful signals corrupt data, not work.
+const retireStaleSummaryMaxRows = 16
+
+// retireStaleSummary soft-deletes every active phase_outcome_summary for the
+// phase (latest first, via the same lookup the upsert uses). Called only when the
+// phase has no contributing recorded values, so there is nothing left to grade.
+func (uc *ComputePhaseOutcomeUseCase) retireStaleSummary(ctx context.Context, jobPhaseID string) error {
+	for i := 0; i < retireStaleSummaryMaxRows; i++ {
+		existing, err := uc.repositories.PhaseOutcomeSummary.GetByJobPhase(ctx,
+			&phaseoutcomesummarypb.GetPhaseOutcomeSummaryByJobPhaseRequest{JobPhaseId: jobPhaseID})
+		if err != nil {
+			return fmt.Errorf(uc.msg(ctx, "grade_compute.errors.lookup_summary_failed",
+				"[ERR-DEFAULT] failed to look up existing phase_outcome_summary for job_phase %s: %w"), jobPhaseID, err)
+		}
+		if existing == nil || existing.PhaseOutcomeSummary == nil || existing.PhaseOutcomeSummary.Id == "" {
+			return nil
+		}
+		if _, err := uc.repositories.PhaseOutcomeSummary.DeletePhaseOutcomeSummary(ctx,
+			&phaseoutcomesummarypb.DeletePhaseOutcomeSummaryRequest{
+				Data: &phaseoutcomesummarypb.PhaseOutcomeSummary{Id: existing.PhaseOutcomeSummary.Id},
+			}); err != nil {
+			return fmt.Errorf(uc.msg(ctx, "grade_compute.errors.retire_summary_failed",
+				"[ERR-DEFAULT] failed to retire stale phase_outcome_summary for job_phase %s: %w"), jobPhaseID, err)
+		}
+	}
+	return fmt.Errorf(uc.msg(ctx, "grade_compute.errors.retire_summary_unbounded",
+		"[ERR-DEFAULT] job_phase %s still has an active phase_outcome_summary after retiring the bounded maximum"), jobPhaseID)
 }
 
 // firstSummary returns the first summary from a response slice, falling back to

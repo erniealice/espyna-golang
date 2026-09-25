@@ -246,6 +246,7 @@ type exportCellJSON struct {
 	JobPresent      bool     `json:"job_present"`
 	ScaledLabel     *string  `json:"scaled_label"`
 	ScaledScore     *float64 `json:"scaled_score"`
+	SummaryScore    *float64 `json:"summary_score"`
 	HasMarks        bool     `json:"has_marks"`
 	HasPositiveMark bool     `json:"has_positive_mark"`
 }
@@ -852,7 +853,7 @@ func (q *PostgresSubscriptionGroupOutcomeExportQuery) GetSubscriptionGroupOutcom
 			cellIDs[value.ClientID][value.JobTemplateID] = struct{}{}
 			row.Cells = append(row.Cells, &exportpb.SubscriptionGroupOutcomeCell{
 				JobTemplateId: value.JobTemplateID, JobPresent: value.JobPresent,
-				ScaledLabel: value.ScaledLabel, ScaledScore: value.ScaledScore,
+				ScaledLabel: value.ScaledLabel, ScaledScore: value.ScaledScore, SummaryScore: value.SummaryScore,
 				EnrollmentEvidence: &exportpb.EnrollmentEvidence{HasMarks: value.HasMarks, HasPositiveMark: value.HasPositiveMark},
 			})
 		default:
@@ -1155,6 +1156,7 @@ WITH group_context AS (
          col.job_template_id, sj.job_id IS NOT NULL AS job_present,
          CASE WHEN $6 = 'phase' THEN phase_summary.scaled_label ELSE final_summary.scaled_label END AS scaled_label,
          CASE WHEN $6 = 'phase' THEN phase_summary.scaled_score ELSE final_summary.scaled_score END AS scaled_score,
+         CASE WHEN $6 = 'phase' THEN phase_summary.summary_score ELSE final_summary.summary_score END AS summary_score,
          COALESCE(evidence.has_marks, false) AS has_marks,
          COALESCE(evidence.has_positive_mark, false) AS has_positive_mark
     FROM matrix_members m
@@ -1178,7 +1180,7 @@ WITH group_context AS (
        LIMIT 1
     ) selected_phase ON true
     LEFT JOIN LATERAL (
-      SELECT pos.scaled_label, pos.scaled_score
+      SELECT pos.scaled_label, pos.scaled_score, pos.summary_score
         FROM {{phase_outcome_summary}} pos
        WHERE $6 = 'phase'
          AND pos.job_phase_id = selected_phase.id
@@ -1189,7 +1191,11 @@ WITH group_context AS (
        LIMIT 1
     ) phase_summary ON true
     LEFT JOIN LATERAL (
-      SELECT jos.scaled_label, jos.scaled_score
+      -- An imported (is_authoritative) final never carried a real composite: its
+      -- stored 0 is a placeholder, so it reads as "no composite" (cells fall
+      -- back to the scaled grade). Computed finals keep a real 0.
+      SELECT jos.scaled_label, jos.scaled_score,
+             CASE WHEN jos.is_authoritative AND jos.summary_score = 0 THEN NULL ELSE jos.summary_score END AS summary_score
         FROM {{job_outcome_summary}} jos
        WHERE $6 = 'final'
          AND jos.job_id = sj.job_id
@@ -1258,6 +1264,7 @@ SELECT kind, payload
              'client_first_name', client_first_name, 'client_last_name', client_last_name,
              'job_template_id', job_template_id, 'job_present', job_present,
              'scaled_label', scaled_label, 'scaled_score', scaled_score,
+             'summary_score', summary_score,
              'has_marks', has_marks, 'has_positive_mark', has_positive_mark
            )
       FROM matrix_cells

@@ -138,6 +138,9 @@ func ComputeJobOutcome(ctx context.Context, container *core.Container, jobID str
 //                  (frozen imported finals — ErrSummaryFrozen). The existing
 //                  grade stands and is NOT stale, so the save reports the rating
 //                  as fresh (ratingNotRecomputed reason), never as failed.
+//   (true,  nil) also when the target has nothing left to grade (ErrNoRecordedValues /
+//                  ErrNoGradedPhases): the stale summary was retired, so the
+//                  blank Total/Rating is the fresh state.
 //   (false, err) → a genuine compute failure. The grade persisted but the
 //                  rating is now stale + retryable (ratingFresh:false). NEVER a
 //                  reason to fail the cell save.
@@ -160,6 +163,9 @@ func NewComputePhaseOutcomeAdapter(container *core.Container) func(ctx context.C
 			return false, fmt.Errorf("grade compute: ComputePhaseOutcome use-case not wired on the operation rollup")
 		}
 		if _, err := uc.ComputePhaseOutcome.ExecuteAfterRecord(ctx, &grade_compute.ComputePhaseOutcomeRequest{JobPhaseId: jobPhaseID}); err != nil {
+			if errors.Is(err, grade_compute.ErrNoRecordedValues) {
+				return true, nil // last value cleared → stale summary retired; blank is fresh
+			}
 			return false, err
 		}
 		return true, nil
@@ -180,6 +186,9 @@ func NewComputeJobOutcomeAdapter(container *core.Container) func(ctx context.Con
 		if _, err := uc.ComputeJobOutcome.ExecuteAfterRecord(ctx, &grade_compute.ComputeJobOutcomeRequest{JobId: jobID}); err != nil {
 			if errors.Is(err, grade_compute.ErrSummaryFrozen) {
 				return false, nil // frozen/authoritative → not recomputed, not stale
+			}
+			if errors.Is(err, grade_compute.ErrNoGradedPhases) {
+				return true, nil // no graded phase left → stale year-final retired; fresh
 			}
 			return false, err
 		}

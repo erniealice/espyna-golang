@@ -253,6 +253,28 @@ func TestRatingDescriptionEnumParsing(t *testing.T) {
 	}
 }
 
+// TestOutcomeMatrixQuery_ProjectsAggregationMethod pins the aggregation_method
+// parse the column tree now projects (the grade-sheet composite header picks its
+// noun from it): stored enum names map through; NULL/unknown stay UNSPECIFIED.
+func TestOutcomeMatrixQuery_ProjectsAggregationMethod(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		in   sql.NullString
+		want enumspb.AggregationMethod
+	}{
+		{"null", sql.NullString{}, enumspb.AggregationMethod_AGGREGATION_METHOD_UNSPECIFIED},
+		{"average", sql.NullString{String: "AGGREGATION_METHOD_AVERAGE", Valid: true}, enumspb.AggregationMethod_AGGREGATION_METHOD_AVERAGE},
+		{"maximum", sql.NullString{String: "AGGREGATION_METHOD_MAXIMUM", Valid: true}, enumspb.AggregationMethod_AGGREGATION_METHOD_MAXIMUM},
+		{"unknown", sql.NullString{String: "future_method", Valid: true}, enumspb.AggregationMethod_AGGREGATION_METHOD_UNSPECIFIED},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := parseAggregationMethod(tt.in); got != tt.want {
+				t.Fatalf("parseAggregationMethod(%+v) = %v, want %v", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestComputeCellEditable pins the editable rule, including the S8 §E empty-cell
 // guard and the 2026-07-26 COALESCE fallback: an EMPTY cell with an explicit
 // assignee is editable ONLY by that assignee (a per-task override — a merged

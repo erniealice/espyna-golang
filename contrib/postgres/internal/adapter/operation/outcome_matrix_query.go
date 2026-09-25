@@ -655,6 +655,7 @@ SELECT
     oc.id                         AS criteria_id,
     oc.name                       AS criteria_name,
     oc.criteria_type,
+    oc.aggregation_method,
     oc.unit,
     oc.decimal_places,
     oc.min_score,
@@ -729,6 +730,7 @@ ORDER BY jtp.phase_order, jtt.step_order, ttc.sequence_order,
 			seqOrder                 int32
 			criteriaID, criteriaName string
 			criteriaType             sql.NullString
+			aggregationMethod        sql.NullString
 			unit                     sql.NullString
 			decimalPlaces            sql.NullInt64
 			minScore, maxScore       sql.NullInt64
@@ -750,7 +752,7 @@ ORDER BY jtp.phase_order, jtt.step_order, ttc.sequence_order,
 			&phaseID, &phaseName, &phaseCode, &variantName, &phaseOrder,
 			&taskID, &taskName, &stepOrder,
 			&seqOrder,
-			&criteriaID, &criteriaName, &criteriaType,
+			&criteriaID, &criteriaName, &criteriaType, &aggregationMethod,
 			&unit, &decimalPlaces, &minScore, &maxScore, &scoreIncrement,
 			&passLabel, &failLabel, &maxTextLength, &textPrompt, &weight, &required,
 			&ratingMode, &ratingScaleID, &scaleKind, &inputMin, &inputMax,
@@ -787,21 +789,22 @@ ORDER BY jtp.phase_order, jtt.step_order, ttc.sequence_order,
 				RatingMode:    parseRatingMode(ratingMode),
 				RatingScaleId: nullStringVal(ratingScaleID),
 				Criteria: &criteriapb.OutcomeCriteria{
-					Id:             criteriaID,
-					Name:           criteriaName,
-					CriteriaType:   parseCriteriaType(criteriaType),
-					Unit:           nullStringPtr(unit),
-					DecimalPlaces:  nullInt32Ptr(decimalPlaces),
-					MinScore:       nullInt32Ptr(minScore),
-					MaxScore:       nullInt32Ptr(maxScore),
-					ScoreIncrement: nullFloat64Ptr(scoreIncrement),
-					PassLabel:      nullStringPtr(passLabel),
-					FailLabel:      nullStringPtr(failLabel),
-					MaxTextLength:  nullInt32Ptr(maxTextLength),
-					TextPrompt:     nullStringPtr(textPrompt),
-					Weight:         nullFloat64Val(weight),
-					Required:       required.Valid && required.Bool,
-					Active:         true,
+					Id:                criteriaID,
+					Name:              criteriaName,
+					CriteriaType:      parseCriteriaType(criteriaType),
+					AggregationMethod: parseAggregationMethod(aggregationMethod),
+					Unit:              nullStringPtr(unit),
+					DecimalPlaces:     nullInt32Ptr(decimalPlaces),
+					MinScore:          nullInt32Ptr(minScore),
+					MaxScore:          nullInt32Ptr(maxScore),
+					ScoreIncrement:    nullFloat64Ptr(scoreIncrement),
+					PassLabel:         nullStringPtr(passLabel),
+					FailLabel:         nullStringPtr(failLabel),
+					MaxTextLength:     nullInt32Ptr(maxTextLength),
+					TextPrompt:        nullStringPtr(textPrompt),
+					Weight:            nullFloat64Val(weight),
+					Required:          required.Valid && required.Bool,
+					Active:            true,
 				},
 			}
 			criterionByKey[criterionKey] = crit
@@ -1119,6 +1122,19 @@ func parseCriteriaType(s sql.NullString) enumspb.CriteriaType {
 		return enumspb.CriteriaType(v)
 	}
 	return enumspb.CriteriaType_CRITERIA_TYPE_UNSPECIFIED
+}
+
+// parseAggregationMethod maps the stored enum name; NULL/unknown values stay
+// UNSPECIFIED (the roll-up's default MAXIMUM), so legacy rows never read as
+// averaged.
+func parseAggregationMethod(s sql.NullString) enumspb.AggregationMethod {
+	if !s.Valid {
+		return enumspb.AggregationMethod_AGGREGATION_METHOD_UNSPECIFIED
+	}
+	if v, ok := enumspb.AggregationMethod_value[s.String]; ok {
+		return enumspb.AggregationMethod(v)
+	}
+	return enumspb.AggregationMethod_AGGREGATION_METHOD_UNSPECIFIED
 }
 
 // parseRatingMode keeps legacy rows safe: NULL/unknown values remain

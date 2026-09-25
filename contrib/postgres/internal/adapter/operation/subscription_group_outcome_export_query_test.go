@@ -204,6 +204,12 @@ func TestBuildSubscriptionGroupOutcomeExportSQL_ResolverAndTenantPredicates(t *t
 		"LEFT JOIN LATERAL (",
 		"SELECT pos.scaled_label, pos.scaled_score",
 		"SELECT jos.scaled_label, jos.scaled_score",
+		// The raw composite rides beside the scaled pair from the SAME summary
+		// row, for both selectors (report-cell display template).
+		"SELECT pos.scaled_label, pos.scaled_score, pos.summary_score",
+		"CASE WHEN jos.is_authoritative AND jos.summary_score = 0 THEN NULL ELSE jos.summary_score END AS summary_score",
+		"CASE WHEN $6 = 'phase' THEN phase_summary.summary_score ELSE final_summary.summary_score END AS summary_score",
+		"'summary_score', summary_score",
 	}
 	for _, fragment := range requiredFragments {
 		if !strings.Contains(statement, fragment) {

@@ -84,7 +84,7 @@ type workspaceColumnProbe func(context.Context, string) (map[string]bool, error)
 // w0-design.md §3 tenancy parent-JOIN map (needsMigration list, §3.2),
 // cross-checked against baseline.sql.
 //
-// Genuinely-GLOBAL column-less tables (workspace_user_role, session, account_group
+// Genuinely-GLOBAL column-less tables (session, account_group
 // and other reference/lookup tables) are deliberately ABSENT — their column-less
 // pass-through is CORRECT, so they get no log line (no false positives).
 //
@@ -534,7 +534,11 @@ func (w *WorkspaceAwareOperations) List(ctx context.Context, tableName string, p
 		log.Printf("AUTHZ_WS_SHADOW_PASS | mode=SHADOW(passed) | table=%s | op=list | id= | ws=%s",
 			tableName, wsID)
 	}
-	return w.inner.List(ctx, tableName, params)
+	result, err := w.inner.List(ctx, tableName, params)
+	if err == nil && wsID != "" && !hasWorkspaceColumn && !columnLessTenantTables[tableName] {
+		w.shadowColumnlessList(ctx, tableName, wsID, result)
+	}
+	return result, err
 }
 
 // Create injects workspace_id into the data map before inserting, when the
@@ -601,6 +605,8 @@ func (w *WorkspaceAwareOperations) Read(ctx context.Context, tableName string, i
 			if err := w.scopeColumnLessByParent(ctx, "read", tableName, id, wsID); err != nil {
 				return nil, err
 			}
+		} else {
+			w.shadowColumnlessByID(ctx, "read", tableName, id, wsID)
 		}
 		return result, nil
 	}
@@ -660,6 +666,8 @@ func (w *WorkspaceAwareOperations) Update(ctx context.Context, tableName string,
 		if err := w.scopeColumnLessByParent(ctx, "update", tableName, id, wsID); err != nil {
 			return nil, err
 		}
+	} else if wsID != "" && !hasWorkspaceColumn {
+		w.shadowColumnlessByID(ctx, "update", tableName, id, wsID)
 	}
 	return w.inner.Update(ctx, tableName, id, data)
 }
@@ -681,6 +689,8 @@ func (w *WorkspaceAwareOperations) Delete(ctx context.Context, tableName string,
 		if err := w.scopeColumnLessByParent(ctx, "delete", tableName, id, wsID); err != nil {
 			return err
 		}
+	} else if wsID != "" && !hasWorkspaceColumn {
+		w.shadowColumnlessByID(ctx, "delete", tableName, id, wsID)
 	}
 	return w.inner.Delete(ctx, tableName, id)
 }
@@ -702,6 +712,8 @@ func (w *WorkspaceAwareOperations) HardDelete(ctx context.Context, tableName str
 		if err := w.scopeColumnLessByParent(ctx, "harddelete", tableName, id, wsID); err != nil {
 			return err
 		}
+	} else if wsID != "" && !hasWorkspaceColumn {
+		w.shadowColumnlessByID(ctx, "harddelete", tableName, id, wsID)
 	}
 	return w.inner.HardDelete(ctx, tableName, id)
 }

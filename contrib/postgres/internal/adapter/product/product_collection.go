@@ -14,6 +14,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productcollectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_collection"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -243,6 +244,10 @@ func (r *PostgresProductCollectionRepository) GetProductCollectionListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
 	if err != nil {
@@ -286,8 +291,12 @@ func (r *PostgresProductCollectionRepository) GetProductCollectionListPageData(
 				active,
 				date_created,
 				date_modified
-			FROM ` + entityid.ProductCollection + `
-			WHERE active = true
+			FROM ` + entityid.ProductCollection + ` pc
+			WHERE EXISTS (
+				SELECT 1 FROM product p1
+				WHERE p1.id = pc.product_id AND p1.workspace_id = $4
+			)
+			  AND active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       product_id ILIKE $1 OR
 			       collection_id ILIKE $1))
@@ -299,7 +308,7 @@ func (r *PostgresProductCollectionRepository) GetProductCollectionListPageData(
 		FROM enriched e
 		ORDER BY ` + sortField + ` ` + sortOrder + `
 		LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

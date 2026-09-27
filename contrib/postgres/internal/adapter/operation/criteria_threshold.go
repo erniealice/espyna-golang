@@ -16,6 +16,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_threshold"
 	enums "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
@@ -219,6 +220,9 @@ var criteriaThresholdSortableSQLCols = []string{
 	"threshold_role", "value",
 }
 
+const criteriaThresholdListWorkspacePredicate = `(SELECT oc.workspace_id FROM outcome_criteria oc
+	WHERE oc.id = ct.outcome_criteria_id) = $4`
+
 // GetCriteriaThresholdListPageData retrieves criteria_thresholds with pagination, filtering, sorting, and search
 func (r *PostgresCriteriaThresholdRepository) GetCriteriaThresholdListPageData(
 	ctx context.Context,
@@ -226,6 +230,10 @@ func (r *PostgresCriteriaThresholdRepository) GetCriteriaThresholdListPageData(
 ) (*pb.GetCriteriaThresholdListPageDataResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("get criteria threshold list page data request is required")
+	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
@@ -259,6 +267,7 @@ func (r *PostgresCriteriaThresholdRepository) GetCriteriaThresholdListPageData(
 				ct.value
 			FROM `+entityid.CriteriaThreshold+` ct
 			WHERE ct.active = true
+			  AND `+criteriaThresholdListWorkspacePredicate+`
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       ct.outcome_criteria_id::text ILIKE $1)
 		)
@@ -272,7 +281,7 @@ func (r *PostgresCriteriaThresholdRepository) GetCriteriaThresholdListPageData(
 		LIMIT $2 OFFSET $3;
 	`, orderByClause)
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query criteria threshold list page data: %w", err)
 	}

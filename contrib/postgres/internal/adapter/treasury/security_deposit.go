@@ -15,6 +15,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	securitydepositpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/security_deposit"
 )
@@ -234,6 +235,10 @@ func (r *PostgresSecurityDepositRepository) GetSecurityDepositListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get security_deposit list page data request is required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
 	if err != nil {
@@ -270,7 +275,11 @@ func (r *PostgresSecurityDepositRepository) GetSecurityDepositListPageData(
 				sd.account_id,
 				sd.notes
 			FROM ` + entityid.SecurityDeposit + ` sd
-			WHERE sd.active = true
+			WHERE EXISTS (
+				SELECT 1 FROM account p1
+				WHERE p1.id = sd.account_id AND p1.workspace_id = $4
+			)
+			  AND sd.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       sd.counterparty_name ILIKE $1 OR
 			       sd.notes ILIKE $1)
@@ -285,7 +294,7 @@ func (r *PostgresSecurityDepositRepository) GetSecurityDepositListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query security_deposit list page data: %w", err)
 	}

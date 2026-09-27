@@ -14,6 +14,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	resourcepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/resource"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -241,6 +242,10 @@ func (r *PostgresResourceRepository) GetResourceListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get resource list page data request is required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// Build search condition
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
@@ -276,7 +281,11 @@ func (r *PostgresResourceRepository) GetResourceListPageData(
 				r.date_created,
 				r.date_modified
 			FROM ` + entityid.Resource + ` r
-			WHERE r.active = true
+			WHERE EXISTS (
+				SELECT 1 FROM product p1
+				WHERE p1.id = r.product_id AND p1.workspace_id = $4
+			)
+			  AND r.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       r.name ILIKE $1 OR
 			       r.description ILIKE $1 OR
@@ -292,7 +301,7 @@ func (r *PostgresResourceRepository) GetResourceListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query resource list page data: %w", err)
 	}

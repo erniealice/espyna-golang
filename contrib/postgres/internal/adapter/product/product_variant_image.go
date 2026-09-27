@@ -14,6 +14,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productvariantimagepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant_image"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -234,6 +235,10 @@ func (r *PostgresProductVariantImageRepository) GetProductVariantImageListPageDa
 	if req == nil {
 		return nil, fmt.Errorf("get product variant image list page data request is required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// Build search condition
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
@@ -272,7 +277,12 @@ func (r *PostgresProductVariantImageRepository) GetProductVariantImageListPageDa
 				COALESCE(pv.sku, '') as variant_sku
 			FROM ` + entityid.ProductVariantImage + ` pvi
 			LEFT JOIN ` + entityid.ProductVariant + ` pv ON pvi.product_variant_id = pv.id AND pv.active = true
-			WHERE pvi.active = true
+			WHERE EXISTS (
+				SELECT 1 FROM product_variant p1
+				JOIN product p2 ON p2.id = p1.product_id
+				WHERE p1.id = pvi.product_variant_id AND p2.workspace_id = $4
+			)
+			  AND pvi.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       pvi.image_url ILIKE $1 OR
 			       pvi.alt_text ILIKE $1 OR
@@ -288,7 +298,7 @@ func (r *PostgresProductVariantImageRepository) GetProductVariantImageListPageDa
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query product variant image list page data: %w", err)
 	}

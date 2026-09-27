@@ -14,6 +14,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pricelistpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_list"
 	priceproductpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/price_product"
@@ -229,6 +230,10 @@ func (r *PostgresPriceListRepository) GetPriceListListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
 	if err != nil {
@@ -261,8 +266,12 @@ func (r *PostgresPriceListRepository) GetPriceListListPageData(
 				location_id,
 				date_created,
 				date_modified
-			FROM ` + entityid.PriceList + `
-			WHERE active = true
+			FROM ` + entityid.PriceList + ` pl
+			WHERE EXISTS (
+				SELECT 1 FROM location p1
+				WHERE p1.id = pl.location_id AND p1.workspace_id = $4
+			)
+			  AND active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       name ILIKE $1 OR
 			       description ILIKE $1))
@@ -274,7 +283,7 @@ func (r *PostgresPriceListRepository) GetPriceListListPageData(
 		FROM enriched e
 		` + orderByClause + `
 		LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

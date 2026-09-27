@@ -307,6 +307,10 @@ func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get task outcome list page data request is required")
 	}
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get task outcome list page data: %w", err)
+	}
 
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
 	if err != nil {
@@ -345,6 +349,7 @@ func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeListPageData(
 	// the enriched CTE so the counted total matches the scoped set. Non-staff →
 	// empty clause (unchanged).
 	staffClause, staffArgs := principalscope.StaffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 4)
+	workspaceParam := fmt.Sprintf("$%d", 4+len(staffArgs))
 
 	query := `
 		WITH enriched AS NOT MATERIALIZED (
@@ -353,6 +358,12 @@ func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeListPageData(
 			WHERE to_.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       to_.determination_note ILIKE $1)` + staffClause + `
+			  AND EXISTS (
+				SELECT 1 FROM ` + entityid.JobTask + ` jt
+				JOIN ` + entityid.JobPhase + ` jp ON jp.id = jt.job_phase_id
+				JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
+				WHERE jt.id = to_.job_task_id AND j.workspace_id = ` + workspaceParam + `
+			  )
 		)
 		-- A3 (Q-PAGE-COUNT heavyweight tier, plan 20260927-db-query-performance
 		-- DB-07): page ids come from a narrow sort, full rows are fetched for those
@@ -371,7 +382,8 @@ func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeListPageData(
 		` + orderByClause + `;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, append([]any{searchPattern, limit, offset}, staffArgs...)...)
+	args := append(append([]any{searchPattern, limit, offset}, staffArgs...), requestIdentity.WorkspaceID)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query task outcome list page data: %w", err)
 	}

@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json/v2"
 	"fmt"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	"log"
 	"time"
 
@@ -232,6 +233,10 @@ func (r *PostgresTemplateTaskCriteriaRepository) GetTemplateTaskCriteriaListPage
 	if req == nil {
 		return nil, fmt.Errorf("get template task criteria list page data request is required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
 	if err != nil {
@@ -252,7 +257,13 @@ func (r *PostgresTemplateTaskCriteriaRepository) GetTemplateTaskCriteriaListPage
 	}
 
 	query := `
-		WITH enriched AS NOT MATERIALIZED (
+		WITH scoped_tasks AS MATERIALIZED (
+			SELECT jtt.id
+			FROM ` + entityid.JobTemplateTask + ` jtt
+			JOIN ` + entityid.JobTemplatePhase + ` jtp ON jtp.id = jtt.job_template_phase_id
+			JOIN ` + entityid.JobTemplate + ` jt ON jt.id = jtp.job_template_id
+			WHERE jt.workspace_id = $4
+		), enriched AS MATERIALIZED (
 			SELECT
 				ttc.id,
 				ttc.date_created,
@@ -267,11 +278,11 @@ func (r *PostgresTemplateTaskCriteriaRepository) GetTemplateTaskCriteriaListPage
 			WHERE ttc.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       ttc.outcome_criteria_id::text ILIKE $1)
+			  AND ttc.job_template_task_id IN (SELECT id FROM scoped_tasks)
 		)
-		-- A3 (Q-PAGE-COUNT heavyweight tier, plan 20260927-db-query-performance
-		-- DB-07): page ids come from a narrow sort, full rows are fetched for those
-		-- ids only, and the total is one scalar count. COUNT(*) OVER () held every
-		-- matching row of this high-volume table in a temp file before the LIMIT.
+		-- DB-07 page ids and scalar count share one materialized tenant-scoped
+		-- set. Materializing enriched also projects full rows before LIMIT; this
+		-- is the measured tradeoff for evaluating the parent scope only once.
 		, page AS (
 			SELECT e.id
 			FROM enriched e
@@ -285,7 +296,7 @@ func (r *PostgresTemplateTaskCriteriaRepository) GetTemplateTaskCriteriaListPage
 		` + orderByClause + `;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query template task criteria list page data: %w", err)
 	}

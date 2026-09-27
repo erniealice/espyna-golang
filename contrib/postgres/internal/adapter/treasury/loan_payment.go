@@ -16,6 +16,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	loanpaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/loan_payment"
 )
@@ -237,6 +238,10 @@ func (r *PostgresLoanPaymentRepository) GetLoanPaymentListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get loan_payment list page data request is required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
 	if err != nil {
@@ -274,7 +279,12 @@ func (r *PostgresLoanPaymentRepository) GetLoanPaymentListPageData(
 				lp.remaining_balance,
 				lp.notes
 			FROM ` + entityid.LoanPayment + ` lp
-			WHERE ($1::text IS NULL OR $1::text = '' OR
+			WHERE EXISTS (
+				SELECT 1 FROM loan p1
+				JOIN account p2 ON p2.id = p1.account_id
+				WHERE p1.id = lp.loan_id AND p2.workspace_id = $4
+			)
+			  AND ($1::text IS NULL OR $1::text = '' OR
 			       lp.payment_number ILIKE $1)
 		)
 		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
@@ -287,7 +297,7 @@ func (r *PostgresLoanPaymentRepository) GetLoanPaymentListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query loan_payment list page data: %w", err)
 	}

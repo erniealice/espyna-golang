@@ -14,6 +14,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_option"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -237,6 +238,10 @@ func (r *PostgresProductOptionRepository) GetProductOptionListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get product option list page data request is required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// Build search condition
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
@@ -277,7 +282,11 @@ func (r *PostgresProductOptionRepository) GetProductOptionListPageData(
 				COALESCE(p.name, '') as product_name
 			FROM ` + entityid.ProductOption + ` po
 			LEFT JOIN ` + entityid.Product + ` p ON po.product_id = p.id AND p.active = true
-			WHERE po.active = true
+			WHERE EXISTS (
+				SELECT 1 FROM product p1
+				WHERE p1.id = po.product_id AND p1.workspace_id = $4
+			)
+			  AND po.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       po.name ILIKE $1 OR
 			       po.code ILIKE $1 OR
@@ -293,7 +302,7 @@ func (r *PostgresProductOptionRepository) GetProductOptionListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query product option list page data: %w", err)
 	}

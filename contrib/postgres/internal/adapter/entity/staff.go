@@ -253,11 +253,11 @@ func (r *PostgresStaffRepository) GetStaffListPageData(
 		return nil, err
 	}
 
-	// Workspace scope (H2, 2026-07-17): staff.workspace_id is the multi-tenant
-	// scope field — the read was previously unscoped. Same pass-through contract
-	// as ListWorkspaceUsers: an empty identity workspace ('' — e.g. a system
-	// principal) applies no scope.
-	wsID := identity.Must(ctx).WorkspaceID
+	actor, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	wsID := actor.WorkspaceID
 
 	// Honor the `id` filter (H2): callers resolving specific staff (e.g. the
 	// report-card teacher-name enrichment) pass a LIST_IN or STRING_EQUALS
@@ -311,7 +311,7 @@ func (r *PostgresStaffRepository) GetStaffListPageData(
 			FROM ` + entityid.Staff + ` s
 			LEFT JOIN "` + entityid.User + `" u ON s.user_id = u.id AND u.active = true
 			WHERE s.active = true
-			  AND ($4::text = '' OR s.workspace_id = $4::text)
+			  AND s.workspace_id = $4::text
 			  ` + idClause + `
 			  AND ($1::text IS NULL OR $1::text = '' OR
 				   u.first_name ILIKE $1 OR

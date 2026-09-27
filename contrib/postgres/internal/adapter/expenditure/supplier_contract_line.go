@@ -16,6 +16,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	suppliercontractlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_line"
 )
@@ -191,6 +192,10 @@ func (r *PostgresSupplierContractLineRepository) GetSupplierContractLineListPage
 	if req == nil {
 		return nil, fmt.Errorf("get supplier contract line list page data request is required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
 	if paginationErr != nil {
@@ -228,7 +233,11 @@ func (r *PostgresSupplierContractLineRepository) GetSupplierContractLineListPage
 				scl.date_modified,
 				COUNT(*) OVER() AS total
 			FROM ` + entityid.SupplierContractLine + ` scl
-			WHERE scl.active = true
+			WHERE EXISTS (
+				SELECT 1 FROM supplier_contract p1
+				WHERE p1.id = scl.supplier_contract_id AND p1.workspace_id = $4
+			)
+			  AND scl.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR scl.supplier_contract_id = $1)
 		)
 		SELECT * FROM enriched
@@ -236,7 +245,7 @@ func (r *PostgresSupplierContractLineRepository) GetSupplierContractLineListPage
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, supplierContractID, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, supplierContractID, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query supplier_contract_line list page data: %w", err)
 	}

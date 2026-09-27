@@ -13,6 +13,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	rolepermissionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/role_permission"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -223,6 +224,10 @@ func (r *PostgresRolePermissionRepository) GetRolePermissionListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get role permission list page data request is required")
 	}
+	actor, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// Default pagination values
 	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
@@ -239,8 +244,8 @@ func (r *PostgresRolePermissionRepository) GetRolePermissionListPageData(
 	}
 
 	// Build WHERE clause for filtering
-	whereClause := "WHERE rp.active = true"
-	args := []interface{}{limit, offset}
+	whereClause := "WHERE rp.active = true AND r.workspace_id = $3::text"
+	args := []interface{}{limit, offset, actor.WorkspaceID}
 
 	// Note: Removed direct RoleId/PermissionId filtering as GetRolePermissionListPageDataRequest doesn't have these fields
 	// Filtering should be done through req.Filters field instead
@@ -256,6 +261,7 @@ func (r *PostgresRolePermissionRepository) GetRolePermissionListPageData(
 				rp.date_created,
 				rp.date_modified
 			FROM ` + entityid.RolePermission + ` rp
+			JOIN ` + entityid.Role + ` r ON r.id = rp.role_id
 			` + whereClause + `
 		)
 		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the

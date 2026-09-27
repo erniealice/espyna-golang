@@ -15,6 +15,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pettycashvoucherpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/petty_cash_voucher"
 )
@@ -227,6 +228,10 @@ func (r *PostgresPettyCashVoucherRepository) GetPettyCashVoucherListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get petty_cash_voucher list page data request is required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
 	if err != nil {
@@ -262,7 +267,12 @@ func (r *PostgresPettyCashVoucherRepository) GetPettyCashVoucherListPageData(
 				pcv.approved_by,
 				pcv.approved_at
 			FROM ` + entityid.PettyCashVoucher + ` pcv
-			WHERE ($1::text IS NULL OR $1::text = '' OR
+			WHERE EXISTS (
+				SELECT 1 FROM petty_cash_fund p1
+				JOIN location p2 ON p2.id = p1.location_id
+				WHERE p1.id = pcv.fund_id AND p2.workspace_id = $4
+			)
+			  AND ($1::text IS NULL OR $1::text = '' OR
 			       pcv.voucher_number ILIKE $1 OR
 			       pcv.description ILIKE $1 OR
 			       pcv.payee ILIKE $1)
@@ -277,7 +287,7 @@ func (r *PostgresPettyCashVoucherRepository) GetPettyCashVoucherListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query petty_cash_voucher list page data: %w", err)
 	}

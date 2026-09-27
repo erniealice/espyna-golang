@@ -13,6 +13,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	costplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/cost_plan"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -180,6 +181,11 @@ func (r *PostgresCostPlanRepository) GetCostPlanListPageData(ctx context.Context
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
 	if err != nil {
 		return nil, err
@@ -207,10 +213,11 @@ func (r *PostgresCostPlanRepository) GetCostPlanListPageData(ctx context.Context
 	                 sp.name AS supplier_plan_name
 	          FROM ` + entityid.CostPlan + ` cp
 	          LEFT JOIN ` + entityid.SupplierPlan + ` sp ON cp.supplier_plan_id = sp.id
-	          WHERE cp.active = true
+	          WHERE cp.workspace_id = $4
+	            AND cp.active = true
 	            AND ($1::text IS NULL OR $1::text = '' OR cp.name ILIKE $1 OR cp.description ILIKE $1)
 	          ` + orderByClause + ` LIMIT $2 OFFSET $3`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

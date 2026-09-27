@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/shared/listdata"
+	"github.com/erniealice/espyna-golang/registry/entityid"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
 )
@@ -19,9 +21,9 @@ type GetWorkspaceUserRoleListPageDataRepositories struct {
 }
 
 type GetWorkspaceUserRoleListPageDataServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -103,32 +105,49 @@ func (uc *GetWorkspaceUserRoleListPageDataUseCase) executeCore(
 	ctx context.Context,
 	req *workspaceuserrolepb.GetWorkspaceUserRoleListPageDataRequest,
 ) (*workspaceuserrolepb.GetWorkspaceUserRoleListPageDataResponse, error) {
-	// First, get all workspace user roles from the repository
-	listReq := &workspaceuserrolepb.ListWorkspaceUserRolesRequest{}
-	listResp, err := uc.repositories.WorkspaceUserRole.ListWorkspaceUserRoles(ctx, listReq)
-	if err != nil {
-		return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
-			ctx,
-			uc.services.Translator,
-			"workspace_user_role.errors.list_failed",
-			"failed to retrieve workspace user roles: %w",
-		), err)
+	if _, err := identity.RequireWorkspace(ctx); err != nil {
+		return nil, err
 	}
 
-	if listResp == nil || len(listResp.Data) == 0 {
-		// Return empty response with proper pagination metadata
-		emptyPagination := uc.processor.GetPaginationUtils().CreatePaginationResponse(req.Pagination, 0, false)
-		return &workspaceuserrolepb.GetWorkspaceUserRoleListPageDataResponse{
-			WorkspaceUserRoleList: []*workspaceuserrolepb.WorkspaceUserRole{},
-			Pagination:            emptyPagination,
-			SearchResults:         []*commonpb.SearchResult{},
-			Success:               true,
-		}, nil
+	// The adapter's page query enforces the parent workspace predicate. Fetch its
+	// complete scoped set before applying the existing filter/search/sort/page
+	// processor: the adapter page query does not implement those same semantics.
+	// Its default date_created DESC, id ASC order matches the former generic List.
+	var rows []*workspaceuserrolepb.WorkspaceUserRole
+	for page := int32(1); ; page++ {
+		pageReq := &workspaceuserrolepb.GetWorkspaceUserRoleListPageDataRequest{
+			Pagination: &commonpb.PaginationRequest{
+				Limit: 100,
+				Method: &commonpb.PaginationRequest_Offset{
+					Offset: &commonpb.OffsetPagination{Page: page},
+				},
+			},
+		}
+		pageResp, err := uc.repositories.WorkspaceUserRole.GetWorkspaceUserRoleListPageData(ctx, pageReq)
+		if err != nil {
+			return nil, fmt.Errorf(contextutil.GetTranslatedMessageWithContext(
+				ctx,
+				uc.services.Translator,
+				"workspace_user_role.errors.list_failed",
+				"failed to retrieve workspace user roles: %w",
+			), err)
+		}
+		if pageResp == nil || pageResp.Pagination == nil ||
+			(pageResp.Pagination.HasNext && len(pageResp.WorkspaceUserRoleList) == 0) {
+			return nil, errors.New("workspace user role scoped page returned invalid pagination")
+		}
+		rows = append(rows, pageResp.WorkspaceUserRoleList...)
+		if !pageResp.Pagination.HasNext {
+			break
+		}
+		if page == math.MaxInt32 {
+			return nil, errors.New("workspace user role scoped page count exceeds limit")
+		}
 	}
 
 	// Process the data with filtering, sorting, searching, and pagination
 	result, err := uc.processor.ProcessListRequest(
-		listResp.Data,
+		rows,
 		req.Pagination,
 		req.Filters,
 		req.Sort,

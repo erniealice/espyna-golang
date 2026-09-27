@@ -16,6 +16,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	purchaseorderpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order"
 )
@@ -242,6 +243,10 @@ func (r *PostgresPurchaseOrderRepository) GetPurchaseOrderListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get purchase order list page data request is required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	searchPattern, searchErr := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
 	if searchErr != nil {
@@ -285,7 +290,11 @@ func (r *PostgresPurchaseOrderRepository) GetPurchaseOrderListPageData(
 				po.payment_term_id,
 				COUNT(*) OVER() AS total
 			FROM %s po
-			WHERE po.active = true
+			WHERE EXISTS (
+				SELECT 1 FROM supplier p1
+				WHERE p1.id = po.supplier_id AND p1.workspace_id = $4
+			)
+			  AND po.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       po.po_number ILIKE $1 OR
 			       po.reference_number ILIKE $1 OR
@@ -296,7 +305,7 @@ func (r *PostgresPurchaseOrderRepository) GetPurchaseOrderListPageData(
 		LIMIT $2 OFFSET $3;
 	`, r.tableName)
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query purchase order list page data: %w", err)
 	}

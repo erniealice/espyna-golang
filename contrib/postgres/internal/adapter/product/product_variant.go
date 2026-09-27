@@ -14,6 +14,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productvariantpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -234,6 +235,10 @@ func (r *PostgresProductVariantRepository) GetProductVariantListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get product variant list page data request is required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// Build search condition
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
@@ -270,7 +275,11 @@ func (r *PostgresProductVariantRepository) GetProductVariantListPageData(
 				COALESCE(p.name, '') as product_name
 			FROM `+entityid.ProductVariant+` pv
 			LEFT JOIN `+entityid.Product+` p ON pv.product_id = p.id AND p.active = true
-			WHERE pv.active = true
+			WHERE EXISTS (
+				SELECT 1 FROM product p1
+				WHERE p1.id = pv.product_id AND p1.workspace_id = $4
+			)
+			  AND pv.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       pv.sku ILIKE $1 OR
 			       p.name ILIKE $1)
@@ -285,7 +294,7 @@ func (r *PostgresProductVariantRepository) GetProductVariantListPageData(
 		LIMIT $2 OFFSET $3;
 	`, orderByClause)
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query product variant list page data: %w", err)
 	}

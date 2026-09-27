@@ -16,6 +16,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	procurementrequestlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request_line"
 )
@@ -190,6 +191,10 @@ func (r *PostgresProcurementRequestLineRepository) GetProcurementRequestLineList
 	if req == nil {
 		return nil, fmt.Errorf("get procurement request line list page data request is required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
 	if paginationErr != nil {
@@ -226,7 +231,11 @@ func (r *PostgresProcurementRequestLineRepository) GetProcurementRequestLineList
 				prl.date_modified,
 				COUNT(*) OVER() AS total
 			FROM ` + entityid.ProcurementRequestLine + ` prl
-			WHERE prl.active = true
+			WHERE EXISTS (
+				SELECT 1 FROM procurement_request p1
+				WHERE p1.id = prl.procurement_request_id AND p1.workspace_id = $4
+			)
+			  AND prl.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR prl.procurement_request_id = $1)
 		)
 		SELECT * FROM enriched
@@ -234,7 +243,7 @@ func (r *PostgresProcurementRequestLineRepository) GetProcurementRequestLineList
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, procurementRequestID, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, procurementRequestID, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query procurement_request_line list page data: %w", err)
 	}

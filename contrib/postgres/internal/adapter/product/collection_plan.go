@@ -13,6 +13,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	collectionplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/collection_plan"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -234,6 +235,10 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// Build search condition
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
@@ -265,7 +270,11 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanListPageData(
 				cp.date_created,
 				cp.date_modified
 			FROM ` + entityid.CollectionPlan + ` cp
-			WHERE cp.active = true
+			WHERE EXISTS (
+				SELECT 1 FROM plan p1
+				WHERE p1.id = cp.plan_id AND p1.workspace_id = $4
+			)
+			  AND cp.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       cp.collection_id ILIKE $1 OR
 			       cp.plan_id ILIKE $1)
@@ -280,7 +289,7 @@ func (r *PostgresCollectionPlanRepository) GetCollectionPlanListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

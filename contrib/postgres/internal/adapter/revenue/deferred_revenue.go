@@ -15,6 +15,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	deferredrevenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/deferred_revenue"
 )
@@ -247,6 +248,10 @@ func (r *PostgresDeferredRevenueRepository) GetDeferredRevenueListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get deferred revenue list page data request is required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
 	if err != nil {
@@ -283,7 +288,11 @@ func (r *PostgresDeferredRevenueRepository) GetDeferredRevenueListPageData(
 				dr.revenue_account_id,
 				COUNT(*) OVER() AS total
 			FROM ` + r.tableName + ` dr
-			WHERE dr.active = true
+			WHERE EXISTS (
+				SELECT 1 FROM account p1
+				WHERE p1.id = dr.liability_account_id AND p1.workspace_id = $4
+			)
+			  AND dr.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       dr.description ILIKE $1 OR
 			       dr.customer_name ILIKE $1)
@@ -293,7 +302,7 @@ func (r *PostgresDeferredRevenueRepository) GetDeferredRevenueListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query deferred revenue list page data: %w", err)
 	}

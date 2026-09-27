@@ -309,6 +309,10 @@ func (r *PostgresJobTaskRepository) GetJobTaskListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get job task list page data request is required")
 	}
+	requestIdentity, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get job task list page data: %w", err)
+	}
 
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
 	if err != nil {
@@ -333,6 +337,7 @@ func (r *PostgresJobTaskRepository) GetJobTaskListPageData(
 	// get the empty clause (unchanged). The predicate lives inside the enriched
 	// CTE so the counted total reflects the scoped set.
 	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "jt.assigned_to", 4)
+	workspaceParam := fmt.Sprintf("$%d", 4+len(staffArgs))
 
 	query := `
 		WITH enriched AS NOT MATERIALIZED (
@@ -351,6 +356,11 @@ func (r *PostgresJobTaskRepository) GetJobTaskListPageData(
 			WHERE jt.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       jt.name ILIKE $1)` + staffClause + `
+			  AND EXISTS (
+				SELECT 1 FROM ` + entityid.JobPhase + ` jp
+				JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
+				WHERE jp.id = jt.job_phase_id AND j.workspace_id = ` + workspaceParam + `
+			  )
 		)
 		-- A3 (Q-PAGE-COUNT heavyweight tier, plan 20260927-db-query-performance
 		-- DB-07): page ids come from a narrow sort, full rows are fetched for those
@@ -369,7 +379,7 @@ func (r *PostgresJobTaskRepository) GetJobTaskListPageData(
 		` + orderByClause + `;
 	`
 
-	args := append([]any{searchPattern, limit, offset}, staffArgs...)
+	args := append(append([]any{searchPattern, limit, offset}, staffArgs...), requestIdentity.WorkspaceID)
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query job task list page data: %w", err)

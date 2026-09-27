@@ -304,11 +304,13 @@ func (r *PostgresPaymentTermRepository) GetPaymentTermListPageData(
 		return nil, err
 	}
 
-	// Workspace isolation: GetPaymentTermListPageData uses raw SQL and bypasses
-	// the WorkspaceAwareOperations decorator, so we extract the workspace_id from
-	// context and filter explicitly. Empty workspace_id (service-to-service call)
-	// disables the filter — same convention as the decorator.
-	wsID := identity.Must(ctx).WorkspaceID
+	// This raw SQL bypasses WorkspaceAwareOperations, so require and bind the
+	// selected workspace explicitly.
+	actor, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	wsID := actor.WorkspaceID
 
 	// CTE Query - flat table, no JOINs needed
 	// entity_scope filter: show only client-scoped and shared (both) payment terms
@@ -331,7 +333,7 @@ func (r *PostgresPaymentTermRepository) GetPaymentTermListPageData(
 				display_order
 			FROM ` + r.tableName + `
 			WHERE entity_scope IN ('client', 'both')
-			  AND ($4::text = '' OR workspace_id = $4::text)
+			  AND workspace_id = $4::text
 			  AND ($1::text IS NULL OR $1::text = '' OR
 				   name ILIKE $1 OR
 				   code ILIKE $1 OR

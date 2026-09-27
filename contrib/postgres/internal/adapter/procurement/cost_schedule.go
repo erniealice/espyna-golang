@@ -13,6 +13,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	costschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/cost_schedule"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -176,6 +177,11 @@ func (r *PostgresCostScheduleRepository) GetCostScheduleListPageData(ctx context
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
 	if err != nil {
 		return nil, err
@@ -191,11 +197,12 @@ func (r *PostgresCostScheduleRepository) GetCostScheduleListPageData(ctx context
 		return nil, err
 	}
 	query := `SELECT id, name, description, active, date_created, date_modified, date_time_start, date_time_end
-	          FROM ` + entityid.CostSchedule + `
-	          WHERE active = true
+	          FROM ` + entityid.CostSchedule + ` cs
+	          WHERE cs.workspace_id = $4
+	            AND active = true
 	            AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1 OR description ILIKE $1)
 	          ` + orderByClause + ` LIMIT $2 OFFSET $3`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

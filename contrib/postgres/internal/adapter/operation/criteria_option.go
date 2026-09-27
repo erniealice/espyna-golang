@@ -16,6 +16,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/criteria_option"
 )
@@ -218,6 +219,9 @@ var criteriaOptionSortableSQLCols = []string{
 	"option_label", "option_key", "display_order", "severity",
 }
 
+const criteriaOptionListWorkspacePredicate = `(SELECT oc.workspace_id FROM outcome_criteria oc
+	WHERE oc.id = co.outcome_criteria_id) = $4`
+
 // GetCriteriaOptionListPageData retrieves criteria options with pagination, filtering, sorting, and search
 func (r *PostgresCriteriaOptionRepository) GetCriteriaOptionListPageData(
 	ctx context.Context,
@@ -225,6 +229,10 @@ func (r *PostgresCriteriaOptionRepository) GetCriteriaOptionListPageData(
 ) (*pb.GetCriteriaOptionListPageDataResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("get criteria option list page data request is required")
+	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
@@ -259,6 +267,7 @@ func (r *PostgresCriteriaOptionRepository) GetCriteriaOptionListPageData(
 				co.severity
 			FROM ` + entityid.CriteriaOption + ` co
 			WHERE co.active = true
+			  AND ` + criteriaOptionListWorkspacePredicate + `
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       co.option_label ILIKE $1)
 		)
@@ -272,7 +281,7 @@ func (r *PostgresCriteriaOptionRepository) GetCriteriaOptionListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query criteria option list page data: %w", err)
 	}

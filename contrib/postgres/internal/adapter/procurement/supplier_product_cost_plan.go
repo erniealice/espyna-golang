@@ -13,6 +13,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	supplierproductcostplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_product_cost_plan"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -164,15 +165,25 @@ func (r *PostgresSupplierProductCostPlanRepository) GetSupplierProductCostPlanLi
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	limit, offset, _, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("bounded supplier product cost plan pagination: %w", err)
 	}
 	query := `SELECT id, active, cost_plan_id, supplier_product_plan_id, billing_treatment, billing_amount, date_created, date_modified
-	          FROM ` + entityid.SupplierProductCostPlan + `
-	          WHERE active = true
+	          FROM ` + entityid.SupplierProductCostPlan + ` spcp
+	          WHERE EXISTS (
+				SELECT 1 FROM supplier_product_plan p1
+				JOIN supplier_plan p2 ON p2.id = p1.supplier_plan_id
+				WHERE p1.id = spcp.supplier_product_plan_id AND p2.workspace_id = $3
+			)
+	            AND active = true
 	          ORDER BY date_created DESC LIMIT $1 OFFSET $2`
-	rows, err := r.db.QueryContext(ctx, query, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

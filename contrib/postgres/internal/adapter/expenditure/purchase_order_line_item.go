@@ -16,6 +16,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	purchaseorderlineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/purchase_order_line_item"
 )
@@ -240,6 +241,10 @@ func (r *PostgresPurchaseOrderLineItemRepository) GetPurchaseOrderLineItemListPa
 	if req == nil {
 		return nil, fmt.Errorf("get purchase order line item list page data request is required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	searchPattern, searchErr := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
 	if searchErr != nil {
@@ -279,7 +284,12 @@ func (r *PostgresPurchaseOrderLineItemRepository) GetPurchaseOrderLineItemListPa
 				poli.date_modified,
 				COUNT(*) OVER() AS total
 			FROM %s poli
-			WHERE poli.active = true
+			WHERE EXISTS (
+				SELECT 1 FROM purchase_order p1
+				JOIN supplier p2 ON p2.id = p1.supplier_id
+				WHERE p1.id = poli.purchase_order_id AND p2.workspace_id = $4
+			)
+			  AND poli.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       poli.description ILIKE $1)
 		)
@@ -288,7 +298,7 @@ func (r *PostgresPurchaseOrderLineItemRepository) GetPurchaseOrderLineItemListPa
 		LIMIT $2 OFFSET $3;
 	`, r.tableName)
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query purchase order line item list page data: %w", err)
 	}

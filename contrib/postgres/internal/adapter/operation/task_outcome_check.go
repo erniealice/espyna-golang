@@ -16,6 +16,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome_check"
 )
@@ -219,6 +220,14 @@ var taskOutcomeCheckSortableSQLCols = []string{
 	"checked", "note",
 }
 
+const taskOutcomeCheckListWorkspacePredicate = `EXISTS (
+	SELECT 1 FROM task_outcome t
+	JOIN job_task jt ON jt.id = t.job_task_id
+	JOIN job_phase jp ON jp.id = jt.job_phase_id
+	JOIN job j ON j.id = jp.job_id
+	WHERE t.id = toc.task_outcome_id AND j.workspace_id = $4
+)`
+
 // GetTaskOutcomeCheckListPageData retrieves task outcome checks with pagination
 func (r *PostgresTaskOutcomeCheckRepository) GetTaskOutcomeCheckListPageData(
 	ctx context.Context,
@@ -226,6 +235,10 @@ func (r *PostgresTaskOutcomeCheckRepository) GetTaskOutcomeCheckListPageData(
 ) (*pb.GetTaskOutcomeCheckListPageDataResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("get task outcome check list page data request is required")
+	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
@@ -257,7 +270,8 @@ func (r *PostgresTaskOutcomeCheckRepository) GetTaskOutcomeCheckListPageData(
 				toc.checked,
 				toc.note
 			FROM ` + entityid.TaskOutcomeCheck + ` toc
-			WHERE ($1::text IS NULL OR $1::text = '' OR
+			WHERE ` + taskOutcomeCheckListWorkspacePredicate + `
+			  AND ($1::text IS NULL OR $1::text = '' OR
 			       toc.note ILIKE $1)
 		)
 		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
@@ -270,7 +284,7 @@ func (r *PostgresTaskOutcomeCheckRepository) GetTaskOutcomeCheckListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query task outcome check list page data: %w", err)
 	}

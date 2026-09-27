@@ -14,6 +14,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productvariantoptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_variant_option"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -238,6 +239,10 @@ func (r *PostgresProductVariantOptionRepository) GetProductVariantOptionListPage
 	if req == nil {
 		return nil, fmt.Errorf("get product variant option list page data request is required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// Build search condition
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
@@ -275,7 +280,12 @@ func (r *PostgresProductVariantOptionRepository) GetProductVariantOptionListPage
 			FROM ` + entityid.ProductVariantOption + ` pvo
 			LEFT JOIN ` + entityid.ProductVariant + ` pv ON pvo.product_variant_id = pv.id AND pv.active = true
 			LEFT JOIN ` + entityid.ProductOptionValue + ` povl ON pvo.product_option_value_id = povl.id AND povl.active = true
-			WHERE pvo.active = true
+			WHERE EXISTS (
+				SELECT 1 FROM product_variant p1
+				JOIN product p2 ON p2.id = p1.product_id
+				WHERE p1.id = pvo.product_variant_id AND p2.workspace_id = $4
+			)
+			  AND pvo.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       pv.sku ILIKE $1 OR
 			       povl.label ILIKE $1)
@@ -290,7 +300,7 @@ func (r *PostgresProductVariantOptionRepository) GetProductVariantOptionListPage
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query product variant option list page data: %w", err)
 	}

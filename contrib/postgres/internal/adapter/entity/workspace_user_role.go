@@ -13,6 +13,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	workspaceuserrolepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user_role"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -220,6 +221,10 @@ func (r *PostgresWorkspaceUserRoleRepository) GetWorkspaceUserRoleListPageData(c
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
+	actor, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 	searchPattern, searchErr := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
 	if searchErr != nil {
 		return nil, fmt.Errorf("bounded search: %w", searchErr)
@@ -238,17 +243,18 @@ func (r *PostgresWorkspaceUserRoleRepository) GetWorkspaceUserRoleListPageData(c
 
 	query := `
 		WITH enriched AS (SELECT
-				id,
-				workspace_user_id,
-				role_id,
-				active,
-				date_created,
-				date_modified
-			FROM ` + entityid.WorkspaceUserRole + `
-			WHERE active = true
+				wur.id,
+				wur.workspace_user_id,
+				wur.role_id,
+				wur.active,
+				wur.date_created,
+				wur.date_modified
+			FROM ` + entityid.WorkspaceUserRole + ` wur
+			JOIN ` + entityid.WorkspaceUser + ` wu ON wu.id = wur.workspace_user_id
+			WHERE wur.active = true AND wu.workspace_id = $4::text
 			  AND ($1::text IS NULL OR $1::text = '' OR
-			       workspace_user_id ILIKE $1 OR
-			       role_id ILIKE $1))
+			       wur.workspace_user_id ILIKE $1 OR
+			       wur.role_id ILIKE $1))
 		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
 		-- same scan as the page rows (the prior counted CTE forced a second scan).
 		SELECT
@@ -258,7 +264,7 @@ func (r *PostgresWorkspaceUserRoleRepository) GetWorkspaceUserRoleListPageData(c
 		` + orderByClause + `
 		LIMIT $2 OFFSET $3;`
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset, actor.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -266,7 +272,8 @@ func (r *PostgresWorkspaceUserRoleRepository) GetWorkspaceUserRoleListPageData(c
 	var workspaceUserRoles []*workspaceuserrolepb.WorkspaceUserRole
 	var totalCount int64
 	for rows.Next() {
-		var id, workspaceUserId, roleId string
+		var id, workspaceUserId string
+		var roleId sql.NullString
 		var active bool
 		var dateCreated, dateModified time.Time
 		var total int64
@@ -274,7 +281,7 @@ func (r *PostgresWorkspaceUserRoleRepository) GetWorkspaceUserRoleListPageData(c
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		totalCount = total
-		workspaceUserRole := &workspaceuserrolepb.WorkspaceUserRole{Id: id, WorkspaceUserId: workspaceUserId, RoleId: roleId, Active: active}
+		workspaceUserRole := &workspaceuserrolepb.WorkspaceUserRole{Id: id, WorkspaceUserId: workspaceUserId, RoleId: roleId.String, Active: active}
 		if !dateCreated.IsZero() {
 			ts := dateCreated.UnixMilli()
 			workspaceUserRole.DateCreated = &ts

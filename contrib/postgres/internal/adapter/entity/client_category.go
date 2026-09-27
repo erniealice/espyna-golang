@@ -13,6 +13,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	clientcategorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client_category"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -223,6 +224,10 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get client_category list page data request is required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// Build search condition
 	searchPattern, searchErr := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
@@ -259,7 +264,11 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryListPageData(
 				cc.date_created,
 				cc.date_modified
 			FROM ` + entityid.ClientCategory + ` cc
-			WHERE cc.active = true
+			WHERE EXISTS (
+				SELECT 1 FROM client p1
+				WHERE p1.id = cc.client_id AND p1.workspace_id = $4
+			)
+			  AND cc.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 				   cc.name ILIKE $1 OR
 				   cc.description ILIKE $1)
@@ -275,7 +284,7 @@ func (r *PostgresClientCategoryRepository) GetClientCategoryListPageData(
 	`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query client_category list page data: %w", err)
 	}

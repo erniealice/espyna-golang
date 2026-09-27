@@ -15,6 +15,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	loanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/loan"
 )
@@ -237,6 +238,10 @@ func (r *PostgresLoanRepository) GetLoanListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("get loan list page data request is required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
 	if err != nil {
@@ -276,7 +281,11 @@ func (r *PostgresLoanRepository) GetLoanListPageData(
 				l.remaining_balance,
 				l.account_id
 			FROM %s l
-			WHERE l.active = true
+			WHERE EXISTS (
+				SELECT 1 FROM account p1
+				WHERE p1.id = l.account_id AND p1.workspace_id = $4
+			)
+			  AND l.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       l.loan_number ILIKE $1 OR
 			       l.lender_name ILIKE $1 OR
@@ -292,7 +301,7 @@ func (r *PostgresLoanRepository) GetLoanListPageData(
 		LIMIT $2 OFFSET $3;
 	`, r.tableName, orderByClause)
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query loan list page data: %w", err)
 	}

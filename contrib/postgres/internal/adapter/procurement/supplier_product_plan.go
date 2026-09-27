@@ -13,6 +13,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	supplierproductplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_product_plan"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -176,6 +177,11 @@ func (r *PostgresSupplierProductPlanRepository) GetSupplierProductPlanListPageDa
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
 	if err != nil {
 		return nil, err
@@ -192,11 +198,15 @@ func (r *PostgresSupplierProductPlanRepository) GetSupplierProductPlanListPageDa
 		return nil, err
 	}
 	query := fmt.Sprintf(`SELECT id, name, active, supplier_plan_id, product_id, product_variant_id, date_created, date_modified
-	          FROM `+entityid.SupplierProductPlan+`
-	          WHERE active = true
+	          FROM `+entityid.SupplierProductPlan+` spp
+	          WHERE EXISTS (
+				SELECT 1 FROM supplier_plan p1
+				WHERE p1.id = spp.supplier_plan_id AND p1.workspace_id = $4
+			)
+	            AND active = true
 	            AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1)
 	          %s LIMIT $2 OFFSET $3`, orderByClause)
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

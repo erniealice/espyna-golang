@@ -13,6 +13,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	eventclientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event_client"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -223,6 +224,9 @@ var eventClientSortableSQLCols = []string{
 	"id", "event_id", "client_id", "active", "date_created", "date_modified",
 }
 
+const eventClientListWorkspacePredicate = `(SELECT ev.workspace_id FROM event ev
+	WHERE ev.id = ec.event_id) = $4`
+
 // GetEventClientListPageData retrieves paginated event client list data with CTE
 func (r *PostgresEventClientRepository) GetEventClientListPageData(
 	ctx context.Context,
@@ -230,6 +234,10 @@ func (r *PostgresEventClientRepository) GetEventClientListPageData(
 ) (*eventclientpb.GetEventClientListPageDataResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request required")
+	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// Build search condition
@@ -264,6 +272,7 @@ func (r *PostgresEventClientRepository) GetEventClientListPageData(
 				ec.date_modified
 			FROM ` + entityid.EventClient + ` ec
 			WHERE ec.active = true
+			  AND ` + eventClientListWorkspacePredicate + `
 			  AND ($1::text IS NULL OR $1::text = '' OR
 				   ec.event_id ILIKE $1 OR
 				   ec.client_id ILIKE $1)
@@ -278,7 +287,7 @@ func (r *PostgresEventClientRepository) GetEventClientListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query event client list page data: %w", err)
 	}

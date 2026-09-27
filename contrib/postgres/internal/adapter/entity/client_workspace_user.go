@@ -236,11 +236,15 @@ func (r *PostgresClientWorkspaceUserRepository) GetClientWorkspaceUserListPageDa
 		return nil, fmt.Errorf("invalid sort for client workspace user list: %w", err)
 	}
 
-	wsID := identity.Must(ctx).WorkspaceID
+	actor, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	wsID := actor.WorkspaceID
 	query := `SELECT id, client_id, workspace_user_id, is_owner, active, date_created, date_modified
 		FROM ` + entityid.ClientWorkspaceUser + `
 		WHERE active = true
-			AND ($4::text = '' OR workspace_id = $4::text)
+			AND workspace_id = $4::text
 			AND ($1::text IS NULL OR $1::text = '' OR client_id ILIKE $1 OR workspace_user_id ILIKE $1) ` + orderBy + ` LIMIT $2 OFFSET $3;`
 	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
 	if err != nil {

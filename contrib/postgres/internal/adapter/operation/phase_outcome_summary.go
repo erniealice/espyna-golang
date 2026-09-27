@@ -260,6 +260,10 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetPhaseOutcomeSummaryListPageDa
 	if req == nil {
 		return nil, fmt.Errorf("get phase outcome summary list page data request is required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
 	if err != nil {
@@ -292,19 +296,25 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetPhaseOutcomeSummaryListPageDa
 	// issued ($4, session-derived). Predicate lives inside the enriched CTE so
 	// the counted total matches the scoped set. Non-staff → empty clause.
 	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "pos.issued_by", 4)
+	workspaceParam := "$4"
+	if len(staffArgs) != 0 {
+		workspaceParam = "$5"
+	}
 
 	query := fmt.Sprintf(`
-		WITH enriched AS NOT MATERIALIZED (
+		WITH scoped_jobs AS MATERIALIZED (
+			SELECT j.id FROM `+entityid.Job+` j WHERE j.workspace_id = %s
+		), enriched AS MATERIALIZED (
 			SELECT %s
 			FROM `+entityid.PhaseOutcomeSummary+` pos
 			WHERE pos.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
-			       pos.narrative ILIKE $1)%s
+			       pos.narrative ILIKE $1)
+			  AND pos.job_id IN (SELECT id FROM scoped_jobs)%s
 		)
-		-- A3 (Q-PAGE-COUNT heavyweight tier, plan 20260927-db-query-performance
-		-- DB-07): page ids come from a narrow sort, full rows are fetched for those
-		-- ids only, and the total is one scalar count. COUNT(*) OVER () held every
-		-- matching row of this high-volume table in a temp file before the LIMIT.
+		-- DB-07 page ids and scalar count share one materialized tenant-scoped
+		-- set. Materializing enriched also projects full rows before LIMIT; this
+		-- is the measured tradeoff for evaluating the parent scope only once.
 		, page AS (
 			SELECT e.id
 			FROM enriched e
@@ -316,9 +326,11 @@ func (r *PostgresPhaseOutcomeSummaryRepository) GetPhaseOutcomeSummaryListPageDa
 		FROM enriched e
 		WHERE e.id IN (SELECT id FROM page)
 		%s;
-	`, posColumns, staffClause, orderByClause, orderByClause)
+	`, workspaceParam, posColumns, staffClause, orderByClause, orderByClause)
 
-	rows, err := r.db.QueryContext(ctx, query, append([]any{searchPattern, limit, offset}, staffArgs...)...)
+	args := append([]any{searchPattern, limit, offset}, staffArgs...)
+	args = append(args, ws.WorkspaceID)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query phase outcome summary list page data: %w", err)
 	}

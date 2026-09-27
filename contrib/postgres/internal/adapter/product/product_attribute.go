@@ -13,6 +13,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	productattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_attribute"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -232,6 +233,10 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeListPageData(
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	// Build search condition
 	searchPattern, err := postgresCore.BoundedContainsSearchPattern(req.GetSearch())
@@ -265,7 +270,11 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeListPageData(
 				pa.date_created,
 				pa.date_modified
 			FROM ` + entityid.ProductAttribute + ` pa
-			WHERE ($1::text IS NULL OR $1::text = '' OR
+			WHERE EXISTS (
+				SELECT 1 FROM product p1
+				WHERE p1.id = pa.product_id AND p1.workspace_id = $4
+			)
+			  AND ($1::text IS NULL OR $1::text = '' OR
 			       pa.product_id ILIKE $1 OR
 			       pa.attribute_id ILIKE $1 OR
 			       pa.value ILIKE $1)
@@ -280,7 +289,7 @@ func (r *PostgresProductAttributeRepository) GetProductAttributeListPageData(
 		LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset)
+	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, ws.WorkspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

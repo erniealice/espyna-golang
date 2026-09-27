@@ -484,8 +484,31 @@ func (m *MySQLOperations) HardDelete(ctx context.Context, tableName string, id s
 
 // List retrieves records from the specified table with standardized params.
 func (m *MySQLOperations) List(ctx context.Context, tableName string, params *interfaces.ListParams) (*interfaces.ListResult, error) {
+	return m.listWithScope(ctx, tableName, nil, params)
+}
+
+// ListWithScope keeps mandatory tenant predicates outside caller-selected OR logic.
+func (m *MySQLOperations) ListWithScope(ctx context.Context, tableName string, scope []*commonpb.TypedFilter, params *interfaces.ListParams) (*interfaces.ListResult, error) {
+	return m.listWithScope(ctx, tableName, scope, params)
+}
+
+func (m *MySQLOperations) listWithScope(ctx context.Context, tableName string, scope []*commonpb.TypedFilter, params *interfaces.ListParams) (*interfaces.ListResult, error) {
 	if tableName == "" {
 		return nil, model.NewDatabaseError("table name is required", "MISSING_TABLE_NAME", 400)
+	}
+	if err := ValidateSQLIdent(tableName); err != nil || strings.Contains(tableName, ".") {
+		return nil, model.NewDatabaseError("invalid table name", "INVALID_TABLE_NAME", 400)
+	}
+	columns, err := m.getTableColumns(ctx, tableName)
+	if err != nil || len(columns) == 0 {
+		return nil, model.NewDatabaseError("failed to resolve list columns", "MYSQL_SCHEMA_ERROR", 500)
+	}
+	allowed := make(map[string]struct{}, len(columns))
+	for _, column := range columns {
+		allowed[column] = struct{}{}
+	}
+	if err := validateListRequest(listScopeValidationParams(scope, params), tableName, allowed); err != nil {
+		return nil, model.NewDatabaseError(err.Error(), "INVALID_LIST_REQUEST", 400)
 	}
 
 	// Build WHERE clause.
@@ -509,11 +532,20 @@ func (m *MySQLOperations) List(ctx context.Context, tableName string, params *in
 	}
 	values := []any{}
 	paramIndex := 1
+	if len(scope) > 0 {
+		scopeConditions, scopeValues, nextIndex := m.buildFilterConditions(ctx, tableName, &commonpb.FilterRequest{Filters: scope}, paramIndex)
+		if len(scopeConditions) != len(scope) {
+			return nil, model.NewDatabaseError("scope filter did not produce a SQL predicate", "TENANT_SCOPE_UNAVAILABLE", 500)
+		}
+		whereConditions = append(whereConditions, scopeConditions...)
+		values = append(values, scopeValues...)
+		paramIndex = nextIndex
+	}
 
 	// Apply filters from FilterRequest
 	if params != nil && params.Filters != nil {
-		filterConditions, filterValues, nextIndex := m.buildFilterConditions(params.Filters, paramIndex)
-		whereConditions = append(whereConditions, filterConditions...)
+		filterConditions, filterValues, nextIndex := m.buildFilterConditions(ctx, tableName, params.Filters, paramIndex)
+		whereConditions = append(whereConditions, groupFilterClauses(params.Filters.GetLogic(), filterConditions)...)
 		values = append(values, filterValues...)
 		paramIndex = nextIndex
 	}
@@ -534,7 +566,7 @@ func (m *MySQLOperations) List(ctx context.Context, tableName string, params *in
 		var likeClauses []string
 		for _, col := range fields {
 			values = append(values, q)
-			likeClauses = append(likeClauses, fmt.Sprintf("%s LIKE %s", m.dialect.QuoteIdent(col), m.dialect.Placeholder(paramIndex)))
+			likeClauses = append(likeClauses, fmt.Sprintf("%s LIKE %s", m.dialect.QuoteIdent(listColumnName(col)), m.dialect.Placeholder(paramIndex)))
 			paramIndex++
 		}
 		whereConditions = append(whereConditions, "("+strings.Join(likeClauses, " OR ")+")")
@@ -545,6 +577,7 @@ func (m *MySQLOperations) List(ctx context.Context, tableName string, params *in
 	if params != nil && params.Sort != nil && len(params.Sort.Fields) > 0 {
 		orderByParts := make([]string, 0, len(params.Sort.Fields))
 		for _, sortField := range params.Sort.Fields {
+			column := listColumnName(sortField.Field)
 			direction := "ASC"
 			if sortField.Direction == commonpb.SortDirection_DESC {
 				direction = "DESC"
@@ -553,13 +586,16 @@ func (m *MySQLOperations) List(ctx context.Context, tableName string, params *in
 			// leading "col IS NULL" key when requested.
 			switch sortField.NullOrder {
 			case commonpb.NullOrder_NULLS_FIRST:
-				orderByParts = append(orderByParts, fmt.Sprintf("%s IS NOT NULL", m.dialect.QuoteIdent(sortField.Field)))
+				orderByParts = append(orderByParts, fmt.Sprintf("%s IS NOT NULL", m.dialect.QuoteIdent(column)))
 			case commonpb.NullOrder_NULLS_LAST:
-				orderByParts = append(orderByParts, fmt.Sprintf("%s IS NULL", m.dialect.QuoteIdent(sortField.Field)))
+				orderByParts = append(orderByParts, fmt.Sprintf("%s IS NULL", m.dialect.QuoteIdent(column)))
 			}
-			orderByParts = append(orderByParts, fmt.Sprintf("%s %s", m.dialect.QuoteIdent(sortField.Field), direction))
+			orderByParts = append(orderByParts, fmt.Sprintf("%s %s", m.dialect.QuoteIdent(column), direction))
 		}
 		orderByClause = "ORDER BY " + strings.Join(orderByParts, ", ")
+	}
+	if params == nil || params.Sort == nil || !hasListIDSort(params.Sort) {
+		orderByClause += ", " + m.dialect.QuoteIdent("id") + " ASC"
 	}
 
 	// Get total count before pagination
@@ -578,18 +614,13 @@ func (m *MySQLOperations) List(ctx context.Context, tableName string, params *in
 		)
 	}
 
-	// Apply pagination
-	limit := int32(100) // Default limit
-	offset := int32(0)
-	if params != nil && params.Pagination != nil {
-		if params.Pagination.Limit > 0 && params.Pagination.Limit <= 100 {
-			limit = params.Pagination.Limit
-		}
-		if offsetPagination := params.Pagination.GetOffset(); offsetPagination != nil {
-			if offsetPagination.Page > 0 {
-				offset = (offsetPagination.Page - 1) * limit
-			}
-		}
+	var paginationRequest *commonpb.PaginationRequest
+	if params != nil {
+		paginationRequest = params.Pagination
+	}
+	limit, offset, cursorMode, err := listPaginationBounds(paginationRequest)
+	if err != nil {
+		return nil, model.NewDatabaseError(err.Error(), "INVALID_PAGINATION", 400)
 	}
 
 	// Build final query with pagination. The dialect owns the LIMIT/OFFSET
@@ -612,7 +643,7 @@ func (m *MySQLOperations) List(ctx context.Context, tableName string, params *in
 	}
 	defer rows.Close()
 
-	columns, err := rows.Columns()
+	columns, err = rows.Columns()
 	if err != nil {
 		return nil, model.NewDatabaseError(
 			fmt.Sprintf("failed to get columns: %v", err),
@@ -654,17 +685,25 @@ func (m *MySQLOperations) List(ctx context.Context, tableName string, params *in
 	hasNext := currentPage < totalPages
 	hasPrev := currentPage > 1
 
-	return &interfaces.ListResult{
-		Data:  results,
-		Total: totalItems,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  totalItems,
-			CurrentPage: &currentPage,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-	}, nil
+	pagination := &commonpb.PaginationResponse{TotalItems: totalItems, HasNext: hasNext, HasPrev: hasPrev}
+	if cursorMode {
+		if hasNext {
+			next := fmt.Sprintf("offset:%d", int64(offset)+int64(limit))
+			pagination.NextCursor = &next
+		}
+		if offset > 0 {
+			previousOffset := int64(offset) - int64(limit)
+			if previousOffset < 0 {
+				previousOffset = 0
+			}
+			previous := fmt.Sprintf("offset:%d", previousOffset)
+			pagination.PrevCursor = &previous
+		}
+	} else {
+		pagination.CurrentPage = &currentPage
+		pagination.TotalPages = &totalPages
+	}
+	return &interfaces.ListResult{Data: results, Total: totalItems, Pagination: pagination}, nil
 }
 
 // Query executes a structured query against the MySQL table.
@@ -841,17 +880,17 @@ func (m *MySQLOperations) readByID(ctx context.Context, tableName, id string, co
 }
 
 // buildFilterConditions builds WHERE conditions from FilterRequest.
-func (m *MySQLOperations) buildFilterConditions(filterReq *commonpb.FilterRequest, startIndex int) ([]string, []any, int) {
+func (m *MySQLOperations) buildFilterConditions(ctx context.Context, tableName string, filterReq *commonpb.FilterRequest, startIndex int) ([]string, []any, int) {
 	conditions := []string{}
 	values := []any{}
 	paramIndex := startIndex
 
 	for _, filter := range filterReq.Filters {
-		field := filter.Field
+		field := listColumnName(filter.Field)
 
 		switch ft := filter.FilterType.(type) {
 		case *commonpb.TypedFilter_StringFilter:
-			condition, vals, nextIndex := m.buildStringFilter(field, ft.StringFilter, paramIndex)
+			condition, vals, nextIndex := m.buildStringFilter(field, ft.StringFilter, m.isIdentifierColumn(ctx, tableName, field), paramIndex)
 			conditions = append(conditions, condition)
 			values = append(values, vals...)
 			paramIndex = nextIndex
@@ -877,7 +916,7 @@ func (m *MySQLOperations) buildFilterConditions(filterReq *commonpb.FilterReques
 
 		case *commonpb.TypedFilter_RangeFilter:
 			rangeConditions, vals, nextIndex := m.buildRangeFilter(field, ft.RangeFilter, paramIndex)
-			conditions = append(conditions, rangeConditions...)
+			conditions = append(conditions, "("+strings.Join(rangeConditions, " AND ")+")")
 			values = append(values, vals...)
 			paramIndex = nextIndex
 
@@ -891,7 +930,7 @@ func (m *MySQLOperations) buildFilterConditions(filterReq *commonpb.FilterReques
 
 		case *commonpb.TypedFilter_MoneyFilter:
 			mf := ft.MoneyFilter
-			col := m.dialect.QuoteIdent(filter.Field)
+			col := m.dialect.QuoteIdent(field)
 			switch mf.Operator {
 			case commonpb.MoneyOperator_MONEY_EQUALS:
 				conditions = append(conditions, fmt.Sprintf("%s = %s", col, m.dialect.Placeholder(paramIndex)))
@@ -929,7 +968,7 @@ func (m *MySQLOperations) buildFilterConditions(filterReq *commonpb.FilterReques
 					paramIndex++
 				}
 				conditions = append(conditions, fmt.Sprintf(
-					"%s IN (%s)", m.dialect.QuoteIdent(filter.Field), strings.Join(placeholders, ", "),
+					"%s IN (%s)", m.dialect.QuoteIdent(field), strings.Join(placeholders, ", "),
 				))
 			}
 		}
@@ -939,14 +978,18 @@ func (m *MySQLOperations) buildFilterConditions(filterReq *commonpb.FilterReques
 }
 
 // buildStringFilter builds a SQL condition for StringFilter.
-func (m *MySQLOperations) buildStringFilter(field string, filter *commonpb.StringFilter, paramIndex int) (string, []any, int) {
+func (m *MySQLOperations) buildStringFilter(field string, filter *commonpb.StringFilter, exactIdentifier bool, paramIndex int) (string, []any, int) {
 	col := m.dialect.QuoteIdent(field)
 	value := filter.Value
-	if !filter.CaseSensitive {
+	if !filter.CaseSensitive && filter.Operator != commonpb.StringOperator_STRING_REGEX {
 		// MySQL string columns use a case-insensitive collation by default, so
-		// LOWER() on both sides keeps parity with the postgres gold standard
-		// without depending on the column's collation.
-		col = fmt.Sprintf("LOWER(%s)", col)
+		// explicit LOWER() remains for human text and pattern matching. ID
+		// equality uses the indexed bare column and a normalized value.
+		equality := filter.Operator == commonpb.StringOperator_STRING_EQUALS ||
+			filter.Operator == commonpb.StringOperator_STRING_NOT_EQUALS
+		if !exactIdentifier || !equality {
+			col = fmt.Sprintf("LOWER(%s)", col)
+		}
 		value = strings.ToLower(value)
 	}
 
@@ -1090,60 +1133,26 @@ func (m *MySQLOperations) buildDateFilter(field string, filter *commonpb.DateFil
 	return condition, values, paramIndex
 }
 
-// getTableColumns retrieves column names for a table.
-//
-// MySQL's information_schema is server-wide, so the lookup is scoped to the
-// current schema with table_schema = DATABASE().
+// getTableColumns uses live schema metadata cached per pool and table.
 func (m *MySQLOperations) getTableColumns(ctx context.Context, tableName string) ([]string, error) {
-	query := `
-		SELECT column_name
-		FROM information_schema.columns
-		WHERE table_schema = DATABASE() AND table_name = ?
-		ORDER BY ordinal_position
-	`
-
-	rows, err := m.getExecutor(ctx).QueryContext(ctx, query, tableName)
+	metadata, err := m.getTableMetadata(ctx, tableName)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var columns []string
-	for rows.Next() {
-		var columnName string
-		if err := rows.Scan(&columnName); err != nil {
-			return nil, err
-		}
-		columns = append(columns, columnName)
-	}
-
-	return columns, rows.Err()
+	return append([]string(nil), metadata.columns...), nil
 }
 
-// getTableColumnTypes returns column-name → information_schema data_type for a
-// table. Used by Create/Update to pick the right serialization for
-// auto-injected timestamp fields (BIGINT unix-ms vs DATETIME/TIMESTAMP).
+// getTableColumnTypes uses the same cached catalog read as getTableColumns.
 func (m *MySQLOperations) getTableColumnTypes(ctx context.Context, tableName string) (map[string]string, error) {
-	query := `
-		SELECT column_name, data_type
-		FROM information_schema.columns
-		WHERE table_schema = DATABASE() AND table_name = ?
-	`
-	rows, err := m.getExecutor(ctx).QueryContext(ctx, query, tableName)
+	metadata, err := m.getTableMetadata(ctx, tableName)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	types := make(map[string]string)
-	for rows.Next() {
-		var name, dataType string
-		if err := rows.Scan(&name, &dataType); err != nil {
-			return nil, err
-		}
-		types[name] = dataType
+	types := make(map[string]string, len(metadata.types))
+	for name, kind := range metadata.types {
+		types[name] = kind
 	}
-	return types, rows.Err()
+	return types, nil
 }
 
 // autoTimestampValue returns the appropriate value to write for a timestamp

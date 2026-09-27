@@ -490,8 +490,31 @@ func (s *SQLServerOperations) HardDelete(ctx context.Context, tableName string, 
 
 // List retrieves records from the specified table with standardized params.
 func (s *SQLServerOperations) List(ctx context.Context, tableName string, params *interfaces.ListParams) (*interfaces.ListResult, error) {
+	return s.listWithScope(ctx, tableName, nil, params)
+}
+
+// ListWithScope keeps mandatory tenant predicates outside caller-selected OR logic.
+func (s *SQLServerOperations) ListWithScope(ctx context.Context, tableName string, scope []*commonpb.TypedFilter, params *interfaces.ListParams) (*interfaces.ListResult, error) {
+	return s.listWithScope(ctx, tableName, scope, params)
+}
+
+func (s *SQLServerOperations) listWithScope(ctx context.Context, tableName string, scope []*commonpb.TypedFilter, params *interfaces.ListParams) (*interfaces.ListResult, error) {
 	if tableName == "" {
 		return nil, model.NewDatabaseError("table name is required", "MISSING_TABLE_NAME", 400)
+	}
+	if err := ValidateSQLIdent(tableName); err != nil || strings.Contains(tableName, ".") {
+		return nil, model.NewDatabaseError("invalid table name", "INVALID_TABLE_NAME", 400)
+	}
+	columns, err := s.getTableColumns(ctx, tableName)
+	if err != nil || len(columns) == 0 {
+		return nil, model.NewDatabaseError("failed to resolve list columns", "SQLSERVER_SCHEMA_ERROR", 500)
+	}
+	allowed := make(map[string]struct{}, len(columns))
+	for _, column := range columns {
+		allowed[column] = struct{}{}
+	}
+	if err := validateListRequest(listScopeValidationParams(scope, params), tableName, allowed); err != nil {
+		return nil, model.NewDatabaseError(err.Error(), "INVALID_LIST_REQUEST", 400)
 	}
 
 	// Build WHERE clause.
@@ -515,11 +538,20 @@ func (s *SQLServerOperations) List(ctx context.Context, tableName string, params
 	}
 	values := []any{}
 	paramIndex := 1
+	if len(scope) > 0 {
+		scopeConditions, scopeValues, nextIndex := s.buildFilterConditions(ctx, tableName, &commonpb.FilterRequest{Filters: scope}, paramIndex)
+		if len(scopeConditions) != len(scope) {
+			return nil, model.NewDatabaseError("scope filter did not produce a SQL predicate", "TENANT_SCOPE_UNAVAILABLE", 500)
+		}
+		whereConditions = append(whereConditions, scopeConditions...)
+		values = append(values, scopeValues...)
+		paramIndex = nextIndex
+	}
 
 	// Apply filters from FilterRequest
 	if params != nil && params.Filters != nil {
-		filterConditions, filterValues, nextIndex := s.buildFilterConditions(params.Filters, paramIndex)
-		whereConditions = append(whereConditions, filterConditions...)
+		filterConditions, filterValues, nextIndex := s.buildFilterConditions(ctx, tableName, params.Filters, paramIndex)
+		whereConditions = append(whereConditions, groupFilterClauses(params.Filters.GetLogic(), filterConditions)...)
 		values = append(values, filterValues...)
 		paramIndex = nextIndex
 	}
@@ -540,7 +572,7 @@ func (s *SQLServerOperations) List(ctx context.Context, tableName string, params
 		var likeClauses []string
 		for _, col := range fields {
 			values = append(values, q)
-			likeClauses = append(likeClauses, fmt.Sprintf("%s LIKE %s", s.dialect.QuoteIdent(col), s.dialect.Placeholder(paramIndex)))
+			likeClauses = append(likeClauses, fmt.Sprintf("%s LIKE %s", s.dialect.QuoteIdent(listColumnName(col)), s.dialect.Placeholder(paramIndex)))
 			paramIndex++
 		}
 		whereConditions = append(whereConditions, "("+strings.Join(likeClauses, " OR ")+")")
@@ -552,6 +584,7 @@ func (s *SQLServerOperations) List(ctx context.Context, tableName string, params
 	if params != nil && params.Sort != nil && len(params.Sort.Fields) > 0 {
 		orderByParts := make([]string, 0, len(params.Sort.Fields))
 		for _, sortField := range params.Sort.Fields {
+			column := listColumnName(sortField.Field)
 			direction := "ASC"
 			if sortField.Direction == commonpb.SortDirection_DESC {
 				direction = "DESC"
@@ -560,13 +593,16 @@ func (s *SQLServerOperations) List(ctx context.Context, tableName string, params
 			// leading "col IS NULL" key when requested.
 			switch sortField.NullOrder {
 			case commonpb.NullOrder_NULLS_FIRST:
-				orderByParts = append(orderByParts, fmt.Sprintf("CASE WHEN %s IS NULL THEN 0 ELSE 1 END", s.dialect.QuoteIdent(sortField.Field)))
+				orderByParts = append(orderByParts, fmt.Sprintf("CASE WHEN %s IS NULL THEN 0 ELSE 1 END", s.dialect.QuoteIdent(column)))
 			case commonpb.NullOrder_NULLS_LAST:
-				orderByParts = append(orderByParts, fmt.Sprintf("CASE WHEN %s IS NULL THEN 1 ELSE 0 END", s.dialect.QuoteIdent(sortField.Field)))
+				orderByParts = append(orderByParts, fmt.Sprintf("CASE WHEN %s IS NULL THEN 1 ELSE 0 END", s.dialect.QuoteIdent(column)))
 			}
-			orderByParts = append(orderByParts, fmt.Sprintf("%s %s", s.dialect.QuoteIdent(sortField.Field), direction))
+			orderByParts = append(orderByParts, fmt.Sprintf("%s %s", s.dialect.QuoteIdent(column), direction))
 		}
 		orderByClause = "ORDER BY " + strings.Join(orderByParts, ", ")
+	}
+	if params == nil || params.Sort == nil || !hasListIDSort(params.Sort) {
+		orderByClause += ", " + s.dialect.QuoteIdent("id") + " ASC"
 	}
 
 	// Get total count before pagination
@@ -585,18 +621,13 @@ func (s *SQLServerOperations) List(ctx context.Context, tableName string, params
 		)
 	}
 
-	// Apply pagination
-	limit := int32(100) // Default limit
-	offset := int32(0)
-	if params != nil && params.Pagination != nil {
-		if params.Pagination.Limit > 0 && params.Pagination.Limit <= 100 {
-			limit = params.Pagination.Limit
-		}
-		if offsetPagination := params.Pagination.GetOffset(); offsetPagination != nil {
-			if offsetPagination.Page > 0 {
-				offset = (offsetPagination.Page - 1) * limit
-			}
-		}
+	var paginationRequest *commonpb.PaginationRequest
+	if params != nil {
+		paginationRequest = params.Pagination
+	}
+	limit, offset, cursorMode, err := listPaginationBounds(paginationRequest)
+	if err != nil {
+		return nil, model.NewDatabaseError(err.Error(), "INVALID_PAGINATION", 400)
 	}
 
 	// Build final query with pagination. The dialect owns the OFFSET/FETCH
@@ -619,7 +650,7 @@ func (s *SQLServerOperations) List(ctx context.Context, tableName string, params
 	}
 	defer rows.Close()
 
-	columns, err := rows.Columns()
+	columns, err = rows.Columns()
 	if err != nil {
 		return nil, model.NewDatabaseError(
 			fmt.Sprintf("failed to get columns: %v", err),
@@ -661,17 +692,25 @@ func (s *SQLServerOperations) List(ctx context.Context, tableName string, params
 	hasNext := currentPage < totalPages
 	hasPrev := currentPage > 1
 
-	return &interfaces.ListResult{
-		Data:  results,
-		Total: totalItems,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  totalItems,
-			CurrentPage: &currentPage,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-	}, nil
+	pagination := &commonpb.PaginationResponse{TotalItems: totalItems, HasNext: hasNext, HasPrev: hasPrev}
+	if cursorMode {
+		if hasNext {
+			next := fmt.Sprintf("offset:%d", int64(offset)+int64(limit))
+			pagination.NextCursor = &next
+		}
+		if offset > 0 {
+			previousOffset := int64(offset) - int64(limit)
+			if previousOffset < 0 {
+				previousOffset = 0
+			}
+			previous := fmt.Sprintf("offset:%d", previousOffset)
+			pagination.PrevCursor = &previous
+		}
+	} else {
+		pagination.CurrentPage = &currentPage
+		pagination.TotalPages = &totalPages
+	}
+	return &interfaces.ListResult{Data: results, Total: totalItems, Pagination: pagination}, nil
 }
 
 // Query executes a structured query against the SQL Server table.
@@ -868,17 +907,17 @@ func (s *SQLServerOperations) queryOneRow(ctx context.Context, query string, arg
 }
 
 // buildFilterConditions builds WHERE conditions from FilterRequest.
-func (s *SQLServerOperations) buildFilterConditions(filterReq *commonpb.FilterRequest, startIndex int) ([]string, []any, int) {
+func (s *SQLServerOperations) buildFilterConditions(ctx context.Context, tableName string, filterReq *commonpb.FilterRequest, startIndex int) ([]string, []any, int) {
 	conditions := []string{}
 	values := []any{}
 	paramIndex := startIndex
 
 	for _, filter := range filterReq.Filters {
-		field := filter.Field
+		field := listColumnName(filter.Field)
 
 		switch ft := filter.FilterType.(type) {
 		case *commonpb.TypedFilter_StringFilter:
-			condition, vals, nextIndex := s.buildStringFilter(field, ft.StringFilter, paramIndex)
+			condition, vals, nextIndex := s.buildStringFilter(field, ft.StringFilter, s.isIdentifierColumn(ctx, tableName, field), paramIndex)
 			conditions = append(conditions, condition)
 			values = append(values, vals...)
 			paramIndex = nextIndex
@@ -904,7 +943,7 @@ func (s *SQLServerOperations) buildFilterConditions(filterReq *commonpb.FilterRe
 
 		case *commonpb.TypedFilter_RangeFilter:
 			rangeConditions, vals, nextIndex := s.buildRangeFilter(field, ft.RangeFilter, paramIndex)
-			conditions = append(conditions, rangeConditions...)
+			conditions = append(conditions, "("+strings.Join(rangeConditions, " AND ")+")")
 			values = append(values, vals...)
 			paramIndex = nextIndex
 
@@ -918,7 +957,7 @@ func (s *SQLServerOperations) buildFilterConditions(filterReq *commonpb.FilterRe
 
 		case *commonpb.TypedFilter_MoneyFilter:
 			mf := ft.MoneyFilter
-			col := s.dialect.QuoteIdent(filter.Field)
+			col := s.dialect.QuoteIdent(field)
 			switch mf.Operator {
 			case commonpb.MoneyOperator_MONEY_EQUALS:
 				conditions = append(conditions, fmt.Sprintf("%s = %s", col, s.dialect.Placeholder(paramIndex)))
@@ -956,7 +995,7 @@ func (s *SQLServerOperations) buildFilterConditions(filterReq *commonpb.FilterRe
 					paramIndex++
 				}
 				conditions = append(conditions, fmt.Sprintf(
-					"%s IN (%s)", s.dialect.QuoteIdent(filter.Field), strings.Join(placeholders, ", "),
+					"%s IN (%s)", s.dialect.QuoteIdent(field), strings.Join(placeholders, ", "),
 				))
 			}
 		}
@@ -966,14 +1005,18 @@ func (s *SQLServerOperations) buildFilterConditions(filterReq *commonpb.FilterRe
 }
 
 // buildStringFilter builds a SQL condition for StringFilter.
-func (s *SQLServerOperations) buildStringFilter(field string, filter *commonpb.StringFilter, paramIndex int) (string, []any, int) {
+func (s *SQLServerOperations) buildStringFilter(field string, filter *commonpb.StringFilter, exactIdentifier bool, paramIndex int) (string, []any, int) {
 	col := s.dialect.QuoteIdent(field)
 	value := filter.Value
-	if !filter.CaseSensitive {
+	if !filter.CaseSensitive && filter.Operator != commonpb.StringOperator_STRING_REGEX {
 		// SQL Server's default CI collation already case-folds, but LOWER() on
-		// both sides keeps parity with the postgres gold standard regardless of
-		// the column's collation.
-		col = fmt.Sprintf("LOWER(%s)", col)
+		// human text and pattern matching remains explicit. ID equality uses
+		// the indexed bare column and a normalized value.
+		equality := filter.Operator == commonpb.StringOperator_STRING_EQUALS ||
+			filter.Operator == commonpb.StringOperator_STRING_NOT_EQUALS
+		if !exactIdentifier || !equality {
+			col = fmt.Sprintf("LOWER(%s)", col)
+		}
 		value = strings.ToLower(value)
 	}
 
@@ -1118,60 +1161,26 @@ func (s *SQLServerOperations) buildDateFilter(field string, filter *commonpb.Dat
 	return condition, values, paramIndex
 }
 
-// getTableColumns retrieves column names for a table.
-//
-// SQL Server's information_schema is database-scoped to the connection, so no
-// extra schema predicate is required for the common single-schema deployment.
+// getTableColumns uses live schema metadata cached per pool and table.
 func (s *SQLServerOperations) getTableColumns(ctx context.Context, tableName string) ([]string, error) {
-	query := `
-		SELECT COLUMN_NAME
-		FROM information_schema.COLUMNS
-		WHERE TABLE_NAME = @p1
-		ORDER BY ORDINAL_POSITION
-	`
-
-	rows, err := s.getExecutor(ctx).QueryContext(ctx, query, tableName)
+	metadata, err := s.getTableMetadata(ctx, tableName)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var columns []string
-	for rows.Next() {
-		var columnName string
-		if err := rows.Scan(&columnName); err != nil {
-			return nil, err
-		}
-		columns = append(columns, columnName)
-	}
-
-	return columns, rows.Err()
+	return append([]string(nil), metadata.columns...), nil
 }
 
-// getTableColumnTypes returns column-name → information_schema DATA_TYPE for a
-// table. Used by Create/Update to pick the right serialization for
-// auto-injected timestamp fields (BIGINT unix-ms vs DATETIME2/DATETIME).
+// getTableColumnTypes uses the same cached catalog read as getTableColumns.
 func (s *SQLServerOperations) getTableColumnTypes(ctx context.Context, tableName string) (map[string]string, error) {
-	query := `
-		SELECT COLUMN_NAME, DATA_TYPE
-		FROM information_schema.COLUMNS
-		WHERE TABLE_NAME = @p1
-	`
-	rows, err := s.getExecutor(ctx).QueryContext(ctx, query, tableName)
+	metadata, err := s.getTableMetadata(ctx, tableName)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	types := make(map[string]string)
-	for rows.Next() {
-		var name, dataType string
-		if err := rows.Scan(&name, &dataType); err != nil {
-			return nil, err
-		}
-		types[name] = dataType
+	types := make(map[string]string, len(metadata.types))
+	for name, kind := range metadata.types {
+		types[name] = kind
 	}
-	return types, rows.Err()
+	return types, nil
 }
 
 // autoTimestampValue returns the appropriate value to write for a timestamp
@@ -1472,18 +1481,32 @@ func NewWorkspaceAwareOperationsFromInner(db *sql.DB, inner interfaces.DatabaseO
 // ── DatabaseOperation methods ────────────────────────────────────────────────
 
 func (w *WorkspaceAwareOperations) List(ctx context.Context, tableName string, params *interfaces.ListParams) (*interfaces.ListResult, error) {
-	wsID := w.getWorkspaceID(ctx)
-	if wsID != "" && w.tableHasWorkspaceColumn(ctx, tableName) {
-		params = w.injectWorkspaceFilter(params, wsID)
+	wsID, hasWorkspaceColumn, err := w.resolveWorkspaceScope(ctx, tableName)
+	if err != nil {
+		return nil, err
+	}
+	if wsID != "" && hasWorkspaceColumn {
+		if scoped, ok := w.inner.(interface {
+			ListWithScope(context.Context, string, []*commonpb.TypedFilter, *interfaces.ListParams) (*interfaces.ListResult, error)
+		}); ok {
+			return scoped.ListWithScope(ctx, tableName, []*commonpb.TypedFilter{workspaceIDFilter(wsID)}, params)
+		}
+		return nil, model.NewDatabaseError("scoped list operation unavailable", "TENANT_SCOPE_UNAVAILABLE", 500)
 	}
 	return w.inner.List(ctx, tableName, params)
 }
 
 func (w *WorkspaceAwareOperations) Create(ctx context.Context, tableName string, data map[string]any) (map[string]any, error) {
-	wsID := w.getWorkspaceID(ctx)
-	if wsID != "" && w.tableHasWorkspaceColumn(ctx, tableName) {
+	wsID, hasWorkspaceColumn, err := w.resolveWorkspaceScope(ctx, tableName)
+	if err != nil {
+		return nil, err
+	}
+	if wsID != "" && hasWorkspaceColumn {
 		cloned := make(map[string]any, len(data)+1)
 		for k, v := range data {
+			if k == "workspace_id" || k == "workspaceId" {
+				continue
+			}
 			cloned[k] = v
 		}
 		cloned["workspace_id"] = wsID
@@ -1493,39 +1516,38 @@ func (w *WorkspaceAwareOperations) Create(ctx context.Context, tableName string,
 }
 
 func (w *WorkspaceAwareOperations) Read(ctx context.Context, tableName string, id string) (map[string]any, error) {
+	wsID, hasWorkspaceColumn, err := w.resolveWorkspaceScope(ctx, tableName)
+	if err != nil {
+		return nil, err
+	}
 	result, err := w.inner.Read(ctx, tableName, id)
 	if err != nil {
 		return nil, err
 	}
 
-	wsID := w.getWorkspaceID(ctx)
-	if wsID == "" || !w.tableHasWorkspaceColumn(ctx, tableName) {
+	if wsID == "" || !hasWorkspaceColumn {
 		return result, nil
 	}
 
 	recordWsID, hasCol := result["workspace_id"]
-	if !hasCol {
-		return result, nil
-	}
-
-	if recordWsID == nil {
-		return nil, model.NewDatabaseError("record not found", "RECORD_NOT_FOUND", 404)
-	}
-	if s, ok := recordWsID.(string); ok && (s == "" || s != wsID) {
+	if s, ok := recordWsID.(string); !hasCol || !ok || s != wsID {
 		return nil, model.NewDatabaseError("record not found", "RECORD_NOT_FOUND", 404)
 	}
 	return result, nil
 }
 
 func (w *WorkspaceAwareOperations) Update(ctx context.Context, tableName string, id string, data map[string]any) (map[string]any, error) {
-	wsID := w.getWorkspaceID(ctx)
-	if wsID != "" && w.tableHasWorkspaceColumn(ctx, tableName) {
+	wsID, hasWorkspaceColumn, err := w.resolveWorkspaceScope(ctx, tableName)
+	if err != nil {
+		return nil, err
+	}
+	if wsID != "" && hasWorkspaceColumn {
 		if _, err := w.Read(ctx, tableName, id); err != nil {
 			return nil, err
 		}
 		cloned := make(map[string]any, len(data))
 		for k, v := range data {
-			if k != "workspace_id" {
+			if k != "workspace_id" && k != "workspaceId" {
 				cloned[k] = v
 			}
 		}
@@ -1535,8 +1557,11 @@ func (w *WorkspaceAwareOperations) Update(ctx context.Context, tableName string,
 }
 
 func (w *WorkspaceAwareOperations) Delete(ctx context.Context, tableName string, id string) error {
-	wsID := w.getWorkspaceID(ctx)
-	if wsID != "" && w.tableHasWorkspaceColumn(ctx, tableName) {
+	wsID, hasWorkspaceColumn, err := w.resolveWorkspaceScope(ctx, tableName)
+	if err != nil {
+		return err
+	}
+	if wsID != "" && hasWorkspaceColumn {
 		if _, err := w.Read(ctx, tableName, id); err != nil {
 			return err
 		}
@@ -1545,8 +1570,11 @@ func (w *WorkspaceAwareOperations) Delete(ctx context.Context, tableName string,
 }
 
 func (w *WorkspaceAwareOperations) HardDelete(ctx context.Context, tableName string, id string) error {
-	wsID := w.getWorkspaceID(ctx)
-	if wsID != "" && w.tableHasWorkspaceColumn(ctx, tableName) {
+	wsID, hasWorkspaceColumn, err := w.resolveWorkspaceScope(ctx, tableName)
+	if err != nil {
+		return err
+	}
+	if wsID != "" && hasWorkspaceColumn {
 		if _, err := w.Read(ctx, tableName, id); err != nil {
 			return err
 		}
@@ -1583,29 +1611,44 @@ func (w *WorkspaceAwareOperations) GetExecutor(ctx context.Context) sqlexec.DBEx
 // ── Helper methods ───────────────────────────────────────────────────────────
 
 func (w *WorkspaceAwareOperations) getWorkspaceID(ctx context.Context) string {
-	return identity.Must(ctx).WorkspaceID
+	if requestIdentity, ok := identity.FromContext(ctx); ok {
+		return requestIdentity.WorkspaceID
+	}
+	return ""
+}
+
+func (w *WorkspaceAwareOperations) resolveWorkspaceScope(ctx context.Context, tableName string) (string, bool, error) {
+	wsID := w.getWorkspaceID(ctx)
+	if wsID == "" {
+		return "", false, nil
+	}
+	hasWorkspaceColumn, err := w.tableHasWorkspaceColumn(ctx, tableName)
+	if err != nil {
+		return "", false, model.NewDatabaseError("tenant scope is temporarily unavailable", "TENANT_SCOPE_UNAVAILABLE", 503)
+	}
+	return wsID, hasWorkspaceColumn, nil
 }
 
 // tableHasWorkspaceColumn reports whether tableName has a workspace_id column.
 // Results are cached; the first miss queries information_schema.COLUMNS (which
 // SQL Server supports).
-func (w *WorkspaceAwareOperations) tableHasWorkspaceColumn(ctx context.Context, tableName string) bool {
+func (w *WorkspaceAwareOperations) tableHasWorkspaceColumn(ctx context.Context, tableName string) (bool, error) {
 	w.columnCacheMu.RLock()
 	cols, cached := w.columnCache[tableName]
 	w.columnCacheMu.RUnlock()
 	if cached {
-		return cols["workspace_id"]
+		return cols["workspace_id"], nil
 	}
 
 	query := `
 		SELECT COLUMN_NAME
 		FROM information_schema.COLUMNS
-		WHERE TABLE_NAME = @p1
+		WHERE TABLE_SCHEMA = SCHEMA_NAME() AND TABLE_NAME = @p1
 		ORDER BY ORDINAL_POSITION
 	`
 	rows, err := w.db.QueryContext(ctx, query, tableName)
 	if err != nil {
-		return false
+		return false, err
 	}
 	defer rows.Close()
 
@@ -1613,25 +1656,39 @@ func (w *WorkspaceAwareOperations) tableHasWorkspaceColumn(ctx context.Context, 
 	for rows.Next() {
 		var col string
 		if err := rows.Scan(&col); err != nil {
-			continue
+			return false, err
 		}
 		colMap[col] = true
 	}
-	if rows.Err() != nil {
-		return false
+	if err := rows.Err(); err != nil {
+		return false, err
 	}
 
 	w.columnCacheMu.Lock()
 	w.columnCache[tableName] = colMap
 	w.columnCacheMu.Unlock()
 
-	return colMap["workspace_id"]
+	return colMap["workspace_id"], nil
 }
 
 // injectWorkspaceFilter returns a copy of params with a workspace_id StringFilter
 // prepended. The original params value is never mutated.
 func (w *WorkspaceAwareOperations) injectWorkspaceFilter(params *interfaces.ListParams, wsID string) *interfaces.ListParams {
-	wsFilter := &commonpb.TypedFilter{
+	wsFilter := workspaceIDFilter(wsID)
+
+	if params == nil {
+		return &interfaces.ListParams{Filters: &commonpb.FilterRequest{Filters: []*commonpb.TypedFilter{wsFilter}}}
+	}
+	cloned := *params
+	newFilters := make([]*commonpb.TypedFilter, 0, len(cloned.Filters.GetFilters())+1)
+	newFilters = append(newFilters, wsFilter)
+	newFilters = append(newFilters, cloned.Filters.GetFilters()...)
+	cloned.Filters = &commonpb.FilterRequest{Filters: newFilters, Logic: cloned.Filters.GetLogic()}
+	return &cloned
+}
+
+func workspaceIDFilter(wsID string) *commonpb.TypedFilter {
+	return &commonpb.TypedFilter{
 		Field: "workspace_id",
 		FilterType: &commonpb.TypedFilter_StringFilter{
 			StringFilter: &commonpb.StringFilter{
@@ -1642,29 +1699,6 @@ func (w *WorkspaceAwareOperations) injectWorkspaceFilter(params *interfaces.List
 		},
 	}
 
-	if params == nil {
-		return &interfaces.ListParams{
-			Filters: &commonpb.FilterRequest{
-				Filters: []*commonpb.TypedFilter{wsFilter},
-			},
-		}
-	}
-
-	cloned := *params
-	if cloned.Filters == nil {
-		cloned.Filters = &commonpb.FilterRequest{
-			Filters: []*commonpb.TypedFilter{wsFilter},
-		}
-	} else {
-		newFilters := make([]*commonpb.TypedFilter, 0, len(cloned.Filters.Filters)+1)
-		newFilters = append(newFilters, wsFilter)
-		newFilters = append(newFilters, cloned.Filters.Filters...)
-		cloned.Filters = &commonpb.FilterRequest{
-			Filters: newFilters,
-			Logic:   cloned.Filters.Logic,
-		}
-	}
-	return &cloned
 }
 
 // ── Key helpers ──────────────────────────────────────────────────────────────

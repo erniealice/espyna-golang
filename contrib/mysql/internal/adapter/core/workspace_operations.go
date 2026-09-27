@@ -7,10 +7,10 @@ import (
 	"database/sql"
 	"sync"
 
-	"github.com/erniealice/espyna-golang/shared/identity"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/database/model"
 	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 )
 
@@ -53,18 +53,32 @@ func NewWorkspaceAwareOperationsFromInner(db *sql.DB, inner interfaces.DatabaseO
 // ── DatabaseOperation methods ────────────────────────────────────────────────
 
 func (w *WorkspaceAwareOperations) List(ctx context.Context, tableName string, params *interfaces.ListParams) (*interfaces.ListResult, error) {
-	wsID := w.getWorkspaceID(ctx)
-	if wsID != "" && w.tableHasWorkspaceColumn(ctx, tableName) {
-		params = w.injectWorkspaceFilter(params, wsID)
+	wsID, hasWorkspaceColumn, err := w.resolveWorkspaceScope(ctx, tableName)
+	if err != nil {
+		return nil, err
+	}
+	if wsID != "" && hasWorkspaceColumn {
+		if scoped, ok := w.inner.(interface {
+			ListWithScope(context.Context, string, []*commonpb.TypedFilter, *interfaces.ListParams) (*interfaces.ListResult, error)
+		}); ok {
+			return scoped.ListWithScope(ctx, tableName, []*commonpb.TypedFilter{workspaceIDFilter(wsID)}, params)
+		}
+		return nil, model.NewDatabaseError("scoped list operation unavailable", "TENANT_SCOPE_UNAVAILABLE", 500)
 	}
 	return w.inner.List(ctx, tableName, params)
 }
 
 func (w *WorkspaceAwareOperations) Create(ctx context.Context, tableName string, data map[string]any) (map[string]any, error) {
-	wsID := w.getWorkspaceID(ctx)
-	if wsID != "" && w.tableHasWorkspaceColumn(ctx, tableName) {
+	wsID, hasWorkspaceColumn, err := w.resolveWorkspaceScope(ctx, tableName)
+	if err != nil {
+		return nil, err
+	}
+	if wsID != "" && hasWorkspaceColumn {
 		cloned := make(map[string]any, len(data)+1)
 		for k, v := range data {
+			if k == "workspace_id" || k == "workspaceId" {
+				continue
+			}
 			cloned[k] = v
 		}
 		cloned["workspace_id"] = wsID
@@ -74,39 +88,38 @@ func (w *WorkspaceAwareOperations) Create(ctx context.Context, tableName string,
 }
 
 func (w *WorkspaceAwareOperations) Read(ctx context.Context, tableName string, id string) (map[string]any, error) {
+	wsID, hasWorkspaceColumn, err := w.resolveWorkspaceScope(ctx, tableName)
+	if err != nil {
+		return nil, err
+	}
 	result, err := w.inner.Read(ctx, tableName, id)
 	if err != nil {
 		return nil, err
 	}
 
-	wsID := w.getWorkspaceID(ctx)
-	if wsID == "" || !w.tableHasWorkspaceColumn(ctx, tableName) {
+	if wsID == "" || !hasWorkspaceColumn {
 		return result, nil
 	}
 
 	recordWsID, hasCol := result["workspace_id"]
-	if !hasCol {
-		return result, nil
-	}
-
-	if recordWsID == nil {
-		return nil, model.NewDatabaseError("record not found", "RECORD_NOT_FOUND", 404)
-	}
-	if s, ok := recordWsID.(string); ok && (s == "" || s != wsID) {
+	if s, ok := recordWsID.(string); !hasCol || !ok || s != wsID {
 		return nil, model.NewDatabaseError("record not found", "RECORD_NOT_FOUND", 404)
 	}
 	return result, nil
 }
 
 func (w *WorkspaceAwareOperations) Update(ctx context.Context, tableName string, id string, data map[string]any) (map[string]any, error) {
-	wsID := w.getWorkspaceID(ctx)
-	if wsID != "" && w.tableHasWorkspaceColumn(ctx, tableName) {
+	wsID, hasWorkspaceColumn, err := w.resolveWorkspaceScope(ctx, tableName)
+	if err != nil {
+		return nil, err
+	}
+	if wsID != "" && hasWorkspaceColumn {
 		if _, err := w.Read(ctx, tableName, id); err != nil {
 			return nil, err
 		}
 		cloned := make(map[string]any, len(data))
 		for k, v := range data {
-			if k != "workspace_id" {
+			if k != "workspace_id" && k != "workspaceId" {
 				cloned[k] = v
 			}
 		}
@@ -116,8 +129,11 @@ func (w *WorkspaceAwareOperations) Update(ctx context.Context, tableName string,
 }
 
 func (w *WorkspaceAwareOperations) Delete(ctx context.Context, tableName string, id string) error {
-	wsID := w.getWorkspaceID(ctx)
-	if wsID != "" && w.tableHasWorkspaceColumn(ctx, tableName) {
+	wsID, hasWorkspaceColumn, err := w.resolveWorkspaceScope(ctx, tableName)
+	if err != nil {
+		return err
+	}
+	if wsID != "" && hasWorkspaceColumn {
 		if _, err := w.Read(ctx, tableName, id); err != nil {
 			return err
 		}
@@ -126,8 +142,11 @@ func (w *WorkspaceAwareOperations) Delete(ctx context.Context, tableName string,
 }
 
 func (w *WorkspaceAwareOperations) HardDelete(ctx context.Context, tableName string, id string) error {
-	wsID := w.getWorkspaceID(ctx)
-	if wsID != "" && w.tableHasWorkspaceColumn(ctx, tableName) {
+	wsID, hasWorkspaceColumn, err := w.resolveWorkspaceScope(ctx, tableName)
+	if err != nil {
+		return err
+	}
+	if wsID != "" && hasWorkspaceColumn {
 		if _, err := w.Read(ctx, tableName, id); err != nil {
 			return err
 		}
@@ -164,18 +183,33 @@ func (w *WorkspaceAwareOperations) GetExecutor(ctx context.Context) sqlexec.DBEx
 // ── Helper methods ───────────────────────────────────────────────────────────
 
 func (w *WorkspaceAwareOperations) getWorkspaceID(ctx context.Context) string {
-	return identity.Must(ctx).WorkspaceID
+	if requestIdentity, ok := identity.FromContext(ctx); ok {
+		return requestIdentity.WorkspaceID
+	}
+	return ""
+}
+
+func (w *WorkspaceAwareOperations) resolveWorkspaceScope(ctx context.Context, tableName string) (string, bool, error) {
+	wsID := w.getWorkspaceID(ctx)
+	if wsID == "" {
+		return "", false, nil
+	}
+	hasWorkspaceColumn, err := w.tableHasWorkspaceColumn(ctx, tableName)
+	if err != nil {
+		return "", false, model.NewDatabaseError("tenant scope is temporarily unavailable", "TENANT_SCOPE_UNAVAILABLE", 503)
+	}
+	return wsID, hasWorkspaceColumn, nil
 }
 
 // tableHasWorkspaceColumn reports whether tableName has a workspace_id column.
 // Results are cached; the first miss queries information_schema scoped to
 // DATABASE() (MySQL's current schema).
-func (w *WorkspaceAwareOperations) tableHasWorkspaceColumn(ctx context.Context, tableName string) bool {
+func (w *WorkspaceAwareOperations) tableHasWorkspaceColumn(ctx context.Context, tableName string) (bool, error) {
 	w.columnCacheMu.RLock()
 	cols, cached := w.columnCache[tableName]
 	w.columnCacheMu.RUnlock()
 	if cached {
-		return cols["workspace_id"]
+		return cols["workspace_id"], nil
 	}
 
 	query := `
@@ -186,7 +220,7 @@ func (w *WorkspaceAwareOperations) tableHasWorkspaceColumn(ctx context.Context, 
 	`
 	rows, err := w.db.QueryContext(ctx, query, tableName)
 	if err != nil {
-		return false
+		return false, err
 	}
 	defer rows.Close()
 
@@ -194,25 +228,39 @@ func (w *WorkspaceAwareOperations) tableHasWorkspaceColumn(ctx context.Context, 
 	for rows.Next() {
 		var col string
 		if err := rows.Scan(&col); err != nil {
-			continue
+			return false, err
 		}
 		colMap[col] = true
 	}
-	if rows.Err() != nil {
-		return false
+	if err := rows.Err(); err != nil {
+		return false, err
 	}
 
 	w.columnCacheMu.Lock()
 	w.columnCache[tableName] = colMap
 	w.columnCacheMu.Unlock()
 
-	return colMap["workspace_id"]
+	return colMap["workspace_id"], nil
 }
 
 // injectWorkspaceFilter returns a copy of params with a workspace_id
 // StringFilter prepended. The original params value is never mutated.
 func (w *WorkspaceAwareOperations) injectWorkspaceFilter(params *interfaces.ListParams, wsID string) *interfaces.ListParams {
-	wsFilter := &commonpb.TypedFilter{
+	wsFilter := workspaceIDFilter(wsID)
+
+	if params == nil {
+		return &interfaces.ListParams{Filters: &commonpb.FilterRequest{Filters: []*commonpb.TypedFilter{wsFilter}}}
+	}
+	cloned := *params
+	newFilters := make([]*commonpb.TypedFilter, 0, len(cloned.Filters.GetFilters())+1)
+	newFilters = append(newFilters, wsFilter)
+	newFilters = append(newFilters, cloned.Filters.GetFilters()...)
+	cloned.Filters = &commonpb.FilterRequest{Filters: newFilters, Logic: cloned.Filters.GetLogic()}
+	return &cloned
+}
+
+func workspaceIDFilter(wsID string) *commonpb.TypedFilter {
+	return &commonpb.TypedFilter{
 		Field: "workspace_id",
 		FilterType: &commonpb.TypedFilter_StringFilter{
 			StringFilter: &commonpb.StringFilter{
@@ -223,27 +271,4 @@ func (w *WorkspaceAwareOperations) injectWorkspaceFilter(params *interfaces.List
 		},
 	}
 
-	if params == nil {
-		return &interfaces.ListParams{
-			Filters: &commonpb.FilterRequest{
-				Filters: []*commonpb.TypedFilter{wsFilter},
-			},
-		}
-	}
-
-	cloned := *params
-	if cloned.Filters == nil {
-		cloned.Filters = &commonpb.FilterRequest{
-			Filters: []*commonpb.TypedFilter{wsFilter},
-		}
-	} else {
-		newFilters := make([]*commonpb.TypedFilter, 0, len(cloned.Filters.Filters)+1)
-		newFilters = append(newFilters, wsFilter)
-		newFilters = append(newFilters, cloned.Filters.Filters...)
-		cloned.Filters = &commonpb.FilterRequest{
-			Filters: newFilters,
-			Logic:   cloned.Filters.Logic,
-		}
-	}
-	return &cloned
 }

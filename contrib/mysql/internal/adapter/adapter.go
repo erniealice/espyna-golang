@@ -23,12 +23,23 @@ import (
 	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/document"
 	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/entity"
 	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/event"
+	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/expenditure"
+	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/finance"
 	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/fulfillment"
+	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/funding"
 	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/integration"
 	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/inventory"
+	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/ledger"
 	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/operation"
+	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/payroll"
 	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/product"
+	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/rbac"
+	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/revenue"
 	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/subscription"
+	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/tax"
+	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/tenancy"
+	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/treasury"
+	_ "github.com/erniealice/espyna-golang/contrib/mysql/internal/adapter/workflow"
 )
 
 func init() {

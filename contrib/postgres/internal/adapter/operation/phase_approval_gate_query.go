@@ -80,21 +80,27 @@ WHERE jp.template_phase_id = ANY($1)
 GROUP BY jp.template_phase_id`
 }
 
-// gateRollupHasDataSQL builds Statement B — the has_data set probe (the exact
-// loadApprovalRollups (B) shape re-keyed to template_phase_id = ANY($1)): a
-// template phase is present iff ANY active task_outcome exists under any active
-// job_task of any group-narrowed sheet member. Same binds as Statement A; the
-// predicate is hosted exactly once; no LIMIT/OFFSET.
+// gateRollupHasDataSQL groups the identically scoped phase candidates, then
+// stops at the first outcome for each template phase. The shared group narrow
+// predicate still appears exactly once, inside candidate_phases.
 func gateRollupHasDataSQL(narrow string) string {
 	return `
-SELECT DISTINCT jp.template_phase_id
-FROM ` + entityid.JobPhase + ` jp
-JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
-JOIN ` + entityid.JobTask + ` jt ON jt.job_phase_id = jp.id AND jt.active = true
-JOIN ` + entityid.TaskOutcome + ` t ON t.job_task_id = jt.id AND t.active = true
-WHERE jp.template_phase_id = ANY($1)
-  AND j.workspace_id = $2
-  AND jp.active = true` + narrow
+WITH candidate_phases AS MATERIALIZED (
+  SELECT jp.id, jp.template_phase_id
+  FROM ` + entityid.JobPhase + ` jp
+  JOIN ` + entityid.Job + ` j ON j.id = jp.job_id
+  WHERE jp.template_phase_id = ANY($1)
+    AND j.workspace_id = $2
+    AND jp.active = true` + narrow + `
+)
+SELECT p.template_phase_id
+FROM (SELECT DISTINCT template_phase_id FROM candidate_phases) p
+WHERE EXISTS (
+  SELECT 1 FROM candidate_phases cp
+  JOIN ` + entityid.JobTask + ` jt ON jt.job_phase_id = cp.id AND jt.active = true
+  JOIN ` + entityid.TaskOutcome + ` t ON t.job_task_id = jt.id AND t.active = true
+  WHERE cp.template_phase_id = p.template_phase_id
+)`
 }
 
 // gateAgg is one Statement-A row.

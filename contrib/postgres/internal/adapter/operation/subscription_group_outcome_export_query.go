@@ -1150,6 +1150,9 @@ WITH group_context AS (
          )
        )
      )
+), selected_job_keys AS MATERIALIZED (
+  SELECT client_id, job_template_id, job_id
+    FROM selected_jobs
 ), matrix_columns AS (
   SELECT job_template_id, min(job_template_name) AS display_name
     FROM selected_jobs
@@ -1159,25 +1162,36 @@ WITH group_context AS (
     FROM member_rows m
    WHERE $8::boolean = false
       OR EXISTS (SELECT 1 FROM selected_jobs sj WHERE sj.client_id = m.client_id)
-), matrix_cells AS (
+), matrix_positions AS MATERIALIZED (
   SELECT m.client_id, m.client_name, m.client_first_name, m.client_last_name,
-         col.job_template_id, sj.job_id IS NOT NULL AS job_present,
+         col.job_template_id
+    FROM matrix_members m
+    CROSS JOIN matrix_columns col
+), matrix_joined AS MATERIALIZED (
+  -- The FULL join admits a hash plan despite the planner's one-row CTE
+  -- estimate. Every member × column position is retained, including blanks;
+  -- unmatched selected jobs are removed by matrix_cells below.
+  SELECT p.client_id, p.client_name, p.client_first_name, p.client_last_name,
+         p.job_template_id, sj.job_id, sj.job_template_id AS selected_template_id
+    FROM matrix_positions p
+    FULL OUTER JOIN selected_job_keys sj
+      ON sj.client_id = p.client_id AND sj.job_template_id = p.job_template_id
+), matrix_cells AS (
+  SELECT sj.client_id, sj.client_name, sj.client_first_name, sj.client_last_name,
+         sj.job_template_id, sj.job_id IS NOT NULL AS job_present,
          CASE WHEN $6 = 'phase' THEN phase_summary.scaled_label ELSE final_summary.scaled_label END AS scaled_label,
          CASE WHEN $6 = 'phase' THEN phase_summary.scaled_score ELSE final_summary.scaled_score END AS scaled_score,
          CASE WHEN $6 = 'phase' THEN phase_summary.summary_score ELSE final_summary.summary_score END AS summary_score,
          COALESCE(evidence.has_task_outcome, false) AS has_task_outcome,
          COALESCE(evidence.has_positive_task_outcome, false) AS has_positive_task_outcome
-    FROM matrix_members m
-    CROSS JOIN matrix_columns col
-    LEFT JOIN selected_jobs sj
-      ON sj.client_id = m.client_id AND sj.job_template_id = col.job_template_id
+    FROM matrix_joined sj
     LEFT JOIN LATERAL (
       SELECT jp.id
         FROM {{job_phase}} jp
         JOIN {{job_template_phase}} jtp
           ON jtp.id = jp.template_phase_id
          AND jtp.workspace_id = $1
-         AND jtp.job_template_id = sj.job_template_id
+         AND jtp.job_template_id = sj.selected_template_id
          AND jtp.active = true
          AND jtp.code = $7
        WHERE $6 = 'phase'
@@ -1229,6 +1243,7 @@ WITH group_context AS (
          AND evidence_phase.active = true
          AND ($6 = 'final' OR ($6 = 'phase' AND evidence_phase.id = selected_phase.id))
     ) evidence ON true
+   WHERE sj.client_id IS NOT NULL
 )
 `
 }

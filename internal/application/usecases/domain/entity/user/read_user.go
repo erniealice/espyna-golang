@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/erniealice/espyna-golang/internal/application/shared/tenantguard"
+	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -15,7 +17,8 @@ import (
 
 // ReadUserRepositories groups all repository dependencies
 type ReadUserRepositories struct {
-	User userpb.UserDomainServiceServer // Primary entity repository
+	User          userpb.UserDomainServiceServer                   // Primary entity repository
+	WorkspaceUser workspaceuserpb.WorkspaceUserDomainServiceServer // Tenant membership proof
 }
 
 // ReadUserServices groups all business service dependencies
@@ -104,6 +107,12 @@ func (uc *ReadUserUseCase) executeWithTransaction(ctx context.Context, req *user
 func (uc *ReadUserUseCase) executeCore(ctx context.Context, req *userpb.ReadUserRequest) (*userpb.ReadUserResponse, error) {
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
+		return nil, err
+	}
+
+	// Tenant boundary: user has no workspace_id. Readable are the actor
+	// themself, members of the actor's workspace, and control-plane operators.
+	if err := tenantguard.RequireReadableUser(ctx, uc.repositories.WorkspaceUser, req.Data.Id); err != nil {
 		return nil, err
 	}
 

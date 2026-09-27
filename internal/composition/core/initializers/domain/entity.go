@@ -343,7 +343,7 @@ func InitializeEntity(
 	if repos.User != nil {
 		s := svc()
 		result.User = userUseCases.NewUseCases(
-			userUseCases.UserRepositories{User: repos.User},
+			userUseCases.UserRepositories{User: repos.User, WorkspaceUser: repos.WorkspaceUser},
 			userUseCases.UserServices{
 				Authorizer:       s.Authorizer,
 				Transactor:       s.Transactor,

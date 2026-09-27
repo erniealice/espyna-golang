@@ -10,6 +10,7 @@ import (
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/shared/database/operations"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	eventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/event/event"
 )
 
@@ -34,7 +35,7 @@ const eventWindowCountQuery = `
 		SELECT e.start_date_time_utc
 		FROM ` + entityid.Event + ` e
 		WHERE e.active = true
-		  AND ($1::text IS NULL OR $1::text = '' OR e.workspace_id = $1)
+		  AND e.workspace_id = $1
 	)
 	SELECT COUNT(*) FILTER (
 		WHERE start_date_time_utc >= $2 AND start_date_time_utc < $3
@@ -49,6 +50,10 @@ func (r *PostgresEventRepository) countEventsInWindow(
 	workspaceID string,
 	startMillis, endMillis int64,
 ) (int64, error) {
+	workspaceID, err := dashboardWorkspace(ctx, workspaceID)
+	if err != nil {
+		return 0, err
+	}
 	var n int64
 	if err := postgresCore.RunDashboardAggregate(
 		ctx,
@@ -114,6 +119,10 @@ func (r *PostgresEventRepository) UpcomingByStartDate(
 	if r.db == nil {
 		return nil, fmt.Errorf("database connection is not available")
 	}
+	workspaceID, err := dashboardWorkspace(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
 	if limit <= 0 {
 		limit = 5
 	}
@@ -133,7 +142,7 @@ func (r *PostgresEventRepository) UpcomingByStartDate(
 		FROM ` + entityid.Event + ` e
 		WHERE e.active = true
 		  AND e.start_date_time_utc >= $2
-		  AND ($1::text IS NULL OR $1::text = '' OR e.workspace_id = $1)
+		  AND e.workspace_id = $1
 		ORDER BY e.start_date_time_utc ASC
 		LIMIT $3`
 
@@ -202,6 +211,10 @@ func (r *PostgresEventRepository) CountByDay(
 	if r.db == nil {
 		return nil, fmt.Errorf("database connection is not available")
 	}
+	workspaceID, err := dashboardWorkspace(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
 	if from.After(to) {
 		return nil, fmt.Errorf("from must be before to")
 	}
@@ -225,7 +238,7 @@ func (r *PostgresEventRepository) CountByDay(
 			WHERE e.active = true
 			  AND e.start_date_time_utc >= $4
 			  AND e.start_date_time_utc < $5
-			  AND ($1::text IS NULL OR $1::text = '' OR e.workspace_id = $1)
+			  AND e.workspace_id = $1
 			GROUP BY 1
 		)
 		SELECT d.bucket, COALESCE(ed.n, 0)::bigint
@@ -271,6 +284,10 @@ func (r *PostgresEventRepository) CountByTag(
 	if r.db == nil {
 		return nil, fmt.Errorf("database connection is not available")
 	}
+	workspaceID, err := dashboardWorkspace(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
 
 	const query = `
 		SELECT et.name, COUNT(DISTINCT eta.event_id)::bigint
@@ -278,7 +295,7 @@ func (r *PostgresEventRepository) CountByTag(
 		JOIN ` + entityid.EventTag + ` et ON et.id = eta.event_tag_id
 		WHERE eta.active = true
 		  AND et.active = true
-		  AND ($1::text IS NULL OR $1::text = '' OR et.workspace_id = $1)
+		  AND et.workspace_id = $1
 		GROUP BY et.name
 		ORDER BY 2 DESC`
 
@@ -303,4 +320,20 @@ func (r *PostgresEventRepository) CountByTag(
 		return nil, fmt.Errorf("error iterating event count-by-tag rows: %w", err)
 	}
 	return out, nil
+}
+
+// dashboardWorkspace fails closed unless the requested workspace is non-empty
+// and equals the actor's selected workspace. An empty workspace used to widen
+// these queries to every tenant (an empty-string wildcard predicate); a valid
+// preselection session has no workspace yet (U-04, plan
+// 20260927-tenant-boundary-hardening Wave 0).
+func dashboardWorkspace(ctx context.Context, requested string) (string, error) {
+	id, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return "", err
+	}
+	if requested == "" || requested != id.WorkspaceID {
+		return "", identity.ErrWorkspaceNotSelected
+	}
+	return requested, nil
 }

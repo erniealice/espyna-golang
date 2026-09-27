@@ -3,6 +3,8 @@ package user
 import (
 	"context"
 	"errors"
+	"github.com/erniealice/espyna-golang/internal/application/shared/tenantguard"
+	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -14,7 +16,8 @@ import (
 
 // GetUserItemPageDataRepositories groups all repository dependencies
 type GetUserItemPageDataRepositories struct {
-	User userpb.UserDomainServiceServer // Primary entity repository
+	User          userpb.UserDomainServiceServer                   // Primary entity repository
+	WorkspaceUser workspaceuserpb.WorkspaceUserDomainServiceServer // Tenant membership proof
 }
 
 // GetUserItemPageDataServices groups all business service dependencies
@@ -76,6 +79,13 @@ func (uc *GetUserItemPageDataUseCase) Execute(ctx context.Context, req *userpb.G
 
 	if req.UserId == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.validation.id_required", "User ID is required [DEFAULT]"))
+	}
+
+	// Tenant boundary: only members of the actor's workspace are readable here.
+	if !tenantguard.IsPlatformOperator(ctx) {
+		if err := tenantguard.RequireActiveMember(ctx, uc.repositories.WorkspaceUser, req.UserId); err != nil {
+			return nil, err
+		}
 	}
 
 	// Call repository

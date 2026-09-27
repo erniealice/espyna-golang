@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/erniealice/espyna-golang/internal/application/shared/tenantguard"
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -55,6 +56,12 @@ func (uc *EnableUserUseCase) Execute(ctx context.Context, req *userpb.EnableUser
 		Entity: entityid.User,
 		Action: entityid.ActionEnable,
 	}); err != nil {
+		return nil, err
+	}
+
+	// Tenant boundary (plan 20260927 Q1): platform-global mutation is
+	// control-plane only; tenants deactivate the workspace membership instead.
+	if err := tenantguard.RequirePlatformOperator(ctx); err != nil {
 		return nil, err
 	}
 

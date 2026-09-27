@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/erniealice/espyna-golang/internal/application/shared/tenantguard"
+	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
 	"strings"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -17,7 +19,8 @@ import (
 
 // UpdateUserRepositories groups all repository dependencies
 type UpdateUserRepositories struct {
-	User userpb.UserDomainServiceServer // Primary entity repository
+	User          userpb.UserDomainServiceServer                   // Primary entity repository
+	WorkspaceUser workspaceuserpb.WorkspaceUserDomainServiceServer // Tenant membership proof
 }
 
 // UpdateUserServices groups all business service dependencies
@@ -108,6 +111,22 @@ func (uc *UpdateUserUseCase) Execute(ctx context.Context, req *userpb.UpdateUser
 	}
 
 	current := existing.GetData()[0]
+
+	// Tenant boundary: user has no workspace_id, so RBAC alone would let any
+	// workspace admin edit any user. The target must be an active member of the
+	// actor's workspace, and global identity fields (email, active) are
+	// control-plane only (plan 20260927 Q1/Q5) — rejected when they change.
+	if !tenantguard.IsPlatformOperator(ctx) {
+		if err := tenantguard.RequireActiveMember(ctx, uc.repositories.WorkspaceUser, req.Data.Id); err != nil {
+			return nil, err
+		}
+	}
+	if req.Data.GetEmailAddress() != current.GetEmailAddress() || req.Data.GetActive() != current.GetActive() {
+		if err := tenantguard.RequirePlatformOperator(ctx); err != nil {
+			return nil, err
+		}
+	}
+
 	if current.GetId() == "" {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "user.errors.not_found", "User with ID \"{userId}\" not found [DEFAULT]")
 		translatedError = strings.ReplaceAll(translatedError, "{userId}", req.Data.Id)

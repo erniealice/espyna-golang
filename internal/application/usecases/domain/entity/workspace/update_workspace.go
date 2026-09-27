@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/erniealice/espyna-golang/internal/application/shared/tenantguard"
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 )
 
@@ -77,6 +78,13 @@ func (uc *UpdateWorkspaceUseCase) Execute(ctx context.Context, req *workspacepb.
 
 	if req.Data.Id == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "workspace.validation.id_required", "Workspace ID is required [DEFAULT]"))
+	}
+
+	// Tenant boundary: workspace has no workspace_id column, so RBAC alone would
+	// let a workspace admin edit ANY workspace. Only the actor's own selected
+	// workspace is editable from a tenant context (plan 20260927 Q1).
+	if err := tenantguard.RequireActorWorkspace(ctx, req.Data.Id); err != nil {
+		return nil, err
 	}
 
 	// Business logic validation

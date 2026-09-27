@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/erniealice/espyna-golang/shared/identity"
 	"testing"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -266,6 +267,17 @@ type fakeRolePermissionRepo struct {
 	updateCalls int
 }
 
+// ReadRolePermission serves the by-id read the delete use case's tenant check
+// performs (plan 20260927 Wave 0).
+func (f *fakeRolePermissionRepo) ReadRolePermission(_ context.Context, req *rolepermissionpb.ReadRolePermissionRequest) (*rolepermissionpb.ReadRolePermissionResponse, error) {
+	for _, r := range f.rows {
+		if r.GetId() == req.GetData().GetId() {
+			return &rolepermissionpb.ReadRolePermissionResponse{Data: []*rolepermissionpb.RolePermission{r}}, nil
+		}
+	}
+	return &rolepermissionpb.ReadRolePermissionResponse{}, nil
+}
+
 func (f *fakeRolePermissionRepo) find(roleID, permID string) *rolepermissionpb.RolePermission {
 	for _, r := range f.rows {
 		if r.GetRoleId() == roleID && r.GetPermissionId() == permID {
@@ -367,7 +379,9 @@ func (fakeRoleRepo) ReadRole(_ context.Context, req *rolepb.ReadRoleRequest) (*r
 	return &rolepb.ReadRoleResponse{Success: true, Data: []*rolepb.Role{{Id: req.GetData().GetId(), Active: true}}}, nil
 }
 
-type fakePermRepo struct{ permissionpb.PermissionDomainServiceServer }
+type fakePermRepo struct {
+	permissionpb.PermissionDomainServiceServer
+}
 
 func (fakePermRepo) ReadPermission(_ context.Context, req *permissionpb.ReadPermissionRequest) (*permissionpb.ReadPermissionResponse, error) {
 	return &permissionpb.ReadPermissionResponse{Success: true, Data: []*permissionpb.Permission{{Id: req.GetData().GetId(), Active: true}}}, nil
@@ -401,7 +415,11 @@ func newRoundtripUseCases(repo *fakeRolePermissionRepo) (*CreateRolePermissionUs
 		},
 	)
 	del := NewDeleteRolePermissionUseCase(
-		DeleteRolePermissionRepositories{RolePermission: repo},
+		// The grant's parent role must belong to the actor's workspace (tenant
+		// boundary, plan 20260927 Wave 0): role-admin lives in ws-roundtrip.
+		DeleteRolePermissionRepositories{RolePermission: repo, Role: tbRoles{rows: map[string]*rolepb.Role{
+			"role-admin": {Id: "role-admin", WorkspaceId: &roundtripWorkspace},
+		}}},
 		DeleteRolePermissionServices{
 			Transactor:       ports.NewNoOpTransactor(),
 			Translator:       ports.NewNoOpTranslator(),
@@ -415,10 +433,12 @@ func newRoundtripUseCases(repo *fakeRolePermissionRepo) (*CreateRolePermissionUs
 // remove (soft-delete) → re-grant the SAME (role, permission). The re-grant must
 // SUCCEED by reactivating the soft-deleted row (not INSERT a duplicate that
 // collides on uq_role_permission_1 and 422s), leaving exactly one active row.
+var roundtripWorkspace = "ws-roundtrip"
+
 func TestCreateRolePermission_ReactivatesAfterRemove(t *testing.T) {
 	repo := &fakeRolePermissionRepo{}
 	create, del := newRoundtripUseCases(repo)
-	ctx := context.Background()
+	ctx := identity.WithRequestIdentity(context.Background(), &identity.RequestIdentity{UserID: "admin", WorkspaceID: roundtripWorkspace})
 	const roleID, permID = "role-admin", "perm-client-read"
 
 	// 1) Grant.

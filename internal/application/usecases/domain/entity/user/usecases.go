@@ -5,6 +5,7 @@ import (
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	userpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/user"
+	workspaceuserpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace_user"
 )
 
 // UseCases contains all user-related use cases
@@ -28,6 +29,9 @@ type UseCases struct {
 // UserRepositories groups all repository dependencies for user use cases
 type UserRepositories struct {
 	User userpb.UserDomainServiceServer // Primary entity repository
+	// WorkspaceUser proves a target user is a member of the actor's workspace
+	// (tenant boundary: user has no workspace_id). Nil => membership checks deny.
+	WorkspaceUser workspaceuserpb.WorkspaceUserDomainServiceServer
 }
 
 // UserServices groups all business service dependencies for user use cases.
@@ -50,7 +54,7 @@ func NewUseCases(
 	services UserServices,
 ) *UseCases {
 	// Build individual grouped parameters for each use case
-	createRepos := CreateUserRepositories(repositories)
+	createRepos := CreateUserRepositories{User: repositories.User}
 	createServices := CreateUserServices{
 		Authorizer:  services.Authorizer,
 		Transactor:  services.Transactor,
@@ -59,7 +63,7 @@ func NewUseCases(
 		IDGenerator: services.IDGenerator,
 	}
 
-	readRepos := ReadUserRepositories(repositories)
+	readRepos := ReadUserRepositories{User: repositories.User, WorkspaceUser: repositories.WorkspaceUser}
 	readServices := ReadUserServices{
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
@@ -67,7 +71,7 @@ func NewUseCases(
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
-	updateRepos := UpdateUserRepositories(repositories)
+	updateRepos := UpdateUserRepositories{User: repositories.User, WorkspaceUser: repositories.WorkspaceUser}
 	updateServices := UpdateUserServices{
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
@@ -76,7 +80,7 @@ func NewUseCases(
 		AuthService:      services.AuthService,
 	}
 
-	disableRepos := DisableUserRepositories(repositories)
+	disableRepos := DisableUserRepositories{User: repositories.User}
 	disableServices := DisableUserServices{
 		Authorizer:       services.Authorizer,
 		Transactor:       services.Transactor,
@@ -85,7 +89,7 @@ func NewUseCases(
 		AuthService:      services.AuthService,
 	}
 
-	enableRepos := EnableUserRepositories(repositories)
+	enableRepos := EnableUserRepositories{User: repositories.User}
 	enableServices := EnableUserServices{
 		Authorizer:       services.Authorizer,
 		Transactor:       services.Transactor,
@@ -102,7 +106,7 @@ func NewUseCases(
 		AuthService:      services.AuthService,
 	}
 
-	deleteRepos := DeleteUserRepositories(repositories)
+	deleteRepos := DeleteUserRepositories{User: repositories.User}
 	deleteServices := DeleteUserServices{
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
@@ -110,7 +114,7 @@ func NewUseCases(
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
-	listRepos := ListUsersRepositories(repositories)
+	listRepos := ListUsersRepositories{User: repositories.User}
 	listServices := ListUsersServices{
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
@@ -118,7 +122,7 @@ func NewUseCases(
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
-	getUserListPageDataRepos := GetUserListPageDataRepositories(repositories)
+	getUserListPageDataRepos := GetUserListPageDataRepositories{User: repositories.User}
 	getUserListPageDataServices := GetUserListPageDataServices{
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
@@ -126,7 +130,7 @@ func NewUseCases(
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
-	getUserItemPageDataRepos := GetUserItemPageDataRepositories(repositories)
+	getUserItemPageDataRepos := GetUserItemPageDataRepositories{User: repositories.User, WorkspaceUser: repositories.WorkspaceUser}
 	getUserItemPageDataServices := GetUserItemPageDataServices{
 		Authorizer: services.Authorizer,
 		Transactor: services.Transactor,
@@ -134,7 +138,7 @@ func NewUseCases(
 		ActionGatekeeper: services.ActionGatekeeper,
 	}
 
-	resolveByEmailRepos := ResolveUserByEmailRepositories(repositories)
+	resolveByEmailRepos := ResolveUserByEmailRepositories{User: repositories.User}
 	resolveByEmailServices := ResolveUserByEmailServices{
 		Translator: services.Translator,
 	}
@@ -148,7 +152,7 @@ func NewUseCases(
 		GetUserListPageData: NewGetUserListPageDataUseCase(getUserListPageDataRepos, getUserListPageDataServices),
 		GetUserItemPageData: NewGetUserItemPageDataUseCase(getUserItemPageDataRepos, getUserItemPageDataServices),
 		ResolveUserByEmail:  NewResolveUserByEmailUseCase(resolveByEmailRepos, resolveByEmailServices),
-		ReadSelfDisplay:     NewReadSelfDisplayUseCase(ReadSelfDisplayRepositories(repositories)),
+		ReadSelfDisplay:     NewReadSelfDisplayUseCase(ReadSelfDisplayRepositories{User: repositories.User}),
 		DisableUser:         NewDisableUserUseCase(disableRepos, disableServices),
 		EnableUser:          NewEnableUserUseCase(enableRepos, enableServices),
 		AdminResetPassword:  NewAdminResetPasswordUseCase(adminResetServices),

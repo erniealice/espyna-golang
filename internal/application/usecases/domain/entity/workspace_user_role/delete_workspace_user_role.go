@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/erniealice/espyna-golang/internal/application/shared/tenantguard"
 	"log"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -59,6 +60,13 @@ func (uc *DeleteWorkspaceUserRoleUseCase) Execute(ctx context.Context, req *work
 		Entity: entityid.WorkspaceUserRole,
 		Action: entityid.ActionDelete,
 	}); err != nil {
+		return nil, err
+	}
+
+	// Tenant boundary: workspace_user_role has no workspace_id; its tenant is the
+	// parent workspace_user's workspace. Load the real row (never trust ids on
+	// the request) and prove the parent belongs to the actor's workspace.
+	if err := uc.requireTenantOwned(ctx, req); err != nil {
 		return nil, err
 	}
 
@@ -167,3 +175,33 @@ func (uc *DeleteWorkspaceUserRoleUseCase) executeCore(ctx context.Context, req *
 }
 
 // Helper functions
+
+// requireTenantOwned loads the binding by id and proves its parent
+// workspace_user belongs to the actor's workspace. A workspace_user_id supplied
+// on the request must match the stored parent. Fails closed.
+func (uc *DeleteWorkspaceUserRoleUseCase) requireTenantOwned(ctx context.Context, req *workspaceuserrolepb.DeleteWorkspaceUserRoleRequest) error {
+	if req == nil || req.Data == nil || req.Data.Id == "" || uc.repositories.WorkspaceUserRole == nil {
+		return tenantguard.ErrOutsideTenant
+	}
+	read, err := uc.repositories.WorkspaceUserRole.ReadWorkspaceUserRole(ctx, &workspaceuserrolepb.ReadWorkspaceUserRoleRequest{
+		Data: &workspaceuserrolepb.WorkspaceUserRole{Id: req.Data.Id},
+	})
+	if err != nil || read == nil {
+		return tenantguard.ErrOutsideTenant
+	}
+	var storedWorkspaceUserID string
+	for _, row := range read.GetData() {
+		if row != nil && row.GetId() == req.Data.Id {
+			storedWorkspaceUserID = row.GetWorkspaceUserId()
+			break
+		}
+	}
+	if storedWorkspaceUserID == "" {
+		return tenantguard.ErrOutsideTenant
+	}
+	if req.Data.WorkspaceUserId != "" && req.Data.WorkspaceUserId != storedWorkspaceUserID {
+		return tenantguard.ErrOutsideTenant
+	}
+	_, err = tenantguard.RequireWorkspaceUserInTenant(ctx, uc.repositories.WorkspaceUser, storedWorkspaceUserID)
+	return err
+}

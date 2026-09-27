@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"errors"
+	"github.com/erniealice/espyna-golang/internal/application/shared/tenantguard"
 	"strings"
 	"testing"
 
@@ -313,7 +314,7 @@ func TestReadUserUseCase_Execute_RedactsPublicFields(t *testing.T) {
 	}
 
 	useCase := NewReadUserUseCase(ReadUserRepositories{User: repo}, readServices)
-	resp, err := useCase.Execute(context.Background(), &userpb.ReadUserRequest{
+	resp, err := useCase.Execute(platformOperatorCtx(), &userpb.ReadUserRequest{
 		Data: &userpb.User{
 			Id: "user-001",
 		},
@@ -382,7 +383,7 @@ func TestUpdateUserUseCase_Execute_RedactsPublicFields(t *testing.T) {
 	}
 	inputCopy := proto.Clone(input).(*userpb.User)
 
-	resp, err := useCase.Execute(context.Background(), &userpb.UpdateUserRequest{
+	resp, err := useCase.Execute(platformOperatorCtx(), &userpb.UpdateUserRequest{
 		Data: input,
 	})
 	if err != nil {
@@ -443,7 +444,7 @@ func TestUpdateUserUseCase_Execute_ReadErrorAbortsUpdate(t *testing.T) {
 	}
 
 	useCase := NewUpdateUserUseCase(UpdateUserRepositories{User: repo}, updateServices)
-	_, err := useCase.Execute(context.Background(), &userpb.UpdateUserRequest{
+	_, err := useCase.Execute(platformOperatorCtx(), &userpb.UpdateUserRequest{
 		Data: &userpb.User{
 			Id:           "user-001",
 			EmailAddress: "ada@company.test",
@@ -474,7 +475,7 @@ func TestUpdateUserUseCase_Execute_RejectsMissingExistingRow(t *testing.T) {
 	}
 
 	useCase := NewUpdateUserUseCase(UpdateUserRepositories{User: repo}, updateServices)
-	_, err := useCase.Execute(context.Background(), &userpb.UpdateUserRequest{
+	_, err := useCase.Execute(platformOperatorCtx(), &userpb.UpdateUserRequest{
 		Data: &userpb.User{
 			Id:           "user-001",
 			EmailAddress: "ada@company.test",
@@ -558,7 +559,7 @@ func TestGetUserItemPageDataUseCase_Execute_RedactsWithoutMutatingRepositoryResp
 	repo := &fakeUserRepo{itemPageResp: &userpb.GetUserItemPageDataResponse{User: source, Success: true}}
 	services := GetUserItemPageDataServices{ActionGatekeeper: actiongate.NewActionGatekeeper(ports.NewNoOpAuthorizer(), ports.NewNoOpTranslator()), Translator: ports.NewNoOpTranslator()}
 
-	resp, err := NewGetUserItemPageDataUseCase(GetUserItemPageDataRepositories{User: repo}, services).Execute(context.Background(), &userpb.GetUserItemPageDataRequest{UserId: source.Id})
+	resp, err := NewGetUserItemPageDataUseCase(GetUserItemPageDataRepositories{User: repo}, services).Execute(platformOperatorCtx(), &userpb.GetUserItemPageDataRequest{UserId: source.Id})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -602,7 +603,7 @@ func TestEnableUserUseCase_Execute_PreservesTrustedProfileAndNoMutation(t *testi
 	}
 	useCase := NewEnableUserUseCase(EnableUserRepositories{User: repo}, enableServices)
 
-	resp, err := useCase.Execute(context.Background(), &userpb.EnableUserRequest{
+	resp, err := useCase.Execute(platformOperatorCtx(), &userpb.EnableUserRequest{
 		UserId: "user-001",
 	})
 	if err != nil {
@@ -675,7 +676,7 @@ func TestDisableUserUseCase_Execute_PreservesTrustedProfileAndNoMutation(t *test
 	}
 	useCase := NewDisableUserUseCase(DisableUserRepositories{User: repo}, disableServices)
 
-	resp, err := useCase.Execute(context.Background(), &userpb.DisableUserRequest{
+	resp, err := useCase.Execute(platformOperatorCtx(), &userpb.DisableUserRequest{
 		UserId: "user-001",
 	})
 	if err != nil {
@@ -732,7 +733,7 @@ func TestEnableUserUseCase_Execute_ReadFailureAbortsUpdate(t *testing.T) {
 	}
 	useCase := NewEnableUserUseCase(EnableUserRepositories{User: repo}, enableServices)
 
-	_, err := useCase.Execute(context.Background(), &userpb.EnableUserRequest{
+	_, err := useCase.Execute(platformOperatorCtx(), &userpb.EnableUserRequest{
 		UserId: "user-001",
 	})
 	if err == nil {
@@ -762,7 +763,7 @@ func TestEnableUserUseCase_Execute_MissingRowAbortsUpdate(t *testing.T) {
 	}
 	useCase := NewEnableUserUseCase(EnableUserRepositories{User: repo}, enableServices)
 
-	_, err := useCase.Execute(context.Background(), &userpb.EnableUserRequest{
+	_, err := useCase.Execute(platformOperatorCtx(), &userpb.EnableUserRequest{
 		UserId: "user-001",
 	})
 	if err == nil {
@@ -791,7 +792,7 @@ func TestDisableUserUseCase_Execute_ReadFailureAbortsUpdate(t *testing.T) {
 	}
 	useCase := NewDisableUserUseCase(DisableUserRepositories{User: repo}, disableServices)
 
-	_, err := useCase.Execute(context.Background(), &userpb.DisableUserRequest{
+	_, err := useCase.Execute(platformOperatorCtx(), &userpb.DisableUserRequest{
 		UserId: "user-001",
 	})
 	if err == nil {
@@ -833,7 +834,7 @@ func TestDisableUserUseCase_Execute_DBUpdateFailureSkipsProvider(t *testing.T) {
 	}
 	useCase := NewDisableUserUseCase(DisableUserRepositories{User: repo}, disableServices)
 
-	_, err := useCase.Execute(context.Background(), &userpb.DisableUserRequest{
+	_, err := useCase.Execute(platformOperatorCtx(), &userpb.DisableUserRequest{
 		UserId: "user-001",
 	})
 	if err == nil {
@@ -848,4 +849,11 @@ func TestDisableUserUseCase_Execute_DBUpdateFailureSkipsProvider(t *testing.T) {
 	if fxAuth.disableCalled || fxAuth.revokeCalled {
 		t.Fatalf("expected no provider calls on DB update failure")
 	}
+}
+
+// platformOperatorCtx marks a control-plane caller. Global user lifecycle and
+// identity edits are control-plane only (plan 20260927-tenant-boundary-hardening
+// Q1); these tests exercise that logic, so they run as an audited operator.
+func platformOperatorCtx() context.Context {
+	return tenantguard.WithPlatformOperator(context.Background(), "test-operator", "unit test")
 }

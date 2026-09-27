@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	"context"
 	"sort"
 	"time"
@@ -89,6 +90,14 @@ func (uc *GetScheduleDashboardUseCase) Execute(
 			Success: true,
 			Stats:   &scheduledashpb.ScheduleStats{},
 		}, nil
+	}
+
+	// Layer-4 gate (U-04): the dashboard exposes event names and aggregates.
+	if err := uc.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.Event,
+		Action: entityid.ActionList,
+	}); err != nil {
+		return nil, err
 	}
 
 	if req == nil {

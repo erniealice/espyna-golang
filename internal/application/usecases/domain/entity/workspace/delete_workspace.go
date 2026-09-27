@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/erniealice/espyna-golang/internal/application/shared/tenantguard"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	workspacepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/workspace"
 )
 
@@ -66,6 +67,12 @@ func (uc *DeleteWorkspaceUseCase) Execute(ctx context.Context, req *workspacepb.
 		Entity: entityid.Workspace,
 		Action: entityid.ActionDelete,
 	}); err != nil {
+		return nil, err
+	}
+
+	// Tenant boundary (plan 20260927 Q1): platform-global mutation is
+	// control-plane only; tenants deactivate the workspace membership instead.
+	if err := tenantguard.RequirePlatformOperator(ctx); err != nil {
 		return nil, err
 	}
 

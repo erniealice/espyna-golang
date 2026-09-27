@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/erniealice/espyna-golang/internal/application/shared/tenantguard"
 	"log"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -115,6 +116,13 @@ func (uc *DeleteRolePermissionUseCase) Execute(ctx context.Context, req *roleper
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
 	}
 
+	// Tenant boundary: role_permission has no workspace_id; its tenant is the
+	// parent role's workspace. Load the real row (never trust ids on the
+	// request) and prove the role belongs to the actor's workspace.
+	if err := uc.requireTenantOwned(ctx, req); err != nil {
+		return nil, err
+	}
+
 	// Resolve the grant's role_id BEFORE the delete so the cache eviction can
 	// enumerate the affected bindings after the row is gone (P10/D2). Prefer a
 	// role id already on the request; otherwise read the row by id.
@@ -198,3 +206,32 @@ func (uc *DeleteRolePermissionUseCase) validateBusinessRules(ctx context.Context
 }
 
 // Helper functions
+
+// requireTenantOwned loads the grant by id and proves its parent role belongs
+// to the actor's workspace. A role_id supplied on the request must match the
+// stored parent (child id bound to its parent). Fails closed.
+func (uc *DeleteRolePermissionUseCase) requireTenantOwned(ctx context.Context, req *rolepermissionpb.DeleteRolePermissionRequest) error {
+	if req == nil || req.Data == nil || req.Data.Id == "" || uc.repositories.RolePermission == nil {
+		return tenantguard.ErrOutsideTenant
+	}
+	read, err := uc.repositories.RolePermission.ReadRolePermission(ctx, &rolepermissionpb.ReadRolePermissionRequest{
+		Data: &rolepermissionpb.RolePermission{Id: req.Data.Id},
+	})
+	if err != nil || read == nil {
+		return tenantguard.ErrOutsideTenant
+	}
+	var storedRoleID string
+	for _, row := range read.GetData() {
+		if row != nil && row.GetId() == req.Data.Id {
+			storedRoleID = row.GetRoleId()
+			break
+		}
+	}
+	if storedRoleID == "" {
+		return tenantguard.ErrOutsideTenant
+	}
+	if req.Data.RoleId != "" && req.Data.RoleId != storedRoleID {
+		return tenantguard.ErrOutsideTenant
+	}
+	return tenantguard.RequireRoleInTenant(ctx, uc.repositories.Role, storedRoleID)
+}

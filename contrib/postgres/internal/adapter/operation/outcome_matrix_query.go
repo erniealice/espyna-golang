@@ -134,7 +134,9 @@ func (a *PostgresOutcomeMatrixQuery) GetOutcomeMatrix(
 // is_authoritative (per job) — and NEVER recomputes (D8: closed AYs are
 // frozen/authoritative). No year-final summary_score twin here by design
 // (20260729 criteria-total design, D5). Workspace-scoped in SQL
-// from the session identity, and row-scoped EXACTLY as the grid's loadRows:
+// from the session identity, and row-scoped to the same reachable job set as
+// the grid's loadRows (the roster uses the set query; cells use correlated
+// EXISTS after the template filter):
 //   - scope=MINE/UNSPECIFIED: principalscope.StaffReachableJobClause narrows BOTH
 //     queries to the acting staff's reachable jobs (fail-closed: a non-staff
 //     principal has no reachable job set → ZERO rows, loadRows parity). This closes
@@ -842,6 +844,11 @@ func (a *PostgresOutcomeMatrixQuery) loadRows(ctx context.Context, req *matrixpb
 // outcomeMatrixRowsQueryer) instead of only via a DB-free unit test on
 // computeCellEditable's boolean logic.
 func (a *PostgresOutcomeMatrixQuery) loadRowsFrom(ctx context.Context, queryer outcomeMatrixRowsQueryer, req *matrixpb.GetOutcomeMatrixRequest, workspaceID string) ([]*matrixpb.OutcomeRow, error) {
+	return a.loadRowsFromWithClassEdgeGuard(ctx, queryer, req, workspaceID, true)
+}
+
+// The false branch is the frozen pre-P2 SQL oracle used by live parity tests.
+func (a *PostgresOutcomeMatrixQuery) loadRowsFromWithClassEdgeGuard(ctx context.Context, queryer outcomeMatrixRowsQueryer, req *matrixpb.GetOutcomeMatrixRequest, workspaceID string, guard bool) ([]*matrixpb.OutcomeRow, error) {
 	args := []any{req.GetJobTemplateId(), workspaceID}
 	where := "WHERE j.job_template_id = $1 AND j.workspace_id = $2 AND j.active"
 	nextParam := 3
@@ -875,6 +882,9 @@ func (a *PostgresOutcomeMatrixQuery) loadRowsFrom(ctx context.Context, queryer o
 			return nil, nil
 		}
 		clause, scopeArgs := principalscope.StaffReachableJobClause(ctx, "j", nextParam)
+		if guard {
+			clause, scopeArgs = principalscope.StaffReachableJobCorrelatedClause(ctx, "j", nextParam)
+		}
 		where += clause
 		args = append(args, scopeArgs...)
 		nextParam += len(scopeArgs)
@@ -911,6 +921,9 @@ func (a *PostgresOutcomeMatrixQuery) loadRowsFrom(ctx context.Context, queryer o
 	// workspace-wide staff principal still edits only the cells it owns.
 	if fallbackStaff, isStaff := principalscope.ActingStaff(ctx); isStaff && fallbackStaff != "" {
 		classEdgeExpr = classEdgeOwnedSQL(nextParam, 2)
+		if guard {
+			classEdgeExpr = guardedClassEdgeEditableSQL(classEdgeExpr)
+		}
 		args = append(args, fallbackStaff)
 	}
 
@@ -1041,6 +1054,12 @@ ORDER BY j.client_id, jt.id, ttc.id, t.recorded_date DESC NULLS LAST, t.id DESC`
 		return nil, fmt.Errorf("outcome_matrix: cells rows: %w", err)
 	}
 	return out, nil
+}
+
+// computeCellEditable consults the class edge only for an empty, unassigned
+// cell. CASE keeps the expensive EXISTS dormant for decided cells.
+func guardedClassEdgeEditableSQL(edgeExpr string) string {
+	return "CASE WHEN (t.id IS NULL OR t.id = '') AND COALESCE(jt.assigned_to, '') = '' AND jt.id <> '' THEN " + edgeExpr + " ELSE false END"
 }
 
 // composePhaseLabel renders one phase column-group header. When the phase carries

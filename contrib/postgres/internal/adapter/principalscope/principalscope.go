@@ -329,6 +329,41 @@ func reachableJobUnion(staffP, wsP int) string {
 		reviewerTierSQL("jr.id", s, w, "")
 }
 
+// reachableJobPredicate probes each reachability arm for one candidate job.
+// The set-returning union remains the ListJobs seam; this predicate avoids
+// constructing the entire staff job set for template-confined matrix reads.
+func reachableJobPredicate(jobAlias string, staffP, wsP int) string {
+	s := fmt.Sprintf("$%d", staffP)
+	w := fmt.Sprintf("$%d", wsP)
+	id := jobAlias + ".id" // jobAlias is an adapter-controlled SQL alias.
+	return "EXISTS (SELECT 1 FROM " + entityid.JobPhase + " jp" +
+		" JOIN " + entityid.JobTask + " jt ON jt.job_phase_id = jp.id AND jt.workspace_id = " + w +
+		" JOIN " + entityid.Job + " jw ON jw.id = jp.job_id AND jw.workspace_id = " + w +
+		" WHERE jp.job_id = " + id + " AND jp.workspace_id = " + w + " AND jt.assigned_to = " + s + ")" +
+		" OR EXISTS (SELECT 1 FROM " + entityid.JobPhase + " jp2" +
+		" JOIN " + entityid.JobTask + " jt2 ON jt2.job_phase_id = jp2.id AND jt2.workspace_id = " + w +
+		" JOIN " + entityid.TaskOutcome + " t ON t.job_task_id = jt2.id AND t.workspace_id = " + w +
+		" JOIN " + entityid.Job + " jw2 ON jw2.id = jp2.job_id AND jw2.workspace_id = " + w +
+		" WHERE jp2.job_id = " + id + " AND jp2.workspace_id = " + w +
+		" AND (t.recorded_by = " + s + " OR t.reviewed_by = " + s + "))" +
+		" OR EXISTS (SELECT 1 FROM " + entityid.Job + " jw3" +
+		" JOIN " + entityid.SubscriptionSeat + " ss ON ss.subscription_id = jw3.origin_id" +
+		" JOIN " + entityid.JobTemplate + " tpl ON tpl.id = jw3.job_template_id AND tpl.workspace_id = " + w +
+		" JOIN " + entityid.ProductPlan + " pl ON pl.id = ss.product_plan_id AND pl.product_id = tpl.output_product_id" +
+		" WHERE jw3.id = " + id + " AND ss.staff_id = " + s +
+		" AND ss.status = 'active' AND ss.active = true" +
+		" AND jw3.origin_type = '" + originTypeSubscription + "'" +
+		" AND jw3.workspace_id = " + w + " AND ss.workspace_id = " + w + ")" +
+		" OR EXISTS (SELECT 1 FROM " + entityid.SubscriptionGroupProductPlanStaff + " e" +
+		" JOIN " + entityid.SubscriptionGroupMember + " m ON m.subscription_group_id = e.subscription_group_id AND m.workspace_id = " + w + " AND m.active" +
+		" JOIN " + entityid.ProductPlan + " pp ON pp.id = e.product_plan_id" +
+		" JOIN " + entityid.Job + " jce ON jce.origin_id = m.subscription_id AND jce.output_product_id = pp.product_id AND jce.workspace_id = " + w +
+		" LEFT JOIN " + entityid.ProductPlanStaff + " pps ON pps.id = e.product_plan_staff_id AND pps.workspace_id = " + w +
+		" WHERE jce.id = " + id + " AND COALESCE(pps.staff_id, e.staff_id) = " + s + classEdgeEligibilityLive +
+		" AND e.active AND e.workspace_id = " + w + ")" +
+		" OR EXISTS (" + reviewerTierSQL("1", s, w, " AND jr.id = "+id) + ")"
+}
+
 // StaffScopeClause returns a SQL predicate fragment that confines a read to the
 // active STAFF principal's own rows on the given staff.id column, with the
 // positional bind args to append in order.
@@ -420,6 +455,22 @@ func StaffReachableJobClause(ctx context.Context, jobAlias string, nextParam int
 	}
 	sub := reachableJobUnion(nextParam, nextParam+1)
 	return fmt.Sprintf(" AND %s.id IN (%s)", jobAlias, sub), []any{staffID, workspaceScope(ctx)}
+}
+
+// StaffReachableJobCorrelatedClause applies the same five-arm authorization
+// graph to one candidate job. Use it where the outer query already confines a
+// small template/roster set; a workspace-wide courses list probes thousands of
+// candidates and retains StaffReachableJobClause's set seam until it can page
+// candidate jobs before the reachability check.
+func StaffReachableJobCorrelatedClause(ctx context.Context, jobAlias string, nextParam int) (string, []any) {
+	staffID, applies := StaffRowScope(ctx)
+	if !applies {
+		return "", nil
+	}
+	if staffID == "" {
+		return " AND 1=0", nil
+	}
+	return " AND (" + reachableJobPredicate(jobAlias, nextParam, nextParam+1) + ")", []any{staffID, workspaceScope(ctx)}
 }
 
 // StaffReachableClientExistsSQL returns a query that yields a single bool: whether

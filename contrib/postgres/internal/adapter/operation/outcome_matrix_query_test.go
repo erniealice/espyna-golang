@@ -322,3 +322,12 @@ func TestComputeCellEditable(t *testing.T) {
 		})
 	}
 }
+
+func TestGuardedClassEdgeEditableSQL(t *testing.T) {
+	const edge = "EXISTS (SELECT 1)"
+	got := guardedClassEdgeEditableSQL(edge)
+	want := "CASE WHEN (t.id IS NULL OR t.id = '') AND COALESCE(jt.assigned_to, '') = '' AND jt.id <> '' THEN " + edge + " ELSE false END"
+	if got != want {
+		t.Fatalf("class-edge guard differs from the undecided-cell precedence: %s", got)
+	}
+}

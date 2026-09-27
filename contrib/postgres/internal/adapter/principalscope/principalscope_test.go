@@ -82,6 +82,9 @@ func TestClauseThreeStateContract(t *testing.T) {
 		{"StaffReachableJobClause", func(ctx context.Context, alias string, n int) (string, []any) {
 			return StaffReachableJobClause(ctx, alias, n)
 		}, "j", true},
+		{"StaffReachableJobCorrelatedClause", func(ctx context.Context, alias string, n int) (string, []any) {
+			return StaffReachableJobCorrelatedClause(ctx, alias, n)
+		}, "j", true},
 	}
 
 	for _, c := range cases {
@@ -184,6 +187,25 @@ func TestReachableSQLShape(t *testing.T) {
 				t.Errorf("%s: seat tier missing the plan-product/template-output match: %s", c.name, c.sql)
 			}
 		})
+	}
+}
+
+func TestReachableJobCorrelatedShape(t *testing.T) {
+	if got, want := reachableJobUnion(1, 2), legacyReachableJobUnion(1, 2); got != want {
+		t.Fatal("set-returning ListJobs SQL changed during the correlated-clause rewrite")
+	}
+	arms := strings.Split(reachableJobPredicate("j", 1, 2), " OR EXISTS (")
+	if len(arms) != 5 {
+		t.Fatalf("got %d arms, want five", len(arms))
+	}
+	jobKeys := []string{"jp.job_id = j.id", "jp2.job_id = j.id", "jw3.id = j.id", "jce.id = j.id", "jr.id = j.id"}
+	for i, arm := range arms {
+		if !strings.Contains(arm, jobKeys[i]) || !strings.Contains(arm, "workspace_id = $2") || !strings.Contains(arm, "$1") {
+			t.Errorf("arm %d lacks candidate job, workspace, or staff bound", i+1)
+		}
+	}
+	if !strings.Contains(arms[1], "t.recorded_by = $1 OR t.reviewed_by = $1") {
+		t.Error("outcome arm lost recorder or reviewer reachability")
 	}
 }
 

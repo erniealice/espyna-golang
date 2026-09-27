@@ -81,17 +81,6 @@ func TestBuildBalanceListQueriesRejectsUnboundedOrUnknownInput(t *testing.T) {
 			want: "pagination limit",
 		},
 		{
-			name: "cursor unsupported",
-			ws:   "ws-1",
-			req: &balancepb.GetBalanceListPageDataRequest{Pagination: &commonpb.PaginationRequest{
-				Limit: 20,
-				Method: &commonpb.PaginationRequest_Cursor{
-					Cursor: &commonpb.CursorPagination{Token: "offset:20"},
-				},
-			}},
-			want: "cursor pagination is not supported",
-		},
-		{
 			name: "unknown filter",
 			ws:   "ws-1",
 			req: &balancepb.GetBalanceListPageDataRequest{Filters: &commonpb.FilterRequest{Filters: []*commonpb.TypedFilter{{
@@ -120,6 +109,23 @@ func TestBuildBalanceListQueriesRejectsUnboundedOrUnknownInput(t *testing.T) {
 				t.Fatalf("error = %v, want substring %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestBuildBalanceListQueriesCursorRetainsStrictScope(t *testing.T) {
+	q, err := buildBalanceListQueries(&balancepb.GetBalanceListPageDataRequest{Pagination: &commonpb.PaginationRequest{
+		Limit: 20, Method: &commonpb.PaginationRequest_Cursor{Cursor: &commonpb.CursorPagination{Token: "k1:2:next:00000000-0000-0000-0000-000000000001"}},
+	}}, "ws-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q.pageRequest.Mode != "keyset" || q.pageRequest.BoundaryID == "" {
+		t.Fatalf("cursor page = %+v", q.pageRequest)
+	}
+	for _, fragment := range []string{"s.id = b.subscription_id AND s.workspace_id = $1", "c.id = b.client_id AND c.workspace_id = $1", "WHERE b.active = true"} {
+		if !strings.Contains(q.scopedSQL, fragment) {
+			t.Fatalf("scoped SQL missing %q: %s", fragment, q.scopedSQL)
+		}
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"log"
+	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -16,7 +17,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	ratebandpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/rate_band"
 )
 
@@ -185,7 +185,7 @@ var rateBandSortableSQLCols = []string{
 // GetRateBandListPageData retrieves rate bands with pagination, filtering, sorting, and search.
 // A1: scoped via LEFT JOIN rate_table — shows bands belonging to workspace-specific or global rate_tables.
 // A2: sort column whitelisted via core.BuildOrderBy.
-// A3: COUNT(*) OVER() for accurate total without a second query.
+// A3: exact total comes from the same scoped relation as the page and boundary.
 func (r *PostgresRateBandRepository) GetRateBandListPageData(
 	ctx context.Context,
 	req *ratebandpb.GetRateBandListPageDataRequest,
@@ -200,7 +200,7 @@ func (r *PostgresRateBandRepository) GetRateBandListPageData(
 	// A1: tenant guard via rate_table join.
 	workspaceID := identity.Must(ctx).WorkspaceID
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, err
 	}
@@ -214,10 +214,10 @@ func (r *PostgresRateBandRepository) GetRateBandListPageData(
 		return nil, err
 	}
 
-	// A3: COUNT(*) OVER() — accurate total in one pass.
+	// The scoped relation is counted separately so empty pages retain the exact total.
 	// rate_band has no workspace_id; tenant scoping is via the parent rate_table.workspace_id
 	// (NULL = global, available to all tenants).
-	query := fmt.Sprintf(`
+	scopedSQL := fmt.Sprintf(`
 		SELECT
 			rb.id,
 			rb.rate_table_id,
@@ -231,24 +231,33 @@ func (r *PostgresRateBandRepository) GetRateBandListPageData(
 			rb.metadata,
 			rb.active,
 			rb.date_created,
-			rb.date_modified,
-			COUNT(*) OVER() AS total
+			rb.date_modified
 		FROM %s rb
 		LEFT JOIN `+entityid.RateTable+` rt ON rt.id = rb.rate_table_id
 		WHERE (rt.workspace_id = $1 OR rt.workspace_id IS NULL)
-		%s
-		LIMIT $2 OFFSET $3;
-	`, r.tableName, orderByClause)
+	`, r.tableName)
 
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, limit, offset)
+	sortKeys, err := pageSortFromOrderBy(orderByClause)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: scopedSQL, Args: []any{workspaceID}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve rate_band page: %w", err)
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count rate_band page: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query rate_band list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var items []*ratebandpb.RateBand
-	var totalCount int64
-
 	for rows.Next() {
 		var (
 			id                  string
@@ -262,20 +271,17 @@ func (r *PostgresRateBandRepository) GetRateBandListPageData(
 			ordinal             int32
 			metadata            *string
 			active              bool
-			dateCreated         *int64
-			dateModified        *int64
-			total               int64
+			dateCreated         *time.Time
+			dateModified        *time.Time
 		)
 		if scanErr := rows.Scan(
 			&id, &rateTableID, &lowerBound, &upperBound,
 			&rateType, &rateBasisPoints, &fixedAmountCentavos,
 			&formulaExpression, &ordinal, &metadata,
 			&active, &dateCreated, &dateModified,
-			&total,
 		); scanErr != nil {
 			return nil, fmt.Errorf("failed to scan rate_band row: %w", scanErr)
 		}
-		totalCount = total
 
 		rb := &ratebandpb.RateBand{
 			Id:                  id,
@@ -289,8 +295,8 @@ func (r *PostgresRateBandRepository) GetRateBandListPageData(
 			Ordinal:             ordinal,
 			Metadata:            metadata,
 			Active:              active,
-			DateCreated:         dateCreated,
-			DateModified:        dateModified,
+			DateCreated:         pageMillis(dateCreated),
+			DateModified:        pageMillis(dateModified),
 		}
 		items = append(items, rb)
 	}
@@ -298,23 +304,16 @@ func (r *PostgresRateBandRepository) GetRateBandListPageData(
 		return nil, fmt.Errorf("error iterating rate_band rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	firstID, lastID := "", ""
+	if len(items) > 0 {
+		firstID = items[0].GetId()
+		lastID = items[len(items)-1].GetId()
 	}
-	hasNext := page < totalPages
-	hasPrev := page > 1
 
 	return &ratebandpb.GetRateBandListPageDataResponse{
 		RateBandList: items,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:   scopedPageMetadata(totalCount, queries.Page, firstID, lastID),
+		Success:      true,
 	}, nil
 }
 

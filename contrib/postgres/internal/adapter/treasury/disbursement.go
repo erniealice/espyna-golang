@@ -16,7 +16,6 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
 	disbursementpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement"
 )
@@ -301,7 +300,7 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 		return nil, fmt.Errorf("get disbursement list page data: %w", err)
 	}
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("get disbursement list page data: invalid pagination: %w", err)
 	}
@@ -316,7 +315,7 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 	}
 
 	searchFields := []string{"d.name", "d.reference_number", "d.status", "d.disbursement_type"}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMappedISODateText(
+	filterClauses, filterArgs, _, err := postgresCore.BuildFilterWhereMappedISODateText(
 		req.GetFilters(), req.GetSearch(), disbursementFilterFieldMap, []string{"payment_date"}, searchFields, 2,
 	)
 	if err != nil {
@@ -326,16 +325,13 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 	if len(filterClauses) > 0 {
 		whereExtra = " AND " + strings.Join(filterClauses, " AND ")
 	}
-	limitIdx, offsetIdx := nextIdx, nextIdx+1
-	queryArgs := make([]any, 0, len(filterArgs)+3)
+	queryArgs := make([]any, 0, len(filterArgs)+1)
 	queryArgs = append(queryArgs, workspaceID)
 	queryArgs = append(queryArgs, filterArgs...)
-	queryArgs = append(queryArgs, limit, offset)
 
 	// 20260517 advance-cash-events: extend the CTE with all advance_* schedule
 	// columns + supplier_id (buying-side mirror of collection.go).
-	query := fmt.Sprintf(`
-		WITH enriched AS (
+	scopedSQL := fmt.Sprintf(`
 			SELECT
 				d.id,
 				d.date_created,
@@ -370,26 +366,28 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 			WHERE d.active = true
 			  AND d.workspace_id = $1
 			  %s
-		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
-		SELECT
-			e.*,
-			COUNT(*) OVER () AS total
-		FROM enriched e
-		%s
-		LIMIT $%d OFFSET $%d;
-	`, whereExtra, sortFragment, limitIdx, offsetIdx)
+	`, whereExtra)
+	sortKeys, err := pageSortFromOrderBy(sortFragment)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: scopedSQL, Args: queryArgs, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve disbursement page: %w", err)
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count disbursement page: %w", err)
+	}
 
-	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query disbursement list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var disbursements []*disbursementpb.Disbursement
-	var totalCount int64
-
 	for rows.Next() {
 		var (
 			id                      string
@@ -421,7 +419,6 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 			advanceExpiryDate       *string
 			advanceProrationPolicy  sql.NullInt32
 			supplierID              *string
-			total                   int64
 		)
 
 		err := rows.Scan(
@@ -454,13 +451,10 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 			&advanceExpiryDate,
 			&advanceProrationPolicy,
 			&supplierID,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan disbursement row: %w", err)
 		}
-
-		totalCount = total
 
 		disbursement := &disbursementpb.Disbursement{
 			Id:     id,
@@ -524,24 +518,16 @@ func (r *PostgresDisbursementRepository) GetDisbursementListPageData(
 		return nil, fmt.Errorf("error iterating disbursement rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	firstID, lastID := "", ""
+	if len(disbursements) > 0 {
+		firstID = disbursements[0].GetId()
+		lastID = disbursements[len(disbursements)-1].GetId()
 	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
 
 	return &disbursementpb.GetDisbursementListPageDataResponse{
 		DisbursementList: disbursements,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:       scopedPageMetadata(totalCount, queries.Page, firstID, lastID),
+		Success:          true,
 	}, nil
 }
 

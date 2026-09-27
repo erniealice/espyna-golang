@@ -134,7 +134,7 @@ func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceListPageData(
 	}
 
 	// Default pagination values
-	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, paginationErr := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if paginationErr != nil {
 		return nil, fmt.Errorf("bounded pagination: %w", paginationErr)
 	}
@@ -185,24 +185,24 @@ func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceListPageData(
 			  AND ($2::text IS NULL OR $2::text = '' OR
 				   eo.event_id ILIKE $2)
 		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
-		SELECT
-			e.*,
-			COUNT(*) OVER () AS total
-		FROM enriched e
-		` + sortFragment + `
-		LIMIT $3 OFFSET $4;
+		SELECT e.* FROM enriched e
 	`
-
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
+	sortKeys, err := scopedPageSort(sortFragment)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: []any{workspaceID, searchPattern}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query event occurrence list page data: %w", err)
 	}
-	defer rows.Close()
 
 	var eventOccurrences []*eventoccurrencepb.EventOccurrence
-	var totalCount int64
+	var firstID, lastID string
 
 	for rows.Next() {
 		var (
@@ -217,7 +217,6 @@ func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceListPageData(
 			active           bool
 			dateCreated      time.Time
 			dateModified     time.Time
-			total            int64
 		)
 
 		err := rows.Scan(
@@ -232,13 +231,15 @@ func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceListPageData(
 			&active,
 			&dateCreated,
 			&dateModified,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan event occurrence row: %w", err)
 		}
 
-		totalCount = total
+		if firstID == "" {
+			firstID = id
+		}
+		lastID = id
 
 		eo := &eventoccurrencepb.EventOccurrence{
 			Id:               id,
@@ -276,24 +277,18 @@ func (r *PostgresEventOccurrenceRepository) GetEventOccurrenceListPageData(
 	}
 
 	// Calculate pagination metadata
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
 
 	return &eventoccurrencepb.GetEventOccurrenceListPageDataResponse{
 		EventOccurrenceList: eventOccurrences,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:          scopedPageMetadata(queries.Page, totalCount, firstID, lastID),
+		Success:             true,
 	}, nil
 }
 

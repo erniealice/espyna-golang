@@ -16,7 +16,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/inventory_movement"
 )
@@ -224,7 +223,7 @@ func (r *PostgresInventoryMovementRepository) GetInventoryMovementListPageData(c
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
 	workspaceID := identity.Must(ctx).WorkspaceID
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 20)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 20)
 	if err != nil {
 		return nil, fmt.Errorf("invalid inventory movement list pagination: %w", err)
 	}
@@ -307,63 +306,30 @@ func (r *PostgresInventoryMovementRepository) GetInventoryMovementListPageData(c
 			LEFT JOIN ` + entityid.Product + ` p ON sf.product_id = p.id AND p.active = true
 			LEFT JOIN ` + entityid.Location + ` fl ON sf.from_location_id = fl.id AND fl.active = true
 			LEFT JOIN ` + entityid.Location + ` tl ON sf.to_location_id = tl.id AND tl.active = true
-		),
-		sorted AS (
-			SELECT * FROM enriched
-			ORDER BY
-				CASE WHEN ($5 = 'date_created' OR $5 = '') AND $6 = 'DESC' THEN date_created END DESC,
-				CASE WHEN $5 = 'date_created' AND $6 = 'ASC' THEN date_created END ASC,
-				CASE WHEN $5 = 'quantity' AND $6 = 'DESC' THEN quantity END DESC,
-				CASE WHEN $5 = 'quantity' AND $6 = 'ASC' THEN quantity END ASC,
-				CASE WHEN $5 = 'unit_cost' AND $6 = 'DESC' THEN unit_cost END DESC,
-				CASE WHEN $5 = 'unit_cost' AND $6 = 'ASC' THEN unit_cost END ASC,
-				CASE WHEN $5 = 'movement_date' AND $6 = 'DESC' THEN movement_date END DESC,
-				CASE WHEN $5 = 'movement_date' AND $6 = 'ASC' THEN movement_date END ASC
 		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
-		SELECT
-			s.id,
-			s.workspace_id,
-			s.movement_type,
-			s.product_id,
-			s.quantity,
-			s.unit_cost,
-			s.from_location_id,
-			s.to_location_id,
-			s.movement_date,
-			s.created_by,
-			s.date_created,
-			s.job_id,
-			s.job_activity_id,
-			s.inventory_item_id,
-			s.inventory_serial_id,
-			s.reference_type,
-			s.reference_id,
-			s.status,
-			s.notes,
-			s.performed_by,
-			s.active,
-			s.product,
-			s.from_location,
-			s.to_location,
-			COUNT(*) OVER () AS _total_count
-		FROM sorted s
-		LIMIT $3 OFFSET $4
+		SELECT * FROM enriched
 	`
+	if sortField == "" {
+		sortField = "date_created"
+	}
+	sortKeys := []postgresCore.AdapterSortKey{{Column: sortField, Desc: sortDirection == "DESC", NullsFirst: sortDirection == "DESC"}}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: []any{workspaceID, searchQuery}, Sort: sortKeys}
 
 	if r.db == nil {
 		return nil, fmt.Errorf("database connection not available for raw SQL queries")
 	}
 
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchQuery, limit, offset, sortField, sortDirection)
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute GetInventoryMovementListPageData query: %w", err)
 	}
-	defer rows.Close()
 
 	var movements []*pb.InventoryMovement
-	var totalCount int32
+	var firstID, lastID string
 
 	for rows.Next() {
 		var (
@@ -391,7 +357,6 @@ func (r *PostgresInventoryMovementRepository) GetInventoryMovementListPageData(c
 			productJSON       []byte
 			fromLocationJSON  []byte
 			toLocationJSON    []byte
-			rowTotalCount     int32
 		)
 
 		err := rows.Scan(
@@ -400,13 +365,16 @@ func (r *PostgresInventoryMovementRepository) GetInventoryMovementListPageData(c
 			&movementDate, &createdBy, &dateCreated,
 			&jobId, &jobActivityId, &inventoryItemId, &inventorySerialId,
 			&referenceType, &referenceId, &status, &notes, &performedBy, &active,
-			&productJSON, &fromLocationJSON, &toLocationJSON, &rowTotalCount,
+			&productJSON, &fromLocationJSON, &toLocationJSON,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan inventory movement row: %w", err)
 		}
 
-		totalCount = rowTotalCount
+		if firstID == "" {
+			firstID = id
+		}
+		lastID = id
 
 		movement := &pb.InventoryMovement{
 			Id:           id,
@@ -472,20 +440,17 @@ func (r *PostgresInventoryMovementRepository) GetInventoryMovementListPageData(c
 		return nil, fmt.Errorf("error iterating inventory movement rows: %w", err)
 	}
 
-	totalPages := (totalCount + limit - 1) / limit
-	hasNext := page < totalPages
-	hasPrev := page > 1
-
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
 	return &pb.GetInventoryMovementListPageDataResponse{
 		Success:               true,
 		InventoryMovementList: movements,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  totalCount,
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
+		Pagination:            scopedPageMetadata(queries.Page, totalCount, firstID, lastID),
 	}, nil
 }
 

@@ -123,16 +123,6 @@ func TestValidateListRequestFiniteBudgets(t *testing.T) {
 			}},
 			want: "pagination offset exceeds",
 		},
-		{
-			name: "malformed cursor",
-			params: &interfaces.ListParams{Pagination: &commonpb.PaginationRequest{
-				Limit: 20,
-				Method: &commonpb.PaginationRequest_Cursor{Cursor: &commonpb.CursorPagination{
-					Token: "opaque-but-unsupported",
-				}},
-			}},
-			want: "invalid pagination cursor",
-		},
 	}
 
 	for _, tc := range tests {

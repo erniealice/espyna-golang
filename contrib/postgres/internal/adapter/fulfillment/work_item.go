@@ -18,7 +18,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/fulfillment"
 )
 
@@ -253,7 +252,7 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 		return nil, fmt.Errorf("bounded search: %w", searchErr)
 	}
 
-	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, paginationErr := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if paginationErr != nil {
 		return nil, fmt.Errorf("bounded pagination: %w", paginationErr)
 	}
@@ -299,40 +298,24 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 			       f.status ILIKE $2 OR f.provider_reference ILIKE $2)
 			GROUP BY f.id, s.name
 		)
-		SELECT
-			e.id,
-			e.date_created,
-			e.date_modified,
-			e.active,
-			e.workspace_id,
-			e.revenue_id,
-			e.supplier_id,
-			e.delivery_mode,
-			e.status,
-			e.provider_status,
-			e.provider_reference,
-			e.delivery_cost,
-			e.currency,
-			e.expenditure_id,
-			e.scheduled_at,
-			e.delivered_at,
-			e.supplier_name,
-			e.item_count,
-			e.status_event_count,
-			COUNT(*) OVER () AS total
-		FROM enriched e
-		` + orderByClause + `
-		LIMIT $3 OFFSET $4;
+		SELECT e.* FROM enriched e
 	`
-
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
+	sortKeys, err := scopedPageSort(orderByClause)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: []any{workspaceID, searchPattern}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query fulfillment list page data: %w", err)
 	}
-	defer rows.Close()
 
 	var resultRows []*pb.FulfillmentListRow
-	var totalCount int64
+	var firstID, lastID string
 
 	for rows.Next() {
 		var (
@@ -350,12 +333,11 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 			deliveryCost      int64
 			currency          string
 			expenditureID     sql.NullString
-			scheduledAt       sql.NullTime
-			deliveredAt       sql.NullTime
+			scheduledAt       sql.NullString
+			deliveredAt       sql.NullString
 			supplierName      string
 			itemCount         int32
 			statusEventCount  int32
-			total             int64
 		)
 
 		err := rows.Scan(
@@ -378,13 +360,15 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 			&supplierName,
 			&itemCount,
 			&statusEventCount,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan fulfillment list row: %w", err)
 		}
 
-		totalCount = total
+		if firstID == "" {
+			firstID = id
+		}
+		lastID = id
 
 		f := &pb.Fulfillment{
 			Id:                id,
@@ -404,11 +388,6 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 		}
 		if expenditureID.Valid {
 			f.ExpenditureId = &expenditureID.String
-		}
-		if scheduledAt.Valid {
-			// stored as timestamptz, surfaced as proto Timestamp
-			ts := scheduledAt.Time.UnixMilli()
-			_ = ts // proto Timestamp — leave to use case layer for now
 		}
 
 		if !dateCreated.IsZero() {
@@ -433,23 +412,17 @@ func (r *PostgresFulfillmentRepository) GetFulfillmentListPageData(
 		return nil, fmt.Errorf("error iterating fulfillment rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
 	}
 
-	hasNext := page < totalPages
-	hasPrev := page > 1
-
 	return &pb.GetFulfillmentListPageDataResponse{
-		Rows: resultRows,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
+		Rows:       resultRows,
+		Pagination: scopedPageMetadata(queries.Page, totalCount, firstID, lastID),
 	}, nil
 }
 

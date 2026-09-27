@@ -17,7 +17,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	revenuelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_line_item"
 )
 
@@ -235,7 +234,7 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 		return nil, err
 	}
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, err
 	}
@@ -245,8 +244,7 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 		return nil, err
 	}
 
-	query := `
-		WITH enriched AS (
+	scopedSQL := `
 			SELECT
 				rli.id,
 				rli.date_created,
@@ -254,10 +252,10 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 				rli.active,
 				rli.revenue_id,
 				rli.product_id,
-				rli.description,
-				rli.quantity,
-				rli.unit_price,
-				rli.total_price,
+				COALESCE(rli.description, '') AS description,
+				COALESCE(rli.quantity, 0) AS quantity,
+				COALESCE(rli.unit_price, 0) AS unit_price,
+				COALESCE(rli.total_price, 0) AS total_price,
 				rli.notes,
 				rli.line_item_type,
 				rli.inventory_item_id,
@@ -265,8 +263,7 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 				rli.product_price_plan_id,
 				rli.price_product_id,
 				COALESCE(rv.name, '') as revenue_name,
-				COALESCE(p.name, '') as product_name,
-				COUNT(*) OVER() AS total
+				COALESCE(p.name, '') as product_name
 			FROM ` + entityid.RevenueLineItem + ` rli
 			LEFT JOIN ` + entityid.Revenue + ` rv ON rli.revenue_id = rv.id AND rv.active = true
 			LEFT JOIN ` + entityid.Product + ` p ON rli.product_id = p.id AND p.active = true
@@ -276,22 +273,30 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 			       rli.description ILIKE $2 OR
 			       p.name ILIKE $2 OR
 			       rv.name ILIKE $2)
-		)
-		SELECT * FROM enriched
-		` + orderBy + `
-		LIMIT $3 OFFSET $4;
 	`
-
 	workspaceID := identity.Must(ctx).WorkspaceID
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
+
+	sortKeys, err := pageSortFromOrderBy(orderBy)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: scopedSQL, Args: []any{workspaceID, searchPattern}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve revenue_line_item page: %w", err)
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count revenue_line_item page: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query revenue line item list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var lineItems []*revenuelineitempb.RevenueLineItem
-	var totalCount int64
-
 	for rows.Next() {
 		var (
 			id                 string
@@ -312,7 +317,6 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 			priceProductID     *string
 			revenueName        string
 			productName        string
-			total              int64
 		)
 
 		err := rows.Scan(
@@ -334,13 +338,10 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 			&priceProductID,
 			&revenueName,
 			&productName,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan revenue line item row: %w", err)
 		}
-
-		totalCount = total
 
 		lineItem := &revenuelineitempb.RevenueLineItem{
 			Id:          id,
@@ -389,24 +390,16 @@ func (r *PostgresRevenueLineItemRepository) GetRevenueLineItemListPageData(
 		return nil, fmt.Errorf("error iterating revenue line item rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	firstID, lastID := "", ""
+	if len(lineItems) > 0 {
+		firstID = lineItems[0].GetId()
+		lastID = lineItems[len(lineItems)-1].GetId()
 	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
 
 	return &revenuelineitempb.GetRevenueLineItemListPageDataResponse{
 		RevenueLineItemList: lineItems,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:          scopedPageMetadata(totalCount, queries.Page, firstID, lastID),
+		Success:             true,
 	}, nil
 }
 

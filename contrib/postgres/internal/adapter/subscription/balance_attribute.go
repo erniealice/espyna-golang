@@ -14,7 +14,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	balanceattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/balance_attribute"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -219,7 +218,7 @@ func (r *PostgresBalanceAttributeRepository) GetBalanceAttributeListPageData(ctx
 	if err != nil {
 		return nil, err
 	}
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, err
 	}
@@ -252,30 +251,36 @@ func (r *PostgresBalanceAttributeRepository) GetBalanceAttributeListPageData(ctx
 			LEFT JOIN ` + entityid.Balance + ` b ON ba.balance_id = b.id
 			LEFT JOIN ` + entityid.Subscription + ` s ON b.subscription_id = s.id
 			WHERE ba.active = true
-			  AND ($4::text = '' OR s.workspace_id = $4::text)
+			  AND ($2::text = '' OR s.workspace_id = $2::text)
 			  AND ($1::text IS NULL OR $1::text = '' OR ba.value ILIKE $1))
-		SELECT
-			e.*,
-			COUNT(*) OVER () AS total
-		FROM enriched e
-		` + orderBy + `
-		LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
+		SELECT e.* FROM enriched e
+	`
+	sortKeys, err := scopedPageSort(orderBy)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: []any{searchPattern, wsID}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	defer rows.Close()
 	var balanceAttributes []*balanceattributepb.BalanceAttribute
-	var totalCount int64
+	var firstID, lastID string
 	for rows.Next() {
 		var id, balanceId, attributeId, attributeValue string
 		var active bool
 		var dateCreated, dateModified time.Time
-		var total int64
-		if err := rows.Scan(&id, &balanceId, &attributeId, &attributeValue, &active, &dateCreated, &dateModified, &total); err != nil {
+		if err := rows.Scan(&id, &balanceId, &attributeId, &attributeValue, &active, &dateCreated, &dateModified); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
-		totalCount = total
+		if firstID == "" {
+			firstID = id
+		}
+		lastID = id
 
 		rawData := map[string]interface{}{
 			"id":          id,
@@ -300,8 +305,18 @@ func (r *PostgresBalanceAttributeRepository) GetBalanceAttributeListPageData(ctx
 			balanceAttributes = append(balanceAttributes, balanceAttribute)
 		}
 	}
-	totalPages := int32((totalCount + int64(limit) - 1) / int64(limit))
-	return &balanceattributepb.GetBalanceAttributeListPageDataResponse{BalanceAttributeList: balanceAttributes, Pagination: &commonpb.PaginationResponse{TotalItems: int32(totalCount), CurrentPage: &page, TotalPages: &totalPages, HasNext: page < totalPages, HasPrev: page > 1}, Success: true}, nil
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
+	return &balanceattributepb.GetBalanceAttributeListPageDataResponse{BalanceAttributeList: balanceAttributes, Pagination: scopedPageMetadata(queries.Page, totalCount, firstID, lastID), Success: true}, nil
 }
 
 // GetBalanceAttributeItemPageData retrieves balance attribute item page data

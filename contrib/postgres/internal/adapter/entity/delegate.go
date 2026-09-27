@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json/v2"
 	"fmt"
+	"time"
 
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	"github.com/erniealice/espyna-golang/registry"
@@ -260,7 +261,10 @@ func (r *PostgresDelegateRepository) ListDelegates(ctx context.Context, req *del
 // This method uses CTEs (Common Table Expressions) to optimize query performance by loading all data in a single query
 // TODO: Add unit tests for GetDelegateListPageData
 func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context, req *delegatepb.GetDelegateListPageDataRequest) (*delegatepb.GetDelegateListPageDataResponse, error) {
-	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 20)
+	if req == nil {
+		return nil, fmt.Errorf("delegate page request is required")
+	}
+	pageRequest, paginationErr := postgresCore.BoundedPageRequest(req.GetPagination(), 20)
 	if paginationErr != nil {
 		return nil, fmt.Errorf("bounded pagination: %w", paginationErr)
 	}
@@ -273,13 +277,16 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 	// Extract sort parameters with defaults
 	sortField := "date_created"
 	sortDirection := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
+	if req.Sort != nil && len(req.Sort.Fields) > 0 && req.Sort.Fields[0].Field != "" {
 		sortField = req.Sort.Fields[0].Field
 		if req.Sort.Fields[0].Direction == 1 { // DESC enum value
 			sortDirection = "DESC"
 		} else {
 			sortDirection = "ASC"
 		}
+	}
+	if sortField != "user_id" && sortField != "date_created" {
+		return nil, fmt.Errorf("unknown delegate sort column %q", sortField)
 	}
 
 	// PERFORMANCE INDEX REQUIRED: CREATE INDEX idx_delegate_active ON delegate(active) WHERE active = true;
@@ -303,7 +310,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 	wsID := identity.Must(ctx).WorkspaceID
 
 	// Build the CTE query following the translation plan pattern
-	query := `
+	scopedSQL := `
 		WITH
 		-- CTE 1a-inner: one row per delegate_client (PK guarantees uniqueness — no DISTINCT needed)
 		delegate_clients_rows AS (
@@ -341,7 +348,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 			INNER JOIN ` + entityid.Client + ` c ON dc.client_id = c.id
 			LEFT JOIN "` + entityid.User + `" cu ON c.user_id = cu.id
 			WHERE dc.active = true AND c.active = true
-				AND COALESCE(dc.workspace_id, c.workspace_id) = $6::text
+				AND COALESCE(dc.workspace_id, c.workspace_id) = $2::text
 		),
 		-- CTE 1a-outer: aggregate into ordered jsonb array; ORDER BY dc_id (stable PK)
 		delegate_clients_agg AS (
@@ -378,7 +385,7 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 			FROM ` + entityid.DelegateSupplier + ` ds
 			LEFT JOIN ` + entityid.Supplier + ` s ON ds.supplier_id = s.id
 			WHERE ds.active = true
-				AND COALESCE(ds.workspace_id, s.workspace_id) = $6::text
+				AND COALESCE(ds.workspace_id, s.workspace_id) = $2::text
 		),
 		-- CTE 1b-outer: aggregate into ordered jsonb array; ORDER BY ds_id (stable PK)
 		delegate_suppliers_agg AS (
@@ -402,12 +409,12 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 					SELECT 1 FROM ` + entityid.DelegateClient + ` dcx
 					INNER JOIN ` + entityid.Client + ` cx ON dcx.client_id = cx.id
 					WHERE dcx.delegate_id = d.id AND dcx.active = true AND cx.active = true
-						AND COALESCE(dcx.workspace_id, cx.workspace_id) = $6::text
+						AND COALESCE(dcx.workspace_id, cx.workspace_id) = $2::text
 					UNION ALL
 					SELECT 1 FROM ` + entityid.DelegateSupplier + ` dsx
 					LEFT JOIN ` + entityid.Supplier + ` sx ON dsx.supplier_id = sx.id
 					WHERE dsx.delegate_id = d.id AND dsx.active = true
-						AND COALESCE(dsx.workspace_id, sx.workspace_id) = $6::text
+						AND COALESCE(dsx.workspace_id, sx.workspace_id) = $2::text
 				)
 				AND ($1::text = '' OR
 					u.first_name ILIKE $1 OR
@@ -441,67 +448,42 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 			LEFT JOIN "` + entityid.User + `" u ON sf.user_id = u.id
 			LEFT JOIN delegate_clients_agg dca ON sf.id = dca.delegate_id
 			LEFT JOIN delegate_suppliers_agg dsa ON sf.id = dsa.delegate_id
-		),
-
-		-- CTE 4: Apply sorting
-		sorted AS (
-			SELECT * FROM enriched
-			ORDER BY
-				CASE WHEN $4 = 'user_id' AND $5 = 'ASC' THEN user_id END ASC,
-				CASE WHEN $4 = 'user_id' AND $5 = 'DESC' THEN user_id END DESC,
-				CASE WHEN ($4 = 'date_created' OR $4 = '') AND $5 = 'DESC' THEN date_created END DESC,
-				CASE WHEN $4 = 'date_created' AND $5 = 'ASC' THEN date_created END ASC
 		)
-
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
-
-		-- Final SELECT with pagination
-		SELECT
-			s.id,
-			s.user_id,
-			s.active,
-			s.date_created,
-			s.date_modified,
-			s.user,
-			s.delegate_clients,
-			s.delegate_suppliers,
-			COUNT(*) OVER () AS _total_count
-		FROM sorted s
-		LIMIT $2 OFFSET $3
+		SELECT * FROM enriched
 	`
 
 	// Execute query
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query,
-		searchQuery,   // $1
-		limit,         // $2
-		offset,        // $3
-		sortField,     // $4
-		sortDirection, // $5
-		wsID,          // $6 (session workspace; '' = service-to-service)
-	)
+	q, err := postgresCore.ResolveScopedPage(ctx, exec, postgresCore.ScopedPageSet{
+		SQL: scopedSQL, Args: []any{searchQuery, wsID},
+		Sort: []postgresCore.AdapterSortKey{{Column: sortField, Desc: sortDirection == "DESC", NullsFirst: sortDirection == "DESC"}},
+	}, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve delegate page: %w", err)
+	}
+	totalCount64, err := countScopedPage(ctx, exec, q)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := exec.QueryContext(ctx, q.PageSQL, q.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute GetDelegateListPageData query: %w", err)
 	}
 	defer rows.Close()
 
 	var delegates []*delegatepb.Delegate
-	var totalCount int32
+	totalCount := int32(totalCount64)
 
 	for rows.Next() {
 		var (
 			id                    string
 			userId                string
 			active                bool
-			dateCreated           sql.NullInt64
-			dateCreatedString     sql.NullString
-			dateModified          sql.NullInt64
-			dateModifiedString    sql.NullString
+			dateCreated           sql.NullTime
+			dateModified          sql.NullTime
 			userJSON              []byte
 			delegateClientsJSON   []byte
 			delegateSuppliersJSON []byte
-			rowTotalCount         int32
 		)
 
 		err := rows.Scan(
@@ -513,13 +495,10 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 			&userJSON,
 			&delegateClientsJSON,
 			&delegateSuppliersJSON,
-			&rowTotalCount,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan delegate row: %w", err)
 		}
-
-		totalCount = rowTotalCount
 
 		// Build delegate message
 		delegate := &delegatepb.Delegate{
@@ -529,16 +508,16 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 		}
 
 		if dateCreated.Valid {
-			delegate.DateCreated = &dateCreated.Int64
-		}
-		if dateCreatedString.Valid {
-			delegate.DateCreatedString = &dateCreatedString.String
+			value := dateCreated.Time.UnixMilli()
+			delegate.DateCreated = &value
+			formatted := dateCreated.Time.Format(time.RFC3339)
+			delegate.DateCreatedString = &formatted
 		}
 		if dateModified.Valid {
-			delegate.DateModified = &dateModified.Int64
-		}
-		if dateModifiedString.Valid {
-			delegate.DateModifiedString = &dateModifiedString.String
+			value := dateModified.Time.UnixMilli()
+			delegate.DateModified = &value
+			formatted := dateModified.Time.Format(time.RFC3339)
+			delegate.DateModifiedString = &formatted
 		}
 
 		// Parse user JSON
@@ -589,7 +568,8 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 	}
 
 	// Build pagination response
-	totalPages := (totalCount + limit - 1) / limit
+	totalPages := (totalCount + q.Page.Limit - 1) / q.Page.Limit
+	page := q.Page.Number
 	hasNext := page < totalPages
 	hasPrev := page > 1
 
@@ -599,6 +579,9 @@ func (r *PostgresDelegateRepository) GetDelegateListPageData(ctx context.Context
 		TotalPages:  &totalPages,
 		HasNext:     hasNext,
 		HasPrev:     hasPrev,
+	}
+	if len(delegates) > 0 {
+		setPageCursors(paginationResponse, delegates[0].Id, delegates[len(delegates)-1].Id, q.Page.Limit)
 	}
 
 	return &delegatepb.GetDelegateListPageDataResponse{

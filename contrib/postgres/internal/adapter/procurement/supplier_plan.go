@@ -14,6 +14,7 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	supplierplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/procurement/supplier_plan"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -175,6 +176,32 @@ func supplierPlanListPageSQL(orderByClause string) string {
 	          ` + orderByClause + ` LIMIT $2 OFFSET $3`
 }
 
+func supplierPlanScopedPageSet(searchPattern, workspaceID string, sort *commonpb.SortRequest) postgresCore.ScopedPageSet {
+	key := postgresCore.AdapterSortKey{Column: "date_created", Desc: true, NullsFirst: true}
+	if sort != nil {
+		for _, field := range sort.GetFields() {
+			if field == nil || field.GetField() == "" {
+				continue
+			}
+			key.Column = field.GetField()
+			key.Desc = field.GetDirection() == commonpb.SortDirection_DESC
+			key.NullsFirst = key.Desc // BuildOrderBy uses PostgreSQL's implicit NULL order.
+			break
+		}
+	}
+	return postgresCore.ScopedPageSet{
+		SQL: `SELECT id, name, description, active, supplier_id, date_created, date_modified
+	          FROM ` + entityid.SupplierPlan + `
+	          WHERE active = true
+	            AND workspace_id = $2
+	            AND ($1::text IS NULL OR $1::text = '' OR
+	                 name ILIKE $1 ESCAPE '\' OR
+	                 description ILIKE $1 ESCAPE '\')`,
+		Args: []any{searchPattern, workspaceID},
+		Sort: []postgresCore.AdapterSortKey{key},
+	}
+}
+
 const supplierPlanItemPageSQL = `SELECT id, name, description, active, supplier_id, date_created, date_modified
 	          FROM ` + entityid.SupplierPlan + `
 	          WHERE id = $1
@@ -188,14 +215,14 @@ func (r *PostgresSupplierPlanRepository) GetSupplierPlanListPageData(ctx context
 	if err != nil {
 		return nil, err
 	}
-	limit, offset, _, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, err
 	}
 	// Sort — fail-closed against the per-entity whitelist (A2 guard). Route the
 	// caller-supplied sort column through core.BuildOrderBy so an unknown column
 	// errors instead of being interpolated verbatim into ORDER BY.
-	orderByClause, err := postgresCore.BuildOrderBy(supplierPlanSortableSQLCols, req.GetSort(), "date_created DESC")
+	_, err = postgresCore.BuildOrderBy(supplierPlanSortableSQLCols, req.GetSort(), "date_created DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +234,16 @@ func (r *PostgresSupplierPlanRepository) GetSupplierPlanListPageData(ctx context
 	if err != nil {
 		return nil, fmt.Errorf("require supplier plan workspace: %w", err)
 	}
-	rows, err := directOps.GetExecutor(ctx).QueryContext(ctx, supplierPlanListPageSQL(orderByClause), searchPattern, limit, offset, workspaceID)
+	executor := directOps.GetExecutor(ctx)
+	queries, err := postgresCore.ResolveScopedPage(ctx, executor, supplierPlanScopedPageSet(searchPattern, workspaceID, req.GetSort()), page)
+	if err != nil {
+		return nil, fmt.Errorf("resolve supplier plan page: %w", err)
+	}
+	var totalCount int64
+	if err := executor.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count supplier plans: %w", err)
+	}
+	rows, err := executor.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -239,7 +275,27 @@ func (r *PostgresSupplierPlanRepository) GetSupplierPlanListPageData(ctx context
 		}
 		items = append(items, sp)
 	}
-	return &supplierplanpb.GetSupplierPlanListPageDataResponse{SupplierPlanList: items, Success: true}, nil
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate supplier plan page: %w", err)
+	}
+	currentPage := queries.Page.Number
+	totalPages := int32((totalCount + int64(page.Limit) - 1) / int64(page.Limit))
+	hasNext, hasPrev := currentPage < totalPages, currentPage > 1
+	pagination := &commonpb.PaginationResponse{
+		TotalItems: int32(totalCount), CurrentPage: &currentPage, TotalPages: &totalPages,
+		HasNext: hasNext, HasPrev: hasPrev,
+	}
+	if hasNext && len(items) > 0 {
+		if token := postgresCore.EncodePageCursor(currentPage+1, "next", items[len(items)-1].GetId()); token != "" {
+			pagination.NextCursor = &token
+		}
+	}
+	if hasPrev && len(items) > 0 {
+		if token := postgresCore.EncodePageCursor(currentPage-1, "prev", items[0].GetId()); token != "" {
+			pagination.PrevCursor = &token
+		}
+	}
+	return &supplierplanpb.GetSupplierPlanListPageDataResponse{SupplierPlanList: items, Pagination: pagination, Success: true}, nil
 }
 
 func (r *PostgresSupplierPlanRepository) GetSupplierPlanItemPageData(ctx context.Context, req *supplierplanpb.GetSupplierPlanItemPageDataRequest) (*supplierplanpb.GetSupplierPlanItemPageDataResponse, error) {

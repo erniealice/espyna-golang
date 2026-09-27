@@ -226,7 +226,7 @@ func (r *PostgresInvoiceRepository) ListInvoices(ctx context.Context, req *invoi
 func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, req *invoicepb.GetInvoiceListPageDataRequest) (*invoicepb.GetInvoiceListPageDataResponse, error) {
 	// Get the underlying *sql.DB from dbOps
 	// This is needed for raw SQL queries with JOINs
-	db, ok := r.dbOps.(*postgresCore.PostgresOperations)
+	db, ok := r.dbOps.(interface{ GetDB() *sql.DB })
 	if !ok {
 		return nil, fmt.Errorf("invalid database operations type")
 	}
@@ -340,17 +340,9 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 		argCounter++
 	}
 
-	// A3 (Q-PAGE-COUNT default tier): fold the prior separate `SELECT COUNT(*)`
-	// round-trip into the page query via COUNT(*) OVER (). The window count spans
-	// the full filtered_data set (same i.active + workspace + filter + search
-	// predicates as the page rows) and is computed in the same scan before
-	// LIMIT/OFFSET. filtered_data's joins are 1:1 FK LEFT JOINs (invoice→
-	// subscription→client→user), so its row cardinality equals the matching
-	// invoice count — identical to the old `COUNT(*) FROM invoice i LEFT JOIN
-	// subscription s` count query. _total_count lands in the final scan slot.
+	// Boundary lookup, page selection and exact count replay this filtered CTE.
 	query += `
-		)
-		SELECT filtered_data.*, COUNT(*) OVER () AS _total_count FROM filtered_data
+		) SELECT filtered_data.* FROM filtered_data
 	`
 
 	// A2: route the caller-supplied sort column through the fail-closed
@@ -360,26 +352,29 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 	if err != nil {
 		return nil, fmt.Errorf("invalid sort for invoice list: %w", err)
 	}
-	query += " " + orderBy
-
-	// Add pagination
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 20)
+	sortKeys, err := scopedPageSort(orderBy)
+	if err != nil {
+		return nil, err
+	}
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 20)
 	if err != nil {
 		return nil, fmt.Errorf("bounded invoice pagination: %w", err)
 	}
-	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argCounter, argCounter+1)
-	args = append(args, limit, offset)
+	set := postgresCore.ScopedPageSet{SQL: query, Args: args, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, db.GetDB(), set, page)
+	if err != nil {
+		return nil, err
+	}
 
 	// Execute query
-	rows, err := db.GetDB().QueryContext(ctx, query, args...)
+	rows, err := db.GetDB().QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query invoices: %w", err)
 	}
-	defer rows.Close()
 
 	// Parse results
 	var invoices []*invoicepb.Invoice
-	var totalCount int64
+	var firstID, lastID string
 	for rows.Next() {
 		var (
 			// Invoice fields
@@ -415,8 +410,6 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 			userDateCreated  sql.NullTime
 			userDateModified sql.NullTime
 			userActive       sql.NullBool
-			// Windowed total — same filter as the page rows (COUNT(*) OVER ()).
-			rowTotalCount int64
 		)
 
 		err := rows.Scan(
@@ -424,13 +417,15 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 			&subID, &subName, &subPlanID, &subClientID, &subDateStart, &subDateEnd, &subDateCreated, &subDateModified, &subActive,
 			&clientID, &clientUserID, &clientInternalID, &clientDateCreated, &clientDateModified, &clientActive,
 			&userID, &userFirstName, &userLastName, &userEmailAddress, &userDateCreated, &userDateModified, &userActive,
-			&rowTotalCount,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan invoice row: %w", err)
 		}
 
-		totalCount = rowTotalCount
+		if firstID == "" {
+			firstID = id
+		}
+		lastID = id
 
 		// Build invoice protobuf
 		invoice := &invoicepb.Invoice{
@@ -557,26 +552,17 @@ func (r *PostgresInvoiceRepository) GetInvoiceListPageData(ctx context.Context, 
 		return nil, fmt.Errorf("error iterating invoice rows: %w", err)
 	}
 
-	// Calculate pagination metadata. totalCount is the windowed COUNT(*) OVER ()
-	// projected on each page row above — the separate count round-trip is gone.
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
-
+	var totalCount int64
+	if err := db.GetDB().QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
 	return &invoicepb.GetInvoiceListPageDataResponse{
 		InvoiceList: invoices,
 		Success:     true,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
+		Pagination:  scopedPageMetadata(queries.Page, totalCount, firstID, lastID),
 	}, nil
 }
 

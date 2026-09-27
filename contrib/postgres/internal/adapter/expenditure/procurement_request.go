@@ -8,6 +8,7 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -17,7 +18,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	procurementrequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/procurement_request"
 )
 
@@ -191,7 +191,7 @@ func (r *PostgresProcurementRequestRepository) GetProcurementRequestListPageData
 		return nil, fmt.Errorf("bounded search: %w", searchErr)
 	}
 
-	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, paginationErr := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if paginationErr != nil {
 		return nil, fmt.Errorf("bounded pagination: %w", paginationErr)
 	}
@@ -204,8 +204,7 @@ func (r *PostgresProcurementRequestRepository) GetProcurementRequestListPageData
 		return nil, err
 	}
 
-	query := `
-		WITH enriched AS (
+	scopedSQL := `
 			SELECT
 				pr.id,
 				pr.date_created,
@@ -213,7 +212,7 @@ func (r *PostgresProcurementRequestRepository) GetProcurementRequestListPageData
 				pr.active,
 				pr.request_number,
 				pr.status,
-				pr.requester_user_id,
+				COALESCE(pr.requester_user_id, '') AS requester_user_id,
 				pr.supplier_id,
 				pr.currency,
 				pr.estimated_total_amount,
@@ -232,26 +231,30 @@ func (r *PostgresProcurementRequestRepository) GetProcurementRequestListPageData
 			       pr.request_number ILIKE $2 OR
 			       pr.justification ILIKE $2 OR
 			       s.name ILIKE $2)
-		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
-		SELECT e.*,
-			COUNT(*) OVER () AS total
-		FROM enriched e
-		ORDER BY ` + orderBy + `
-		LIMIT $3 OFFSET $4;
 	`
-
 	workspaceID := identity.Must(ctx).WorkspaceID
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
+
+	sortKeys, err := pageSortFromOrderBy(orderBy)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: scopedSQL, Args: []any{workspaceID, searchPattern}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve procurement_request page: %w", err)
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count procurement_request page: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query procurement_request list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var requests []*procurementrequestpb.ProcurementRequest
-	var totalCount int64
-
 	for rows.Next() {
 		var (
 			id                   string
@@ -259,7 +262,7 @@ func (r *PostgresProcurementRequestRepository) GetProcurementRequestListPageData
 			dateModified         time.Time
 			active               bool
 			requestNumber        string
-			status               int32
+			status               string
 			requesterUserID      string
 			supplierID           *string
 			currency             string
@@ -271,7 +274,6 @@ func (r *PostgresProcurementRequestRepository) GetProcurementRequestListPageData
 			purchaseOrderID      *string
 			locationID           *string
 			supplierName         string
-			total                int64
 		)
 		err := rows.Scan(
 			&id, &dateCreated, &dateModified, &active,
@@ -279,18 +281,24 @@ func (r *PostgresProcurementRequestRepository) GetProcurementRequestListPageData
 			&currency, &estimatedTotalAmount,
 			&neededByDate, &justification,
 			&approvedBy, &rejectionReason, &purchaseOrderID, &locationID,
-			&supplierName, &total,
+			&supplierName,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan procurement_request row: %w", err)
 		}
-		totalCount = total
+		statusValue, ok := procurementrequestpb.ProcurementRequestStatus_value[status]
+		if !ok {
+			statusValue, ok = procurementrequestpb.ProcurementRequestStatus_value["PROCUREMENT_REQUEST_STATUS_"+strings.ToUpper(status)]
+		}
+		if !ok {
+			return nil, fmt.Errorf("unknown procurement_request status %q", status)
+		}
 
 		pr := &procurementrequestpb.ProcurementRequest{
 			Id:                   id,
 			Active:               active,
 			RequestNumber:        requestNumber,
-			Status:               procurementrequestpb.ProcurementRequestStatus(status),
+			Status:               procurementrequestpb.ProcurementRequestStatus(statusValue),
 			RequesterUserId:      requesterUserID,
 			SupplierId:           supplierID,
 			Currency:             currency,
@@ -320,23 +328,16 @@ func (r *PostgresProcurementRequestRepository) GetProcurementRequestListPageData
 		return nil, fmt.Errorf("error iterating procurement_request rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	firstID, lastID := "", ""
+	if len(requests) > 0 {
+		firstID = requests[0].GetId()
+		lastID = requests[len(requests)-1].GetId()
 	}
-	hasNext := page < totalPages
-	hasPrev := page > 1
 
 	return &procurementrequestpb.GetProcurementRequestListPageDataResponse{
 		ProcurementRequestList: requests,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:             scopedPageMetadata(totalCount, queries.Page, firstID, lastID),
+		Success:                true,
 	}, nil
 }
 

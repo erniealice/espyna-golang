@@ -17,7 +17,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template_task"
 )
 
@@ -278,7 +277,7 @@ func (r *PostgresJobTemplateTaskRepository) GetJobTemplateTaskListPageData(
 		return nil, fmt.Errorf("invalid list search: %w", err)
 	}
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("invalid list pagination: %w", err)
 	}
@@ -293,19 +292,26 @@ func (r *PostgresJobTemplateTaskRepository) GetJobTemplateTaskListPageData(
 	}
 
 	// Cross-tenant scope: the drawer list is reached only through the session, so
-	// a missing identity is a middleware fault and fails closed (Must). $4 carries
+	// a missing identity is a middleware fault and fails closed (Must). $2 carries
 	// the workspace_id, derived up the parent chain.
 	wsID := identity.Must(ctx).WorkspaceID
-	query := jobTemplateTaskListPageDataSQL(orderByClause)
-
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
+	query := jobTemplateTaskScopedPageSQL()
+	sortKeys, err := scopedPageSort(orderByClause)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: []any{searchPattern, wsID}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query job template task list page data: %w", err)
 	}
-	defer rows.Close()
 
 	var tasks []*pb.JobTemplateTask
-	var totalCount int64
+	var firstID, lastID string
 
 	for rows.Next() {
 		var (
@@ -318,7 +324,6 @@ func (r *PostgresJobTemplateTaskRepository) GetJobTemplateTaskListPageData(
 			stepOrder                sql.NullInt32
 			estimatedDurationMinutes *int32
 			code                     sql.NullString
-			total                    int64
 		)
 
 		err := rows.Scan(
@@ -331,13 +336,15 @@ func (r *PostgresJobTemplateTaskRepository) GetJobTemplateTaskListPageData(
 			&stepOrder,
 			&estimatedDurationMinutes,
 			&code,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan job template task row: %w", err)
 		}
 
-		totalCount = total
+		if firstID == "" {
+			firstID = id
+		}
+		lastID = id
 
 		task := &pb.JobTemplateTask{
 			Id:                 id,
@@ -375,24 +382,18 @@ func (r *PostgresJobTemplateTaskRepository) GetJobTemplateTaskListPageData(
 		return nil, fmt.Errorf("error iterating job template task rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
 
 	return &pb.GetJobTemplateTaskListPageDataResponse{
 		JobTemplateTaskList: tasks,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:          scopedPageMetadata(queries.Page, totalCount, firstID, lastID),
+		Success:             true,
 	}, nil
 }
 
@@ -532,6 +533,31 @@ func jobTemplateTaskItemPageDataSQL() string {
 
 // jobTemplateTaskListPageDataSQL returns the paginated task list, scoped to the
 // caller's workspace up the parent chain ($4 = workspace_id).
+func jobTemplateTaskScopedPageSQL() string {
+	return `
+		WITH enriched AS (
+			SELECT
+				jtt.id,
+				jtt.date_created,
+				jtt.date_modified,
+				jtt.active,
+				jtt.job_template_phase_id,
+				jtt.name,
+				jtt.step_order,
+				jtt.estimated_duration_minutes,
+				jtt.code
+			FROM ` + entityid.JobTemplateTask + ` jtt
+			JOIN ` + entityid.JobTemplatePhase + ` jtp ON jtp.id = jtt.job_template_phase_id
+			JOIN ` + entityid.JobTemplate + ` jt ON jt.id = jtp.job_template_id
+			WHERE jtt.active = true
+			  AND ($2::text = '' OR jt.workspace_id = $2::text)
+			  AND ($1::text IS NULL OR $1::text = '' OR
+			       jtt.name ILIKE $1)
+		)
+		SELECT e.* FROM enriched e
+	`
+}
+
 func jobTemplateTaskListPageDataSQL(orderByClause string) string {
 	return `
 		WITH enriched AS (

@@ -17,7 +17,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
 )
 
@@ -262,7 +261,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 		return nil, fmt.Errorf("bounded search: %w", searchErr)
 	}
 
-	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, paginationErr := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if paginationErr != nil {
 		return nil, fmt.Errorf("bounded pagination: %w", paginationErr)
 	}
@@ -274,8 +273,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 
 	// 20260517 expense-run: expose `run_id` so the list row can show
 	// run linkage badges without a second round-trip.
-	query := `
-		WITH enriched AS (
+	scopedSQL := `
 			SELECT
 				ex.id,
 				ex.date_created,
@@ -286,7 +284,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 				ex.supplier_id AS supplier_id_primary,
 				ex.expenditure_date,
 				ex.expenditure_date_string,
-				ex.total_amount,
+				CASE WHEN ex.total_amount = trunc(ex.total_amount) THEN ex.total_amount::bigint END AS total_amount,
 				ex.currency,
 				ex.status,
 				ex.reference_number,
@@ -300,8 +298,7 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 				ex.supplier_id,
 				ex.run_id,
 				COALESCE(s.name, '') as vendor_name,
-				COALESCE(l.name, '') as location_name,
-				COUNT(*) OVER() AS total
+				COALESCE(l.name, '') as location_name
 			FROM ` + entityid.Expenditure + ` ex
 			LEFT JOIN ` + entityid.Supplier + ` s ON ex.supplier_id = s.id AND s.active = true
 			LEFT JOIN ` + entityid.Location + ` l ON ex.location_id = l.id AND l.active = true
@@ -312,22 +309,30 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 			       ex.reference_number ILIKE $2 OR
 			       ex.status ILIKE $2 OR
 			       s.name ILIKE $2)
-		)
-		SELECT * FROM enriched
-		` + orderBy + `
-		LIMIT $3 OFFSET $4;
 	`
-
 	workspaceID := identity.Must(ctx).WorkspaceID
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
+
+	sortKeys, err := pageSortFromOrderBy(orderBy)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: scopedSQL, Args: []any{workspaceID, searchPattern}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve expenditure page: %w", err)
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count expenditure page: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query expenditure list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var expenditures []*expenditurepb.Expenditure
-	var totalCount int64
-
 	for rows.Next() {
 		var (
 			id                    string
@@ -354,7 +359,6 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 			runID                 *string
 			vendorName            string
 			locationName          string
-			total                 int64
 		)
 
 		err := rows.Scan(
@@ -382,13 +386,10 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 			&runID,
 			&vendorName,
 			&locationName,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan expenditure row: %w", err)
 		}
-
-		totalCount = total
 
 		expenditure := &expenditurepb.Expenditure{
 			Id:                    id,
@@ -457,24 +458,16 @@ func (r *PostgresExpenditureRepository) GetExpenditureListPageData(
 		return nil, fmt.Errorf("error iterating expenditure rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	firstID, lastID := "", ""
+	if len(expenditures) > 0 {
+		firstID = expenditures[0].GetId()
+		lastID = expenditures[len(expenditures)-1].GetId()
 	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
 
 	return &expenditurepb.GetExpenditureListPageDataResponse{
 		ExpenditureList: expenditures,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:      scopedPageMetadata(totalCount, queries.Page, firstID, lastID),
+		Success:         true,
 	}, nil
 }
 

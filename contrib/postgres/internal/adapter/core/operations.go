@@ -833,23 +833,52 @@ func (p *PostgresOperations) listWithScope(ctx context.Context, tableName string
 		return nil, model.NewDatabaseError(err.Error(), "INVALID_PAGINATION", 400)
 	}
 
-	// Build final query with pagination
+	// Fetch narrow page keys first. A keyset request resolves its boundary
+	// through the *same* WHERE (including mandatory scope) before seeking.
+	keys := listSortKeys(params)
+	where := strings.Join(whereConditions, " AND ")
+	queryValues := append([]any{}, values...)
+	keyset := false
+	reverse := false
+	if cursorMode && params != nil && params.Pagination != nil {
+		if token, ok := decodeKeysetToken(params.Pagination.GetCursor().GetToken(), limit); ok {
+			boundary, found, lookupErr := p.scopedBoundary(ctx, tableName, where, values, keys, token.id)
+			if lookupErr != nil {
+				return nil, model.NewDatabaseError(fmt.Sprintf("failed to resolve cursor boundary: %v", lookupErr), "POSTGRES_LIST_FAILED", 500)
+			}
+			if found {
+				keyset = true
+				reverse = token.direction == "prev"
+				seek, seekValues := keysetWhere(keys, boundary, paramIndex, reverse)
+				where += " AND " + seek
+				queryValues = append(queryValues, seekValues...)
+				paramIndex += len(seekValues)
+			}
+		}
+	}
+	innerOrder := orderByClause
+	if keyset {
+		innerOrder = listKeyOrder(keys, tableName, reverse)
+	}
+	pageBounds := fmt.Sprintf("LIMIT $%d OFFSET $%d", paramIndex, paramIndex+1)
+	queryValues = append(queryValues, limit, offset)
+	if keyset {
+		pageBounds = fmt.Sprintf("LIMIT $%d", paramIndex)
+		queryValues = queryValues[:len(queryValues)-1]
+	}
 	query := fmt.Sprintf(
-		"SELECT * FROM \"%s\" WHERE %s %s LIMIT $%d OFFSET $%d",
-		tableName,
-		strings.Join(whereConditions, " AND "),
-		orderByClause,
-		paramIndex,
-		paramIndex+1,
+		"WITH page_keys AS MATERIALIZED (SELECT %s FROM \"%s\" WHERE %s %s %s) "+
+			"SELECT t.* FROM page_keys k JOIN \"%s\" t ON t.id = k.id %s",
+		listKeyProjection(keys), tableName, where, innerOrder, pageBounds,
+		tableName, listKeyOrder(keys, "k", false),
 	)
-	values = append(values, limit, offset)
 
 	// Execute query
 	var queryStarted time.Time
 	if metric != nil {
 		queryStarted = metric.StartPhase()
 	}
-	rows, err := p.getExecutor(ctx).QueryContext(ctx, query, values...)
+	rows, err := p.getExecutor(ctx).QueryContext(ctx, query, queryValues...)
 	if metric != nil {
 		metric.EndPhase("query_open", queryStarted)
 	}
@@ -932,26 +961,25 @@ func (p *PostgresOperations) listWithScope(ctx context.Context, tableName string
 	hasPrev := currentPage > 1
 
 	pagination := &commonpb.PaginationResponse{
-		TotalItems: totalItems,
-		HasNext:    hasNext,
-		HasPrev:    hasPrev,
+		TotalItems:  totalItems,
+		HasNext:     hasNext,
+		HasPrev:     hasPrev,
+		CurrentPage: &currentPage,
+		TotalPages:  &totalPages,
 	}
-	if cursorMode {
-		if hasNext {
-			next := fmt.Sprintf("offset:%d", int64(offset)+int64(limit))
+	if hasNext && len(results) > 0 {
+		lastID := fmt.Sprint(results[len(results)-1]["id"])
+		if uuidShaped(lastID) {
+			next := encodeKeysetToken(currentPage+1, "next", lastID)
 			pagination.NextCursor = &next
 		}
-		if offset > 0 {
-			previousOffset := int64(offset) - int64(limit)
-			if previousOffset < 0 {
-				previousOffset = 0
-			}
-			previous := fmt.Sprintf("offset:%d", previousOffset)
+	}
+	if hasPrev && len(results) > 0 {
+		firstID := fmt.Sprint(results[0]["id"])
+		if uuidShaped(firstID) {
+			previous := encodeKeysetToken(currentPage-1, "prev", firstID)
 			pagination.PrevCursor = &previous
 		}
-	} else {
-		pagination.CurrentPage = &currentPage
-		pagination.TotalPages = &totalPages
 	}
 
 	return &interfaces.ListResult{

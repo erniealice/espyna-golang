@@ -8,6 +8,7 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"log"
+	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -16,7 +17,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	leaverequestpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/leave_request"
 )
 
@@ -186,7 +186,7 @@ var leaveRequestSortableSQLCols = []string{
 // GetLeaveRequestListPageData retrieves leave requests with pagination, filtering, sorting, and search.
 // A1: workspace_id = $1 (strict, from context).
 // A2: sort column whitelisted via core.BuildOrderBy.
-// A3: COUNT(*) OVER() for accurate total without a second query.
+// A3: exact total comes from the same scoped relation as the page and boundary.
 func (r *PostgresLeaveRequestRepository) GetLeaveRequestListPageData(
 	ctx context.Context,
 	req *leaverequestpb.GetLeaveRequestListPageDataRequest,
@@ -201,7 +201,7 @@ func (r *PostgresLeaveRequestRepository) GetLeaveRequestListPageData(
 	// A1: strict workspace predicate.
 	workspaceID := identity.Must(ctx).WorkspaceID
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, err
 	}
@@ -212,8 +212,8 @@ func (r *PostgresLeaveRequestRepository) GetLeaveRequestListPageData(
 		return nil, err
 	}
 
-	// A3: COUNT(*) OVER() — accurate total in one pass.
-	query := fmt.Sprintf(`
+	// The scoped relation is counted separately so empty pages retain the exact total.
+	scopedSQL := fmt.Sprintf(`
 		SELECT
 			lr.id,
 			lr.workspace_id,
@@ -227,23 +227,32 @@ func (r *PostgresLeaveRequestRepository) GetLeaveRequestListPageData(
 			lr.approved_on,
 			lr.active,
 			lr.date_created,
-			lr.date_modified,
-			COUNT(*) OVER() AS total
+			lr.date_modified
 		FROM %s lr
 		WHERE lr.workspace_id = $1
-		%s
-		LIMIT $2 OFFSET $3;
-	`, r.tableName, orderByClause)
+	`, r.tableName)
 
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, limit, offset)
+	sortKeys, err := pageSortFromOrderBy(orderByClause)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: scopedSQL, Args: []any{workspaceID}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve leave_request page: %w", err)
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count leave_request page: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query leave_request list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var items []*leaverequestpb.LeaveRequest
-	var totalCount int64
-
 	for rows.Next() {
 		var (
 			id               string
@@ -257,20 +266,17 @@ func (r *PostgresLeaveRequestRepository) GetLeaveRequestListPageData(
 			reason           *string
 			approvedOn       *string
 			active           bool
-			dateCreated      *int64
-			dateModified     *int64
-			total            int64
+			dateCreated      *time.Time
+			dateModified     *time.Time
 		)
 		if scanErr := rows.Scan(
 			&id, &wsID, &supplierID, &leaveTypeID,
 			&startDate, &endDate, &days,
 			&approvedByUserID, &reason, &approvedOn,
 			&active, &dateCreated, &dateModified,
-			&total,
 		); scanErr != nil {
 			return nil, fmt.Errorf("failed to scan leave_request row: %w", scanErr)
 		}
-		totalCount = total
 
 		lr := &leaverequestpb.LeaveRequest{
 			Id:               id,
@@ -284,8 +290,8 @@ func (r *PostgresLeaveRequestRepository) GetLeaveRequestListPageData(
 			Reason:           reason,
 			ApprovedOn:       approvedOn,
 			Active:           active,
-			DateCreated:      dateCreated,
-			DateModified:     dateModified,
+			DateCreated:      pageMillis(dateCreated),
+			DateModified:     pageMillis(dateModified),
 		}
 		items = append(items, lr)
 	}
@@ -293,23 +299,16 @@ func (r *PostgresLeaveRequestRepository) GetLeaveRequestListPageData(
 		return nil, fmt.Errorf("error iterating leave_request rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	firstID, lastID := "", ""
+	if len(items) > 0 {
+		firstID = items[0].GetId()
+		lastID = items[len(items)-1].GetId()
 	}
-	hasNext := page < totalPages
-	hasPrev := page > 1
 
 	return &leaverequestpb.GetLeaveRequestListPageDataResponse{
 		LeaveRequestList: items,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:       scopedPageMetadata(totalCount, queries.Page, firstID, lastID),
+		Success:          true,
 	}, nil
 }
 

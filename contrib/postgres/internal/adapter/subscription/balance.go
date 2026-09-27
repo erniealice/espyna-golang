@@ -61,13 +61,16 @@ var balanceListSortableColumns = []string{
 }
 
 type balanceListQueries struct {
-	countSQL  string
-	dataSQL   string
-	countArgs []any
-	dataArgs  []any
-	limit     int32
-	offset    int32
-	page      int32
+	countSQL    string
+	dataSQL     string
+	countArgs   []any
+	dataArgs    []any
+	scopedSQL   string
+	sortKeys    []postgresCore.AdapterSortKey
+	pageRequest postgresCore.Page
+	limit       int32
+	offset      int32
+	page        int32
 }
 
 func init() {
@@ -271,16 +274,21 @@ func (r *PostgresBalanceRepository) GetBalanceListPageData(ctx context.Context, 
 		return nil, fmt.Errorf("balance list requires a transaction-aware PostgreSQL executor")
 	}
 	exec := executorProvider.GetExecutor(ctx)
+	set := postgresCore.ScopedPageSet{SQL: queries.scopedSQL, Args: queries.countArgs, Sort: queries.sortKeys}
+	resolved, err := postgresCore.ResolveScopedPage(ctx, exec, set, queries.pageRequest)
+	if err != nil {
+		return nil, err
+	}
 
 	var totalItems int64
-	if err := exec.QueryRowContext(ctx, queries.countSQL, queries.countArgs...).Scan(&totalItems); err != nil {
+	if err := exec.QueryRowContext(ctx, resolved.CountSQL, resolved.CountArgs...).Scan(&totalItems); err != nil {
 		return nil, fmt.Errorf("failed to count balance list: %w", err)
 	}
 	if totalItems > math.MaxInt32 {
 		return nil, fmt.Errorf("balance list total exceeds response capacity: %d", totalItems)
 	}
 
-	rows, err := exec.QueryContext(ctx, queries.dataSQL, queries.dataArgs...)
+	rows, err := exec.QueryContext(ctx, resolved.PageSQL, resolved.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute balance list query: %w", err)
 	}
@@ -288,6 +296,7 @@ func (r *PostgresBalanceRepository) GetBalanceListPageData(ctx context.Context, 
 
 	// Scan results
 	var balances []*balancepb.Balance
+	var firstID, lastID string
 	for rows.Next() {
 		var (
 			id               string
@@ -319,6 +328,10 @@ func (r *PostgresBalanceRepository) GetBalanceListPageData(ctx context.Context, 
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan balance row: %w", err)
 		}
+		if firstID == "" {
+			firstID = id
+		}
+		lastID = id
 
 		balance := &balancepb.Balance{
 			Id:             id,
@@ -357,18 +370,7 @@ func (r *PostgresBalanceRepository) GetBalanceListPageData(ctx context.Context, 
 		return nil, fmt.Errorf("error iterating balance rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if totalItems > 0 {
-		totalPages = int32((totalItems + int64(queries.limit) - 1) / int64(queries.limit))
-	}
-	currentPage := queries.page
-	pagination := &commonpb.PaginationResponse{
-		TotalItems:  int32(totalItems),
-		CurrentPage: &currentPage,
-		TotalPages:  &totalPages,
-		HasNext:     currentPage < totalPages,
-		HasPrev:     currentPage > 1,
-	}
+	pagination := scopedPageMetadata(resolved.Page, totalItems, firstID, lastID)
 
 	return &balancepb.GetBalanceListPageDataResponse{
 		BalanceList:   balances,
@@ -386,10 +388,11 @@ func buildBalanceListQueries(req *balancepb.GetBalanceListPageDataRequest, works
 		return nil, fmt.Errorf("balance list workspace is required")
 	}
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("bounded balance pagination: %w", err)
 	}
+	limit, offset, page := pageRequest.Limit, pageRequest.Offset, pageRequest.Number
 	clauses, filterArgs, nextArg, err := postgresCore.BuildFilterWhereMapped(
 		req.GetFilters(),
 		req.GetSearch(),
@@ -403,6 +406,10 @@ func buildBalanceListQueries(req *balancepb.GetBalanceListPageDataRequest, works
 	orderBy, err := postgresCore.BuildOrderBy(balanceListSortableColumns, req.GetSort(), "date_created DESC")
 	if err != nil {
 		return nil, fmt.Errorf("bounded balance sort: %w", err)
+	}
+	sortKeys, err := scopedPageSort(orderBy)
+	if err != nil {
+		return nil, err
 	}
 
 	fromWhere := ` FROM ` + entityid.Balance + ` b
@@ -421,6 +428,13 @@ func buildBalanceListQueries(req *balancepb.GetBalanceListPageDataRequest, works
 	dataArgs := append([]any(nil), countArgs...)
 	dataArgs = append(dataArgs, limit, offset)
 
+	scopedSQL := `WITH enriched AS (
+		SELECT
+			b.id, b.amount, b.date_created, b.date_modified, b.active,
+			b.client_id, b.subscription_id, b.currency, b.balance_type,
+			row_to_json(s.*) AS subscription_data,
+			row_to_json(c.*) AS client_data` + fromWhere + `
+		) SELECT * FROM enriched`
 	return &balanceListQueries{
 		countSQL: "SELECT COUNT(*)" + fromWhere,
 		dataSQL: `WITH enriched AS (
@@ -439,11 +453,14 @@ func buildBalanceListQueries(req *balancepb.GetBalanceListPageDataRequest, works
 		)
 		SELECT * FROM enriched ` + orderBy +
 			fmt.Sprintf(" LIMIT $%d OFFSET $%d", nextArg, nextArg+1),
-		countArgs: countArgs,
-		dataArgs:  dataArgs,
-		limit:     limit,
-		offset:    offset,
-		page:      page,
+		countArgs:   countArgs,
+		dataArgs:    dataArgs,
+		scopedSQL:   scopedSQL,
+		sortKeys:    sortKeys,
+		pageRequest: pageRequest,
+		limit:       limit,
+		offset:      offset,
+		page:        page,
 	}, nil
 }
 

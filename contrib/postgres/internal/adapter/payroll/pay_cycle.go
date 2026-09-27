@@ -8,6 +8,7 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"log"
+	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -16,7 +17,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	paycyclepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/pay_cycle"
 )
 
@@ -186,7 +186,7 @@ var payCycleSortableSQLCols = []string{
 // GetPayCycleListPageData retrieves pay cycles with pagination, filtering, sorting, and search.
 // A1: workspace_id = $1 (strict, from context).
 // A2: sort column whitelisted via core.BuildOrderBy.
-// A3: COUNT(*) OVER() for accurate total without a second query.
+// A3: exact total comes from the same scoped relation as the page and boundary.
 func (r *PostgresPayCycleRepository) GetPayCycleListPageData(
 	ctx context.Context,
 	req *paycyclepb.GetPayCycleListPageDataRequest,
@@ -201,7 +201,7 @@ func (r *PostgresPayCycleRepository) GetPayCycleListPageData(
 	// A1: strict workspace predicate.
 	workspaceID := identity.Must(ctx).WorkspaceID
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, err
 	}
@@ -212,8 +212,8 @@ func (r *PostgresPayCycleRepository) GetPayCycleListPageData(
 		return nil, err
 	}
 
-	// A3: COUNT(*) OVER() — accurate total in one pass.
-	query := fmt.Sprintf(`
+	// The scoped relation is counted separately so empty pages retain the exact total.
+	scopedSQL := fmt.Sprintf(`
 		SELECT
 			pc.id,
 			pc.workspace_id,
@@ -229,23 +229,32 @@ func (r *PostgresPayCycleRepository) GetPayCycleListPageData(
 			pc.employee_count,
 			pc.active,
 			pc.date_created,
-			pc.date_modified,
-			COUNT(*) OVER() AS total
+			pc.date_modified
 		FROM %s pc
 		WHERE pc.workspace_id = $1
-		%s
-		LIMIT $2 OFFSET $3;
-	`, r.tableName, orderByClause)
+	`, r.tableName)
 
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, limit, offset)
+	sortKeys, err := pageSortFromOrderBy(orderByClause)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: scopedSQL, Args: []any{workspaceID}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve pay_cycle page: %w", err)
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count pay_cycle page: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query pay_cycle list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var items []*paycyclepb.PayCycle
-	var totalCount int64
-
 	for rows.Next() {
 		var (
 			id              string
@@ -261,20 +270,17 @@ func (r *PostgresPayCycleRepository) GetPayCycleListPageData(
 			totalNet        int64
 			employeeCount   int32
 			active          bool
-			dateCreated     *int64
-			dateModified    *int64
-			total           int64
+			dateCreated     *time.Time
+			dateModified    *time.Time
 		)
 		if scanErr := rows.Scan(
 			&id, &wsID, &payrollRunID,
 			&cutoffStart, &cutoffEnd, &payDate, &halfIndex,
 			&sequenceNo, &totalGross, &totalDeductions, &totalNet,
 			&employeeCount, &active, &dateCreated, &dateModified,
-			&total,
 		); scanErr != nil {
 			return nil, fmt.Errorf("failed to scan pay_cycle row: %w", scanErr)
 		}
-		totalCount = total
 
 		pc := &paycyclepb.PayCycle{
 			Id:              id,
@@ -290,8 +296,8 @@ func (r *PostgresPayCycleRepository) GetPayCycleListPageData(
 			TotalNet:        totalNet,
 			EmployeeCount:   employeeCount,
 			Active:          active,
-			DateCreated:     dateCreated,
-			DateModified:    dateModified,
+			DateCreated:     pageMillis(dateCreated),
+			DateModified:    pageMillis(dateModified),
 		}
 		items = append(items, pc)
 	}
@@ -299,23 +305,16 @@ func (r *PostgresPayCycleRepository) GetPayCycleListPageData(
 		return nil, fmt.Errorf("error iterating pay_cycle rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	firstID, lastID := "", ""
+	if len(items) > 0 {
+		firstID = items[0].GetId()
+		lastID = items[len(items)-1].GetId()
 	}
-	hasNext := page < totalPages
-	hasPrev := page > 1
 
 	return &paycyclepb.GetPayCycleListPageDataResponse{
 		PayCycleList: items,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:   scopedPageMetadata(totalCount, queries.Page, firstID, lastID),
+		Success:      true,
 	}, nil
 }
 

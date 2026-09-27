@@ -246,7 +246,7 @@ func (r *PostgresProductPricePlanRepository) GetProductPricePlanListPageData(ctx
 	if err != nil {
 		return nil, err
 	}
-	limit, offset, _, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, err
 	}
@@ -280,16 +280,26 @@ func (r *PostgresProductPricePlanRepository) GetProductPricePlanListPageData(ctx
 			LEFT JOIN ` + entityid.PricePlan + ` plpp ON plpp.id = ppp.price_plan_id
 			LEFT JOIN ` + entityid.Plan + ` pl ON pl.id = plpp.plan_id
 			WHERE ppp.active = true
-				AND ($4::text = '' OR pl.workspace_id = $4::text)
+				AND ($2::text = '' OR pl.workspace_id = $2::text)
 				AND ($1::text IS NULL OR $1::text = '' OR ppp.price_plan_id ILIKE $1 OR ppp.product_plan_id ILIKE $1 OR ppp.billing_currency ILIKE $1)
 		)
-		SELECT * FROM enriched ` + orderBy + ` LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
+		SELECT * FROM enriched
+	`
+	sortKeys, err := scopedPageSort(orderBy)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: []any{searchPattern, wsID}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	defer rows.Close()
 	var productPricePlans []*productpriceplanpb.ProductPricePlan
+	var firstID, lastID string
 	for rows.Next() {
 		var id, pricePlanId, productPlanId, billingCurrency string
 		var billingAmount int64
@@ -330,9 +340,24 @@ func (r *PostgresProductPricePlanRepository) GetProductPricePlanListPageData(ctx
 			dmStr := dateModified.Format(time.RFC3339)
 			productPricePlan.DateModifiedString = &dmStr
 		}
+		if firstID == "" {
+			firstID = id
+		}
+		lastID = id
 		productPricePlans = append(productPricePlans, productPricePlan)
 	}
-	return &productpriceplanpb.GetProductPricePlanListPageDataResponse{ProductPricePlanList: productPricePlans, Success: true}, nil
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
+	return &productpriceplanpb.GetProductPricePlanListPageDataResponse{ProductPricePlanList: productPricePlans, Pagination: scopedPageMetadata(queries.Page, totalCount, firstID, lastID), Success: true}, nil
 }
 
 // GetProductPricePlanItemPageData retrieves product price plan item page data

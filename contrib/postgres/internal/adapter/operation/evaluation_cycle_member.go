@@ -16,7 +16,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_cycle_member"
 )
 
@@ -176,7 +175,7 @@ func (r *PostgresEvaluationCycleMemberRepository) GetEvaluationCycleMemberListPa
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 100)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 100)
 	if err != nil {
 		return nil, fmt.Errorf("invalid list pagination: %w", err)
 	}
@@ -184,30 +183,52 @@ func (r *PostgresEvaluationCycleMemberRepository) GetEvaluationCycleMemberListPa
 	if err != nil {
 		return nil, fmt.Errorf("invalid sort for evaluation cycle member list: %w", err)
 	}
+	sortKeys, err := scopedPageSort(orderBy)
+	if err != nil {
+		return nil, err
+	}
 	wsID := identity.Must(ctx).WorkspaceID
 	// Staff row-scope (Phase 4): a STAFF principal sees only the cycle-member
 	// rows whose subject_staff_id is itself ($4). Additive to the workspace ($3)
 	// gate. Non-staff → empty clause; empty session staff.id → fail-closed.
-	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "subject_staff_id", 4)
-	query := `SELECT ` + evaluationCycleMemberSelectCols + `
-		FROM ` + r.tableName + `
-		WHERE active = true AND ($3::text = '' OR workspace_id = $3::text)` + staffClause + ` ` + orderBy + ` LIMIT $1 OFFSET $2;`
-	rows, err := r.db.QueryContext(ctx, query, append([]any{limit, offset, wsID}, staffArgs...)...)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "subject_staff_id", 2)
+	set := postgresCore.ScopedPageSet{SQL: `SELECT ` + evaluationCycleMemberSelectCols + ` FROM ` + r.tableName + ` WHERE active = true AND ($1::text = '' OR workspace_id = $1::text)` + staffClause + staffClause, Args: append([]any{wsID}, staffArgs...), Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	defer rows.Close()
 	var items []*pb.EvaluationCycleMember
+	var firstID, lastID string
 	for rows.Next() {
 		e, scanErr := scanEvaluationCycleMemberRow(rows.Scan)
 		if scanErr != nil {
+			rows.Close()
 			return nil, fmt.Errorf("scan failed: %w", scanErr)
 		}
+		if firstID == "" {
+			firstID = e.Id
+		}
+		lastID = e.Id
 		items = append(items, e)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	var total int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&total); err != nil {
+		return nil, err
 	}
 	return &pb.GetEvaluationCycleMemberListPageDataResponse{
 		EvaluationCycleMemberList: items,
-		Pagination:                &commonpb.PaginationResponse{CurrentPage: &page},
+		Pagination:                scopedPageMetadata(queries.Page, total, firstID, lastID),
 		Success:                   true,
 	}, nil
 }

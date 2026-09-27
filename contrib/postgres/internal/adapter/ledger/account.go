@@ -15,7 +15,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	accountpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/account"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -330,7 +329,7 @@ func (r *PostgresAccountRepository) GetAccountListPageData(ctx context.Context, 
 		return nil, fmt.Errorf("get account list page data request is required")
 	}
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("get account list page data: invalid pagination: %w", err)
 	}
@@ -353,7 +352,7 @@ func (r *PostgresAccountRepository) GetAccountListPageData(ctx context.Context, 
 	// Build parameterized WHERE clauses via shared helper.
 	// $1 is reserved for workspace_id, so filters start at $2.
 	searchFields := []string{"a.name", "a.code"}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMapped(
+	filterClauses, filterArgs, _, err := postgresCore.BuildFilterWhereMapped(
 		req.Filters,
 		req.Search,
 		accountFilterFieldMap,
@@ -369,15 +368,11 @@ func (r *PostgresAccountRepository) GetAccountListPageData(ctx context.Context, 
 		whereStr += " AND " + strings.Join(filterClauses, " AND ")
 	}
 
-	// Parameterized LIMIT/OFFSET come after workspace_id + filter args.
-	limitIdx := nextIdx
-	offsetIdx := nextIdx + 1
+	// Keep workspace_id and all filter arguments in the scoped relation.
 	queryArgs := []any{workspaceID}
 	queryArgs = append(queryArgs, filterArgs...)
-	queryArgs = append(queryArgs, limit, offset)
 
-	query := `
-		WITH enriched AS (
+	scopedSQL := `
 			SELECT
 				a.id,
 				a.code,
@@ -395,24 +390,31 @@ func (r *PostgresAccountRepository) GetAccountListPageData(ctx context.Context, 
 				a.notes,
 				a.active,
 				a.date_created,
-				a.date_modified,
-				COUNT(*) OVER() AS total_count
+				a.date_modified
 			FROM ` + entityid.Account + ` a
 			WHERE a.active = true` + whereStr + `
-		)
-		SELECT * FROM enriched
-		` + orderByClause + fmt.Sprintf(`
-		LIMIT $%d OFFSET $%d`, limitIdx, offsetIdx)
+	`
+	sortKeys, err := pageSortFromOrderBy(orderByClause)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: scopedSQL, Args: queryArgs, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve account page: %w", err)
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count account page: %w", err)
+	}
 
-	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query account list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var accounts []*accountpb.Account
-	var totalCount int64
-
 	for rows.Next() {
 		var (
 			id               string
@@ -432,7 +434,6 @@ func (r *PostgresAccountRepository) GetAccountListPageData(ctx context.Context, 
 			active           bool
 			dateCreated      time.Time
 			dateModified     time.Time
-			total            int64
 		)
 
 		err := rows.Scan(
@@ -453,13 +454,10 @@ func (r *PostgresAccountRepository) GetAccountListPageData(ctx context.Context, 
 			&active,
 			&dateCreated,
 			&dateModified,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan account row: %w", err)
 		}
-
-		totalCount = total
 
 		account := &accountpb.Account{
 			Id:               id,
@@ -509,24 +507,16 @@ func (r *PostgresAccountRepository) GetAccountListPageData(ctx context.Context, 
 	}
 
 	// Calculate pagination metadata
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	firstID, lastID := "", ""
+	if len(accounts) > 0 {
+		firstID = accounts[0].GetId()
+		lastID = accounts[len(accounts)-1].GetId()
 	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
 
 	return &accountpb.GetAccountListPageDataResponse{
 		AccountList: accounts,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:  scopedPageMetadata(totalCount, queries.Page, firstID, lastID),
+		Success:     true,
 	}, nil
 }
 

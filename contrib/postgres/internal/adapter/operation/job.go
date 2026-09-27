@@ -19,7 +19,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job"
 )
@@ -308,7 +307,7 @@ func (r *PostgresJobRepository) GetJobListPageData(
 		return nil, fmt.Errorf("invalid list search: %w", err)
 	}
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("invalid list pagination: %w", err)
 	}
@@ -320,10 +319,10 @@ func (r *PostgresJobRepository) GetJobListPageData(
 	}
 
 	// Row-scope to the active STAFF principal's own jobs (the jobs it teaches/grades).
-	// Non-staff principals: no-op. The staff.id bind is appended AFTER the existing
-	// workspace/search/limit/offset args ($1-$4) so $5 lines up; placeholders are
+	// Non-staff principals: no-op. The staff.id bind follows workspace/search
+	// args ($1-$2), so $3 lines up; placeholders are
 	// positional, independent of SQL clause order.
-	jobScope, jobScopeArgs := principalscope.StaffReachableJobClause(ctx, "j", 5)
+	jobScope, jobScopeArgs := principalscope.StaffReachableJobClause(ctx, "j", 3)
 
 	// Page shape (plan 20260927-db-query-performance, audit DB-07): pick the
 	// page's ids from a narrow sort, fetch full rows for those ids only, and
@@ -361,31 +360,26 @@ func (r *PostgresJobRepository) GetJobListPageData(
 			  AND ($1 = '' OR j.workspace_id = $1)
 			  AND ($2::text IS NULL OR $2::text = '' OR
 			       j.name ILIKE $2)%s
-		),
-		page AS (
-			SELECT e.id
-			FROM enriched e
-			%s
-			LIMIT $3 OFFSET $4
 		)
-		SELECT
-			e.*,
-			(SELECT COUNT(*) FROM enriched) AS total
-		FROM enriched e
-		WHERE e.id IN (SELECT id FROM page)
-		%s;
-	`, jobScope, orderByClause, orderByClause)
-
-	args := []any{workspaceID, searchPattern, limit, offset}
-	args = append(args, jobScopeArgs...)
-	rows, err := r.db.QueryContext(ctx, query, args...)
+		SELECT e.* FROM enriched e
+	`, jobScope)
+	args := append([]any{workspaceID, searchPattern}, jobScopeArgs...)
+	sortKeys, err := scopedPageSort(orderByClause)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: args, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query job list page data: %w", err)
 	}
-	defer rows.Close()
 
 	var jobs []*pb.Job
-	var totalCount int64
+	var firstID, lastID string
 
 	for rows.Next() {
 		var (
@@ -411,7 +405,6 @@ func (r *PostgresJobRepository) GetJobListPageData(
 			cycleIndex       sql.NullInt32
 			cyclePeriodStart sql.NullString
 			cyclePeriodEnd   sql.NullString
-			total            int64
 		)
 
 		err := rows.Scan(
@@ -437,13 +430,15 @@ func (r *PostgresJobRepository) GetJobListPageData(
 			&cycleIndex,
 			&cyclePeriodStart,
 			&cyclePeriodEnd,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan job row: %w", err)
 		}
 
-		totalCount = total
+		if firstID == "" {
+			firstID = id
+		}
+		lastID = id
 
 		job := &pb.Job{
 			Id:     id,
@@ -543,24 +538,18 @@ func (r *PostgresJobRepository) GetJobListPageData(
 		return nil, fmt.Errorf("error iterating job rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
 	}
 
-	hasNext := page < totalPages
-	hasPrev := page > 1
-
 	return &pb.GetJobListPageDataResponse{
-		JobList: jobs,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		JobList:    jobs,
+		Pagination: scopedPageMetadata(queries.Page, totalCount, firstID, lastID),
+		Success:    true,
 	}, nil
 }
 

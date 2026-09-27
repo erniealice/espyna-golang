@@ -390,20 +390,20 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
 	workspaceID := identity.Must(ctx).WorkspaceID
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("get supplier list page data: invalid pagination: %w", err)
 	}
 
 	// Sort — fail-closed against the per-entity whitelist (A2 guard).
-	orderByClause, err := postgresCore.BuildOrderBy(supplierSortableSQLCols, req.GetSort(), "date_created DESC")
+	_, err = postgresCore.BuildOrderBy(supplierSortableSQLCols, req.GetSort(), "date_created DESC")
 	if err != nil {
 		return nil, err
 	}
 
 	// Build filter/search WHERE clauses ($1 is reserved for workspace_id, start at $2)
 	searchFields := []string{"s.name", "s.internal_id", "u.first_name", "u.last_name", "u.email_address"}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMapped(
+	filterClauses, filterArgs, _, err := postgresCore.BuildFilterWhereMapped(
 		req.Filters, req.Search, supplierFilterFieldMap, searchFields, 2,
 	)
 	if err != nil {
@@ -415,14 +415,11 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 		whereSQL += " AND " + strings.Join(filterClauses, " AND ")
 	}
 
-	limitIdx := nextIdx
-	offsetIdx := nextIdx + 1
 	queryArgs := []any{workspaceID}
 	queryArgs = append(queryArgs, filterArgs...)
-	queryArgs = append(queryArgs, limit, offset)
 
 	// CTE Query - Single round-trip with enriched user data
-	query := fmt.Sprintf(`
+	scopedSQL := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				s.id,
@@ -466,31 +463,27 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			LEFT JOIN `+entityid.PaymentTerm+` pt ON s.payment_term_id = pt.id
 			%s
 		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () replaces the prior
-		-- counted CTE + comma cross-join, which forced enriched to be materialized
-		-- twice (once for the rows, once for the count). The window count spans the
-		-- full filtered enriched set (same WHERE) and is computed in the same scan
-		-- before LIMIT/OFFSET, so the total is identical. The enriched joins are 1:1
-		-- (supplier->user, supplier->payment_term, both FK LEFT JOINs), so row
-		-- cardinality is unchanged vs the old COUNT(*). The total still lands in the
-		-- final scan slot, so rows.Scan(...) is unchanged.
-		SELECT
-			e.*,
-			COUNT(*) OVER () AS total
-		FROM enriched e
-		%s
-		LIMIT $%d OFFSET $%d;
-	`, whereSQL, orderByClause, limitIdx, offsetIdx)
+		SELECT * FROM enriched
+	`, whereSQL)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, queryArgs...)
+	q, err := postgresCore.ResolveScopedPage(ctx, exec, postgresCore.ScopedPageSet{
+		SQL: scopedSQL, Args: queryArgs, Sort: pageSortKeys(req.GetSort(), "date_created", true),
+	}, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve supplier page: %w", err)
+	}
+	totalCount, err := countScopedPage(ctx, exec, q)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := exec.QueryContext(ctx, q.PageSQL, q.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query supplier list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var suppliers []*supplierpb.Supplier
-	var totalCount int64
 
 	for rows.Next() {
 		var (
@@ -529,7 +522,6 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			userLastName       *string
 			userEmailAddress   *string
 			userPhoneNumber    *string
-			total              int64
 		)
 
 		err := rows.Scan(
@@ -568,13 +560,10 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 			&userLastName,
 			&userEmailAddress,
 			&userPhoneNumber,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan supplier row: %w", err)
 		}
-
-		totalCount = total
 
 		supplier := buildSupplierFromScan(
 			id, userId, active, internalId, dateCreated, dateModified,
@@ -602,23 +591,24 @@ func (r *PostgresSupplierRepository) GetSupplierListPageData(
 
 	// Calculate pagination metadata
 	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	if q.Page.Limit > 0 {
+		totalPages = int32((totalCount + int64(q.Page.Limit) - 1) / int64(q.Page.Limit))
 	}
-
+	page := q.Page.Number
 	hasNext := page < totalPages
 	hasPrev := page > 1
+	pagination := &commonpb.PaginationResponse{
+		TotalItems: int32(totalCount), CurrentPage: &page, TotalPages: &totalPages,
+		HasNext: hasNext, HasPrev: hasPrev,
+	}
+	if len(suppliers) > 0 {
+		setPageCursors(pagination, suppliers[0].Id, suppliers[len(suppliers)-1].Id, q.Page.Limit)
+	}
 
 	return &supplierpb.GetSupplierListPageDataResponse{
 		SupplierList: suppliers,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:   pagination,
+		Success:      true,
 	}, nil
 }
 

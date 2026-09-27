@@ -19,7 +19,6 @@ import (
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary"
 )
@@ -341,7 +340,7 @@ func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryListPageData(
 		return nil, fmt.Errorf("invalid list search: %w", err)
 	}
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("invalid list pagination: %w", err)
 	}
@@ -368,28 +367,42 @@ func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryListPageData(
 		jos.source, jos.is_authoritative
 	`
 
-	// HAZ-02 close (Q-SEC-7): bind the workspace ($4, session identity — never a
+	// HAZ-02 close (Q-SEC-7): bind the workspace ($2, session identity — never a
 	// request param). Fail-closed: an empty workspace binds jos.workspace_id = ''
-	// which matches no real row. Staff row-scope shifts to $5.
+	// which matches no real row. Staff row-scope uses $3.
 	workspaceID := sessionWorkspaceID(ctx)
-	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "jos.issued_by", 5)
-	query := jobOutcomeSummaryListPageDataSQL(josColumns, staffClause, orderByClause)
-
-	rows, err := r.db.QueryContext(ctx, query, append([]any{searchPattern, limit, offset, workspaceID}, staffArgs...)...)
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "jos.issued_by", 3)
+	query := `WITH enriched AS NOT MATERIALIZED (SELECT ` + josColumns + `
+		FROM ` + entityid.JobOutcomeSummary + ` jos
+		WHERE jos.active = true AND jos.workspace_id = $2
+		AND ($1::text IS NULL OR $1::text = '' OR jos.narrative ILIKE $1)` + staffClause + `)
+		SELECT e.* FROM enriched e`
+	sortKeys, err := scopedPageSort(orderByClause)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: append([]any{searchPattern, workspaceID}, staffArgs...), Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query job outcome summary list page data: %w", err)
 	}
-	defer rows.Close()
 
 	var summaries []*pb.JobOutcomeSummary
-	var totalCount int64
+	var firstID, lastID string
 
 	for rows.Next() {
-		summary, cnt, err := scanJobOutcomeSummaryRowWithTotal(rows)
+		summary, err := scanJobOutcomeSummaryPageRow(rows)
 		if err != nil {
 			return nil, err
 		}
-		totalCount = cnt
+		if firstID == "" {
+			firstID = summary.Id
+		}
+		lastID = summary.Id
 		summaries = append(summaries, summary)
 	}
 
@@ -397,24 +410,18 @@ func (r *PostgresJobOutcomeSummaryRepository) GetJobOutcomeSummaryListPageData(
 		return nil, fmt.Errorf("error iterating job outcome summary rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
 
 	return &pb.GetJobOutcomeSummaryListPageDataResponse{
 		JobOutcomeSummaryList: summaries,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:            scopedPageMetadata(queries.Page, totalCount, firstID, lastID),
+		Success:               true,
 	}, nil
 }
 
@@ -552,6 +559,16 @@ func (f *josFields) dests(total *int64) []any {
 		d = append(d, total)
 	}
 	return d
+}
+
+// scanJobOutcomeSummaryPageRow scans the exact scoped projection (without a
+// window total; ResolveScopedPage supplies the scoped count separately).
+func scanJobOutcomeSummaryPageRow(rows *sql.Rows) (*pb.JobOutcomeSummary, error) {
+	var f josFields
+	if err := rows.Scan(f.dests(nil)...); err != nil {
+		return nil, fmt.Errorf("failed to scan job outcome summary page row: %w", err)
+	}
+	return buildJobOutcomeSummary(&f), nil
 }
 
 // scanJobOutcomeSummaryRowWithTotal scans a row with a trailing total count column

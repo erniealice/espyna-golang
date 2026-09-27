@@ -225,7 +225,7 @@ func (r *PostgresJobActivityRepository) GetJobActivityListPageData(ctx context.C
 	// A1: workspace predicate.
 	workspaceID := identity.Must(ctx).WorkspaceID
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("invalid list pagination: %w", err)
 	}
@@ -263,27 +263,29 @@ func (r *PostgresJobActivityRepository) GetJobActivityListPageData(ctx context.C
 				ja.date_created,
 				ja.active,
 				j.name AS job_name
-			FROM %%s ja
+			FROM %s ja
 			LEFT JOIN `+entityid.Job+` j ON j.id = ja.job_id
 			WHERE ja.active = true
 			  AND ($1 = '' OR ja.workspace_id = $1)
 		)
-		SELECT
-			e.*,
-			COUNT(*) OVER () AS total
-		FROM enriched e
-		%s
-		LIMIT $2 OFFSET $3
-	`, orderByClause)
-
-	rows, err := db.GetDB().QueryContext(ctx, fmt.Sprintf(query, r.tableName), workspaceID, limit, offset)
+		SELECT e.* FROM enriched e
+	`, r.tableName)
+	sortKeys, err := scopedPageSort(orderByClause)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: []any{workspaceID}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, db.GetDB(), set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.GetDB().QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query job activity list page data: %w", err)
 	}
-	defer rows.Close()
 
 	var activities []*pb.JobActivity
-	var totalCount int64
+	var firstID, lastID string
 
 	for rows.Next() {
 		var (
@@ -307,19 +309,21 @@ func (r *PostgresJobActivityRepository) GetJobActivityListPageData(ctx context.C
 			dateCreated    sql.NullTime
 			active         bool
 			jobName        sql.NullString
-			total          int64
 		)
 
 		if err := rows.Scan(
 			&id, &jobId, &jobTaskId, &entryType, &quantity, &unitCost, &totalCost,
 			&currency, &entryDate, &description, &billableStatus, &approvalStatus,
 			&postingStatus, &postedBy, &datePosted, &reversalOfId, &createdBy,
-			&dateCreated, &active, &jobName, &total,
+			&dateCreated, &active, &jobName,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan job activity row: %w", err)
 		}
 
-		totalCount = total
+		if firstID == "" {
+			firstID = id
+		}
+		lastID = id
 
 		activity := &pb.JobActivity{
 			Id:        id,
@@ -384,23 +388,18 @@ func (r *PostgresJobActivityRepository) GetJobActivityListPageData(ctx context.C
 		return nil, fmt.Errorf("error iterating job activity rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
-	hasNext := page < totalPages
-	hasPrev := page > 1
+	var totalCount int64
+	if err := db.GetDB().QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
 
 	return &pb.GetJobActivityListPageDataResponse{
 		JobActivityList: activities,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:      scopedPageMetadata(queries.Page, totalCount, firstID, lastID),
+		Success:         true,
 	}, nil
 }
 

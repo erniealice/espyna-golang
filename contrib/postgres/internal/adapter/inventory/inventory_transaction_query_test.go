@@ -6,19 +6,36 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 )
 
 func TestInventoryTransactionListPageDataSQL_RequiresJoinedItemWorkspace(t *testing.T) {
-	query := inventoryTransactionListPageDataSQL("ORDER BY date_created DESC")
+	query := inventoryTransactionListPageDataSQL()
 
 	for _, want := range []string{
-		"ii.workspace_id = $4",
-		"LIMIT $2 OFFSET $3",
+		"ii.workspace_id = $2",
+		"SELECT * FROM enriched",
 		"($1::text IS NULL",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("inventory transaction page query missing %q:\n%s", want, query)
 		}
+	}
+	q, err := postgresCore.ResolveScopedPage(context.Background(), nil, postgresCore.ScopedPageSet{
+		SQL: query, Args: []any{"%search%", "workspace"},
+		Sort: []postgresCore.AdapterSortKey{{Column: "date_created", Desc: true, NullsFirst: true}},
+	}, postgresCore.Page{Mode: postgresCore.PageModeOffset, Limit: 7, Number: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, sql := range []string{q.PageSQL, q.CountSQL} {
+		if !strings.Contains(sql, "ii.workspace_id = $2") || !strings.Contains(sql, "ii.name ILIKE $1") {
+			t.Fatalf("page/count lost full scope: %s", sql)
+		}
+	}
+	if !strings.Contains(q.PageSQL, "ORDER BY") || !strings.Contains(q.PageSQL, "LIMIT $3 OFFSET $4") {
+		t.Fatalf("page SQL lost sort/limit: %s", q.PageSQL)
 	}
 }
 

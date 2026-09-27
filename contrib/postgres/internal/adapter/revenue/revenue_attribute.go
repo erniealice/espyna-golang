@@ -17,7 +17,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	revenueattributepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_attribute"
 )
 
@@ -230,7 +229,7 @@ func (r *PostgresRevenueAttributeRepository) GetRevenueAttributeListPageData(
 		return nil, err
 	}
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, err
 	}
@@ -247,8 +246,7 @@ func (r *PostgresRevenueAttributeRepository) GetRevenueAttributeListPageData(
 	// workspace_id (rv). Empty wsID = service-to-service call → no scoping. $4 carries it.
 	wsID := identity.Must(ctx).WorkspaceID
 
-	query := `
-		WITH enriched AS (
+	scopedSQL := `
 			SELECT
 				ra.id,
 				ra.revenue_id,
@@ -257,30 +255,36 @@ func (r *PostgresRevenueAttributeRepository) GetRevenueAttributeListPageData(
 				ra.date_created,
 				ra.date_modified,
 				ra.active,
-				COALESCE(rv.name, '') as revenue_name,
-				COUNT(*) OVER() AS total
+				COALESCE(rv.name, '') as revenue_name
 			FROM ` + entityid.RevenueAttribute + ` ra
 			LEFT JOIN ` + entityid.Revenue + ` rv ON ra.revenue_id = rv.id AND rv.active = true
 			WHERE ra.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       ra.value ILIKE $1 OR
 			       rv.name ILIKE $1)
-			  AND ($4::text = '' OR rv.workspace_id = $4::text)
-		)
-		SELECT * FROM enriched
-		` + orderBy + `
-		LIMIT $2 OFFSET $3;
+			  AND ($2::text = '' OR rv.workspace_id = $2::text)
 	`
+	sortKeys, err := pageSortFromOrderBy(orderBy)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: scopedSQL, Args: []any{searchPattern, wsID}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve revenue_attribute page: %w", err)
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count revenue_attribute page: %w", err)
+	}
 
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query revenue attribute list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var attrs []*revenueattributepb.RevenueAttribute
-	var totalCount int64
-
 	for rows.Next() {
 		var (
 			id           string
@@ -291,7 +295,6 @@ func (r *PostgresRevenueAttributeRepository) GetRevenueAttributeListPageData(
 			dateModified time.Time
 			active       bool
 			revenueName  string
-			total        int64
 		)
 
 		err := rows.Scan(
@@ -303,13 +306,10 @@ func (r *PostgresRevenueAttributeRepository) GetRevenueAttributeListPageData(
 			&dateModified,
 			&active,
 			&revenueName,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan revenue attribute row: %w", err)
 		}
-
-		totalCount = total
 
 		attr := &revenueattributepb.RevenueAttribute{
 			Id:          id,
@@ -339,24 +339,16 @@ func (r *PostgresRevenueAttributeRepository) GetRevenueAttributeListPageData(
 		return nil, fmt.Errorf("error iterating revenue attribute rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	firstID, lastID := "", ""
+	if len(attrs) > 0 {
+		firstID = attrs[0].GetId()
+		lastID = attrs[len(attrs)-1].GetId()
 	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
 
 	return &revenueattributepb.GetRevenueAttributeListPageDataResponse{
 		RevenueAttributeList: attrs,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:           scopedPageMetadata(totalCount, queries.Page, firstID, lastID),
+		Success:              true,
 	}, nil
 }
 

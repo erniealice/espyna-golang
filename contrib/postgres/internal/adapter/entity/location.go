@@ -242,7 +242,7 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 		return nil, fmt.Errorf("request is required")
 	}
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("get location list page data: invalid pagination: %w", err)
 	}
@@ -250,7 +250,7 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 	// Sort — fail-closed against the per-entity whitelist (A2 guard). Routes the
 	// caller-supplied column through core.BuildOrderBy instead of interpolating
 	// req.Sort.Fields[0].Field verbatim.
-	orderByClause, err := postgresCore.BuildOrderBy(locationSortableSQLCols, req.GetSort(), "name ASC")
+	_, err = postgresCore.BuildOrderBy(locationSortableSQLCols, req.GetSort(), "name ASC")
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +263,7 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 
 	// Build filter/search WHERE clauses ($1 is reserved for workspace_id, start at $2)
 	searchFields := []string{"l.name", "l.address"}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMapped(
+	filterClauses, filterArgs, _, err := postgresCore.BuildFilterWhereMapped(
 		req.Filters, req.Search, locationFilterFieldMap, searchFields, 2,
 	)
 	if err != nil {
@@ -275,13 +275,10 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 		whereSQL += " AND " + strings.Join(filterClauses, " AND ")
 	}
 
-	limitIdx := nextIdx
-	offsetIdx := nextIdx + 1
 	queryArgs := []any{workspaceID}
 	queryArgs = append(queryArgs, filterArgs...)
-	queryArgs = append(queryArgs, limit, offset)
 
-	query := fmt.Sprintf(`
+	scopedSQL := fmt.Sprintf(`
 		WITH location_attributes_agg AS (
 			SELECT
 				la.location_id,
@@ -313,21 +310,27 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 			LEFT JOIN location_attributes_agg laa ON l.id = laa.location_id
 			%s
 		)
-		SELECT e.*, COUNT(*) OVER() AS total
-		FROM enriched e
-		%s
-		LIMIT $%d OFFSET $%d;
-	`, whereSQL, orderByClause, limitIdx, offsetIdx)
+		SELECT * FROM enriched
+	`, whereSQL)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, queryArgs...)
+	q, err := postgresCore.ResolveScopedPage(ctx, exec, postgresCore.ScopedPageSet{
+		SQL: scopedSQL, Args: queryArgs, Sort: pageSortKeys(req.GetSort(), "name", false),
+	}, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve location page: %w", err)
+	}
+	totalCount, err := countScopedPage(ctx, exec, q)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := exec.QueryContext(ctx, q.PageSQL, q.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query: %w", err)
 	}
 	defer rows.Close()
 
 	var locations []*locationpb.Location
-	var totalCount int64
 
 	for rows.Next() {
 		var (
@@ -342,19 +345,16 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 			locationAreaID *string
 			workspaceID    *string
 			attributesJSON []byte
-			total          int64
 		)
 
 		err := rows.Scan(
 			&id, &name, &address, &description,
 			&active, &dateCreated, &dateModified,
-			&timezone, &locationAreaID, &workspaceID, &attributesJSON, &total,
+			&timezone, &locationAreaID, &workspaceID, &attributesJSON,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan: %w", err)
 		}
-
-		totalCount = total
 
 		location := &locationpb.Location{
 			Id:     id,
@@ -421,20 +421,22 @@ func (r *PostgresLocationRepository) GetLocationListPageData(
 	}
 
 	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	if q.Page.Limit > 0 {
+		totalPages = int32((totalCount + int64(q.Page.Limit) - 1) / int64(q.Page.Limit))
+	}
+	page := q.Page.Number
+	pagination := &commonpb.PaginationResponse{
+		TotalItems: int32(totalCount), CurrentPage: &page, TotalPages: &totalPages,
+		HasNext: page < totalPages, HasPrev: page > 1,
+	}
+	if len(locations) > 0 {
+		setPageCursors(pagination, locations[0].Id, locations[len(locations)-1].Id, q.Page.Limit)
 	}
 
 	return &locationpb.GetLocationListPageDataResponse{
 		LocationList: locations,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     page < totalPages,
-			HasPrev:     page > 1,
-		},
-		Success: true,
+		Pagination:   pagination,
+		Success:      true,
 	}, nil
 }
 

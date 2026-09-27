@@ -288,7 +288,7 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleListPageData(ctx conte
 	if err != nil {
 		return nil, err
 	}
-	limit, offset, _, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, err
 	}
@@ -316,21 +316,29 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleListPageData(ctx conte
 			sort_order
 		FROM ` + entityid.PriceSchedule + `
 		WHERE active = true
-		  AND ($4::text = '' OR workspace_id = $4::text)
+		  AND ($2::text = '' OR workspace_id = $2::text)
 		  AND ($1::text IS NULL OR $1::text = '' OR
 		       name ILIKE $1 OR
 		       description ILIKE $1)
-		` + orderBy + `
-		LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
+	`
+	sortKeys, err := scopedPageSort(orderBy)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: []any{searchPattern, wsID}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	defer rows.Close()
 	var priceSchedules []*priceschedulepb.PriceSchedule
-	var totalCount int64
+	var firstID, lastID string
 	for rows.Next() {
-		var id, name, description string
+		var id, name string
+		var description sql.NullString
 		var active bool
 		var dateCreated, dateModified time.Time
 		var locationId sql.NullString
@@ -339,8 +347,14 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleListPageData(ctx conte
 		if err := rows.Scan(&id, &name, &description, &active, &dateCreated, &dateModified, &locationId, &dateTimeStart, &dateTimeEnd, &sortOrder); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
-		totalCount++
-		priceSchedule := &priceschedulepb.PriceSchedule{Id: id, Name: name, Description: &description, Active: active}
+		if firstID == "" {
+			firstID = id
+		}
+		lastID = id
+		priceSchedule := &priceschedulepb.PriceSchedule{Id: id, Name: name, Active: active}
+		if description.Valid {
+			priceSchedule.Description = &description.String
+		}
 		if locationId.Valid && locationId.String != "" {
 			priceSchedule.LocationId = &locationId.String
 		}
@@ -367,7 +381,18 @@ func (r *PostgresPriceScheduleRepository) GetPriceScheduleListPageData(ctx conte
 		}
 		priceSchedules = append(priceSchedules, priceSchedule)
 	}
-	return &priceschedulepb.GetPriceScheduleListPageDataResponse{PriceScheduleList: priceSchedules, Success: true}, nil
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
+	return &priceschedulepb.GetPriceScheduleListPageDataResponse{PriceScheduleList: priceSchedules, Pagination: scopedPageMetadata(queries.Page, totalCount, firstID, lastID), Success: true}, nil
 }
 
 // GetPriceScheduleItemPageData retrieves price schedule item page data

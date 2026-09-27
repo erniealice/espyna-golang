@@ -230,7 +230,7 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaListPageData(
 		return nil, fmt.Errorf("bounded search: %w", searchErr)
 	}
 
-	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, paginationErr := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if paginationErr != nil {
 		return nil, fmt.Errorf("bounded pagination: %w", paginationErr)
 	}
@@ -239,7 +239,7 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaListPageData(
 	// projects only the columns below, so ORDER BY against the outer enriched e
 	// can only reference these; an unknown column errors instead of being
 	// interpolated verbatim.
-	orderByClause, err := postgresCore.BuildOrderBy(locationAreaListPageSortableSQLCols, req.GetSort(), "date_created DESC")
+	_, err := postgresCore.BuildOrderBy(locationAreaListPageSortableSQLCols, req.GetSort(), "date_created DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +250,7 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaListPageData(
 	}
 	workspaceID := requestIdentity.WorkspaceID
 
-	query := `
+	scopedSQL := `
 		WITH enriched AS (
 			SELECT
 				id,
@@ -266,25 +266,28 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaListPageData(
 				   name ILIKE $2 OR
 				   description ILIKE $2)
 		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
-		SELECT
-			e.*,
-			COUNT(*) OVER () AS total
-		FROM enriched e
-		` + orderByClause + `
-		LIMIT $3 OFFSET $4;
+		SELECT * FROM enriched
 	`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
+	q, err := postgresCore.ResolveScopedPage(ctx, exec, postgresCore.ScopedPageSet{
+		SQL: scopedSQL, Args: []any{workspaceID, searchPattern},
+		Sort: pageSortKeys(req.GetSort(), "date_created", true),
+	}, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve location area page: %w", err)
+	}
+	totalCount, err := countScopedPage(ctx, exec, q)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := exec.QueryContext(ctx, q.PageSQL, q.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query location area list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var locationAreas []*locationareapb.LocationArea
-	var totalCount int64
 
 	for rows.Next() {
 		var (
@@ -294,7 +297,6 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaListPageData(
 			active       bool
 			dateCreated  *time.Time
 			dateModified *time.Time
-			total        int64
 		)
 
 		err := rows.Scan(
@@ -304,13 +306,10 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaListPageData(
 			&active,
 			&dateCreated,
 			&dateModified,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan location area row: %w", err)
 		}
-
-		totalCount = total
 
 		locationArea := &locationareapb.LocationArea{
 			Id:          id,
@@ -340,23 +339,24 @@ func (r *PostgresLocationAreaRepository) GetLocationAreaListPageData(
 	}
 
 	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	if q.Page.Limit > 0 {
+		totalPages = int32((totalCount + int64(q.Page.Limit) - 1) / int64(q.Page.Limit))
 	}
-
+	page := q.Page.Number
 	hasNext := page < totalPages
 	hasPrev := page > 1
+	pagination := &commonpb.PaginationResponse{
+		TotalItems: int32(totalCount), CurrentPage: &page, TotalPages: &totalPages,
+		HasNext: hasNext, HasPrev: hasPrev,
+	}
+	if len(locationAreas) > 0 {
+		setPageCursors(pagination, locationAreas[0].Id, locationAreas[len(locationAreas)-1].Id, q.Page.Limit)
+	}
 
 	return &locationareapb.GetLocationAreaListPageDataResponse{
 		LocationAreaList: locationAreas,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:       pagination,
+		Success:          true,
 	}, nil
 }
 

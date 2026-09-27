@@ -21,7 +21,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 )
 
@@ -765,7 +764,7 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseListPageData(
 		return nil, fmt.Errorf("invalid list search: %w", err)
 	}
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("invalid list pagination: %w", err)
 	}
@@ -779,11 +778,11 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseListPageData(
 		return nil, err
 	}
 
-	// FIX-4: bind trusted job.workspace_id ancestry unconditionally (workspace = $4)
+	// FIX-4: bind trusted job.workspace_id ancestry (workspace = $2)
 	// when the context carries a workspace — SHADOW-independent tenant scoping for
 	// this page projection.
-	wsJoin, wsID, wsScoped := jobWorkspaceScope(ctx, 4)
-	queryArgs := []any{searchPattern, limit, offset}
+	wsJoin, wsID, wsScoped := jobWorkspaceScope(ctx, 2)
+	queryArgs := []any{searchPattern}
 	if wsScoped {
 		queryArgs = append(queryArgs, wsID)
 	}
@@ -804,31 +803,24 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseListPageData(
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       jp.name ILIKE $1)
 		)
-		-- A3 (Q-PAGE-COUNT heavyweight tier, plan 20260927-db-query-performance
-		-- DB-07): page ids come from a narrow sort, full rows are fetched for those
-		-- ids only, and the total is one scalar count. COUNT(*) OVER () held every
-		-- matching row of this high-volume table in a temp file before the LIMIT.
-		, page AS (
-			SELECT e.id
-			FROM enriched e
-			` + orderByClause + `
-			LIMIT $2 OFFSET $3
-		)
-		SELECT
-			e.*, (SELECT COUNT(*) FROM enriched) AS total
-		FROM enriched e
-		WHERE e.id IN (SELECT id FROM page)
-		` + orderByClause + `;
+		SELECT e.* FROM enriched e
 	`
-
-	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
+	sortKeys, err := scopedPageSort(orderByClause)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: queryArgs, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query job phase list page data: %w", err)
 	}
-	defer rows.Close()
 
 	var phases []*pb.JobPhase
-	var totalCount int64
+	var firstID, lastID string
 
 	for rows.Next() {
 		var (
@@ -841,19 +833,19 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseListPageData(
 			phaseOrder   int32
 			status       string
 			approval     jobPhaseApprovalScan
-			total        int64
 		)
 
-		// Scan order must match the CTE SELECT (e.* then COUNT(*) OVER () AS total):
-		// base cols, jobPhaseApprovalCols, then total.
+		// Scan order matches the scoped projection: base cols, then approval cols.
 		dest := []any{&id, &dateCreated, &dateModified, &active, &jobID, &name, &phaseOrder, &status}
 		dest = append(dest, approval.scanDest()...)
-		dest = append(dest, &total)
 		if err := rows.Scan(dest...); err != nil {
 			return nil, fmt.Errorf("failed to scan job phase row: %w", err)
 		}
 
-		totalCount = total
+		if firstID == "" {
+			firstID = id
+		}
+		lastID = id
 
 		phase := &pb.JobPhase{
 			Id:         id,
@@ -889,24 +881,18 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseListPageData(
 		return nil, fmt.Errorf("error iterating job phase rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
 
 	return &pb.GetJobPhaseListPageDataResponse{
 		JobPhaseList: phases,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:   scopedPageMetadata(queries.Page, totalCount, firstID, lastID),
+		Success:      true,
 	}, nil
 }
 

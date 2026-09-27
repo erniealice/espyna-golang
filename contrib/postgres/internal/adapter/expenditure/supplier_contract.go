@@ -8,6 +8,7 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -17,7 +18,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	suppliercontractpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract"
 )
 
@@ -210,7 +210,7 @@ func (r *PostgresSupplierContractRepository) GetSupplierContractListPageData(
 		return nil, fmt.Errorf("bounded search: %w", searchErr)
 	}
 
-	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, paginationErr := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if paginationErr != nil {
 		return nil, fmt.Errorf("bounded pagination: %w", paginationErr)
 	}
@@ -220,8 +220,7 @@ func (r *PostgresSupplierContractRepository) GetSupplierContractListPageData(
 		return nil, err
 	}
 
-	query := `
-		WITH enriched AS (
+	scopedSQL := `
 			SELECT
 				sc.id,
 				sc.date_created,
@@ -240,8 +239,7 @@ func (r *PostgresSupplierContractRepository) GetSupplierContractListPageData(
 				sc.remaining_amount,
 				sc.reference_number,
 				sc.location_id,
-				COALESCE(s.name, '') AS supplier_name,
-				COUNT(*) OVER() AS total
+				COALESCE(s.name, '') AS supplier_name
 			FROM ` + entityid.SupplierContract + ` sc
 			LEFT JOIN ` + entityid.Supplier + ` s ON sc.supplier_id = s.id AND s.active = true
 			WHERE sc.active = true
@@ -250,22 +248,30 @@ func (r *PostgresSupplierContractRepository) GetSupplierContractListPageData(
 			       sc.name ILIKE $2 OR
 			       sc.reference_number ILIKE $2 OR
 			       s.name ILIKE $2)
-		)
-		SELECT * FROM enriched
-		` + orderBy + `
-		LIMIT $3 OFFSET $4;
 	`
-
 	workspaceID := identity.Must(ctx).WorkspaceID
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
+
+	sortKeys, err := pageSortFromOrderBy(orderBy)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: scopedSQL, Args: []any{workspaceID, searchPattern}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve supplier_contract page: %w", err)
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count supplier_contract page: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query supplier_contract list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var contracts []*suppliercontractpb.SupplierContract
-	var totalCount int64
-
 	for rows.Next() {
 		var (
 			id              string
@@ -273,8 +279,8 @@ func (r *PostgresSupplierContractRepository) GetSupplierContractListPageData(
 			dateModified    time.Time
 			active          bool
 			name            string
-			kind            int32
-			status          int32
+			kind            string
+			status          string
 			supplierID      *string
 			currency        string
 			dateTimeStart   string
@@ -286,7 +292,6 @@ func (r *PostgresSupplierContractRepository) GetSupplierContractListPageData(
 			referenceNumber *string
 			locationID      *string
 			supplierName    string
-			total           int64
 		)
 		err := rows.Scan(
 			&id, &dateCreated, &dateModified, &active, &name,
@@ -294,19 +299,32 @@ func (r *PostgresSupplierContractRepository) GetSupplierContractListPageData(
 			&dateTimeStart, &dateTimeEnd,
 			&committedAmount, &releasedAmount, &billedAmount, &remainingAmount,
 			&referenceNumber, &locationID,
-			&supplierName, &total,
+			&supplierName,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan supplier_contract row: %w", err)
 		}
-		totalCount = total
+		kindValue, ok := suppliercontractpb.SupplierContractKind_value[kind]
+		if !ok {
+			kindValue, ok = suppliercontractpb.SupplierContractKind_value["SUPPLIER_CONTRACT_KIND_"+strings.ToUpper(kind)]
+		}
+		if !ok {
+			return nil, fmt.Errorf("unknown supplier_contract kind %q", kind)
+		}
+		statusValue, ok := suppliercontractpb.SupplierContractStatus_value[status]
+		if !ok {
+			statusValue, ok = suppliercontractpb.SupplierContractStatus_value["SUPPLIER_CONTRACT_STATUS_"+strings.ToUpper(status)]
+		}
+		if !ok {
+			return nil, fmt.Errorf("unknown supplier_contract status %q", status)
+		}
 
 		sc := &suppliercontractpb.SupplierContract{
 			Id:              id,
 			Active:          active,
 			Name:            name,
-			Kind:            suppliercontractpb.SupplierContractKind(kind),
-			Status:          suppliercontractpb.SupplierContractStatus(status),
+			Kind:            suppliercontractpb.SupplierContractKind(kindValue),
+			Status:          suppliercontractpb.SupplierContractStatus(statusValue),
 			Currency:        currency,
 			DateTimeStart:   dateTimeStart,
 			ReferenceNumber: referenceNumber,
@@ -338,23 +356,16 @@ func (r *PostgresSupplierContractRepository) GetSupplierContractListPageData(
 		return nil, fmt.Errorf("error iterating supplier_contract rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	firstID, lastID := "", ""
+	if len(contracts) > 0 {
+		firstID = contracts[0].GetId()
+		lastID = contracts[len(contracts)-1].GetId()
 	}
-	hasNext := page < totalPages
-	hasPrev := page > 1
 
 	return &suppliercontractpb.GetSupplierContractListPageDataResponse{
 		SupplierContractList: contracts,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:           scopedPageMetadata(totalCount, queries.Page, firstID, lastID),
+		Success:              true,
 	}, nil
 }
 

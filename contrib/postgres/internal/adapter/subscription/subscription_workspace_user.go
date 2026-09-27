@@ -229,7 +229,7 @@ func (r *PostgresSubscriptionWorkspaceUserRepository) GetSubscriptionWorkspaceUs
 	if err != nil {
 		return nil, err
 	}
-	limit, offset, _, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, err
 	}
@@ -242,22 +242,47 @@ func (r *PostgresSubscriptionWorkspaceUserRepository) GetSubscriptionWorkspaceUs
 	query := `SELECT id, subscription_id, client_id, workspace_user_id, is_owner, active, date_created, date_modified
 		FROM ` + entityid.SubscriptionWorkspaceUser + `
 		WHERE active = true
-			AND ($4::text = '' OR workspace_id = $4::text)
-			AND ($1::text IS NULL OR $1::text = '' OR subscription_id ILIKE $1 OR workspace_user_id ILIKE $1) ` + orderBy + ` LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
+			AND ($2::text = '' OR workspace_id = $2::text)
+			AND ($1::text IS NULL OR $1::text = '' OR subscription_id ILIKE $1 OR workspace_user_id ILIKE $1)
+	`
+	sortKeys, err := scopedPageSort(orderBy)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: []any{searchPattern, wsID}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	defer rows.Close()
 	var subscriptionWorkspaceUsers []*subscriptionworkspaceuserpb.SubscriptionWorkspaceUser
+	var firstID, lastID string
 	for rows.Next() {
 		swu, scanErr := scanSubscriptionWorkspaceUserRow(rows.Scan)
 		if scanErr != nil {
 			return nil, fmt.Errorf("scan failed: %w", scanErr)
 		}
+		if firstID == "" {
+			firstID = swu.Id
+		}
+		lastID = swu.Id
 		subscriptionWorkspaceUsers = append(subscriptionWorkspaceUsers, swu)
 	}
-	return &subscriptionworkspaceuserpb.GetSubscriptionWorkspaceUserListPageDataResponse{SubscriptionWorkspaceUserList: subscriptionWorkspaceUsers, Success: true}, nil
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
+	return &subscriptionworkspaceuserpb.GetSubscriptionWorkspaceUserListPageDataResponse{SubscriptionWorkspaceUserList: subscriptionWorkspaceUsers, Pagination: scopedPageMetadata(queries.Page, totalCount, firstID, lastID), Success: true}, nil
 }
 
 // GetSubscriptionWorkspaceUserItemPageData retrieves subscription workspace user item page data

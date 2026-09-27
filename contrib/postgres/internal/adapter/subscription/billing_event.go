@@ -17,7 +17,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 )
 
@@ -223,7 +222,7 @@ func (r *PostgresBillingEventRepository) GetBillingEventListPageData(
 		return nil, fmt.Errorf("get billing event list page data request is required")
 	}
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, err
 	}
@@ -249,21 +248,26 @@ func (r *PostgresBillingEventRepository) GetBillingEventListPageData(
 			SELECT be.* FROM ` + entityid.BillingEvent + ` be
 			LEFT JOIN ` + entityid.Subscription + ` s ON be.subscription_id = s.id
 			WHERE be.active = true
-			  AND ($3::text = '' OR s.workspace_id = $3::text)
+			  AND ($1::text = '' OR s.workspace_id = $1::text)
 		)
-		SELECT b.*, COUNT(*) OVER () AS total
-		FROM base b
-		` + orderBy + `
-		LIMIT $1 OFFSET $2;`
+		SELECT b.* FROM base b`
+	sortKeys, err := scopedPageSort(orderBy)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: []any{wsID}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
 
-	rows, err := r.db.QueryContext(ctx, query, limit, offset, wsID)
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query billing event list page data: %w", err)
 	}
-	defer rows.Close()
 
 	var events []*pb.BillingEvent
-	var totalCount int64
+	var firstID, lastID string
 	for rows.Next() {
 		raw := map[string]any{}
 		cols, err := rows.Columns()
@@ -281,36 +285,33 @@ func (r *PostgresBillingEventRepository) GetBillingEventListPageData(
 		for i, c := range cols {
 			raw[c] = vals[i]
 		}
-		if t, ok := raw["total"].(int64); ok {
-			totalCount = t
-		}
-		delete(raw, "total")
-
 		// Convert to camelCase keys for protojson.
 		dataJSON, _ := json.Marshal(postgresCore.DenormalizeKeys(raw))
 		ev := &pb.BillingEvent{}
 		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(dataJSON, ev); err == nil {
+			if firstID == "" {
+				firstID = ev.Id
+			}
+			lastID = ev.Id
 			events = append(events, ev)
 		}
 	}
-
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
 	}
-	hasNext := page < totalPages
-	hasPrev := page > 1
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
 
 	return &pb.GetBillingEventListPageDataResponse{
 		BillingEventList: events,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:       scopedPageMetadata(queries.Page, totalCount, firstID, lastID),
+		Success:          true,
 	}, nil
 }
 

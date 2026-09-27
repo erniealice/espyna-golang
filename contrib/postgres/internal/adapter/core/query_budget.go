@@ -205,6 +205,49 @@ func BoundedOffsetPagination(p *commonpb.PaginationRequest, defaultLimit int32) 
 	return limit, offset, page, nil
 }
 
+// PageMode identifies how a bounded adapter page is selected.
+type PageMode string
+
+const (
+	PageModeOffset PageMode = "offset"
+	PageModeKeyset PageMode = "keyset"
+)
+
+// Page is a validated adapter request. A keyset boundary is only a candidate
+// until ResolveScopedPage finds it inside the adapter's scoped relation.
+type Page struct {
+	Mode                  PageMode
+	Limit, Offset, Number int32
+	BoundaryID, Direction string
+}
+
+// BoundedPageRequest accepts offset, legacy offset-token and k1 requests.
+// Invalid opaque tokens use the first offset page; invalid explicit bounds
+// still return an error. BoundedOffsetPagination retains its old contract.
+func BoundedPageRequest(p *commonpb.PaginationRequest, defaultLimit int32) (Page, error) {
+	if defaultLimit <= 0 || defaultLimit > maxQueryPageSize {
+		return Page{}, fmt.Errorf("invalid adapter default page size %d", defaultLimit)
+	}
+	if p == nil {
+		return Page{Mode: PageModeOffset, Limit: defaultLimit, Number: 1}, nil
+	}
+	request := &commonpb.PaginationRequest{Limit: p.GetLimit(), Method: p.Method}
+	if request.Limit == 0 {
+		request.Limit = defaultLimit
+	}
+	limit, offset, _, err := listPaginationBounds(request)
+	if err != nil {
+		return Page{}, err
+	}
+	page := Page{Mode: PageModeOffset, Limit: limit, Offset: offset, Number: offset/limit + 1}
+	if cursor := request.GetCursor(); cursor != nil {
+		if token, ok := decodeKeysetToken(cursor.GetToken(), limit); ok {
+			page.Mode, page.Number, page.BoundaryID, page.Direction = PageModeKeyset, token.page, token.id, token.direction
+		}
+	}
+	return page, nil
+}
+
 func validateFilterBudget(filters *commonpb.FilterRequest) error {
 	if filters == nil {
 		return nil
@@ -419,10 +462,8 @@ func validateNullOrder(nullOrder commonpb.NullOrder) error {
 	}
 }
 
-// listPaginationBounds validates and normalizes offset/cursor pagination.
-// cursor tokens intentionally support only the repository's existing
-// "offset:<n>" contract; malformed/oversized cursors fail closed instead of
-// silently restarting at page one.
+// listPaginationBounds validates finite pagination work. An invalid opaque
+// cursor returns page one so a stale browser URL remains usable.
 func listPaginationBounds(p *commonpb.PaginationRequest) (limit int32, offset int32, cursorMode bool, err error) {
 	limit = maxQueryPageSize
 	if p == nil {
@@ -449,22 +490,25 @@ func listPaginationBounds(p *commonpb.PaginationRequest) (limit int32, offset in
 		return limit, int32(calculated), false, nil
 	case *commonpb.PaginationRequest_Cursor:
 		if method.Cursor == nil {
-			return 0, 0, false, fmt.Errorf("pagination cursor is required")
+			return limit, 0, true, nil
 		}
 		token := method.Cursor.GetToken()
 		if runeLen(token) > maxQueryCursorRunes {
-			return 0, 0, false, fmt.Errorf("pagination cursor exceeds %d characters", maxQueryCursorRunes)
+			return limit, 0, true, nil
 		}
 		if token == "" {
 			return limit, 0, true, nil
 		}
+		if key, ok := decodeKeysetToken(token, limit); ok {
+			return limit, (key.page - 1) * limit, true, nil
+		}
 		prefix, rawOffset, ok := strings.Cut(token, ":")
 		if !ok || prefix != "offset" || rawOffset == "" {
-			return 0, 0, false, fmt.Errorf("invalid pagination cursor")
+			return limit, 0, true, nil
 		}
 		parsed, parseErr := strconv.ParseInt(rawOffset, 10, 32)
 		if parseErr != nil || parsed < 0 || parsed > maxQueryOffset {
-			return 0, 0, false, fmt.Errorf("invalid pagination cursor offset")
+			return limit, 0, true, nil
 		}
 		return limit, int32(parsed), true, nil
 	default:

@@ -354,7 +354,7 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 	// Extract workspace_id from context (REQUIRED for multi-tenancy)
 	workspaceID := identity.Must(ctx).WorkspaceID
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("get revenue list page data: invalid pagination: %w", err)
 	}
@@ -370,7 +370,7 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 
 	// Build parameterized WHERE clauses via shared helper ($1 is reserved for workspace_id, start at $2)
 	searchFields := []string{"rv.reference_number", "c.name"}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMapped(
+	filterClauses, filterArgs, _, err := postgresCore.BuildFilterWhereMapped(
 		req.Filters, req.Search, revenueFilterFieldMap, searchFields, 2,
 	)
 	if err != nil {
@@ -382,18 +382,14 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 		whereStr = " AND " + strings.Join(filterClauses, " AND ")
 	}
 
-	// Parameterized LIMIT/OFFSET come after filter args
-	limitIdx := nextIdx
-	offsetIdx := nextIdx + 1
-	// workspace_id is $1; filter args follow; then limit/offset
+	// Keep all filter arguments in the scoped relation.
+	// workspace_id is $1; filter args follow.
 	queryArgs := []any{workspaceID}
 	queryArgs = append(queryArgs, filterArgs...)
-	queryArgs = append(queryArgs, limit, offset)
 
 	// 20260517 advance-cash-events: expose `advance_collection_id` so the list
 	// row can flag advance-amortization revenue without a second round-trip.
-	query := `
-		WITH enriched AS (
+	scopedSQL := `
 			SELECT
 				rv.id,
 				rv.date_created,
@@ -416,27 +412,34 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 				COALESCE(c.name, '') as client_name,
 				COALESCE(l.name, '') as location_name,
 				COALESCE(pt.name, '') as payment_term_name,
-				EXISTS(SELECT 1 FROM ` + entityid.TreasuryCollection + ` tc WHERE tc.revenue_id = rv.id) as has_collection,
-				COUNT(*) OVER() AS total_count
+				EXISTS(SELECT 1 FROM ` + entityid.TreasuryCollection + ` tc WHERE tc.revenue_id = rv.id) as has_collection
 			FROM ` + r.tableName + ` rv
 			LEFT JOIN ` + entityid.Client + ` c ON rv.client_id = c.id AND c.active = true
 			LEFT JOIN ` + entityid.Location + ` l ON rv.location_id = l.id AND l.active = true
 			LEFT JOIN ` + entityid.PaymentTerm + ` pt ON rv.payment_term_id = pt.id
 			WHERE rv.active = true AND rv.workspace_id = $1` + whereStr + `
-		)
-		SELECT * FROM enriched
-		` + orderBy + fmt.Sprintf(`
-		LIMIT $%d OFFSET $%d`, limitIdx, offsetIdx)
+	`
+	sortKeys, err := pageSortFromOrderBy(orderBy)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: scopedSQL, Args: queryArgs, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve revenue page: %w", err)
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count revenue page: %w", err)
+	}
 
-	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query revenue list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var revenues []*revenuepb.Revenue
-	var totalCount int64
-
 	for rows.Next() {
 		var (
 			id                  string
@@ -461,7 +464,6 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 			locationName        string
 			paymentTermName     string
 			hasCollection       bool
-			total               int64
 		)
 
 		err := rows.Scan(
@@ -487,13 +489,10 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 			&locationName,
 			&paymentTermName,
 			&hasCollection,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan revenue row: %w", err)
 		}
-
-		totalCount = total
 
 		revenue := &revenuepb.Revenue{
 			Id:                id,
@@ -563,24 +562,16 @@ func (r *PostgresRevenueRepository) GetRevenueListPageData(
 		return nil, fmt.Errorf("error iterating revenue rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	firstID, lastID := "", ""
+	if len(revenues) > 0 {
+		firstID = revenues[0].GetId()
+		lastID = revenues[len(revenues)-1].GetId()
 	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
 
 	return &revenuepb.GetRevenueListPageDataResponse{
 		RevenueList: revenues,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:  scopedPageMetadata(totalCount, queries.Page, firstID, lastID),
+		Success:     true,
 	}, nil
 }
 

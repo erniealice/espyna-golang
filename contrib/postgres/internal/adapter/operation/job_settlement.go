@@ -16,7 +16,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_settlement"
 )
 
@@ -218,7 +217,7 @@ func (r *PostgresJobSettlementRepository) ListJobSettlements(ctx context.Context
 
 // GetJobSettlementListPageData retrieves paginated, filtered, sorted job settlements with activity JOINs
 func (r *PostgresJobSettlementRepository) GetJobSettlementListPageData(ctx context.Context, req *pb.GetJobSettlementListPageDataRequest) (*pb.GetJobSettlementListPageDataResponse, error) {
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 20)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 20)
 	if err != nil {
 		return nil, fmt.Errorf("invalid job settlement list pagination: %w", err)
 	}
@@ -262,7 +261,7 @@ func (r *PostgresJobSettlementRepository) GetJobSettlementListPageData(ctx conte
 			SELECT js.*
 			FROM ` + entityid.JobSettlement + ` js
 			WHERE js.active = true
-				AND ($6::text = '' OR js.workspace_id = $6::text)
+				AND ($2::text = '' OR js.workspace_id = $2::text)
 				AND ($1::text = '' OR js.target_id ILIKE $1)
 		),
 		enriched AS (
@@ -288,50 +287,30 @@ func (r *PostgresJobSettlementRepository) GetJobSettlementListPageData(ctx conte
 				) as job_activity
 			FROM search_filtered sf
 			LEFT JOIN ` + entityid.JobActivity + ` ja ON sf.job_activity_id = ja.id AND ja.active = true
-		),
-		sorted AS (
-			SELECT * FROM enriched
-			ORDER BY
-				CASE WHEN ($4 = 'date_created' OR $4 = '') AND $5 = 'DESC' THEN date_created END DESC,
-				CASE WHEN $4 = 'date_created' AND $5 = 'ASC' THEN date_created END ASC,
-				CASE WHEN $4 = 'allocated_amount' AND $5 = 'DESC' THEN allocated_amount END DESC,
-				CASE WHEN $4 = 'allocated_amount' AND $5 = 'ASC' THEN allocated_amount END ASC,
-				CASE WHEN $4 = 'settlement_date' AND $5 = 'DESC' THEN settlement_date END DESC,
-				CASE WHEN $4 = 'settlement_date' AND $5 = 'ASC' THEN settlement_date END ASC
 		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
-		SELECT
-			s.id,
-			s.job_activity_id,
-			s.target_type,
-			s.target_id,
-			s.allocated_amount,
-			s.allocation_pct,
-			s.settlement_date,
-			s.status,
-			s.reversal_of_id,
-			s.created_by,
-			s.date_created,
-			s.active,
-			s.job_activity,
-			COUNT(*) OVER () AS _total_count
-		FROM sorted s
-		LIMIT $2 OFFSET $3
+		SELECT * FROM enriched
 	`
+	if sortField == "" {
+		sortField = "date_created"
+	}
+	sortKeys := []postgresCore.AdapterSortKey{{Column: sortField, Desc: sortDirection == "DESC", NullsFirst: sortDirection == "DESC"}}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: []any{searchQuery, wsID}, Sort: sortKeys}
 
 	if r.db == nil {
 		return nil, fmt.Errorf("database connection not available for raw SQL queries")
 	}
 
-	rows, err := r.db.QueryContext(ctx, query, searchQuery, limit, offset, sortField, sortDirection, wsID)
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute GetJobSettlementListPageData query: %w", err)
 	}
-	defer rows.Close()
 
 	var settlements []*pb.JobSettlement
-	var totalCount int32
+	var firstID, lastID string
 
 	for rows.Next() {
 		var (
@@ -348,20 +327,22 @@ func (r *PostgresJobSettlementRepository) GetJobSettlementListPageData(ctx conte
 			dateCreated     sql.NullTime
 			active          bool
 			jobActivityJSON []byte
-			rowTotalCount   int32
 		)
 
 		err := rows.Scan(
 			&id, &jobActivityId, &targetType, &targetId,
 			&allocatedAmount, &allocationPct, &settlementDate,
 			&status, &reversalOfId, &createdBy, &dateCreated, &active,
-			&jobActivityJSON, &rowTotalCount,
+			&jobActivityJSON,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan job settlement row: %w", err)
 		}
 
-		totalCount = rowTotalCount
+		if firstID == "" {
+			firstID = id
+		}
+		lastID = id
 
 		settlement := &pb.JobSettlement{
 			Id:              id,
@@ -398,20 +379,17 @@ func (r *PostgresJobSettlementRepository) GetJobSettlementListPageData(ctx conte
 		return nil, fmt.Errorf("error iterating job settlement rows: %w", err)
 	}
 
-	totalPages := (totalCount + limit - 1) / limit
-	hasNext := page < totalPages
-	hasPrev := page > 1
-
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
 	return &pb.GetJobSettlementListPageDataResponse{
 		Success:           true,
 		JobSettlementList: settlements,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  totalCount,
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
+		Pagination:        scopedPageMetadata(queries.Page, totalCount, firstID, lastID),
 	}, nil
 }
 

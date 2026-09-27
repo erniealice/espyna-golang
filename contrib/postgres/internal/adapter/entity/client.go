@@ -548,7 +548,7 @@ func (r *PostgresClientRepository) GetClientListPageData(
 	metric := postgresCore.BeginConversionMetric(ctx, r.tableName, "list", "typed-client-page")
 	if metric != nil {
 		defer metric.Finish()
-		metric.SetColumns(33)
+		metric.SetColumns(32)
 	}
 
 	// Validate sort columns against the extended allowlist (includes "active_subscriptions").
@@ -562,7 +562,7 @@ func (r *PostgresClientRepository) GetClientListPageData(
 	}
 	workspaceID := requestIdentity.WorkspaceID
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("invalid client pagination: %w", err)
 	}
@@ -570,7 +570,7 @@ func (r *PostgresClientRepository) GetClientListPageData(
 	// Sort — fail-closed against the per-entity whitelist (A2 guard). Default
 	// name ASC matches the view layer default. An unknown sort column now errors
 	// instead of being interpolated verbatim into ORDER BY.
-	orderByClause, err := postgresCore.BuildOrderBy(clientSortableSQLCols, req.GetSort(), "name ASC")
+	_, err = postgresCore.BuildOrderBy(clientSortableSQLCols, req.GetSort(), "name ASC")
 	if err != nil {
 		return nil, err
 	}
@@ -589,33 +589,28 @@ func (r *PostgresClientRepository) GetClientListPageData(
 		whereSQL += " AND " + strings.Join(filterClauses, " AND ")
 	}
 
-	limitIdx := nextIdx
-	offsetIdx := nextIdx + 1
 	queryArgs := []any{workspaceID}
 	queryArgs = append(queryArgs, filterArgs...)
-	queryArgs = append(queryArgs, limit, offset)
 
 	// Row-scope to the active STAFF principal's own clients (the students of the
 	// jobs they teach/grade). Non-staff principals: no-op. The staff.id bind is
-	// appended AFTER limit/offset so $limitIdx/$offsetIdx above stay correct
-	// (placeholders are positional, independent of SQL clause order).
-	clientScope, clientScopeArgs := principalscope.StaffReachableClientClause(ctx, "c", offsetIdx+1)
+	// appended after filter arguments so the scoped boundary and page replay it.
+	clientScope, clientScopeArgs := principalscope.StaffReachableClientClause(ctx, "c", nextIdx)
 	whereSQL += clientScope
 	queryArgs = append(queryArgs, clientScopeArgs...)
 
 	activeSubscriptionProjection, activeSubscriptionJoin := clientActiveSubscriptionSortSQL(req.GetSort())
 
-	// CTE query — single round-trip with:
+	// Scoped CTE with:
 	//   • User denorm via LEFT JOIN "` + entityid.User + `" u
 	//   • PaymentTerm name via LEFT JOIN ` + entityid.PaymentTerm + ` pt
 	//   • Optional active-subscription preaggregate only for the derived sort
-	//   • Windowed total count via COUNT(*) OVER () — avoids double-materialization
-	//     of the counted CTE pattern (A3 Q-PAGE-COUNT default tier).
+	// The same relation feeds boundary lookup, page selection, and exact count.
 	//
 	// active_subscriptions is scoped to the same workspace_id so cross-workspace
 	// counts are not leaked. The projection is available to ORDER BY at the
 	// enriched CTE level; it is not mapped to any Client proto field.
-	query := fmt.Sprintf(`
+	scopedSQL := fmt.Sprintf(`
 		WITH enriched AS (
 			SELECT
 				c.id,
@@ -651,9 +646,7 @@ func (r *PostgresClientRepository) GetClientListPageData(
 				u.first_name AS user_first_name,
 				u.last_name AS user_last_name,
 				u.email_address AS user_email_address,
-				u.mobile_number AS user_phone_number,
-				-- Windowed total — same filter as the page rows; no separate CTE needed.
-				COUNT(*) OVER () AS total
+		u.mobile_number AS user_phone_number
 			FROM `+entityid.Client+` c
 			LEFT JOIN "`+entityid.User+`" u ON c.user_id = u.id
 			LEFT JOIN `+entityid.PaymentTerm+` pt ON c.payment_term_id = pt.id
@@ -661,16 +654,20 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			%s
 		)
 		SELECT * FROM enriched
-		%s
-		LIMIT $%d OFFSET $%d;
-	`, activeSubscriptionProjection, activeSubscriptionJoin, whereSQL, orderByClause, limitIdx, offsetIdx)
+	`, activeSubscriptionProjection, activeSubscriptionJoin, whereSQL)
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
+	q, err := postgresCore.ResolveScopedPage(ctx, exec, postgresCore.ScopedPageSet{
+		SQL: scopedSQL, Args: queryArgs, Sort: pageSortKeys(req.GetSort(), "name", false),
+	}, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve client page: %w", err)
+	}
 	var queryStarted time.Time
 	if metric != nil {
 		queryStarted = metric.StartPhase()
 	}
-	rows, err := exec.QueryContext(ctx, query, queryArgs...)
+	rows, err := exec.QueryContext(ctx, q.PageSQL, q.PageArgs...)
 	if metric != nil {
 		metric.EndPhase("query_open", queryStarted)
 	}
@@ -683,7 +680,6 @@ func (r *PostgresClientRepository) GetClientListPageData(
 	defer rows.Close()
 
 	var clients []*clientpb.Client
-	var totalCount int64
 	var scanStarted time.Time
 	if metric != nil {
 		scanStarted = metric.StartPhase()
@@ -723,7 +719,6 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			userLastName       *string
 			userEmailAddress   *string
 			userPhoneNumber    *string
-			total              int64
 		)
 
 		err := rows.Scan(
@@ -759,7 +754,6 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			&userLastName,
 			&userEmailAddress,
 			&userPhoneNumber,
-			&total,
 		)
 		if err != nil {
 			if metric != nil {
@@ -768,8 +762,6 @@ func (r *PostgresClientRepository) GetClientListPageData(
 			}
 			return nil, fmt.Errorf("failed to scan client row: %w", err)
 		}
-
-		totalCount = total
 
 		c := &clientpb.Client{
 			Id:     id,
@@ -888,6 +880,13 @@ func (r *PostgresClientRepository) GetClientListPageData(
 		metric.EndPhase("scan_build", scanStarted)
 		metric.SetRows(len(clients))
 	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("close client page rows: %w", err)
+	}
+	totalCount, err := countScopedPage(ctx, exec, q)
+	if err != nil {
+		return nil, err
+	}
 
 	// Hydrate category tags for the returned page in one query. Keeping this as
 	// a separate batch avoids multiplying the paginated Client rows while also
@@ -908,25 +907,27 @@ func (r *PostgresClientRepository) GetClientListPageData(
 		metric.Success()
 	}
 
-	// Pagination metadata — total_items is the windowed count from the CTE.
+	// Pagination metadata comes from the exact count over the scoped relation.
 	totalItems := int32(totalCount)
 	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	if q.Page.Limit > 0 {
+		totalPages = int32((totalCount + int64(q.Page.Limit) - 1) / int64(q.Page.Limit))
 	}
+	page := q.Page.Number
 	hasNext := page < totalPages
 	hasPrev := page > 1
+	pagination := &commonpb.PaginationResponse{
+		TotalItems: totalItems, CurrentPage: &page, TotalPages: &totalPages,
+		HasNext: hasNext, HasPrev: hasPrev,
+	}
+	if len(clients) > 0 {
+		setPageCursors(pagination, clients[0].Id, clients[len(clients)-1].Id, q.Page.Limit)
+	}
 
 	return &clientpb.GetClientListPageDataResponse{
 		ClientList: clients,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  totalItems,
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination: pagination,
+		Success:    true,
 	}, nil
 }
 

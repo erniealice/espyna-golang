@@ -272,7 +272,7 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 	if err != nil {
 		return nil, err
 	}
-	limit, offset, _, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, err
 	}
@@ -317,21 +317,28 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 			FROM ` + entityid.PricePlan + ` pp
 			LEFT JOIN ` + entityid.Plan + ` pl ON pp.plan_id = pl.id
 			WHERE pp.active = true
-			  AND ($4::text = '' OR pl.workspace_id = $4::text)
+			  AND ($2::text = '' OR pl.workspace_id = $2::text)
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       pp.plan_id ILIKE $1 OR
 			       pp.billing_currency ILIKE $1))
 		SELECT *
 		FROM enriched
-		` + orderBy + `
-		LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
+	`
+	sortKeys, err := scopedPageSort(orderBy)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: []any{searchPattern, wsID}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	defer rows.Close()
 	var pricePlans []*priceplanpb.PricePlan
-	var totalCount int64
+	var firstID, lastID string
 	for rows.Next() {
 		var id, planId, billingCurrency string
 		var name, description sql.NullString
@@ -339,7 +346,7 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 		var active bool
 		var dateCreated, dateModified time.Time
 		var priceScheduleId sql.NullString
-		var billingKindRaw, amountBasisRaw sql.NullInt32
+		var billingKindRaw, amountBasisRaw sql.NullString
 		var billingCycleValue, defaultTermValue sql.NullInt32
 		var billingCycleUnit, defaultTermUnit sql.NullString
 		var escalationMode, escalationScope sql.NullString
@@ -347,7 +354,10 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 		if err := rows.Scan(&id, &planId, &billingAmount, &billingCurrency, &name, &description, &active, &dateCreated, &dateModified, &priceScheduleId, &billingKindRaw, &amountBasisRaw, &billingCycleValue, &billingCycleUnit, &defaultTermValue, &defaultTermUnit, &escalationMode, &escalationScope, &escalationRate, &escalationFirst, &escalationEvery); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
-		totalCount++
+		if firstID == "" {
+			firstID = id
+		}
+		lastID = id
 		pricePlan := &priceplanpb.PricePlan{Id: id, PlanId: planId, BillingAmount: billingAmount, BillingCurrency: billingCurrency, Active: active}
 		if name.Valid {
 			pricePlan.Name = &name.String
@@ -359,10 +369,14 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 			pricePlan.PriceScheduleId = &priceScheduleId.String
 		}
 		if billingKindRaw.Valid {
-			pricePlan.BillingKind = priceplanpb.BillingKind(billingKindRaw.Int32)
+			value, ok := priceplanpb.BillingKind_value[billingKindRaw.String]
+			if !ok { rows.Close(); return nil, fmt.Errorf("unknown billing kind %q", billingKindRaw.String) }
+			pricePlan.BillingKind = priceplanpb.BillingKind(value)
 		}
 		if amountBasisRaw.Valid {
-			pricePlan.AmountBasis = priceplanpb.AmountBasis(amountBasisRaw.Int32)
+			value, ok := priceplanpb.AmountBasis_value[amountBasisRaw.String]
+			if !ok { rows.Close(); return nil, fmt.Errorf("unknown amount basis %q", amountBasisRaw.String) }
+			pricePlan.AmountBasis = priceplanpb.AmountBasis(value)
 		}
 		if billingCycleValue.Valid {
 			v := billingCycleValue.Int32
@@ -393,7 +407,18 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 		}
 		pricePlans = append(pricePlans, pricePlan)
 	}
-	return &priceplanpb.GetPricePlanListPageDataResponse{PricePlanList: pricePlans, Success: true}, nil
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
+	return &priceplanpb.GetPricePlanListPageDataResponse{PricePlanList: pricePlans, Pagination: scopedPageMetadata(queries.Page, totalCount, firstID, lastID), Success: true}, nil
 }
 
 // Note: Pagination removed - not available in current protobuf schema

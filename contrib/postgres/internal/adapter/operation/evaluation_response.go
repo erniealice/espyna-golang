@@ -15,7 +15,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_response"
 )
 
@@ -173,7 +172,7 @@ func (r *PostgresEvaluationResponseRepository) GetEvaluationResponseListPageData
 	if req == nil {
 		return nil, fmt.Errorf("request required")
 	}
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 100)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 100)
 	if err != nil {
 		return nil, fmt.Errorf("invalid list pagination: %w", err)
 	}
@@ -181,26 +180,48 @@ func (r *PostgresEvaluationResponseRepository) GetEvaluationResponseListPageData
 	if err != nil {
 		return nil, fmt.Errorf("invalid sort for evaluation response list: %w", err)
 	}
+	sortKeys, err := scopedPageSort(orderBy)
+	if err != nil {
+		return nil, err
+	}
 	wsID := identity.Must(ctx).WorkspaceID
-	query := `SELECT ` + evaluationResponseSelectCols + `
-		FROM ` + r.tableName + `
-		WHERE active = true AND ($3::text = '' OR workspace_id = $3::text) ` + orderBy + ` LIMIT $1 OFFSET $2;`
-	rows, err := r.db.QueryContext(ctx, query, limit, offset, wsID)
+	set := postgresCore.ScopedPageSet{SQL: `SELECT ` + evaluationResponseSelectCols + ` FROM ` + r.tableName + ` WHERE active = true AND ($1::text = '' OR workspace_id = $1::text)`, Args: []any{wsID}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	defer rows.Close()
 	var items []*pb.EvaluationResponse
+	var firstID, lastID string
 	for rows.Next() {
 		e, scanErr := scanEvaluationResponseRow(rows.Scan)
 		if scanErr != nil {
+			rows.Close()
 			return nil, fmt.Errorf("scan failed: %w", scanErr)
 		}
+		if firstID == "" {
+			firstID = e.Id
+		}
+		lastID = e.Id
 		items = append(items, e)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	var total int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&total); err != nil {
+		return nil, err
 	}
 	return &pb.GetEvaluationResponseListPageDataResponse{
 		EvaluationResponseList: items,
-		Pagination:             &commonpb.PaginationResponse{CurrentPage: &page},
+		Pagination:             scopedPageMetadata(queries.Page, total, firstID, lastID),
 		Success:                true,
 	}, nil
 }

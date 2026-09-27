@@ -183,7 +183,10 @@ func (r *PostgresSupplierSubscriptionRepository) ListSupplierSubscriptions(ctx c
 // GetSupplierSubscriptionListPageData retrieves a paginated, filtered, sorted, searchable list
 // of supplier subscriptions with supplier and cost plan relationships.
 func (r *PostgresSupplierSubscriptionRepository) GetSupplierSubscriptionListPageData(ctx context.Context, req *suppliersubscriptionpb.GetSupplierSubscriptionListPageDataRequest) (*suppliersubscriptionpb.GetSupplierSubscriptionListPageDataResponse, error) {
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 20)
+	if req == nil {
+		return nil, fmt.Errorf("supplier subscription list request is required")
+	}
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 20)
 	if err != nil {
 		return nil, fmt.Errorf("bounded supplier subscription pagination: %w", err)
 	}
@@ -217,7 +220,7 @@ func (r *PostgresSupplierSubscriptionRepository) GetSupplierSubscriptionListPage
 
 	sortField := "date_created"
 	sortDirection := "DESC"
-	if req.Sort != nil && len(req.Sort.Fields) > 0 {
+	if req.Sort != nil && len(req.Sort.Fields) > 0 && req.Sort.Fields[0] != nil && req.Sort.Fields[0].Field != "" {
 		sortField = req.Sort.Fields[0].Field
 		if req.Sort.Fields[0].Direction == 1 {
 			sortDirection = "DESC"
@@ -225,23 +228,18 @@ func (r *PostgresSupplierSubscriptionRepository) GetSupplierSubscriptionListPage
 			sortDirection = "ASC"
 		}
 	}
+	switch sortField {
+	case "name", "date_created", "date_time_start", "date_time_end":
+	default:
+		return nil, fmt.Errorf("unknown supplier subscription sort column %q", sortField)
+	}
 
-	query := `
-		WITH search_filtered AS (
-			SELECT s.*
-			FROM ` + entityid.SupplierSubscription + ` s
-			WHERE s.active = $7
-				AND ($8::text = '' OR s.workspace_id = $8::text)
-				AND ($1::text = '' OR s.name ILIKE $1)
-				AND ($6::text = '' OR s.supplier_id = $6)
-				AND ($9::text = '' OR s.cost_plan_id = $9)
-		),
-		enriched AS (
-			SELECT
-				sf.id, sf.name, sf.supplier_id, sf.cost_plan_id,
-				sf.date_time_start, sf.date_time_end,
-				sf.active, sf.date_created, sf.date_modified,
-				jsonb_build_object(
+	scopedSQL := `
+		SELECT
+			sf.id, sf.name, sf.supplier_id, sf.cost_plan_id,
+			sf.date_time_start, sf.date_time_end,
+			sf.active, sf.date_created, sf.date_modified,
+			jsonb_build_object(
 					'id', cp.id,
 					'name', cp.name,
 					'billing_kind', cp.billing_kind,
@@ -250,31 +248,13 @@ func (r *PostgresSupplierSubscriptionRepository) GetSupplierSubscriptionListPage
 					'date_created', (EXTRACT(EPOCH FROM cp.date_created) * 1000)::bigint,
 					'date_modified', (EXTRACT(EPOCH FROM cp.date_modified) * 1000)::bigint
 				) as cost_plan
-			FROM search_filtered sf
-			LEFT JOIN ` + entityid.CostPlan + ` cp ON sf.cost_plan_id = cp.id AND cp.active = true
-		),
-		sorted AS (
-			SELECT * FROM enriched
-			ORDER BY
-				CASE WHEN $4 = 'name' AND $5 = 'ASC' THEN name END ASC,
-				CASE WHEN $4 = 'name' AND $5 = 'DESC' THEN name END DESC,
-				CASE WHEN ($4 = 'date_created' OR $4 = '') AND $5 = 'DESC' THEN date_created END DESC,
-				CASE WHEN $4 = 'date_created' AND $5 = 'ASC' THEN date_created END ASC,
-				CASE WHEN $4 = 'date_time_start' AND $5 = 'ASC' THEN date_time_start END ASC,
-				CASE WHEN $4 = 'date_time_start' AND $5 = 'DESC' THEN date_time_start END DESC,
-				CASE WHEN $4 = 'date_time_end' AND $5 = 'ASC' THEN date_time_end END ASC,
-				CASE WHEN $4 = 'date_time_end' AND $5 = 'DESC' THEN date_time_end END DESC
-		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
-		SELECT
-			s.id, s.name, s.supplier_id, s.cost_plan_id,
-			s.date_time_start, s.date_time_end, s.active,
-			s.date_created, s.date_modified,
-			s.cost_plan,
-			COUNT(*) OVER () AS _total_count
-		FROM sorted s
-		LIMIT $2 OFFSET $3
+		FROM ` + entityid.SupplierSubscription + ` sf
+		LEFT JOIN ` + entityid.CostPlan + ` cp ON sf.cost_plan_id = cp.id AND cp.active = true
+		WHERE sf.active = $1
+		  AND ($2::text = '' OR sf.workspace_id = $2::text)
+		  AND ($3::text = '' OR sf.name ILIKE $3)
+		  AND ($4::text = '' OR sf.supplier_id = $4)
+		  AND ($5::text = '' OR sf.cost_plan_id = $5)
 	`
 
 	db, ok := r.dbOps.(interface{ GetDB() *sql.DB })
@@ -283,24 +263,27 @@ func (r *PostgresSupplierSubscriptionRepository) GetSupplierSubscriptionListPage
 	}
 
 	wsID := identity.Must(ctx).WorkspaceID
-	rows, err := db.GetDB().QueryContext(ctx, query,
-		searchQuery,      // $1
-		limit,            // $2
-		offset,           // $3
-		sortField,        // $4
-		sortDirection,    // $5
-		supplierIDFilter, // $6
-		activeFilter,     // $7
-		wsID,             // $8
-		costPlanIDFilter, // $9
-	)
+	desc := sortDirection == "DESC"
+	set := postgresCore.ScopedPageSet{
+		SQL:  scopedSQL,
+		Args: []any{activeFilter, wsID, searchQuery, supplierIDFilter, costPlanIDFilter},
+		Sort: []postgresCore.AdapterSortKey{{Column: sortField, Desc: desc, NullsFirst: desc}},
+	}
+	queries, err := postgresCore.ResolveScopedPage(ctx, db.GetDB(), set, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve supplier subscription page: %w", err)
+	}
+	var totalCount int64
+	if err := db.GetDB().QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count supplier subscription page: %w", err)
+	}
+	rows, err := db.GetDB().QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute GetSupplierSubscriptionListPageData query: %w", err)
 	}
 	defer rows.Close()
 
 	var subs []*suppliersubscriptionpb.SupplierSubscription
-	var totalCount int32
 
 	for rows.Next() {
 		var (
@@ -314,12 +297,10 @@ func (r *PostgresSupplierSubscriptionRepository) GetSupplierSubscriptionListPage
 			dateCreated   sql.NullTime
 			dateModified  sql.NullTime
 			costPlanJSON  []byte
-			rowTotalCount int32
 		)
-		if err := rows.Scan(&id, &name, &supplierID, &costPlanID, &dateTimeStart, &dateTimeEnd, &active, &dateCreated, &dateModified, &costPlanJSON, &rowTotalCount); err != nil {
+		if err := rows.Scan(&id, &name, &supplierID, &costPlanID, &dateTimeStart, &dateTimeEnd, &active, &dateCreated, &dateModified, &costPlanJSON); err != nil {
 			return nil, fmt.Errorf("failed to scan supplier subscription row: %w", err)
 		}
-		totalCount = rowTotalCount
 		ss := &suppliersubscriptionpb.SupplierSubscription{
 			Id: id, Name: name, SupplierId: supplierID, CostPlanId: costPlanID, Active: active,
 		}
@@ -353,21 +334,16 @@ func (r *PostgresSupplierSubscriptionRepository) GetSupplierSubscriptionListPage
 		return nil, fmt.Errorf("error iterating supplier subscription rows: %w", err)
 	}
 
-	totalPages := (totalCount + limit - 1) / limit
-	hasNext := page < totalPages
-	hasPrev := page > 1
-	paginationResponse := &commonpb.PaginationResponse{
-		TotalItems:  totalCount,
-		CurrentPage: &page,
-		TotalPages:  &totalPages,
-		HasNext:     hasNext,
-		HasPrev:     hasPrev,
+	firstID, lastID := "", ""
+	if len(subs) > 0 {
+		firstID = subs[0].GetId()
+		lastID = subs[len(subs)-1].GetId()
 	}
 
 	return &suppliersubscriptionpb.GetSupplierSubscriptionListPageDataResponse{
 		Success:                  true,
 		SupplierSubscriptionList: subs,
-		Pagination:               paginationResponse,
+		Pagination:               scopedPageMetadata(totalCount, queries.Page, firstID, lastID),
 	}, nil
 }
 

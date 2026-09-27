@@ -16,7 +16,6 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	advancekindpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common/advance_kind"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
 )
@@ -299,7 +298,7 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 		return nil, fmt.Errorf("get collection list page data: %w", err)
 	}
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("get collection list page data: invalid pagination: %w", err)
 	}
@@ -314,7 +313,7 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 	}
 
 	searchFields := []string{"tc.name", "tc.reference_number", "tc.status", "tc.collection_type"}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMappedISODateText(
+	filterClauses, filterArgs, _, err := postgresCore.BuildFilterWhereMappedISODateText(
 		req.GetFilters(), req.GetSearch(), collectionFilterFieldMap, []string{"payment_date"}, searchFields, 2,
 	)
 	if err != nil {
@@ -324,18 +323,15 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 	if len(filterClauses) > 0 {
 		whereExtra = " AND " + strings.Join(filterClauses, " AND ")
 	}
-	limitIdx, offsetIdx := nextIdx, nextIdx+1
-	queryArgs := make([]any, 0, len(filterArgs)+3)
+	queryArgs := make([]any, 0, len(filterArgs)+1)
 	queryArgs = append(queryArgs, workspaceID)
 	queryArgs = append(queryArgs, filterArgs...)
-	queryArgs = append(queryArgs, limit, offset)
 
 	// 20260517 advance-cash-events: extend the CTE with all advance_* schedule
 	// columns + client_id. The list view doesn't render every column today,
 	// but downstream filter chips + Treasury dashboard need the data flowing
 	// through the proto without a second round-trip.
-	query := fmt.Sprintf(`
-		WITH enriched AS (
+	scopedSQL := fmt.Sprintf(`
 			SELECT
 				tc.id,
 				tc.date_created,
@@ -371,24 +367,28 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 			WHERE tc.active = true
 			  AND tc.workspace_id = $1
 			  %s
-		)
-		SELECT
-			e.*,
-			COUNT(*) OVER () AS total
-		FROM enriched e
-		%s
-		LIMIT $%d OFFSET $%d;
-	`, whereExtra, sortFragment, limitIdx, offsetIdx)
+	`, whereExtra)
+	sortKeys, err := pageSortFromOrderBy(sortFragment)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: scopedSQL, Args: queryArgs, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve collection page: %w", err)
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count collection page: %w", err)
+	}
 
-	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query collection list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var collections []*collectionpb.Collection
-	var totalCount int64
-
 	for rows.Next() {
 		var (
 			id                      string
@@ -421,7 +421,6 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 			advanceExpiryDate       *string
 			advanceProrationPolicy  sql.NullInt32
 			clientID                *string
-			total                   int64
 		)
 
 		err := rows.Scan(
@@ -455,13 +454,10 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 			&advanceExpiryDate,
 			&advanceProrationPolicy,
 			&clientID,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan collection row: %w", err)
 		}
-
-		totalCount = total
 
 		collection := &collectionpb.Collection{
 			Id:     id,
@@ -528,24 +524,16 @@ func (r *PostgresCollectionRepository) GetCollectionListPageData(
 		return nil, fmt.Errorf("error iterating collection rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	firstID, lastID := "", ""
+	if len(collections) > 0 {
+		firstID = collections[0].GetId()
+		lastID = collections[len(collections)-1].GetId()
 	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
 
 	return &collectionpb.GetCollectionListPageDataResponse{
 		CollectionList: collections,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:     scopedPageMetadata(totalCount, queries.Page, firstID, lastID),
+		Success:        true,
 	}, nil
 }
 

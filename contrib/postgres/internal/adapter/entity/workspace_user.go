@@ -400,7 +400,7 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 		return nil, err
 	}
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("get workspace user list page data: invalid pagination: %w", err)
 	}
@@ -434,7 +434,7 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 	if err != nil {
 		return nil, err
 	}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMapped(
+	filterClauses, filterArgs, _, err := postgresCore.BuildFilterWhereMapped(
 		filteredReqFilters,
 		req.Search,
 		workspaceUserFilterFieldMap,
@@ -452,14 +452,12 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 		extraWhere = " AND " + strings.Join(filterClauses, " AND ")
 	}
 
-	limitIdx := nextIdx
-	offsetIdx := nextIdx + 1
-	// Build full args: workspaceID first, then filter args, then limit/offset
+	// Build the same scoped filter args for boundary, page, and count.
 	allArgs := []any{workspaceID}
 	allArgs = append(allArgs, filterArgs...)
-	allArgs = append(allArgs, limit, offset)
 
-	// CTE Query - Single round-trip with JSONB role aggregation and COUNT(*) OVER() window function
+	// Scoped relation with JSONB role aggregation; the shared page builder
+	// reuses it for boundary lookup, row selection, and exact count.
 	// Performance Notes:
 	// - INDEX RECOMMENDATION: Create index on workspace_user.workspace_id (CRITICAL for multi-tenancy)
 	// - INDEX RECOMMENDATION: Create index on workspace_user.user_id (foreign key)
@@ -470,7 +468,7 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 	// - INDEX RECOMMENDATION: Create index on user.first_name, user.last_name, user.email_address for search performance
 	// - INDEX RECOMMENDATION: Create index on workspace_user.active for filtering active records
 	// - INDEX RECOMMENDATION: Create index on workspace_user.date_created for default sorting
-	query := fmt.Sprintf(`
+	scopedSQL := fmt.Sprintf(`
 		WITH user_roles_agg AS (
 			SELECT
 				wur.workspace_user_id,
@@ -510,25 +508,36 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 			u.email_address as user_email_address,
 			u.mobile_number as user_phone_number,
 			u.active as user_active,
-			COALESCE(ura.roles, '[]'::jsonb) as workspace_user_roles,
-			COUNT(*) OVER() AS total_count
+			COALESCE(ura.roles, '[]'::jsonb) as workspace_user_roles
 		FROM `+entityid.WorkspaceUser+` wu
 		LEFT JOIN "`+entityid.User+`" u ON wu.user_id = u.id AND u.active = true
 		LEFT JOIN user_roles_agg ura ON wu.id = ura.workspace_user_id
 		WHERE %s%s
-		ORDER BY %s %s
-		LIMIT $%d OFFSET $%d
-	`, hardWhere, extraWhere, sortCol, sortOrder, limitIdx, offsetIdx)
+	`, hardWhere, extraWhere)
 
 	exec2 := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec2.QueryContext(ctx, query, allArgs...)
+	sortKey := strings.TrimPrefix(strings.TrimPrefix(sortCol, "wu."), "u.")
+	if strings.HasPrefix(sortCol, "u.") {
+		sortKey = "user_" + sortKey
+	}
+	q, err := postgresCore.ResolveScopedPage(ctx, exec2, postgresCore.ScopedPageSet{
+		SQL: scopedSQL, Args: allArgs,
+		Sort: []postgresCore.AdapterSortKey{{Column: sortKey, Desc: sortOrder == "DESC", NullsFirst: sortOrder == "DESC"}},
+	}, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve workspace user page: %w", err)
+	}
+	totalCount, err := countScopedPage(ctx, exec2, q)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := exec2.QueryContext(ctx, q.PageSQL, q.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query workspace user list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var workspaceUsers []*workspaceuserpb.WorkspaceUser
-	var totalCount int64
 
 	for rows.Next() {
 		var (
@@ -547,7 +556,6 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 			userActive       *bool
 			// Workspace user roles
 			workspaceUserRolesJSON []byte
-			total                  int64
 		)
 
 		err := rows.Scan(
@@ -564,13 +572,10 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 			&userPhoneNumber,
 			&userActive,
 			&workspaceUserRolesJSON,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan workspace user row: %w", err)
 		}
-
-		totalCount = total
 
 		workspaceUser := &workspaceuserpb.WorkspaceUser{
 			Id:          id,
@@ -633,23 +638,24 @@ func (r *PostgresWorkspaceUserRepository) GetWorkspaceUserListPageData(
 
 	// Calculate pagination metadata
 	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	if q.Page.Limit > 0 {
+		totalPages = int32((totalCount + int64(q.Page.Limit) - 1) / int64(q.Page.Limit))
 	}
-
+	page := q.Page.Number
 	hasNext := page < totalPages
 	hasPrev := page > 1
+	pagination := &commonpb.PaginationResponse{
+		TotalItems: int32(totalCount), CurrentPage: &page, TotalPages: &totalPages,
+		HasNext: hasNext, HasPrev: hasPrev,
+	}
+	if len(workspaceUsers) > 0 {
+		setPageCursors(pagination, workspaceUsers[0].Id, workspaceUsers[len(workspaceUsers)-1].Id, q.Page.Limit)
+	}
 
 	return &workspaceuserpb.GetWorkspaceUserListPageDataResponse{
 		WorkspaceUserList: workspaceUsers,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:        pagination,
+		Success:           true,
 	}, nil
 }
 

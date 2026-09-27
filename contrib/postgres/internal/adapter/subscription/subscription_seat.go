@@ -252,7 +252,7 @@ func (r *PostgresSubscriptionSeatRepository) GetSubscriptionSeatListPageData(ctx
 	if err != nil {
 		return nil, err
 	}
-	limit, offset, _, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, err
 	}
@@ -267,9 +267,9 @@ func (r *PostgresSubscriptionSeatRepository) GetSubscriptionSeatListPageData(ctx
 
 	// Row-scope to the active STAFF principal's own seats (staff_id column).
 	// Non-staff principals: no-op. The staff.id bind is appended AFTER the
-	// existing search/limit/offset/workspace args ($1-$4) so $5 lines up;
+	// existing search/workspace args ($1-$2) so $3 lines up;
 	// placeholders are positional, independent of SQL clause order.
-	seatScope, seatScopeArgs := principalscope.StaffScopeClause(ctx, "staff_id", 5)
+	seatScope, seatScopeArgs := principalscope.StaffScopeClause(ctx, "staff_id", 3)
 	query := `
 		SELECT
 			id,
@@ -296,29 +296,50 @@ func (r *PostgresSubscriptionSeatRepository) GetSubscriptionSeatListPageData(ctx
 			date_modified
 		FROM ` + entityid.SubscriptionSeat + `
 		WHERE active = true
-		  AND ($4::text = '' OR workspace_id = $4::text)
+		  AND ($2::text = '' OR workspace_id = $2::text)
 		  AND ($1::text IS NULL OR $1::text = '' OR
 		       COALESCE(role_title,'') ILIKE $1 OR
 		       COALESCE(position,'') ILIKE $1 OR
 		       status ILIKE $1)` + seatScope + `
-		` + orderBy + `
-		LIMIT $2 OFFSET $3;`
-	args := []any{searchPattern, limit, offset, wsID}
-	args = append(args, seatScopeArgs...)
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	`
+	sortKeys, err := scopedPageSort(orderBy)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: append([]any{searchPattern, wsID}, seatScopeArgs...), Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	defer rows.Close()
 	var subscriptionSeats []*subscriptionseatpb.SubscriptionSeat
+	var firstID, lastID string
 	for rows.Next() {
 		seat, scanErr := scanSubscriptionSeatRow(rows.Scan)
 		if scanErr != nil {
 			return nil, fmt.Errorf("scan failed: %w", scanErr)
 		}
+		if firstID == "" {
+			firstID = seat.Id
+		}
+		lastID = seat.Id
 		subscriptionSeats = append(subscriptionSeats, seat)
 	}
-	return &subscriptionseatpb.GetSubscriptionSeatListPageDataResponse{SubscriptionSeatList: subscriptionSeats, Success: true}, nil
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
+	return &subscriptionseatpb.GetSubscriptionSeatListPageDataResponse{SubscriptionSeatList: subscriptionSeats, Pagination: scopedPageMetadata(queries.Page, totalCount, firstID, lastID), Success: true}, nil
 }
 
 // GetSubscriptionSeatItemPageData retrieves subscription seat item page data

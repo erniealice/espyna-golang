@@ -17,7 +17,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	payrollrunpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_run"
 )
 
@@ -248,7 +247,7 @@ func (r *PostgresPayrollRunRepository) GetPayrollRunListPageData(
 		return nil, err
 	}
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, err
 	}
@@ -261,8 +260,8 @@ func (r *PostgresPayrollRunRepository) GetPayrollRunListPageData(
 
 	// A1: workspace predicate is strict — empty workspaceID returns zero rows rather
 	// than bypassing the tenant guard.
-	// A3: COUNT(*) OVER() replaces the separate counted CTE — one pass, same result.
-	query := fmt.Sprintf(`
+	// The scoped relation is counted separately so empty pages retain the exact total.
+	scopedSQL := fmt.Sprintf(`
 		SELECT
 			pr.id,
 			pr.date_created,
@@ -277,29 +276,38 @@ func (r *PostgresPayrollRunRepository) GetPayrollRunListPageData(
 			pr.status,
 			pr.approved_by,
 			pr.posted_at,
-			pr.posted_at_string,
-			COUNT(*) OVER() AS total
+			pr.posted_at::text AS posted_at_string
 		FROM %s pr
 		WHERE pr.workspace_id = $1
 		  AND ($2::text IS NULL OR $2::text = '' OR pr.run_number ILIKE $2)
-		%s
-		LIMIT $3 OFFSET $4;
-	`, r.tableName, orderByClause)
+	`, r.tableName)
 
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
+	sortKeys, err := pageSortFromOrderBy(orderByClause)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: scopedSQL, Args: []any{workspaceID, searchPattern}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve payroll_run page: %w", err)
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count payroll_run page: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query payroll run list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var payrollRuns []*payrollrunpb.PayrollRun
-	var totalCount int64
-
 	for rows.Next() {
 		var (
 			id              string
-			dateCreated     int64
-			dateModified    int64
+			dateCreated     *time.Time
+			dateModified    *time.Time
 			runNumber       string
 			payPeriodStart  string
 			payPeriodEnd    string
@@ -309,9 +317,8 @@ func (r *PostgresPayrollRunRepository) GetPayrollRunListPageData(
 			employeeCount   int32
 			statusStr       string
 			approvedBy      *string
-			postedAt        *int64
+			postedAt        *time.Time
 			postedAtString  *string
-			total           int64
 		)
 
 		err := rows.Scan(
@@ -329,13 +336,10 @@ func (r *PostgresPayrollRunRepository) GetPayrollRunListPageData(
 			&approvedBy,
 			&postedAt,
 			&postedAtString,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan payroll run row: %w", err)
 		}
-
-		totalCount = total
 
 		payrollRun := &payrollrunpb.PayrollRun{
 			Id:              id,
@@ -354,14 +358,14 @@ func (r *PostgresPayrollRunRepository) GetPayrollRunListPageData(
 
 		payrollRun.PayPeriodStart = payPeriodStart
 		payrollRun.PayPeriodEnd = payPeriodEnd
-		if postedAt != nil && *postedAt > 0 {
-			payrollRun.PostedAt = postedAt
+		if millis := pageMillis(postedAt); millis != nil && *millis > 0 {
+			payrollRun.PostedAt = millis
 		}
-		if dateCreated > 0 {
-			payrollRun.DateCreated = &dateCreated
+		if millis := pageMillis(dateCreated); millis != nil && *millis > 0 {
+			payrollRun.DateCreated = millis
 		}
-		if dateModified > 0 {
-			payrollRun.DateModified = &dateModified
+		if millis := pageMillis(dateModified); millis != nil && *millis > 0 {
+			payrollRun.DateModified = millis
 		}
 
 		payrollRuns = append(payrollRuns, payrollRun)
@@ -371,24 +375,16 @@ func (r *PostgresPayrollRunRepository) GetPayrollRunListPageData(
 		return nil, fmt.Errorf("error iterating payroll run rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	firstID, lastID := "", ""
+	if len(payrollRuns) > 0 {
+		firstID = payrollRuns[0].GetId()
+		lastID = payrollRuns[len(payrollRuns)-1].GetId()
 	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
 
 	return &payrollrunpb.GetPayrollRunListPageDataResponse{
 		PayrollRunList: payrollRuns,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:     scopedPageMetadata(totalCount, queries.Page, firstID, lastID),
+		Success:        true,
 	}, nil
 }
 

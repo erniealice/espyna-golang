@@ -18,7 +18,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation"
 )
 
@@ -258,7 +257,7 @@ func (r *PostgresEvaluationRepository) GetEvaluationListPageData(ctx context.Con
 	if err != nil {
 		return nil, fmt.Errorf("invalid list search: %w", err)
 	}
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("invalid list pagination: %w", err)
 	}
@@ -271,36 +270,60 @@ func (r *PostgresEvaluationRepository) GetEvaluationListPageData(ctx context.Con
 	actingClient := identity.Must(ctx).ActingAsClientID
 
 	// Staff row-scope (Phase 4): a STAFF principal sees only evaluations whose
-	// subject staff_id is itself ($6, session-derived). This is ADDITIVE to the
-	// existing workspace ($4) and acting-as-client ($5) gates. Non-staff → empty
-	// clause (unchanged). A staff caller has empty acting_as, so the $5 client
-	// gate stays inert and only the $6 staff gate applies.
-	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "staff_id", 6)
+	// subject staff_id is itself ($4, session-derived). This is additive to the
+	// workspace ($2) and acting-as-client ($3) gates. Non-staff uses an empty
+	// clause; a staff caller's empty acting_as leaves the client gate inert.
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "staff_id", 4)
 
-	// $5 = acting_as_client_id. When set, scope client_id AND fail-closed on
+	// $3 = acting_as_client_id. When set, scope client_id and fail closed on
 	// internal_only visibility. When empty (staff), no client/visibility gate.
 	query := `SELECT ` + evaluationSelectCols + `
 		FROM ` + r.tableName + `
 		WHERE active = true
-			AND ($4::text = '' OR workspace_id = $4::text)
-			AND ($5::text = '' OR (client_id = $5::text AND visibility_type <> 'internal_only'))` + staffClause + `
-			AND ($1::text IS NULL OR $1::text = '' OR COALESCE(narrative,'') ILIKE $1 OR status ILIKE $1) ` + orderBy + ` LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, append([]any{searchPattern, limit, offset, wsID, actingClient}, staffArgs...)...)
+			AND ($2::text = '' OR workspace_id = $2::text)
+			AND ($3::text = '' OR (client_id = $3::text AND visibility_type <> 'internal_only'))` + staffClause + `
+			AND ($1::text IS NULL OR $1::text = '' OR COALESCE(narrative,'') ILIKE $1 OR status ILIKE $1)
+	`
+	sortKeys, err := scopedPageSort(orderBy)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: append([]any{searchPattern, wsID, actingClient}, staffArgs...), Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	defer rows.Close()
 	var items []*pb.Evaluation
+	var firstID, lastID string
 	for rows.Next() {
 		e, scanErr := scanEvaluationRow(rows.Scan)
 		if scanErr != nil {
 			return nil, fmt.Errorf("scan failed: %w", scanErr)
 		}
+		if firstID == "" {
+			firstID = e.Id
+		}
+		lastID = e.Id
 		items = append(items, e)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
 	}
 	return &pb.GetEvaluationListPageDataResponse{
 		EvaluationList: items,
-		Pagination:     &commonpb.PaginationResponse{CurrentPage: &page},
+		Pagination:     scopedPageMetadata(queries.Page, totalCount, firstID, lastID),
 		Success:        true,
 	}, nil
 }

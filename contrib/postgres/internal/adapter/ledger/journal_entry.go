@@ -16,7 +16,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	journalentrypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/journal_entry"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -269,7 +268,7 @@ func (r *PostgresJournalEntryRepository) GetJournalEntryListPageData(ctx context
 		return nil, fmt.Errorf("database connection not available")
 	}
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 100)
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 100)
 	if err != nil {
 		return nil, fmt.Errorf("get journal entry list page data: invalid pagination: %w", err)
 	}
@@ -287,7 +286,7 @@ func (r *PostgresJournalEntryRepository) GetJournalEntryListPageData(ctx context
 
 	// Build WHERE clauses. $1 is reserved for workspace_id, so filters start at $2.
 	searchFields := []string{"je.description", "je.entry_number"}
-	filterClauses, filterArgs, nextIdx, err := postgresCore.BuildFilterWhereMapped(
+	filterClauses, filterArgs, _, err := postgresCore.BuildFilterWhereMapped(
 		req.Filters,
 		req.Search,
 		journalEntryFilterFieldMap,
@@ -303,14 +302,10 @@ func (r *PostgresJournalEntryRepository) GetJournalEntryListPageData(ctx context
 		whereStr += " AND " + strings.Join(filterClauses, " AND ")
 	}
 
-	limitIdx := nextIdx
-	offsetIdx := nextIdx + 1
 	queryArgs := []any{workspaceID}
 	queryArgs = append(queryArgs, filterArgs...)
-	queryArgs = append(queryArgs, limit, offset)
 
-	query := `
-		WITH enriched AS (
+	scopedSQL := `
 			SELECT
 				je.id,
 				je.entry_number,
@@ -330,24 +325,31 @@ func (r *PostgresJournalEntryRepository) GetJournalEntryListPageData(ctx context
 				je.notes,
 				je.active,
 				je.date_created,
-				je.date_modified,
-				COUNT(*) OVER() AS total_count
+				je.date_modified
 			FROM ` + entityid.JournalEntry + ` je
 			WHERE je.active = true` + whereStr + `
-		)
-		SELECT * FROM enriched
-		` + orderByClause + fmt.Sprintf(`
-		LIMIT $%d OFFSET $%d`, limitIdx, offsetIdx)
+	`
+	sortKeys, err := pageSortFromOrderBy(orderByClause)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: scopedSQL, Args: queryArgs, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve journal_entry page: %w", err)
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count journal_entry page: %w", err)
+	}
 
-	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query journal entry list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var entries []*journalentrypb.JournalEntry
-	var totalCount int64
-
 	for rows.Next() {
 		var (
 			id              string
@@ -369,7 +371,6 @@ func (r *PostgresJournalEntryRepository) GetJournalEntryListPageData(ctx context
 			active          bool
 			dateCreated     time.Time
 			dateModified    time.Time
-			total           int64
 		)
 
 		err := rows.Scan(
@@ -392,13 +393,10 @@ func (r *PostgresJournalEntryRepository) GetJournalEntryListPageData(ctx context
 			&active,
 			&dateCreated,
 			&dateModified,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan journal entry row: %w", err)
 		}
-
-		totalCount = total
 
 		entry := &journalentrypb.JournalEntry{
 			Id:          id,
@@ -467,23 +465,16 @@ func (r *PostgresJournalEntryRepository) GetJournalEntryListPageData(ctx context
 		return nil, fmt.Errorf("error iterating journal entry rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	firstID, lastID := "", ""
+	if len(entries) > 0 {
+		firstID = entries[0].GetId()
+		lastID = entries[len(entries)-1].GetId()
 	}
-	hasNext := page < totalPages
-	hasPrev := page > 1
 
 	return &journalentrypb.GetJournalEntryListPageDataResponse{
 		JournalEntryList: entries,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:       scopedPageMetadata(totalCount, queries.Page, firstID, lastID),
+		Success:          true,
 	}, nil
 }
 

@@ -258,7 +258,7 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 	}
 
 	// Default pagination values
-	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, paginationErr := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if paginationErr != nil {
 		return nil, fmt.Errorf("bounded pagination: %w", paginationErr)
 	}
@@ -267,7 +267,7 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 	// caller-supplied column through core.BuildOrderBy instead of interpolating
 	// req.Sort.Fields[0].Field verbatim, so an unknown column errors rather than
 	// reaching the query string.
-	orderByClause, err := postgresCore.BuildOrderBy(roleSortableSQLCols, req.GetSort(), "date_created DESC")
+	_, err := postgresCore.BuildOrderBy(roleSortableSQLCols, req.GetSort(), "date_created DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -279,7 +279,7 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 	// - INDEX RECOMMENDATION: Create index on role_permission.permission_id (foreign key)
 	// - INDEX RECOMMENDATION: Create index on role_permission.active (filter active junction records)
 	// - INDEX RECOMMENDATION: Create index on permission.active (filter active permissions)
-	query := `
+	scopedSQL := `
 		WITH role_permissions_agg AS (
 			SELECT
 				rp.role_id,
@@ -325,23 +325,28 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 				   r.name ILIKE $2 OR
 				   r.description ILIKE $2)
 		)
-		SELECT
-			e.*,
-			COUNT(*) OVER() AS total
-		FROM enriched e
-		` + orderByClause + `
-		LIMIT $3 OFFSET $4;
+		SELECT * FROM enriched
 	`
 
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
+	q, err := postgresCore.ResolveScopedPage(ctx, exec, postgresCore.ScopedPageSet{
+		SQL: scopedSQL, Args: []any{workspaceID, searchPattern},
+		Sort: pageSortKeys(req.GetSort(), "date_created", true),
+	}, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve role page: %w", err)
+	}
+	totalCount, err := countScopedPage(ctx, exec, q)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := exec.QueryContext(ctx, q.PageSQL, q.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query role list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var roles []*rolepb.Role
-	var totalCount int64
 
 	for rows.Next() {
 		var (
@@ -349,13 +354,12 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 			workspaceId             *string
 			name                    string
 			description             string
-			color                   string
+			color                   sql.NullString
 			active                  bool
 			dateCreated             time.Time
 			dateModified            time.Time
 			rolePermissionsJSON     []byte
 			applicablePrincipalInts []int64
-			total                   int64
 		)
 
 		err := rows.Scan(
@@ -369,19 +373,16 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 			&dateModified,
 			&rolePermissionsJSON,
 			pq.Array(&applicablePrincipalInts),
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan role row: %w", err)
 		}
 
-		totalCount = total
-
 		role := &rolepb.Role{
 			Id:          id,
 			Name:        name,
 			Description: description,
-			Color:       color,
+			Color:       color.String,
 			Active:      active,
 		}
 
@@ -436,23 +437,24 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 
 	// Calculate pagination metadata
 	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	if q.Page.Limit > 0 {
+		totalPages = int32((totalCount + int64(q.Page.Limit) - 1) / int64(q.Page.Limit))
 	}
-
+	page := q.Page.Number
 	hasNext := page < totalPages
 	hasPrev := page > 1
+	pagination := &commonpb.PaginationResponse{
+		TotalItems: int32(totalCount), CurrentPage: &page, TotalPages: &totalPages,
+		HasNext: hasNext, HasPrev: hasPrev,
+	}
+	if len(roles) > 0 {
+		setPageCursors(pagination, roles[0].Id, roles[len(roles)-1].Id, q.Page.Limit)
+	}
 
 	return &rolepb.GetRoleListPageDataResponse{
-		RoleList: roles,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		RoleList:   roles,
+		Pagination: pagination,
+		Success:    true,
 	}, nil
 }
 

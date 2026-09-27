@@ -15,7 +15,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	licensepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license"
 	licensehistorypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/license_history"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -176,7 +175,7 @@ func (r *PostgresLicenseHistoryRepository) ListLicenseHistory(ctx context.Contex
 
 // GetLicenseHistoryListPageData retrieves a paginated, filtered, sorted, and searchable list of license history records
 func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx context.Context, req *licensehistorypb.GetLicenseHistoryListPageDataRequest) (*licensehistorypb.GetLicenseHistoryListPageDataResponse, error) {
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 20)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 20)
 	if err != nil {
 		return nil, fmt.Errorf("bounded license history pagination: %w", err)
 	}
@@ -222,10 +221,7 @@ func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx con
 	// license_history.license_id → license.id → license.subscription_id →
 	// subscription.workspace_id. The predicate scopes on the joined subscription's
 	// workspace_id. Empty wsID = service-to-service call → no scoping.
-	// A10: COUNT(*) OVER () replaces the prior total_count CTE + CROSS JOIN,
-	// computed over the full filtered set before LIMIT/OFFSET. The parameterized
-	// CASE WHEN sort (guarded above by licenseHistorySortableSQLCols) moves into
-	// the final SELECT so the window count still spans every filtered row.
+	// The filtered relation is shared by boundary lookup, page selection and count.
 	query := `
 		WITH
 		-- CTE 1: Apply license_id + workspace filter
@@ -236,10 +232,10 @@ func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx con
 			LEFT JOIN ` + entityid.Subscription + ` s ON l.subscription_id = s.id
 			WHERE lh.active = true
 				AND ($1::text = '' OR lh.license_id = $1)
-				AND ($6::text = '' OR s.workspace_id = $6::text)
+				AND ($2::text = '' OR s.workspace_id = $2::text)
 		)
 
-		-- Final SELECT with sorting, window count, and pagination
+		-- Project the fields read by the page scanner.
 		SELECT
 			f.id,
 			f.license_id,
@@ -256,16 +252,14 @@ func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx con
 			f.license_status_before,
 			f.license_status_after,
 			f.date_created,
-			f.active,
-			COUNT(*) OVER () as _total_count
+			f.active
 		FROM filtered f
-		ORDER BY
-			CASE WHEN ($4 = 'date_created' OR $4 = '') AND $5 = 'DESC' THEN f.date_created END DESC,
-			CASE WHEN $4 = 'date_created' AND $5 = 'ASC' THEN f.date_created END ASC,
-			CASE WHEN $4 = 'action' AND $5 = 'ASC' THEN f.action END ASC,
-			CASE WHEN $4 = 'action' AND $5 = 'DESC' THEN f.action END DESC
-		LIMIT $2 OFFSET $3
 	`
+	if sortField == "" {
+		sortField = "date_created"
+	}
+	sortKeys := []postgresCore.AdapterSortKey{{Column: sortField, Desc: sortDirection == "DESC", NullsFirst: sortDirection == "DESC"}}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: []any{licenseIdFilter, wsID}, Sort: sortKeys}
 
 	// Get DB connection from dbOps interface
 	db, ok := r.dbOps.(interface{ GetDB() *sql.DB })
@@ -274,21 +268,17 @@ func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx con
 	}
 
 	// Execute query
-	rows, err := db.GetDB().QueryContext(ctx, query,
-		licenseIdFilter, // $1
-		limit,           // $2
-		offset,          // $3
-		sortField,       // $4
-		sortDirection,   // $5
-		wsID,            // $6
-	)
+	queries, err := postgresCore.ResolveScopedPage(ctx, db.GetDB(), set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.GetDB().QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute GetLicenseHistoryListPageData query: %w", err)
 	}
-	defer rows.Close()
 
 	var histories []*licensehistorypb.LicenseHistory
-	var totalCount int32
+	var firstID, lastID string
 
 	for rows.Next() {
 		var (
@@ -308,7 +298,6 @@ func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx con
 			licenseStatusAfter   int32
 			dateCreated          time.Time
 			active               bool
-			rowTotalCount        int32
 		)
 
 		err := rows.Scan(
@@ -328,13 +317,15 @@ func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx con
 			&licenseStatusAfter,
 			&dateCreated,
 			&active,
-			&rowTotalCount,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan license history row: %w", err)
 		}
 
-		totalCount = rowTotalCount
+		if firstID == "" {
+			firstID = id
+		}
+		lastID = id
 
 		// Build license history message
 		history := &licensehistorypb.LicenseHistory{
@@ -381,19 +372,14 @@ func (r *PostgresLicenseHistoryRepository) GetLicenseHistoryListPageData(ctx con
 		return nil, fmt.Errorf("error iterating license history rows: %w", err)
 	}
 
-	// Build pagination response
-	totalPages := (totalCount + limit - 1) / limit
-	hasNext := page < totalPages
-	hasPrev := page > 1
-
-	paginationResponse := &commonpb.PaginationResponse{
-		TotalItems:  totalCount,
-		CurrentPage: &page,
-		TotalPages:  &totalPages,
-		HasNext:     hasNext,
-		HasPrev:     hasPrev,
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
-
+	var totalCount int64
+	if err := db.GetDB().QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
+	paginationResponse := scopedPageMetadata(queries.Page, totalCount, firstID, lastID)
 	return &licensehistorypb.GetLicenseHistoryListPageDataResponse{
 		Success:            true,
 		LicenseHistoryList: histories,

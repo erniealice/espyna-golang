@@ -17,7 +17,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	payrollremittancepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/payroll/payroll_remittance"
 )
 
@@ -250,7 +249,7 @@ func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
 		return nil, err
 	}
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, err
 	}
@@ -266,8 +265,8 @@ func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
 
 	// A1: workspace predicate is strict via the payroll_run join — empty workspaceID
 	// returns zero rows rather than bypassing the tenant guard.
-	// A3: COUNT(*) OVER() replaces the separate counted CTE — one pass, same result.
-	query := fmt.Sprintf(`
+	// The scoped relation is counted separately so empty pages retain the exact total.
+	scopedSQL := fmt.Sprintf(`
 		SELECT
 			rem.id,
 			rem.date_created,
@@ -275,47 +274,55 @@ func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
 			rem.remittance_type,
 			rem.amount,
 			rem.due_date,
-			rem.due_date_string,
-			rem.status,
+			rem.due_date AS due_date_string,
+			COALESCE(rem.status, '') AS status,
 			rem.filed_at,
-			rem.filed_at_string,
+			rem.filed_at::text AS filed_at_string,
 			rem.paid_at,
-			rem.paid_at_string,
-			rem.reference_number,
-			COUNT(*) OVER() AS total
-		FROM `+entityid.PayrollRemittance+` rem
-		LEFT JOIN `+entityid.PayrollRun+` pr ON pr.id = rem.payroll_run_id
+			rem.paid_at::text AS paid_at_string,
+			rem.reference_number
+		FROM ` + entityid.PayrollRemittance + ` rem
+		LEFT JOIN ` + entityid.PayrollRun + ` pr ON pr.id = rem.payroll_run_id
 		WHERE pr.workspace_id = $1
 		  AND ($2::text IS NULL OR $2::text = '' OR rem.reference_number ILIKE $2)
-		%s
-		LIMIT $3 OFFSET $4;
-	`, orderByClause)
+	`)
 
-	rows, err := r.db.QueryContext(ctx, query, workspaceID, searchPattern, limit, offset)
+	sortKeys, err := pageSortFromOrderBy(orderByClause)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: scopedSQL, Args: []any{workspaceID, searchPattern}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve payroll_remittance page: %w", err)
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count payroll_remittance page: %w", err)
+	}
+
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query payroll remittance list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var payrollRemittances []*payrollremittancepb.PayrollRemittance
-	var totalCount int64
-
 	for rows.Next() {
 		var (
 			id                string
-			dateCreated       int64
+			dateCreated       *time.Time
 			payrollRunID      string
 			remittanceTypeStr string
 			amount            int64
-			dueDate           int64
+			dueDate           string
 			dueDateString     *string
 			statusStr         string
-			filedAt           *int64
+			filedAt           *time.Time
 			filedAtString     *string
-			paidAt            *int64
+			paidAt            *time.Time
 			paidAtString      *string
 			referenceNumber   *string
-			total             int64
 		)
 
 		err := rows.Scan(
@@ -332,13 +339,10 @@ func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
 			&paidAt,
 			&paidAtString,
 			&referenceNumber,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan payroll remittance row: %w", err)
 		}
-
-		totalCount = total
 
 		payrollRemittance := &payrollremittancepb.PayrollRemittance{
 			Id:              id,
@@ -356,17 +360,15 @@ func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
 			payrollRemittance.Status = payrollremittancepb.RemittanceStatus(val)
 		}
 
-		if dueDate > 0 {
-			payrollRemittance.DueDate = time.UnixMilli(dueDate).UTC().Format("2006-01-02")
+		payrollRemittance.DueDate = dueDate
+		if millis := pageMillis(filedAt); millis != nil && *millis > 0 {
+			payrollRemittance.FiledAt = millis
 		}
-		if filedAt != nil && *filedAt > 0 {
-			payrollRemittance.FiledAt = filedAt
+		if millis := pageMillis(paidAt); millis != nil && *millis > 0 {
+			payrollRemittance.PaidAt = millis
 		}
-		if paidAt != nil && *paidAt > 0 {
-			payrollRemittance.PaidAt = paidAt
-		}
-		if dateCreated > 0 {
-			payrollRemittance.DateCreated = &dateCreated
+		if millis := pageMillis(dateCreated); millis != nil && *millis > 0 {
+			payrollRemittance.DateCreated = millis
 		}
 
 		payrollRemittances = append(payrollRemittances, payrollRemittance)
@@ -376,24 +378,16 @@ func (r *PostgresPayrollRemittanceRepository) GetPayrollRemittanceListPageData(
 		return nil, fmt.Errorf("error iterating payroll remittance rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	firstID, lastID := "", ""
+	if len(payrollRemittances) > 0 {
+		firstID = payrollRemittances[0].GetId()
+		lastID = payrollRemittances[len(payrollRemittances)-1].GetId()
 	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
 
 	return &payrollremittancepb.GetPayrollRemittanceListPageDataResponse{
 		PayrollRemittanceList: payrollRemittances,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:            scopedPageMetadata(totalCount, queries.Page, firstID, lastID),
+		Success:               true,
 	}, nil
 }
 

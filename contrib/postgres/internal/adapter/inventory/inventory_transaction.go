@@ -281,7 +281,7 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionListPage
 	}
 
 	// Default pagination values
-	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, paginationErr := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if paginationErr != nil {
 		return nil, fmt.Errorf("bounded pagination: %w", paginationErr)
 	}
@@ -290,7 +290,7 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionListPage
 	// references the outer enriched projection (date_created) since the page rows
 	// are selected via "SELECT e.* FROM enriched e". An unknown sort column now
 	// errors instead of being interpolated verbatim into ORDER BY.
-	orderByClause, err := postgresCore.BuildOrderBy(inventoryTransactionSortableSQLCols, req.GetSort(), "date_created DESC")
+	_, err := postgresCore.BuildOrderBy(inventoryTransactionSortableSQLCols, req.GetSort(), "date_created DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -300,17 +300,33 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionListPage
 		return nil, err
 	}
 
-	// CTE Query - Single round-trip with inventory_item join
-	query := inventoryTransactionListPageDataSQL(orderByClause)
-
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, workspaceID)
+	sortKey := postgresCore.AdapterSortKey{Column: "date_created", Desc: true, NullsFirst: true}
+	for _, field := range req.GetSort().GetFields() {
+		if field.GetField() != "" {
+			sortKey.Column = field.GetField()
+			sortKey.Desc = field.GetDirection() == commonpb.SortDirection_DESC
+			sortKey.NullsFirst = sortKey.Desc
+			break
+		}
+	}
+	q, err := postgresCore.ResolveScopedPage(ctx, r.db, postgresCore.ScopedPageSet{
+		SQL: inventoryTransactionListPageDataSQL(), Args: []any{searchPattern, workspaceID},
+		Sort: []postgresCore.AdapterSortKey{sortKey},
+	}, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve inventory transaction page: %w", err)
+	}
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, q.CountSQL, q.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count inventory transaction page: %w", err)
+	}
+	rows, err := r.db.QueryContext(ctx, q.PageSQL, q.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query inventory transaction list page data: %w", err)
 	}
 	defer rows.Close()
 
 	var inventoryTransactions []*inventorytransactionpb.InventoryTransaction
-	var totalCount int64
 
 	for rows.Next() {
 		var (
@@ -330,7 +346,6 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionListPage
 			serialNumber      *string
 			performedBy       *string
 			inventoryItemName string
-			total             int64
 		)
 
 		err := rows.Scan(
@@ -350,13 +365,10 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionListPage
 			&serialNumber,
 			&performedBy,
 			&inventoryItemName,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan inventory transaction row: %w", err)
 		}
-
-		totalCount = total
 
 		inventoryTransaction := &inventorytransactionpb.InventoryTransaction{
 			Id:              id,
@@ -417,27 +429,42 @@ func (r *PostgresInventoryTransactionRepository) GetInventoryTransactionListPage
 
 	// Calculate pagination metadata
 	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	if q.Page.Limit > 0 {
+		totalPages = int32((totalCount + int64(q.Page.Limit) - 1) / int64(q.Page.Limit))
 	}
-
+	page := q.Page.Number
 	hasNext := page < totalPages
 	hasPrev := page > 1
+	pagination := &commonpb.PaginationResponse{
+		TotalItems: int32(totalCount), CurrentPage: &page, TotalPages: &totalPages,
+		HasNext: hasNext, HasPrev: hasPrev,
+	}
+	if len(inventoryTransactions) > 0 {
+		firstID, lastID := inventoryTransactions[0].Id, inventoryTransactions[len(inventoryTransactions)-1].Id
+		if hasNext {
+			token := postgresCore.EncodePageCursor(page+1, "next", lastID)
+			if token == "" {
+				token = fmt.Sprintf("offset:%d", page*q.Page.Limit)
+			}
+			pagination.NextCursor = &token
+		}
+		if hasPrev {
+			token := postgresCore.EncodePageCursor(page-1, "prev", firstID)
+			if token == "" {
+				token = fmt.Sprintf("offset:%d", (page-2)*q.Page.Limit)
+			}
+			pagination.PrevCursor = &token
+		}
+	}
 
 	return &inventorytransactionpb.GetInventoryTransactionListPageDataResponse{
 		InventoryTransactionList: inventoryTransactions,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:               pagination,
+		Success:                  true,
 	}, nil
 }
 
-func inventoryTransactionListPageDataSQL(orderByClause string) string {
+func inventoryTransactionListPageDataSQL() string {
 	return `
 		WITH enriched AS (
 			SELECT
@@ -460,20 +487,13 @@ func inventoryTransactionListPageDataSQL(orderByClause string) string {
 			FROM ` + entityid.InventoryTransaction + ` it
 			LEFT JOIN ` + entityid.InventoryItem + ` ii ON it.inventory_item_id = ii.id AND ii.active = true
 			WHERE it.active = true
-			  AND ii.workspace_id = $4
+			  AND ii.workspace_id = $2
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       it.transaction_type ILIKE $1 OR
 			       it.status ILIKE $1 OR
 			       ii.name ILIKE $1)
 		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
-		SELECT
-			e.*,
-			COUNT(*) OVER () AS total
-		FROM enriched e
-		` + orderByClause + `
-		LIMIT $2 OFFSET $3;
+		SELECT * FROM enriched
 	`
 }
 

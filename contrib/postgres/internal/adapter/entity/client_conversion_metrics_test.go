@@ -110,7 +110,7 @@ func TestClientPageConversionMetricClassifiesQueryError(t *testing.T) {
 	if sample.Path != "typed-client-page" || sample.Operation != "list" || sample.Outcome != "error" {
 		t.Fatalf("sample = %#v", sample)
 	}
-	if sample.FailureStage != "query_open" || sample.Columns != 33 {
+	if sample.FailureStage != "query_open" || sample.Columns != 32 {
 		t.Fatalf("sample failure = %#v", sample)
 	}
 	if sample.Phases["query_open"] <= 0 {

@@ -18,7 +18,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_template"
 )
 
@@ -251,7 +250,7 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateListPageData(
 		return nil, fmt.Errorf("invalid list search: %w", err)
 	}
 
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("invalid list pagination: %w", err)
 	}
@@ -284,7 +283,7 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateListPageData(
 	// scoping. $5 carries the workspace_id.
 	wsID := identity.Must(ctx).WorkspaceID
 
-	query := fmt.Sprintf(`
+	query := `
 		WITH enriched AS (
 			SELECT
 				jt.id,
@@ -296,31 +295,31 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateListPageData(
 				jt.default_fulfillment_type,
 				jt.default_cost_flow_type,
 				jt.default_billing_rule_type
-			FROM `+entityid.JobTemplate+` jt
-			WHERE jt.active = $4
-			  AND ($5::text = '' OR jt.workspace_id = $5::text)
+			FROM ` + entityid.JobTemplate + ` jt
+			WHERE jt.active = $2
+			  AND ($3::text = '' OR jt.workspace_id = $3::text)
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       jt.name ILIKE $1 OR
 			       jt.description ILIKE $1)
 		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
-		SELECT
-			e.*,
-			COUNT(*) OVER () AS total
-		FROM enriched e
-		%s
-		LIMIT $2 OFFSET $3;
-	`, orderByClause)
-
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, activeFilter, wsID)
+		SELECT e.* FROM enriched e
+	`
+	sortKeys, err := scopedPageSort(orderByClause)
+	if err != nil {
+		return nil, err
+	}
+	set := postgresCore.ScopedPageSet{SQL: query, Args: []any{searchPattern, activeFilter, wsID}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query job template list page data: %w", err)
 	}
-	defer rows.Close()
 
 	var templates []*pb.JobTemplate
-	var totalCount int64
+	var firstID, lastID string
 
 	for rows.Next() {
 		var (
@@ -333,7 +332,6 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateListPageData(
 			defaultFulfillmentType sql.NullString
 			defaultCostFlowType    sql.NullString
 			defaultBillingRuleType sql.NullString
-			total                  int64
 		)
 
 		err := rows.Scan(
@@ -346,13 +344,15 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateListPageData(
 			&defaultFulfillmentType,
 			&defaultCostFlowType,
 			&defaultBillingRuleType,
-			&total,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan job template row: %w", err)
 		}
 
-		totalCount = total
+		if firstID == "" {
+			firstID = id
+		}
+		lastID = id
 
 		template := &pb.JobTemplate{
 			Id:     id,
@@ -384,24 +384,18 @@ func (r *PostgresJobTemplateRepository) GetJobTemplateListPageData(
 		return nil, fmt.Errorf("error iterating job template rows: %w", err)
 	}
 
-	totalPages := int32(0)
-	if limit > 0 {
-		totalPages = int32((totalCount + int64(limit) - 1) / int64(limit))
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
-
-	hasNext := page < totalPages
-	hasPrev := page > 1
+	var totalCount int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
 
 	return &pb.GetJobTemplateListPageDataResponse{
 		JobTemplateList: templates,
-		Pagination: &commonpb.PaginationResponse{
-			TotalItems:  int32(totalCount),
-			CurrentPage: &page,
-			TotalPages:  &totalPages,
-			HasNext:     hasNext,
-			HasPrev:     hasPrev,
-		},
-		Success: true,
+		Pagination:      scopedPageMetadata(queries.Page, totalCount, firstID, lastID),
+		Success:         true,
 	}, nil
 }
 

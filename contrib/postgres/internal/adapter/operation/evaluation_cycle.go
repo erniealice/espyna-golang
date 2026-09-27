@@ -15,7 +15,6 @@ import (
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	"github.com/erniealice/espyna-golang/shared/identity"
-	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/evaluation_cycle"
 )
 
@@ -175,7 +174,7 @@ func (r *PostgresEvaluationCycleRepository) GetEvaluationCycleListPageData(ctx c
 	if err != nil {
 		return nil, fmt.Errorf("invalid list search: %w", err)
 	}
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if err != nil {
 		return nil, fmt.Errorf("invalid list pagination: %w", err)
 	}
@@ -183,28 +182,53 @@ func (r *PostgresEvaluationCycleRepository) GetEvaluationCycleListPageData(ctx c
 	if err != nil {
 		return nil, fmt.Errorf("invalid sort for evaluation cycle list: %w", err)
 	}
+	sortKeys, err := scopedPageSort(orderBy)
+	if err != nil {
+		return nil, err
+	}
 	wsID := identity.Must(ctx).WorkspaceID
-	query := `SELECT ` + evaluationCycleSelectCols + `
+	set := postgresCore.ScopedPageSet{SQL: `SELECT ` + evaluationCycleSelectCols + `
 		FROM ` + r.tableName + `
 		WHERE active = true
-			AND ($4::text = '' OR workspace_id = $4::text)
-			AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1) ` + orderBy + ` LIMIT $2 OFFSET $3;`
-	rows, err := r.db.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
+			AND ($2::text = '' OR workspace_id = $2::text)
+			AND ($1::text IS NULL OR $1::text = '' OR name ILIKE $1)`,
+		Args: []any{searchPattern, wsID}, Sort: sortKeys}
+	queries, err := postgresCore.ResolveScopedPage(ctx, r.db, set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.db.QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
-	defer rows.Close()
 	var items []*pb.EvaluationCycle
+	var firstID, lastID string
 	for rows.Next() {
 		e, scanErr := scanEvaluationCycleRow(rows.Scan)
 		if scanErr != nil {
+			rows.Close()
 			return nil, fmt.Errorf("scan failed: %w", scanErr)
 		}
+		if firstID == "" {
+			firstID = e.Id
+		}
+		lastID = e.Id
 		items = append(items, e)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	var total int64
+	if err := r.db.QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&total); err != nil {
+		return nil, err
 	}
 	return &pb.GetEvaluationCycleListPageDataResponse{
 		EvaluationCycleList: items,
-		Pagination:          &commonpb.PaginationResponse{CurrentPage: &page},
+		Pagination:          scopedPageMetadata(queries.Page, total, firstID, lastID),
 		Success:             true,
 	}, nil
 }

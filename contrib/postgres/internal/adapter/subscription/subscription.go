@@ -272,7 +272,7 @@ func (r *PostgresSubscriptionRepository) ListSubscriptions(ctx context.Context, 
 // This method uses CTEs (Common Table Expressions) to optimize query performance by loading all data in a single query
 // TODO: Add unit tests for GetSubscriptionListPageData
 func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context.Context, req *subscriptionpb.GetSubscriptionListPageDataRequest) (*subscriptionpb.GetSubscriptionListPageDataResponse, error) {
-	limit, offset, page, err := postgresCore.BoundedOffsetPagination(req.GetPagination(), 20)
+	page, err := postgresCore.BoundedPageRequest(req.GetPagination(), 20)
 	if err != nil {
 		return nil, fmt.Errorf("bounded subscription pagination: %w", err)
 	}
@@ -349,12 +349,12 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 		search_filtered AS (
 			SELECT s.*
 			FROM ` + entityid.Subscription + ` s
-			WHERE s.active = $7
-				AND ($8::text = '' OR s.workspace_id = $8::text)
+			WHERE s.active = $2
+				AND ($3::text = '' OR s.workspace_id = $3::text)
 				AND ($1::text = '' OR
 					s.name ILIKE $1)
-				AND ($6::text = '' OR s.client_id = $6)
-				AND ($9::text = '' OR s.price_plan_id = $9)
+				AND ($4::text = '' OR s.client_id = $4)
+				AND ($5::text = '' OR s.price_plan_id = $5)
 		),
 
 		-- CTE 2: Join with client, user, price_plan, and plan
@@ -431,44 +431,12 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			LEFT JOIN ` + entityid.Plan + ` p ON pp.plan_id = p.id AND p.active = true
 		)
 
-		-- Final SELECT with sorting, window count, and pagination.
-		-- A10: COUNT(*) OVER () replaces the prior total-count CTE + CROSS JOIN,
-		-- computed over the full enriched set before LIMIT/OFFSET. The parameterized
-		-- CASE WHEN sort (guarded above by subscriptionSortableSQLCols) moves into
-		-- this SELECT (over enriched, which still projects client_name) so the
-		-- window count spans every filtered row.
-		SELECT
-			e.id,
-			e.name,
-			e.client_id,
-			e.price_plan_id,
-			e.date_time_start,
-			e.date_time_end,
-			e.active,
-			e.date_created,
-			e.date_modified,
-			e.escalation_mode,
-			e.escalation_scope,
-			e.escalation_rate_bps,
-			e.escalation_first_after_months,
-			e.escalation_every_months,
-			e.client,
-			e.price_plan,
-			COUNT(*) OVER () as _total_count
-		FROM enriched e
-		ORDER BY
-			CASE WHEN $4 = 'name' AND $5 = 'ASC' THEN e.name END ASC,
-			CASE WHEN $4 = 'name' AND $5 = 'DESC' THEN e.name END DESC,
-			CASE WHEN ($4 = 'date_created' OR $4 = '') AND $5 = 'DESC' THEN e.date_created END DESC,
-			CASE WHEN $4 = 'date_created' AND $5 = 'ASC' THEN e.date_created END ASC,
-			CASE WHEN $4 = 'date_time_start' AND $5 = 'ASC' THEN e.date_time_start END ASC,
-			CASE WHEN $4 = 'date_time_start' AND $5 = 'DESC' THEN e.date_time_start END DESC,
-			CASE WHEN $4 = 'date_time_end' AND $5 = 'ASC' THEN e.date_time_end END ASC,
-			CASE WHEN $4 = 'date_time_end' AND $5 = 'DESC' THEN e.date_time_end END DESC,
-			CASE WHEN $4 = 'client_name' AND $5 = 'ASC' THEN e.client_name END ASC,
-			CASE WHEN $4 = 'client_name' AND $5 = 'DESC' THEN e.client_name END DESC
-		LIMIT $2 OFFSET $3
+		SELECT e.* FROM enriched e
 	`
+	if sortField == "" {
+		sortField = "date_created"
+	}
+	sortKeys := []postgresCore.AdapterSortKey{{Column: sortField, Desc: sortDirection == "DESC", NullsFirst: sortDirection == "DESC"}}
 
 	// Get DB connection from dbOps interface
 	db, ok := r.dbOps.(interface{ GetDB() *sql.DB })
@@ -480,26 +448,19 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 	// decorator (raw SQL via db.GetDB()), so we extract workspace_id from
 	// context and filter explicitly. Empty wsID = service-to-service call.
 	wsID := identity.Must(ctx).WorkspaceID
+	set := postgresCore.ScopedPageSet{SQL: query, Args: []any{searchQuery, activeFilter, wsID, clientIDFilter, pricePlanIDFilter}, Sort: sortKeys}
 
-	// Execute query
-	rows, err := db.GetDB().QueryContext(ctx, query,
-		searchQuery,       // $1
-		limit,             // $2
-		offset,            // $3
-		sortField,         // $4
-		sortDirection,     // $5
-		clientIDFilter,    // $6
-		activeFilter,      // $7
-		wsID,              // $8
-		pricePlanIDFilter, // $9
-	)
+	queries, err := postgresCore.ResolveScopedPage(ctx, db.GetDB(), set, page)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.GetDB().QueryContext(ctx, queries.PageSQL, queries.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute GetSubscriptionListPageData query: %w", err)
 	}
-	defer rows.Close()
 
 	var subscriptions []*subscriptionpb.Subscription
-	var totalCount int32
+	var firstID, lastID string
 
 	for rows.Next() {
 		var (
@@ -519,7 +480,7 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			escalationEvery sql.NullInt32
 			clientJSON      []byte
 			pricePlanJSON   []byte
-			rowTotalCount   int32
+			clientName      sql.NullString
 		)
 
 		err := rows.Scan(
@@ -537,15 +498,18 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 			&escalationRate,
 			&escalationFirst,
 			&escalationEvery,
+			&clientName,
 			&clientJSON,
 			&pricePlanJSON,
-			&rowTotalCount,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan subscription row: %w", err)
 		}
 
-		totalCount = rowTotalCount
+		if firstID == "" {
+			firstID = id
+		}
+		lastID = id
 
 		// Build subscription message
 		subscription := &subscriptionpb.Subscription{
@@ -604,19 +568,14 @@ func (r *PostgresSubscriptionRepository) GetSubscriptionListPageData(ctx context
 		return nil, fmt.Errorf("error iterating subscription rows: %w", err)
 	}
 
-	// Build pagination response
-	totalPages := (totalCount + limit - 1) / limit
-	hasNext := page < totalPages
-	hasPrev := page > 1
-
-	paginationResponse := &commonpb.PaginationResponse{
-		TotalItems:  totalCount,
-		CurrentPage: &page,
-		TotalPages:  &totalPages,
-		HasNext:     hasNext,
-		HasPrev:     hasPrev,
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
-
+	var totalCount int64
+	if err := db.GetDB().QueryRowContext(ctx, queries.CountSQL, queries.CountArgs...).Scan(&totalCount); err != nil {
+		return nil, err
+	}
+	paginationResponse := scopedPageMetadata(queries.Page, totalCount, firstID, lastID)
 	return &subscriptionpb.GetSubscriptionListPageDataResponse{
 		Success:          true,
 		SubscriptionList: subscriptions,

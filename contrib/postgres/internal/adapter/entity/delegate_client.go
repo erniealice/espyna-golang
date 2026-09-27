@@ -251,7 +251,7 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientListPageData(ctx con
 	if searchErr != nil {
 		return nil, fmt.Errorf("bounded search: %w", searchErr)
 	}
-	limit, offset, page, paginationErr := postgresCore.BoundedOffsetPagination(req.GetPagination(), 50)
+	pageRequest, paginationErr := postgresCore.BoundedPageRequest(req.GetPagination(), 50)
 	if paginationErr != nil {
 		return nil, fmt.Errorf("bounded pagination: %w", paginationErr)
 	}
@@ -283,7 +283,7 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientListPageData(ctx con
 	// session identity. FAIL-CLOSED: an empty WorkspaceID matches no row (no
 	// empty-string escape — that would leak every tenant).
 	wsID := identity.Must(ctx).WorkspaceID
-	query := `
+	scopedSQL := `
 		WITH enriched AS (SELECT
 				id,
 				delegate_id,
@@ -296,36 +296,37 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientListPageData(ctx con
 				workspace_id
 			FROM ` + entityid.DelegateClient + `
 			WHERE active = true
-			  AND workspace_id = $4::text
+			  AND workspace_id = $2::text
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       delegate_id ILIKE $1 OR
 			       client_id ILIKE $1))
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
-		SELECT
-			e.*,
-			COUNT(*) OVER () AS total
-		FROM enriched e
-		ORDER BY ` + sortField + ` ` + sortOrder + `
-		LIMIT $2 OFFSET $3;`
+		SELECT * FROM enriched`
 	exec := r.dbOps.(executorProvider).GetExecutor(ctx)
-	rows, err := exec.QueryContext(ctx, query, searchPattern, limit, offset, wsID)
+	q, err := postgresCore.ResolveScopedPage(ctx, exec, postgresCore.ScopedPageSet{
+		SQL: scopedSQL, Args: []any{searchPattern, wsID},
+		Sort: []postgresCore.AdapterSortKey{{Column: sortField, Desc: sortOrder == "DESC", NullsFirst: sortOrder == "DESC"}},
+	}, pageRequest)
+	if err != nil {
+		return nil, fmt.Errorf("resolve delegate client page: %w", err)
+	}
+	totalCount, err := countScopedPage(ctx, exec, q)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := exec.QueryContext(ctx, q.PageSQL, q.PageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 	defer rows.Close()
 	var delegateClients []*delegateclientpb.DelegateClient
-	var totalCount int64
 	for rows.Next() {
 		var id, delegateId, clientId string
 		var active bool
 		var dateCreated, dateModified time.Time
 		var roleId, grantedByUserId, workspaceId *string
-		var total int64
-		if err := rows.Scan(&id, &delegateId, &clientId, &active, &dateCreated, &dateModified, &roleId, &grantedByUserId, &workspaceId, &total); err != nil {
+		if err := rows.Scan(&id, &delegateId, &clientId, &active, &dateCreated, &dateModified, &roleId, &grantedByUserId, &workspaceId); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
-		totalCount = total
 		delegateClient := &delegateclientpb.DelegateClient{
 			Id:         id,
 			DelegateId: delegateId,
@@ -355,8 +356,13 @@ func (r *PostgresDelegateClientRepository) GetDelegateClientListPageData(ctx con
 		}
 		delegateClients = append(delegateClients, delegateClient)
 	}
-	totalPages := int32((totalCount + int64(limit) - 1) / int64(limit))
-	return &delegateclientpb.GetDelegateClientListPageDataResponse{DelegateClientList: delegateClients, Pagination: &commonpb.PaginationResponse{TotalItems: int32(totalCount), CurrentPage: &page, TotalPages: &totalPages, HasNext: page < totalPages, HasPrev: page > 1}, Success: true}, nil
+	page := q.Page.Number
+	totalPages := int32((totalCount + int64(q.Page.Limit) - 1) / int64(q.Page.Limit))
+	pagination := &commonpb.PaginationResponse{TotalItems: int32(totalCount), CurrentPage: &page, TotalPages: &totalPages, HasNext: page < totalPages, HasPrev: page > 1}
+	if len(delegateClients) > 0 {
+		setPageCursors(pagination, delegateClients[0].Id, delegateClients[len(delegateClients)-1].Id, q.Page.Limit)
+	}
+	return &delegateclientpb.GetDelegateClientListPageDataResponse{DelegateClientList: delegateClients, Pagination: pagination, Success: true}, nil
 }
 
 // GetDelegateClientItemPageData retrieves delegate client item page data

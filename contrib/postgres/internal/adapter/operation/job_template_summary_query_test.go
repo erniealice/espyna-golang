@@ -142,7 +142,11 @@ func TestJobTemplateSummarySQL_ClassEdgeDelivererBranch(t *testing.T) {
 		"pl.id = e.product_plan_id",
 		"LEFT JOIN " + entityid.ProductPlanStaff + " pps", // v2 eligibility link is OPTIONAL (f13 may be unset pre-M3)
 		"pps.id = e.product_plan_staff_id",
-		"st.id = COALESCE(pps.staff_id, e.staff_id) AND st.workspace_id = $1",
+		// Staff names are resolved once in the workspace-bound staff_names CTE
+		// (plan 20260927 P3) and joined by id in both deliverer branches.
+		"JOIN staff_names st\n           ON st.id = COALESCE(pps.staff_id, e.staff_id)",
+		"FROM " + entityid.Staff + " st",
+		"WHERE st.workspace_id = $1",
 		`"` + entityid.User + `" u`,
 		"u.id = st.user_id AND u.active",
 	} {
@@ -178,13 +182,15 @@ func TestJobTemplateSummarySQL_ClassEdgeDelivererBranch(t *testing.T) {
 	}
 
 	// DP-10: every active primary edge must reach the delivery fold. A revoked
-	// eligibility filters only its own edge; the DISTINCT staff fold removes
-	// duplicate teachers and its ARRAY_AGG gives deterministic name order.
+	// eligibility filters only its own edge; the first_row_for_staff window flag
+	// removes duplicate teachers (one per Courses row) and the ordered ARRAY_AGG
+	// gives deterministic name order (single-pass fold, plan 20260927 P3).
 	for _, frag := range []string{
 		"class_primary_edges AS MATERIALIZED",
 		"SELECT e.id,",
 		"FROM class_primary_edges e",
-		"SELECT DISTINCT job_template_id, subscription_group_id, price_schedule_id,",
+		"PARTITION BY job_template_id, subscription_group_id, price_schedule_key,",
+		"FILTER (WHERE first_row_for_staff)",
 		"ARRAY_AGG(staff_name ORDER BY staff_name, staff_id)",
 	} {
 		if !strings.Contains(sql, frag) {
@@ -366,9 +372,9 @@ func TestJobTemplateSummarySQL_FiltersAndPagination(t *testing.T) {
 		}
 		for _, frag := range []string{
 			"delivery AS MATERIALIZED",
-			"delivery_staff AS (",
-			"ARRAY_AGG(staff_id ORDER BY staff_name, staff_id) AS staff_ids",
-			"ARRAY_AGG(staff_name ORDER BY staff_name, staff_id) AS staff_names",
+			"delivery_ranked AS (",
+			"ARRAY_AGG(staff_id ORDER BY staff_name, staff_id) FILTER (WHERE first_row_for_staff) AS staff_ids",
+			"ARRAY_AGG(staff_name ORDER BY staff_name, staff_id) FILTER (WHERE first_row_for_staff) AS staff_names",
 		} {
 			if !strings.Contains(stmt, frag) {
 				t.Errorf("summary-grain delivery fold missing %q:\n%s", frag, stmt)
@@ -585,7 +591,7 @@ func TestJobTemplateSummarySQL_JobCategoryProjection(t *testing.T) {
 		t.Errorf("jj CTE missing jt.job_category_id projection\nSQL:\n%s", sql)
 	}
 	// It is carried into delivery and the summary-grain counts GROUP BY.
-	for _, frag := range []string{"jj.job_category_id             AS job_category_id", "job_category_id, COUNT(DISTINCT job_id) AS job_count"} {
+	for _, frag := range []string{"jj.job_category_id             AS job_category_id", "job_category_id,\n           COUNT(DISTINCT job_id) AS job_count"} {
 		if !strings.Contains(sql, frag) {
 			t.Errorf("category missing summary-grain carry %q\nSQL:\n%s", frag, sql)
 		}
@@ -868,9 +874,13 @@ func TestJobTemplateSummarySQL_ApprovalPreaggregate(t *testing.T) {
 			"SELECT DISTINCT job_template_id AS template_id FROM page_base",
 			"SELECT DISTINCT job_template_id AS template_id, subscription_group_id AS group_id FROM page_base",
 			"FROM candidate_templates ct\n    JOIN jj ON jj.template_id = ct.template_id",
-			"FROM candidate_groups cg\n    JOIN jj ON jj.template_id = cg.template_id",
+			// Page members and page phases are materialized once and reused by both
+			// roll-ups (plan 20260927 P3); the membership join keeps all three keys.
+			"page_members AS MATERIALIZED (",
+			"page_phases AS MATERIALIZED (",
 			"gm.subscription_group_id = cg.group_id",
-			"gm.subscription_id = jj.subscription_id AND gm.client_id = jj.client_id",
+			"FROM page_members cg\n    JOIN page_phases jp",
+			"AND jp.subscription_id = cg.subscription_id\n          AND jp.client_id = cg.client_id",
 			"data_phases AS MATERIALIZED (\n    SELECT DISTINCT tk.job_phase_id",
 			"FROM " + entityid.JobTask + " tk\n    JOIN " + entityid.TaskOutcome + " tox ON tox.job_task_id = tk.id AND tox.active",
 			"BOOL_OR(data_phases.job_phase_id IS NOT NULL) AS has_data",
@@ -971,7 +981,7 @@ func TestJobTemplateSummarySQL_ApprovalPreaggregate(t *testing.T) {
 		if !strings.Contains(sql, "jt.job_category_id AS job_category_id") {
 			t.Errorf("W-A1 jj category projection disturbed\nSQL:\n%s", sql)
 		}
-		if !strings.Contains(sql, "job_category_id, COUNT(DISTINCT job_id) AS job_count") {
+		if !strings.Contains(sql, "job_category_id,\n           COUNT(DISTINCT job_id) AS job_count") {
 			t.Errorf("W-A1 category summary-grain count disturbed\nSQL:\n%s", sql)
 		}
 		if !strings.Contains(sql, "ORDER BY subscription_group_name ASC NULLS FIRST, job_template_name ASC,") {

@@ -789,7 +789,7 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseListPageData(
 	}
 
 	query := `
-		WITH enriched AS (
+		WITH enriched AS NOT MATERIALIZED (
 			SELECT
 				jp.id,
 				jp.date_created,
@@ -804,14 +804,21 @@ func (r *PostgresJobPhaseRepository) GetJobPhaseListPageData(
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       jp.name ILIKE $1)
 		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
+		-- A3 (Q-PAGE-COUNT heavyweight tier, plan 20260927-db-query-performance
+		-- DB-07): page ids come from a narrow sort, full rows are fetched for those
+		-- ids only, and the total is one scalar count. COUNT(*) OVER () held every
+		-- matching row of this high-volume table in a temp file before the LIMIT.
+		, page AS (
+			SELECT e.id
+			FROM enriched e
+			` + orderByClause + `
+			LIMIT $2 OFFSET $3
+		)
 		SELECT
-			e.*,
-			COUNT(*) OVER () AS total
+			e.*, (SELECT COUNT(*) FROM enriched) AS total
 		FROM enriched e
-		` + orderByClause + `
-		LIMIT $2 OFFSET $3;
+		WHERE e.id IN (SELECT id FROM page)
+		` + orderByClause + `;
 	`
 
 	rows, err := r.db.QueryContext(ctx, query, queryArgs...)

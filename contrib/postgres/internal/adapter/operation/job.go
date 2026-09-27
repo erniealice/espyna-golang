@@ -325,8 +325,14 @@ func (r *PostgresJobRepository) GetJobListPageData(
 	// positional, independent of SQL clause order.
 	jobScope, jobScopeArgs := principalscope.StaffReachableJobClause(ctx, "j", 5)
 
+	// Page shape (plan 20260927-db-query-performance, audit DB-07): pick the
+	// page's ids from a narrow sort, fetch full rows for those ids only, and
+	// count once in a scalar subquery. The earlier COUNT(*) OVER () window held
+	// every matching row in a temp file before the LIMIT, and deep pages sorted
+	// full-width rows on disk. enriched is NOT MATERIALIZED so each use reads
+	// only the columns it needs. Results, order, and total are unchanged.
 	query := fmt.Sprintf(`
-		WITH enriched AS (
+		WITH enriched AS NOT MATERIALIZED (
 			SELECT
 				j.id,
 				j.date_created,
@@ -355,14 +361,20 @@ func (r *PostgresJobRepository) GetJobListPageData(
 			  AND ($1 = '' OR j.workspace_id = $1)
 			  AND ($2::text IS NULL OR $2::text = '' OR
 			       j.name ILIKE $2)%s
+		),
+		page AS (
+			SELECT e.id
+			FROM enriched e
+			%s
+			LIMIT $3 OFFSET $4
 		)
 		SELECT
 			e.*,
-			COUNT(*) OVER () AS total
+			(SELECT COUNT(*) FROM enriched) AS total
 		FROM enriched e
-		%s
-		LIMIT $3 OFFSET $4;
-	`, jobScope, orderByClause)
+		WHERE e.id IN (SELECT id FROM page)
+		%s;
+	`, jobScope, orderByClause, orderByClause)
 
 	args := []any{workspaceID, searchPattern, limit, offset}
 	args = append(args, jobScopeArgs...)

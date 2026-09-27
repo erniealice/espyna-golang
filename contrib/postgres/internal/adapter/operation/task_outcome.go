@@ -347,20 +347,28 @@ func (r *PostgresTaskOutcomeRepository) GetTaskOutcomeListPageData(
 	staffClause, staffArgs := principalscope.StaffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 4)
 
 	query := `
-		WITH enriched AS (
+		WITH enriched AS NOT MATERIALIZED (
 			SELECT ` + toColumns + `
 			FROM ` + entityid.TaskOutcome + ` to_
 			WHERE to_.active = true
 			  AND ($1::text IS NULL OR $1::text = '' OR
 			       to_.determination_note ILIKE $1)` + staffClause + `
 		)
-		-- A3 (Q-PAGE-COUNT default tier): COUNT(*) OVER () computes the total in the
-		-- same scan as the page rows (the prior counted CTE forced a second scan).
+		-- A3 (Q-PAGE-COUNT heavyweight tier, plan 20260927-db-query-performance
+		-- DB-07): page ids come from a narrow sort, full rows are fetched for those
+		-- ids only, and the total is one scalar count. COUNT(*) OVER () held every
+		-- matching row of this high-volume table in a temp file before the LIMIT.
+		, page AS (
+			SELECT e.id
+			FROM enriched e
+			` + orderByClause + `
+			LIMIT $2 OFFSET $3
+		)
 		SELECT
-			e.*, COUNT(*) OVER () AS total
+			e.*, (SELECT COUNT(*) FROM enriched) AS total
 		FROM enriched e
-		` + orderByClause + `
-		LIMIT $2 OFFSET $3;
+		WHERE e.id IN (SELECT id FROM page)
+		` + orderByClause + `;
 	`
 
 	rows, err := r.db.QueryContext(ctx, query, append([]any{searchPattern, limit, offset}, staffArgs...)...)
@@ -574,10 +582,24 @@ func (r *PostgresTaskOutcomeRepository) ListByJob(
 		return nil, fmt.Errorf("job ID is required")
 	}
 
-	// Staff row-scope (Phase 4): within a job a STAFF principal sees only the
-	// outcomes it recorded_by OR reviewed_by ($2). Non-staff → empty clause.
-	staffClause, staffArgs := principalscope.StaffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 2)
+	// Tenant isolation: the job must belong to the trusted-context workspace.
+	// No trusted workspace resolves nothing (fail closed), matching
+	// ListCodedTaskOutcomeValuesByJob.
+	id, ok := identity.FromContext(ctx)
+	if !ok || id.WorkspaceID == "" {
+		return &pb.ListTaskOutcomesByJobResponse{Success: true}, nil
+	}
 
+	exec := r.executor(ctx)
+	if exec == nil {
+		return nil, fmt.Errorf("task_outcome ListByJob: no SQL executor available")
+	}
+
+	// Staff row-scope (Phase 4): within a job a STAFF principal sees only the
+	// outcomes it recorded_by OR reviewed_by ($3). Non-staff → empty clause.
+	staffClause, staffArgs := principalscope.StaffScopeClauseAny(ctx, []string{"to_.recorded_by", "to_.reviewed_by"}, 3)
+
+	// job_task carries no job_id: a task reaches its job through job_phase.
 	query := `
 		SELECT
 			to_.id, COALESCE(to_.job_task_id, '') AS job_task_id,
@@ -592,11 +614,13 @@ func (r *PostgresTaskOutcomeRepository) ListByJob(
 			to_.active, to_.date_created, to_.date_modified
 		FROM ` + entityid.TaskOutcome + ` to_
 		JOIN ` + entityid.JobTask + ` jt ON to_.job_task_id = jt.id
-		WHERE jt.job_id = $1 AND to_.active = true` + staffClause + `
+		JOIN ` + entityid.JobPhase + ` jp ON jt.job_phase_id = jp.id
+		JOIN ` + entityid.Job + ` j ON jp.job_id = j.id
+		WHERE jp.job_id = $1 AND j.workspace_id = $2 AND to_.active = true` + staffClause + `
 		ORDER BY to_.date_created DESC
 	`
 
-	rows, err := r.db.QueryContext(ctx, query, append([]any{req.JobId}, staffArgs...)...)
+	rows, err := exec.QueryContext(ctx, query, append([]any{req.JobId, id.WorkspaceID}, staffArgs...)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list task outcomes by job: %w", err)
 	}
@@ -968,46 +992,21 @@ func scanTaskOutcomeRows(rows *sql.Rows) ([]*pb.TaskOutcome, error) {
 
 // scanTaskOutcomeRowWithTotal scans a row with a total count column appended
 func scanTaskOutcomeRowWithTotal(rows *sql.Rows) (*pb.TaskOutcome, int64, error) {
-	var (
-		id                        string
-		jobTaskID                 string
-		criteriaVersionID         string
-		criteriaType              string
-		isAdHoc                   bool
-		numericValue              sql.NullFloat64
-		textValue                 sql.NullString
-		categoricalValue          sql.NullString
-		passFailValue             sql.NullBool
-		determination             string
-		determinationSource       string
-		determinationNote         sql.NullString
-		autoProposedDetermination sql.NullString
-		recordedBy                string
-		recordedDate              sql.NullInt64
-		reviewedBy                sql.NullString
-		reviewedDate              sql.NullInt64
-		attachmentIdsStr          string
-		revisionOfId              sql.NullString
-		revisionNumber            int32
-		active                    bool
-		dateCreated               sql.NullInt64
-		dateModified              sql.NullInt64
-		total                     int64
-	)
+	return scanTaskOutcomeWithTotal(rows.Scan)
+}
 
-	err := rows.Scan(
-		&id, &jobTaskID, &criteriaVersionID,
-		&criteriaType, &isAdHoc,
-		&numericValue, &textValue,
-		&categoricalValue, &passFailValue,
-		&determination, &determinationSource,
-		&determinationNote, &autoProposedDetermination,
-		&recordedBy, &recordedDate,
-		&reviewedBy, &reviewedDate,
-		&attachmentIdsStr, &revisionOfId,
-		&revisionNumber, &active,
-		&dateCreated, &dateModified, &total,
-	)
+// scanTaskOutcomeWithTotal shares the nullable/timestamp conversions used by
+// the other task-outcome readers, with only the page count appended.
+func scanTaskOutcomeWithTotal(scanFn func(dest ...any) error) (*pb.TaskOutcome, int64, error) {
+	var total int64
+	id, jobTaskID, criteriaVersionID, criteriaType, isAdHoc,
+		numericValue, textValue, categoricalValue, passFailValue,
+		determination, determinationSource, determinationNote, autoProposedDetermination,
+		recordedBy, recordedDate, reviewedBy, reviewedDate,
+		attachmentIdsStr, revisionOfId, revisionNumber, active,
+		dateCreated, dateModified, err := scanTOFields(func(dest ...any) error {
+		return scanFn(append(dest, &total)...)
+	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to scan task outcome row: %w", err)
 	}

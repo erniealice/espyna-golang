@@ -714,7 +714,7 @@ func (p *PostgresOperations) listWithScope(ctx context.Context, tableName string
 	// Mandatory scope filters (tenant predicate): always individual AND-ed
 	// clauses, never part of the caller's Logic group.
 	if len(scope) > 0 {
-		scopeConditions, scopeValues, nextIndex, err := p.buildFilterConditions(&commonpb.FilterRequest{Filters: scope}, paramIndex)
+		scopeConditions, scopeValues, nextIndex, err := p.buildFilterConditions(ctx, tableName, &commonpb.FilterRequest{Filters: scope}, paramIndex)
 		if err != nil {
 			return nil, model.NewDatabaseError(
 				fmt.Sprintf("invalid scope filter: %v", err),
@@ -744,7 +744,7 @@ func (p *PostgresOperations) listWithScope(ctx context.Context, tableName string
 
 	// Apply filters from FilterRequest
 	if params != nil && params.Filters != nil {
-		filterConditions, filterValues, nextIndex, err := p.buildFilterConditions(params.Filters, paramIndex)
+		filterConditions, filterValues, nextIndex, err := p.buildFilterConditions(ctx, tableName, params.Filters, paramIndex)
 		if err != nil {
 			return nil, model.NewDatabaseError(
 				fmt.Sprintf("invalid filter: %v", err),
@@ -1146,8 +1146,10 @@ func (p *PostgresOperations) QueryOne(ctx context.Context, tableName string, que
 
 // Helper methods
 
-// buildFilterConditions builds WHERE conditions from FilterRequest
-func (p *PostgresOperations) buildFilterConditions(filterReq *commonpb.FilterRequest, startIndex int) ([]string, []any, int, error) {
+// buildFilterConditions builds WHERE conditions from FilterRequest. tableName
+// selects exact matching for identifier columns (identifier_columns.go); an
+// empty tableName applies the naming rule only.
+func (p *PostgresOperations) buildFilterConditions(ctx context.Context, tableName string, filterReq *commonpb.FilterRequest, startIndex int) ([]string, []any, int, error) {
 	conditions := []string{}
 	values := []any{}
 	paramIndex := startIndex
@@ -1163,7 +1165,8 @@ func (p *PostgresOperations) buildFilterConditions(filterReq *commonpb.FilterReq
 
 		switch ft := filter.FilterType.(type) {
 		case *commonpb.TypedFilter_StringFilter:
-			condition, vals, nextIndex := p.buildStringFilter(field, ft.StringFilter, paramIndex)
+			exactIdentifier := p.isIdentifierColumn(ctx, tableName, field)
+			condition, vals, nextIndex := p.buildStringFilter(field, ft.StringFilter, exactIdentifier, paramIndex)
 			conditions = append(conditions, condition)
 			values = append(values, vals...)
 			paramIndex = nextIndex
@@ -1250,12 +1253,20 @@ func (p *PostgresOperations) buildFilterConditions(filterReq *commonpb.FilterReq
 	return conditions, values, paramIndex, nil
 }
 
-// buildStringFilter builds SQL condition for StringFilter
-func (p *PostgresOperations) buildStringFilter(field string, filter *commonpb.StringFilter, paramIndex int) (string, []any, int) {
+// buildStringFilter builds SQL condition for StringFilter. When exactIdentifier
+// is set, a case-insensitive (not-)equals compares the bare column with the
+// lowercased value: identical rows to LOWER(col) on lowercase-stored
+// identifiers, and the column's index stays usable. Pattern operators keep
+// LOWER(col).
+func (p *PostgresOperations) buildStringFilter(field string, filter *commonpb.StringFilter, exactIdentifier bool, paramIndex int) (string, []any, int) {
 	value := filter.Value
 	if !filter.CaseSensitive && filter.Operator != commonpb.StringOperator_STRING_REGEX {
-		field = fmt.Sprintf("LOWER(%s)", field)
 		value = strings.ToLower(value)
+		equality := filter.Operator == commonpb.StringOperator_STRING_EQUALS ||
+			filter.Operator == commonpb.StringOperator_STRING_NOT_EQUALS
+		if !exactIdentifier || !equality {
+			field = fmt.Sprintf("LOWER(%s)", field)
+		}
 	}
 
 	var condition string

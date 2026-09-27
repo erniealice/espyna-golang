@@ -3,6 +3,7 @@
 package core
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -388,7 +389,7 @@ func TestGenericFilterBuilderPreservesORAndRangeAsOneArm(t *testing.T) {
 		},
 	}
 
-	conditions, args, next, err := (&PostgresOperations{}).buildFilterConditions(filters, 1)
+	conditions, args, next, err := (&PostgresOperations{}).buildFilterConditions(context.Background(), "", filters, 1)
 	if err != nil {
 		t.Fatalf("buildFilterConditions() unexpected error: %v", err)
 	}

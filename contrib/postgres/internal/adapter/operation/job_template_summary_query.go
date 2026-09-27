@@ -619,9 +619,6 @@ func buildListJobTemplateSummariesRequestSQL(
 		args = append(args, groupID)
 		p++
 	}
-	if options.priceScheduleActive {
-		outerClauses = append(outerClauses, "ps.active")
-	}
 	outerWhere := ""
 	if len(outerClauses) > 0 {
 		outerWhere = "\nWHERE " + strings.Join(outerClauses, " AND ")
@@ -669,7 +666,7 @@ func buildListJobTemplateSummariesRequestSQL(
 
 	stmt = jobTemplateSummaryCTEs(jjWhere) + ",\ndelivery AS MATERIALIZED (\n" +
 		jobTemplateSummarySelectFrom() + outerWhere + "\n),\n" +
-		jobTemplateSummaryDeliveryFold() + ",\n" +
+		jobTemplateSummaryDeliveryFold(options.priceScheduleActive) + ",\n" +
 		jobTemplateSummaryUniverse(includeFallback) + ",\n" +
 		jobTemplateSummaryMetadata(selectedWhere) + ",\n" +
 		jobTemplateSummaryPageBase(pageOrder, limitClause) + ",\n" +
@@ -853,6 +850,18 @@ class_primary_edges AS MATERIALIZED (
     FROM ` + entityid.SubscriptionGroupProductPlanStaff + ` e
     WHERE e.active AND e.workspace_id = $1 AND e.role = 'primary'
 ),
+-- One row per workspace staff member with its display name, built once and
+-- hash-joined by both deliverer branches. Joining staff and "user" inside each
+-- branch cost one primary-key probe per seat/edge row (plan
+-- 20260927-db-query-performance P3, codex-change3.md §5). The LEFT JOIN keeps a
+-- staff member whose user is missing or inactive (names NULL → staff_id label).
+staff_names AS MATERIALIZED (
+    SELECT st.id, u.first_name, u.last_name
+    FROM ` + entityid.Staff + ` st
+    LEFT JOIN "` + entityid.User + `" u
+           ON u.id = st.user_id AND u.active
+    WHERE st.workspace_id = $1
+),
 dd AS MATERIALIZED (
     -- Branch (a): the SUBSCRIPTION_SEAT deliverer/group side (the original dd).
     SELECT
@@ -860,16 +869,14 @@ dd AS MATERIALIZED (
         ss.client_id             AS client_id,
         pl.product_id            AS product_id,
         st.id                    AS staff_id,
-        u.first_name             AS first_name,
-        u.last_name              AS last_name,
+        st.first_name            AS first_name,
+        st.last_name             AS last_name,
         sgm.subscription_group_id AS subscription_group_id
     FROM ` + entityid.SubscriptionSeat + ` ss
     JOIN ` + entityid.ProductPlan + ` pl
            ON pl.id = ss.product_plan_id
-    JOIN ` + entityid.Staff + ` st
-           ON st.id = ss.staff_id AND st.workspace_id = $1
-    LEFT JOIN "` + entityid.User + `" u
-           ON u.id = st.user_id AND u.active
+    JOIN staff_names st
+           ON st.id = ss.staff_id
     JOIN ` + entityid.SubscriptionGroupMember + ` sgm
            ON sgm.subscription_id = ss.subscription_id AND sgm.client_id = ss.client_id
           AND sgm.workspace_id = $1 AND sgm.active
@@ -893,8 +900,8 @@ dd AS MATERIALIZED (
         m.client_id              AS client_id,
         pl.product_id            AS product_id,
         st.id                    AS staff_id,
-        u.first_name             AS first_name,
-        u.last_name              AS last_name,
+        st.first_name            AS first_name,
+        st.last_name             AS last_name,
         m.subscription_group_id  AS subscription_group_id
     FROM class_primary_edges e
     JOIN ` + entityid.SubscriptionGroupMember + ` m
@@ -903,10 +910,8 @@ dd AS MATERIALIZED (
            ON pl.id = e.product_plan_id
     LEFT JOIN ` + entityid.ProductPlanStaff + ` pps
            ON pps.id = e.product_plan_staff_id
-    JOIN ` + entityid.Staff + ` st
-           ON st.id = COALESCE(pps.staff_id, e.staff_id) AND st.workspace_id = $1
-    LEFT JOIN "` + entityid.User + `" u
-           ON u.id = st.user_id AND u.active
+    JOIN staff_names st
+           ON st.id = COALESCE(pps.staff_id, e.staff_id)
     -- Filter linked but revoked eligibility per edge. The downstream
     -- delivery_staff DISTINCT and ordered ARRAY_AGG dedupe and sort names.
     WHERE TRUE
@@ -915,14 +920,19 @@ dd AS MATERIALIZED (
 }
 
 // jobTemplateSummarySelectFrom is the DELIVERY SELECT + FROM over the two CTEs
-// (the body of the `base` CTE). It hash-joins jj×dd on (subscription_id,
+// (the body of the `delivery` CTE). Grain: one row per (job, deliverer) — about
+// 10k rows on a school workspace. It hash-joins jj×dd on (subscription_id,
 // client_id, output_product_id/product_id) — restoring the original
 // seat/plan-product ↔ template-output match — then joins subscription_group
-// (sg), price_schedule (ps, LEFT) and product (op, LEFT). Every table with a
-// workspace_id column is bound to $1; product_plan and "user" (inside dd) have
-// none and are bound transitively. The approval preaggregates do NOT appear
-// here — they join AFTER the delivery aggregation (jobTemplateSummary-
-// ApprovalSelect), per the codex-tandem contract.
+// (sg). Every table with a workspace_id column is bound to $1; product_plan and
+// "user" (inside dd) have none and are bound transitively.
+//
+// Lookup tables are NOT joined here. price_schedule depends only on the section
+// (sg.price_schedule_id) and product only on the template's output product, so
+// they are attached after the fold, once per Courses row, in
+// jobTemplateSummaryDeliveryFold (plan 20260927-db-query-performance, audit
+// DB-01: joining them here cost two index probes per (job, deliverer) row).
+// The approval preaggregates join after the fold too (codex-tandem contract).
 func jobTemplateSummarySelectFrom() string {
 	return `SELECT
 	    jj.job_id                      AS job_id,
@@ -932,10 +942,8 @@ func jobTemplateSummarySelectFrom() string {
     sg.name                        AS subscription_group_name,
     dd.staff_id                    AS staff_id,
     COALESCE(NULLIF(TRIM(COALESCE(dd.first_name, '') || ' ' || COALESCE(dd.last_name, '')), ''), dd.staff_id) AS staff_name,
-    ps.id                          AS price_schedule_id,
-    ps.name                        AS price_schedule_name,
+    sg.price_schedule_id           AS price_schedule_key,
     jj.output_product_id           AS output_product_id,
-    op.name                        AS output_product_name,
     jj.job_category_id             AS job_category_id
 FROM jj
 JOIN dd
@@ -943,47 +951,70 @@ JOIN dd
       AND dd.client_id = jj.client_id
       AND dd.product_id = jj.output_product_id
 JOIN ` + entityid.SubscriptionGroup + ` sg
-       ON sg.id = dd.subscription_group_id AND sg.workspace_id = $1 AND sg.active
-LEFT JOIN ` + entityid.PriceSchedule + ` ps
-       ON ps.id = sg.price_schedule_id AND ps.workspace_id = $1
-LEFT JOIN ` + entityid.Product + ` op
-       ON op.id = jj.output_product_id AND op.workspace_id = $1`
+       ON sg.id = dd.subscription_group_id AND sg.workspace_id = $1 AND sg.active`
 }
 
-// jobTemplateSummaryDeliveryFold collapses the materialized delivery join to the
-// public Courses row grain before approval joins, ordering, and pagination. The
-// separate counts and deliverers CTEs prevent the job×staff join from making a
-// staff appear once per roster job while preserving COUNT(DISTINCT job_id).
-func jobTemplateSummaryDeliveryFold() string {
-	return `counts AS (
+// jobTemplateSummaryDeliveryFold collapses the (job, deliverer) delivery rows to
+// the public Courses row grain — one row per (template, section, price
+// schedule, output product) — before approval joins, ordering, and pagination.
+//
+// It is ONE grouping pass (plan 20260927-db-query-performance, audit DB-01).
+// The earlier shape grouped `counts` and `deliverers` separately and joined them
+// back; with delivery estimated at 1 row the planner nested-looped that join and
+// re-sorted the deliverer list once per Courses row. Here:
+//
+//	delivery_ranked  marks the first delivery row of each (Courses row, staff),
+//	                 so each deliverer is aggregated once even when they deliver
+//	                 many jobs, while job_count still counts distinct jobs.
+//	course_rows      the single GROUP BY: job_count + ordered deliverer arrays.
+//	base             attaches price_schedule and product ONCE per Courses row
+//	                 (they depend only on the section / the output product) and
+//	                 applies the optional price-schedule-active filter there.
+//
+// The base column order is the public row shape that fallback_base (UNION ALL)
+// and page_base rely on; keep them in sync.
+func jobTemplateSummaryDeliveryFold(priceScheduleActive bool) string {
+	activeSchedule := ""
+	if priceScheduleActive {
+		activeSchedule = "\n    WHERE ps.active"
+	}
+	return `delivery_ranked AS (
+    SELECT delivery.*,
+           ROW_NUMBER() OVER (
+               PARTITION BY job_template_id, subscription_group_id, price_schedule_key,
+                            output_product_id, staff_id, staff_name
+               ORDER BY job_id
+           ) = 1 AS first_row_for_staff
+    FROM delivery
+),
+course_rows AS (
     SELECT job_template_id, job_template_name, subscription_group_id, subscription_group_name,
-           price_schedule_id, price_schedule_name, output_product_id, output_product_name,
-           job_category_id, COUNT(DISTINCT job_id) AS job_count
-    FROM delivery
+           price_schedule_key, output_product_id, job_category_id,
+           COUNT(DISTINCT job_id) AS job_count,
+           ARRAY_AGG(staff_id ORDER BY staff_name, staff_id) FILTER (WHERE first_row_for_staff) AS staff_ids,
+           ARRAY_AGG(staff_name ORDER BY staff_name, staff_id) FILTER (WHERE first_row_for_staff) AS staff_names
+    FROM delivery_ranked
     GROUP BY job_template_id, job_template_name, subscription_group_id, subscription_group_name,
-             price_schedule_id, price_schedule_name, output_product_id, output_product_name,
-             job_category_id
-),
-delivery_staff AS (
-    SELECT DISTINCT job_template_id, subscription_group_id, price_schedule_id,
-           output_product_id, staff_id, staff_name
-    FROM delivery
-),
-deliverers AS (
-    SELECT job_template_id, subscription_group_id, price_schedule_id, output_product_id,
-           ARRAY_AGG(staff_id ORDER BY staff_name, staff_id) AS staff_ids,
-           ARRAY_AGG(staff_name ORDER BY staff_name, staff_id) AS staff_names
-    FROM delivery_staff
-    GROUP BY job_template_id, subscription_group_id, price_schedule_id, output_product_id
+             price_schedule_key, output_product_id, job_category_id
 ),
 base AS (
-    SELECT c.*, d.staff_ids, d.staff_names
-    FROM counts c
-    JOIN deliverers d
-      ON d.job_template_id = c.job_template_id
-     AND d.subscription_group_id = c.subscription_group_id
-     AND d.price_schedule_id IS NOT DISTINCT FROM c.price_schedule_id
-     AND d.output_product_id IS NOT DISTINCT FROM c.output_product_id
+    SELECT cr.job_template_id,
+           cr.job_template_name,
+           cr.subscription_group_id,
+           cr.subscription_group_name,
+           ps.id              AS price_schedule_id,
+           ps.name            AS price_schedule_name,
+           cr.output_product_id,
+           op.name            AS output_product_name,
+           cr.job_category_id,
+           cr.job_count,
+           cr.staff_ids,
+           cr.staff_names
+    FROM course_rows cr
+    LEFT JOIN ` + entityid.PriceSchedule + ` ps
+           ON ps.id = cr.price_schedule_key AND ps.workspace_id = $1
+    LEFT JOIN ` + entityid.Product + ` op
+           ON op.id = cr.output_product_id AND op.workspace_id = $1` + activeSchedule + `
 )`
 }
 
@@ -1066,12 +1097,42 @@ func jobTemplateSummaryPageBase(orderBy, limitClause string) string {
 // MATERIALIZED planner fences: page_base's live cardinality was severely
 // underestimated, which otherwise let PostgreSQL re-execute final GroupAggregates
 // under each page row.
+//
+// Two page-scoped sets are materialized once and reused by both roll-ups
+// (plan 20260927-db-query-performance P3, Codex alternative 1 — codex-change3.md):
+//
+//	page_members  the page's section members, selected once (was one membership
+//	              probe per job inside group_phase).
+//	page_phases   the page templates' active template-backed job_phase rows,
+//	              walked once (group_phase used to walk them a second time).
+//
+// data_phases deliberately stays ONE hash join of job_task and task_outcome (it
+// carries no workspace predicate; relevance comes from meeting page_phases).
+// Scoping it to page phases with an EXISTS probe per task was measured at 2.3x
+// MORE buffers: the page's templates reach thousands of phases whose tasks mostly
+// have no outcome, and one index probe per task costs more than two sequential
+// scans hashed once. Do not reintroduce page → task → outcome probes.
 func jobTemplateSummaryApprovalCTEs() string {
 	return `candidate_templates AS (
     SELECT DISTINCT job_template_id AS template_id FROM page_base
 ),
 candidate_groups AS (
     SELECT DISTINCT job_template_id AS template_id, subscription_group_id AS group_id FROM page_base
+),
+page_members AS MATERIALIZED (
+    SELECT cg.template_id, cg.group_id, gm.subscription_id, gm.client_id
+    FROM candidate_groups cg
+    JOIN ` + entityid.SubscriptionGroupMember + ` gm
+           ON gm.subscription_group_id = cg.group_id
+          AND gm.workspace_id = $1 AND gm.active
+),
+page_phases AS MATERIALIZED (
+    SELECT jj.template_id, jj.subscription_id, jj.client_id,
+           jp.id, jp.template_phase_id, jp.approval_status
+    FROM candidate_templates ct
+    JOIN jj ON jj.template_id = ct.template_id
+    JOIN ` + entityid.JobPhase + ` jp
+           ON jp.job_id = jj.job_id AND jp.active AND jp.template_phase_id IS NOT NULL
 ),
 data_phases AS MATERIALIZED (
     SELECT DISTINCT tk.job_phase_id
@@ -1080,16 +1141,13 @@ data_phases AS MATERIALIZED (
     WHERE tk.active
 ),
 template_phase AS (
-    SELECT ct.template_id, jp.template_phase_id,
+    SELECT jp.template_id, jp.template_phase_id,
            MIN(` + approvalStatusRankCASE + `) AS min_rank,
            MAX(` + approvalStatusRankCASE + `) AS max_rank,
            BOOL_OR(data_phases.job_phase_id IS NOT NULL) AS has_data
-    FROM candidate_templates ct
-    JOIN jj ON jj.template_id = ct.template_id
-    JOIN ` + entityid.JobPhase + ` jp
-           ON jp.job_id = jj.job_id AND jp.active AND jp.template_phase_id IS NOT NULL
+    FROM page_phases jp
     LEFT JOIN data_phases ON data_phases.job_phase_id = jp.id
-    GROUP BY ct.template_id, jp.template_phase_id
+    GROUP BY jp.template_id, jp.template_phase_id
 ),
 ta AS MATERIALIZED (
     SELECT template_id,
@@ -1105,14 +1163,11 @@ group_phase AS (
            MIN(` + approvalStatusRankCASE + `) AS min_rank,
            MAX(` + approvalStatusRankCASE + `) AS max_rank,
            BOOL_OR(data_phases.job_phase_id IS NOT NULL) AS has_data
-    FROM candidate_groups cg
-    JOIN jj ON jj.template_id = cg.template_id
-    JOIN ` + entityid.SubscriptionGroupMember + ` gm
-           ON gm.subscription_group_id = cg.group_id
-          AND gm.subscription_id = jj.subscription_id AND gm.client_id = jj.client_id
-          AND gm.workspace_id = $1 AND gm.active
-    JOIN ` + entityid.JobPhase + ` jp
-           ON jp.job_id = jj.job_id AND jp.active AND jp.template_phase_id IS NOT NULL
+    FROM page_members cg
+    JOIN page_phases jp
+           ON jp.template_id = cg.template_id
+          AND jp.subscription_id = cg.subscription_id
+          AND jp.client_id = cg.client_id
     LEFT JOIN data_phases ON data_phases.job_phase_id = jp.id
     GROUP BY cg.template_id, cg.group_id, jp.template_phase_id
 ),

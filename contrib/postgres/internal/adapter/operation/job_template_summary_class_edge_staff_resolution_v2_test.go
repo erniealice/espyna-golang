@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"testing"
 
 	_ "github.com/lib/pq"
@@ -92,142 +93,18 @@ FROM (VALUES
 	}
 }
 
-// legacyOnlyJobTemplateSummaryCTEs reconstructs jobTemplateSummaryCTEs EXACTLY
-// as it read before this task's cutover: identical in every respect EXCEPT the
-// dd CTE's branch (b) staff join, which binds st.id = e.staff_id directly (no
-// product_plan_staff LEFT JOIN, no COALESCE) — the code this task replaced.
-// Copied verbatim (not paraphrased) so the comparative test below isolates
-// exactly the one fragment that changed.
-func legacyOnlyJobTemplateSummaryCTEs(jjWhere string) string {
-	return `WITH jj AS MATERIALIZED (
-    SELECT
-        j.id               AS job_id,
-        j.origin_id        AS subscription_id,
-        j.client_id        AS client_id,
-        jt.id              AS template_id,
-        jt.name            AS template_name,
-        jt.output_product_id AS output_product_id,
-        jt.job_category_id AS job_category_id
-    FROM ` + entityid.Job + ` j
-    JOIN ` + entityid.JobTemplate + ` jt
-           ON jt.id = j.job_template_id AND jt.workspace_id = $1 AND jt.active
-    ` + jjWhere + `
-),
-dd AS MATERIALIZED (
-    -- Branch (a): the SUBSCRIPTION_SEAT deliverer/group side (the original dd) — unchanged.
-    SELECT
-        ss.subscription_id       AS subscription_id,
-        ss.client_id             AS client_id,
-        pl.product_id            AS product_id,
-        st.id                    AS staff_id,
-        u.first_name             AS first_name,
-        u.last_name              AS last_name,
-        sgm.subscription_group_id AS subscription_group_id
-    FROM ` + entityid.SubscriptionSeat + ` ss
-    JOIN ` + entityid.ProductPlan + ` pl
-           ON pl.id = ss.product_plan_id
-    JOIN ` + entityid.Staff + ` st
-           ON st.id = ss.staff_id AND st.workspace_id = $1
-    LEFT JOIN "` + entityid.User + `" u
-           ON u.id = st.user_id AND u.active
-    JOIN ` + entityid.SubscriptionGroupMember + ` sgm
-           ON sgm.subscription_id = ss.subscription_id AND sgm.client_id = ss.client_id
-          AND sgm.workspace_id = $1 AND sgm.active
-    WHERE ss.status = 'active' AND ss.active AND ss.workspace_id = $1
-    UNION
-    -- Branch (b): class-edge (sgpps) deliverers, role primary only (C11) —
-    -- PRE-CUTOVER: staff resolved from the edge's OWN legacy staff_id ONLY.
-    SELECT
-        m.subscription_id        AS subscription_id,
-        m.client_id              AS client_id,
-        pl.product_id            AS product_id,
-        st.id                    AS staff_id,
-        u.first_name             AS first_name,
-        u.last_name              AS last_name,
-        m.subscription_group_id  AS subscription_group_id
-    FROM ` + entityid.SubscriptionGroupProductPlanStaff + ` e
-    JOIN ` + entityid.SubscriptionGroupMember + ` m
-           ON m.subscription_group_id = e.subscription_group_id AND m.active
-    JOIN ` + entityid.ProductPlan + ` pl
-           ON pl.id = e.product_plan_id
-    JOIN ` + entityid.Staff + ` st
-           ON st.id = e.staff_id AND st.workspace_id = $1
-    LEFT JOIN "` + entityid.User + `" u
-           ON u.id = st.user_id AND u.active
-    WHERE e.active AND e.workspace_id = $1 AND e.role = 'primary'
-      AND e.id = (
-          SELECT e2.id FROM ` + entityid.SubscriptionGroupProductPlanStaff + ` e2
-          WHERE e2.subscription_group_id = e.subscription_group_id
-            AND e2.product_plan_id = e.product_plan_id
-            AND e2.active AND e2.workspace_id = $1 AND e2.role = 'primary'
-          ORDER BY e2.date_created DESC, e2.id DESC
-          LIMIT 1
-      )
-),
-pa AS (
-    SELECT
-        jj.template_id            AS template_id,
-        gm.subscription_group_id  AS group_id,
-        jp.template_phase_id      AS template_phase_id,
-        MIN(` + approvalStatusRankCASE + `) AS min_rank,
-        MAX(` + approvalStatusRankCASE + `) AS max_rank,
-        BOOL_OR(tox.job_task_id IS NOT NULL) AS has_data
-    FROM jj
-    JOIN ` + entityid.JobPhase + ` jp
-           ON jp.job_id = jj.job_id AND jp.active AND jp.template_phase_id IS NOT NULL
-    LEFT JOIN ` + entityid.JobTask + ` tk
-           ON tk.job_phase_id = jp.id AND tk.active
-    LEFT JOIN ` + entityid.TaskOutcome + ` tox
-           ON tox.job_task_id = tk.id AND tox.active
-    LEFT JOIN ` + entityid.SubscriptionGroupMember + ` gm
-           ON gm.subscription_id = jj.subscription_id AND gm.client_id = jj.client_id
-          AND gm.workspace_id = $1 AND gm.active
-    GROUP BY jj.template_id, gm.subscription_group_id, jp.template_phase_id
-),
-tp AS (
-    SELECT template_id, template_phase_id,
-           MIN(min_rank)     AS min_rank,
-           MAX(max_rank)     AS max_rank,
-           BOOL_OR(has_data) AS has_data
-    FROM pa
-    GROUP BY template_id, template_phase_id
-),
-ta AS (
-    SELECT template_id,
-           COUNT(*) FILTER (WHERE has_data AND min_rank = 4) AS published_count,
-           COUNT(*) FILTER (WHERE has_data)                  AS phase_count,
-           MIN(min_rank) FILTER (WHERE has_data)             AS lowest_rank,
-           COALESCE(BOOL_OR(min_rank <> max_rank) FILTER (WHERE has_data), false) AS mixed_attention
-    FROM tp
-    GROUP BY template_id
-),
-ga AS (
-    SELECT template_id, group_id,
-           COUNT(*) FILTER (WHERE has_data AND min_rank = 4) AS published_count,
-           COUNT(*) FILTER (WHERE has_data)                  AS phase_count,
-           MIN(min_rank) FILTER (WHERE has_data)             AS lowest_rank,
-           COALESCE(BOOL_OR(min_rank <> max_rank) FILTER (WHERE has_data), false) AS mixed_attention
-    FROM pa
-    WHERE group_id IS NOT NULL
-    GROUP BY template_id, group_id
-)`
-}
-
-// legacyOnlyBuildListJobTemplateSummariesSQL builds the FULL pre-cutover
-// statement (no status/group/scope/pagination — matching fullSummarySQL's
-// base-shape idiom) for one workspace, reusing the UNCHANGED downstream
-// builders (jobTemplateSummarySelectFrom / GroupOrder / ApprovalSelect) so the
-// comparison is scoped to exactly the dd CTE branch (b) staff join.
+// legacyOnlyBuildListJobTemplateSummariesSQL uses the current Courses query
+// shape, changing only the class-edge staff resolution from the v2
+// COALESCE(pps.staff_id, e.staff_id) to the legacy e.staff_id. In particular,
+// the P3 delivery fold, price-schedule lookup, approval rollups, and the
+// linked-but-revoked eligibility predicate are identical on both sides.
 func legacyOnlyBuildListJobTemplateSummariesSQL(workspaceID string) (stmt string, args []any) {
-	jjWhere := "WHERE j.job_template_id IS NOT NULL" +
-		" AND j.workspace_id = $1" +
-		" AND j.active" +
-		" AND j.origin_type = '" + originTypeSubscriptionToken + "'"
-	stmt = legacyOnlyJobTemplateSummaryCTEs(jjWhere) + ",\nbase AS (\n" +
-		jobTemplateSummarySelectFrom() + "\n" +
-		jobTemplateSummaryGroupOrder() + "\n)\n" +
-		jobTemplateSummaryApprovalSelect()
-	return stmt, []any{workspaceID}
+	stmt, args = buildListJobTemplateSummariesSQL(workspaceID, "", "", 0, 0, nil)
+	const v2Join = "ON st.id = COALESCE(pps.staff_id, e.staff_id)"
+	if strings.Count(stmt, v2Join) != 1 {
+		panic("Courses SQL no longer has exactly one v2 class-edge staff join")
+	}
+	return strings.Replace(stmt, v2Join, "ON st.id = e.staff_id", 1), args
 }
 
 // sampleJTSWorkspace picks a real workspace.id that has at least one active
@@ -247,16 +124,11 @@ func sampleJTSWorkspace(t *testing.T, db *sql.DB) string {
 	return ws
 }
 
-// summaryKeyRow is the reduced projection this comparative test scans: the
-// columns downstream of (and dependent on) the dd CTE's staff resolution.
-// job_category_id / price_schedule / approval-preaggregate columns are
-// untouched by this task's diff and are intentionally excluded — the columns
-// here are exactly the ones that would visibly differ if staff resolution
-// diverged (a wrong/missing staff_id changes staff_name, and folds the
-// job_count differently).
+// The post-P3 fold exposes staff arrays rather than one row per staff. Compare
+// both arrays and the job count at the public Courses row grain.
 func scanSummaryKeyRows(t *testing.T, db *sql.DB, stmt string, args []any) []string {
 	t.Helper()
-	wrapped := "SELECT job_template_id, subscription_group_id, staff_id, staff_name, job_count FROM (" + stmt + ") x"
+	wrapped := "SELECT job_template_id, subscription_group_id, staff_ids::text, staff_names::text, job_count FROM (" + stmt + ") x WHERE job_template_id IS NOT NULL"
 	rows, err := db.Query(wrapped, args...)
 	if err != nil {
 		t.Fatalf("query: %v\nSQL:\n%s", err, wrapped)
@@ -284,7 +156,7 @@ func scanSummaryKeyRows(t *testing.T, db *sql.DB, stmt string, args []any) []str
 // production) FULL summary statement — via the real buildListJobTemplateSummariesSQL
 // — for a real, dynamically-sampled workspace on a live database — read-only
 // (SELECT only, no INSERT/UPDATE/DELETE) — and asserts the (template, group,
-// staff_id, staff_name, job_count) row sets are byte-identical.
+// staff_ids, staff_names, job_count) row sets are byte-identical.
 //
 // GROUND-TRUTH CORRECTION (2026-07-25, post-M3): this comment previously said
 // "every live education1 sgpps row is unlinked (f13 NULL)". M3 has landed and

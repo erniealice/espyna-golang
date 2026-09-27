@@ -793,6 +793,46 @@ func (r *PostgresJobTemplatePhaseRepository) ListByJobTemplate(
 	}, nil
 }
 
+// ListByTemplates resolves all card phase codes in one scoped statement. The
+// legacy ListByJobTemplate remains available to other consumers and providers.
+func (r *PostgresJobTemplatePhaseRepository) ListByTemplates(ctx context.Context, templateIDs []string) ([]*pb.JobTemplatePhase, error) {
+	if len(templateIDs) == 0 {
+		return nil, nil
+	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	query := `SELECT jtp.id, jtp.job_template_id, jtp.code
+		FROM ` + entityid.JobTemplatePhase + ` jtp
+		JOIN ` + entityid.JobTemplate + ` jt ON jt.id = jtp.job_template_id
+		WHERE jtp.job_template_id = ANY($1) AND jtp.active = true
+		  AND jt.workspace_id = $2
+		ORDER BY jtp.job_template_id, jtp.phase_order ASC`
+	rows, err := r.executor(ctx).QueryContext(ctx, query, pq.Array(templateIDs), ws.WorkspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list job template phases by templates: %w", err)
+	}
+	defer rows.Close()
+	var phases []*pb.JobTemplatePhase
+	for rows.Next() {
+		var id, templateID string
+		var code sql.NullString
+		if err := rows.Scan(&id, &templateID, &code); err != nil {
+			return nil, fmt.Errorf("failed to scan bulk job template phase: %w", err)
+		}
+		phase := &pb.JobTemplatePhase{Id: id, JobTemplateId: templateID, Active: true}
+		if code.Valid {
+			phase.Code = &code.String
+		}
+		phases = append(phases, phase)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate bulk job template phases: %w", err)
+	}
+	return phases, nil
+}
+
 // NewJobTemplatePhaseRepository creates a new PostgreSQL job_template_phase repository (old-style constructor)
 func NewJobTemplatePhaseRepository(db *sql.DB, tableName string) pb.JobTemplatePhaseDomainServiceServer {
 	dbOps := postgresCore.NewWorkspaceAwareOperations(db)

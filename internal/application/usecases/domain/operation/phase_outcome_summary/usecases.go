@@ -31,6 +31,7 @@ type UseCases struct {
 	GetPhaseOutcomeSummaryItemPageData *GetPhaseOutcomeSummaryItemPageDataUseCase
 	GetByJobPhase                      *GetByJobPhaseUseCase
 	ListByJob                          *ListByJobUseCase
+	ListByJobs                         *ListByJobsUseCase
 }
 
 // NewUseCases creates a new collection of phase_outcome_summary use cases
@@ -139,5 +140,6 @@ func NewUseCases(
 		GetPhaseOutcomeSummaryItemPageData: NewGetPhaseOutcomeSummaryItemPageDataUseCase(itemPageDataRepos, itemPageDataServices),
 		GetByJobPhase:                      NewGetByJobPhaseUseCase(getByJobPhaseRepos, getByJobPhaseServices),
 		ListByJob:                          NewListByJobUseCase(listByJobRepos, listByJobServices),
+		ListByJobs:                         NewListByJobsUseCase(repositories.PhaseOutcomeSummary, services.ActionGatekeeper),
 	}
 }

@@ -8,6 +8,8 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
+	"github.com/erniealice/espyna-golang/shared/identity"
+	"github.com/lib/pq"
 	"log"
 	"time"
 
@@ -517,6 +519,40 @@ func (r *PostgresPhaseOutcomeSummaryRepository) ListByJob(
 		PhaseOutcomeSummarys: summaries,
 		Success:              true,
 	}, nil
+}
+
+// ListByJobs is the card's single-statement counterpart of ListByJob. The job
+// ownership join supplies tenant scope that the older per-job read lacks; the
+// same issued_by scope and newest-first revision order remain in force.
+func (r *PostgresPhaseOutcomeSummaryRepository) ListByJobs(ctx context.Context, jobIDs []string) ([]*pb.PhaseOutcomeSummary, error) {
+	if len(jobIDs) == 0 {
+		return nil, nil
+	}
+	ws, err := identity.RequireWorkspace(ctx)
+	if err != nil {
+		return nil, err
+	}
+	staffClause, staffArgs := principalscope.StaffScopeClause(ctx, "pos.issued_by", 3)
+	query := `SELECT
+		pos.id, pos.job_phase_id, pos.job_id, pos.summary_type,
+		pos.phase_determination, pos.scoring_method, pos.summary_score,
+		pos.total_criteria_count, pos.pass_count, pos.fail_count,
+		pos.conditional_count, pos.deferred_count, pos.na_count,
+		pos.narrative, pos.issued_by, pos.issued_date,
+		pos.supersedes_id, pos.active, pos.date_created, pos.date_modified,
+		pos.scaled_score, pos.scaled_label
+	FROM ` + entityid.PhaseOutcomeSummary + ` pos
+	JOIN ` + entityid.Job + ` j ON j.id = pos.job_id
+	WHERE pos.job_id = ANY($1) AND pos.active = true
+	  AND j.workspace_id = $2` + staffClause + `
+	ORDER BY pos.date_created DESC`
+	args := append([]any{pq.Array(jobIDs), ws.WorkspaceID}, staffArgs...)
+	rows, err := r.executor(ctx).QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list phase outcome summaries by jobs: %w", err)
+	}
+	defer rows.Close()
+	return scanPhaseOutcomeSummaryRows(rows)
 }
 
 // Every column except id/active is nullable in the table, and the date columns

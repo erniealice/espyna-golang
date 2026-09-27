@@ -35,6 +35,7 @@ type UseCases struct {
 	GetJobTemplatePhaseListPageData *GetJobTemplatePhaseListPageDataUseCase
 	GetJobTemplatePhaseItemPageData *GetJobTemplatePhaseItemPageDataUseCase
 	ListByJobTemplate               *ListByJobTemplateUseCase
+	ListByTemplates                 *ListByTemplatesUseCase
 	ListPhaseCodesByPriceSchedule   *ListPhaseCodesByPriceScheduleUseCase
 }
 
@@ -137,6 +138,7 @@ func NewUseCases(
 		GetJobTemplatePhaseListPageData: NewGetJobTemplatePhaseListPageDataUseCase(listPageDataRepos, listPageDataServices),
 		GetJobTemplatePhaseItemPageData: NewGetJobTemplatePhaseItemPageDataUseCase(itemPageDataRepos, itemPageDataServices),
 		ListByJobTemplate:               NewListByJobTemplateUseCase(listByJobTemplateRepos, listByJobTemplateServices),
+		ListByTemplates:                 NewListByTemplatesUseCase(repositories.JobTemplatePhase, services.ActionGatekeeper),
 		ListPhaseCodesByPriceSchedule:   NewListPhaseCodesByPriceScheduleUseCase(repositories.JobTemplatePhase, services.ActionGatekeeper),
 	}
 }

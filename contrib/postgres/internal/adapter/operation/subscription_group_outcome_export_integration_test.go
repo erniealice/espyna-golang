@@ -152,7 +152,7 @@ func TestIntegration_SubscriptionGroupOutcomeExport_ReadOnlyLiveShape(t *testing
 			t.Fatal("selected matrix is not a complete client-by-column rectangle")
 		}
 		for _, cell := range row.GetCells() {
-			if cell.GetEnrollmentEvidence() == nil {
+			if cell.GetTaskOutcomeEvidence() == nil {
 				t.Fatal("selected matrix contains a cell without enrollment evidence")
 			}
 		}

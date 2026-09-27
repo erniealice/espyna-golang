@@ -84,16 +84,16 @@ type SubscriptionGroupOutcomeExportQueryService interface {
 	) (*exportpb.ResolveSubscriptionGroupOutcomeDocumentForRenderResponse, error)
 }
 
-// SubscriptionGroupClientReportCardQueryService is an in-process, one-client
+// SubscriptionGroupClientOutcomeSummaryQueryService is an in-process, one-client
 // projection port. It is deliberately separate from the generated gRPC server
 // contract so the sensitive typed render source cannot become a transport
 // endpoint by adding this query.
-type SubscriptionGroupClientReportCardQueryService interface {
-	GetSubscriptionGroupClientReportCardScoped(
+type SubscriptionGroupClientOutcomeSummaryQueryService interface {
+	GetSubscriptionGroupClientOutcomeSummaryScoped(
 		ctx context.Context,
-		req *exportpb.GetSubscriptionGroupClientReportCardRequest,
+		req *exportpb.GetSubscriptionGroupClientOutcomeSummaryRequest,
 		scope SubscriptionGroupOutcomeExportScope,
-	) (*exportpb.GetSubscriptionGroupClientReportCardResponse, error)
+	) (*exportpb.GetSubscriptionGroupClientOutcomeSummaryResponse, error)
 }
 
 // Backward-compatible names for the canonical provider-neutral Esqyma landing

@@ -9,8 +9,8 @@ import (
 	jobdoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
 )
 
-// ResolvePublishedReportCardTemplateUseCase resolves the single applicable,
-// PUBLISHED report-card template binding for RENDER-TIME use (R3 / DEC-3
+// ResolvePublishedOutcomeSummaryTemplateUseCase resolves the single applicable,
+// PUBLISHED outcome summary template binding for RENDER-TIME use (R3 / DEC-3
 // LOCKED).
 //
 // The domain package's job_outcome_summary_document_template.FindApplicableUseCase
@@ -39,12 +39,12 @@ import (
 // to hand render code enough to fetch bytes (document_template_id +
 // storage locator), never to expose who authored/published the binding to a
 // STAFF principal that could not have listed it directly.
-type ResolvePublishedReportCardTemplateUseCase struct {
+type ResolvePublishedOutcomeSummaryTemplateUseCase struct {
 	repositories Repositories
 	services     Services
 }
 
-func (uc *ResolvePublishedReportCardTemplateUseCase) Execute(
+func (uc *ResolvePublishedOutcomeSummaryTemplateUseCase) Execute(
 	ctx context.Context,
 	req *jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateRequest,
 ) (*jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateResponse, error) {
@@ -54,28 +54,28 @@ func (uc *ResolvePublishedReportCardTemplateUseCase) Execute(
 	if _, err := uc.services.reportScope(ctx); err != nil {
 		return nil, err
 	}
-	if err := validateResolveReportCardTemplateRequest(req); err != nil {
+	if err := validateResolveOutcomeSummaryTemplateRequest(req); err != nil {
 		return nil, err
 	}
 	if uc.repositories.JobOutcomeSummaryDocumentTemplate == nil {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator,
-			"subscription_group_outcome_export.errors.unavailable", "report card template resolver is unavailable"))
+			"subscription_group_outcome_export.errors.unavailable", "outcome summary template resolver is unavailable"))
 	}
 	response, err := uc.repositories.JobOutcomeSummaryDocumentTemplate.FindApplicableJobOutcomeSummaryDocumentTemplate(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	return minimizeReportCardTemplateResponse(response), nil
+	return minimizeOutcomeSummaryTemplateResponse(response), nil
 }
 
-// validateResolveReportCardTemplateRequest requires price_schedule_id and
+// validateResolveOutcomeSummaryTemplateRequest requires price_schedule_id and
 // job_template_phase_code, when set, to be trimmed/canonical; an absent
 // price_schedule_id is a deliberate fallback-only lookup (see the domain
 // request's comment), and an absent phase code selects the whole-year
 // binding — both remain valid.
-func validateResolveReportCardTemplateRequest(req *jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateRequest) error {
+func validateResolveOutcomeSummaryTemplateRequest(req *jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateRequest) error {
 	if req == nil {
-		return errors.New("report card template resolve request is required")
+		return errors.New("outcome summary template resolve request is required")
 	}
 	if req.PriceScheduleId != nil {
 		trimmed := strings.TrimSpace(req.GetPriceScheduleId())
@@ -92,10 +92,10 @@ func validateResolveReportCardTemplateRequest(req *jobdoctmplpb.FindApplicableJo
 	return nil
 }
 
-// minimizeReportCardTemplateResponse clears audit-only fields on the
+// minimizeOutcomeSummaryTemplateResponse clears audit-only fields on the
 // resolved binding before it leaves the render-scoped use case. Nil-safe:
 // a miss (no binding) or a nil response pass through unchanged.
-func minimizeReportCardTemplateResponse(
+func minimizeOutcomeSummaryTemplateResponse(
 	response *jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateResponse,
 ) *jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateResponse {
 	if response == nil || response.GetBinding() == nil {

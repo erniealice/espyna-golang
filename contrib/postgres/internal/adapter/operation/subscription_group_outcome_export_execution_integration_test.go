@@ -302,7 +302,7 @@ func TestIntegration_SubscriptionGroupOutcomeExport_RollbackMatrixScopeAndEviden
 		if chosen == nil || chosen.GetScaledLabel() != "chosen" || chosen.GetScaledScore() != 0.5 {
 			return fmt.Errorf("duplicate job/summary selection was not deterministic: %#v", chosen)
 		}
-		if chosen.GetEnrollmentEvidence() == nil || !chosen.GetEnrollmentEvidence().GetHasMarks() || !chosen.GetEnrollmentEvidence().GetHasPositiveMark() {
+		if chosen.GetTaskOutcomeEvidence() == nil || !chosen.GetTaskOutcomeEvidence().GetHasTaskOutcome() || !chosen.GetTaskOutcomeEvidence().GetHasPositiveTaskOutcome() {
 			return fmt.Errorf("phase evidence must retain zero and positive marks")
 		}
 

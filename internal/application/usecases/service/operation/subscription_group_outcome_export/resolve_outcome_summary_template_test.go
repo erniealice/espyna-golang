@@ -12,20 +12,20 @@ import (
 	jobdoctmplpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_outcome_summary_document_template"
 )
 
-type reportCardTemplateFakeAuthorizer struct {
+type outcomeSummaryTemplateFakeAuthorizer struct {
 	allowed map[string]bool
 }
 
-func (f *reportCardTemplateFakeAuthorizer) IsEnabled() bool { return true }
+func (f *outcomeSummaryTemplateFakeAuthorizer) IsEnabled() bool { return true }
 
-func (f *reportCardTemplateFakeAuthorizer) HasPermission(_ context.Context, _ string, permission string) (bool, error) {
+func (f *outcomeSummaryTemplateFakeAuthorizer) HasPermission(_ context.Context, _ string, permission string) (bool, error) {
 	return f.allowed[permission], nil
 }
 
-// reportCardTemplateFakeRepo satisfies jobdoctmplpb.
+// outcomeSummaryTemplateFakeRepo satisfies jobdoctmplpb.
 // JobOutcomeSummaryDocumentTemplateDomainServiceServer by embedding the
 // Unimplemented stub, overriding only the resolver method exercised here.
-type reportCardTemplateFakeRepo struct {
+type outcomeSummaryTemplateFakeRepo struct {
 	jobdoctmplpb.UnimplementedJobOutcomeSummaryDocumentTemplateDomainServiceServer
 	called bool
 	gotReq *jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateRequest
@@ -33,7 +33,7 @@ type reportCardTemplateFakeRepo struct {
 	err    error
 }
 
-func (r *reportCardTemplateFakeRepo) FindApplicableJobOutcomeSummaryDocumentTemplate(
+func (r *outcomeSummaryTemplateFakeRepo) FindApplicableJobOutcomeSummaryDocumentTemplate(
 	_ context.Context,
 	req *jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateRequest,
 ) (*jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateResponse, error) {
@@ -48,28 +48,28 @@ func (r *reportCardTemplateFakeRepo) FindApplicableJobOutcomeSummaryDocumentTemp
 	return &jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateResponse{Success: true, Found: false}, nil
 }
 
-func reportCardTemplateUseCase(repo jobdoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer, allowed ...string) *ResolvePublishedReportCardTemplateUseCase {
+func outcomeSummaryTemplateUseCase(repo jobdoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer, allowed ...string) *ResolvePublishedOutcomeSummaryTemplateUseCase {
 	permissions := make(map[string]bool, len(allowed))
 	for _, permission := range allowed {
 		permissions[permission] = true
 	}
 	return NewUseCases(
 		Repositories{JobOutcomeSummaryDocumentTemplate: repo},
-		Services{ActionGatekeeper: actiongate.NewActionGatekeeper(&reportCardTemplateFakeAuthorizer{allowed: permissions}, nil)},
-	).ResolvePublishedReportCardTemplate
+		Services{ActionGatekeeper: actiongate.NewActionGatekeeper(&outcomeSummaryTemplateFakeAuthorizer{allowed: permissions}, nil)},
+	).ResolvePublishedOutcomeSummaryTemplate
 }
 
-func reportCardTemplateTestCtx(kind int32) context.Context {
+func outcomeSummaryTemplateTestCtx(kind int32) context.Context {
 	ctx := contextutil.WithUserID(context.Background(), "user-1")
 	return identity.WithRequestIdentity(ctx, &identity.RequestIdentity{
 		UserID: "user-1", WorkspaceID: "workspace-1", PrincipalType: kind, PrincipalID: "principal-1",
 	})
 }
 
-func TestResolvePublishedReportCardTemplate_DeniedWithoutExportRead(t *testing.T) {
-	repo := &reportCardTemplateFakeRepo{}
-	uc := reportCardTemplateUseCase(repo)
-	ctx := reportCardTemplateTestCtx(principalTypeStaff)
+func TestResolvePublishedOutcomeSummaryTemplate_DeniedWithoutExportRead(t *testing.T) {
+	repo := &outcomeSummaryTemplateFakeRepo{}
+	uc := outcomeSummaryTemplateUseCase(repo)
+	ctx := outcomeSummaryTemplateTestCtx(principalTypeStaff)
 
 	_, err := uc.Execute(ctx, &jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateRequest{})
 	if err == nil {
@@ -80,11 +80,11 @@ func TestResolvePublishedReportCardTemplate_DeniedWithoutExportRead(t *testing.T
 	}
 }
 
-func TestResolvePublishedReportCardTemplate_DeniedForDisallowedPrincipalType(t *testing.T) {
-	repo := &reportCardTemplateFakeRepo{}
-	uc := reportCardTemplateUseCase(repo, exportPerm())
+func TestResolvePublishedOutcomeSummaryTemplate_DeniedForDisallowedPrincipalType(t *testing.T) {
+	repo := &outcomeSummaryTemplateFakeRepo{}
+	uc := outcomeSummaryTemplateUseCase(repo, exportPerm())
 	// principalType 3 is not in the {1,2,7} allowlist reportScope enforces.
-	ctx := reportCardTemplateTestCtx(int32(3))
+	ctx := outcomeSummaryTemplateTestCtx(int32(3))
 
 	_, err := uc.Execute(ctx, &jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateRequest{})
 	if err == nil {
@@ -95,10 +95,10 @@ func TestResolvePublishedReportCardTemplate_DeniedForDisallowedPrincipalType(t *
 	}
 }
 
-func TestResolvePublishedReportCardTemplate_AllowedForStaffWithExportRead(t *testing.T) {
+func TestResolvePublishedOutcomeSummaryTemplate_AllowedForStaffWithExportRead(t *testing.T) {
 	scheduleID := "ps-1"
 	phaseCode := "sem_1"
-	repo := &reportCardTemplateFakeRepo{
+	repo := &outcomeSummaryTemplateFakeRepo{
 		resp: &jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateResponse{
 			Success: true,
 			Found:   true,
@@ -113,8 +113,8 @@ func TestResolvePublishedReportCardTemplate_AllowedForStaffWithExportRead(t *tes
 			},
 		},
 	}
-	uc := reportCardTemplateUseCase(repo, exportPerm())
-	ctx := reportCardTemplateTestCtx(principalTypeStaff)
+	uc := outcomeSummaryTemplateUseCase(repo, exportPerm())
+	ctx := outcomeSummaryTemplateTestCtx(principalTypeStaff)
 
 	resp, err := uc.Execute(ctx, &jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateRequest{
 		PriceScheduleId:      &scheduleID,
@@ -131,12 +131,12 @@ func TestResolvePublishedReportCardTemplate_AllowedForStaffWithExportRead(t *tes
 	}
 }
 
-func TestResolvePublishedReportCardTemplate_PhaseCodePassesThroughToRepo(t *testing.T) {
+func TestResolvePublishedOutcomeSummaryTemplate_PhaseCodePassesThroughToRepo(t *testing.T) {
 	scheduleID := "ps-1"
 	phaseCode := "sem_2"
-	repo := &reportCardTemplateFakeRepo{}
-	uc := reportCardTemplateUseCase(repo, exportPerm())
-	ctx := reportCardTemplateTestCtx(principalTypeOperatorOwner)
+	repo := &outcomeSummaryTemplateFakeRepo{}
+	uc := outcomeSummaryTemplateUseCase(repo, exportPerm())
+	ctx := outcomeSummaryTemplateTestCtx(principalTypeOperatorOwner)
 
 	_, err := uc.Execute(ctx, &jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateRequest{
 		PriceScheduleId:      &scheduleID,
@@ -153,12 +153,12 @@ func TestResolvePublishedReportCardTemplate_PhaseCodePassesThroughToRepo(t *test
 	}
 }
 
-func TestResolvePublishedReportCardTemplate_RejectsNonCanonicalPhaseCode(t *testing.T) {
+func TestResolvePublishedOutcomeSummaryTemplate_RejectsNonCanonicalPhaseCode(t *testing.T) {
 	scheduleID := "ps-1"
 	badPhaseCode := "Sem 1!"
-	repo := &reportCardTemplateFakeRepo{}
-	uc := reportCardTemplateUseCase(repo, exportPerm())
-	ctx := reportCardTemplateTestCtx(principalTypeOperatorOwner)
+	repo := &outcomeSummaryTemplateFakeRepo{}
+	uc := outcomeSummaryTemplateUseCase(repo, exportPerm())
+	ctx := outcomeSummaryTemplateTestCtx(principalTypeOperatorOwner)
 
 	_, err := uc.Execute(ctx, &jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateRequest{
 		PriceScheduleId:      &scheduleID,
@@ -172,8 +172,8 @@ func TestResolvePublishedReportCardTemplate_RejectsNonCanonicalPhaseCode(t *test
 	}
 }
 
-func TestResolvePublishedReportCardTemplate_ClearsAuditFields(t *testing.T) {
-	repo := &reportCardTemplateFakeRepo{
+func TestResolvePublishedOutcomeSummaryTemplate_ClearsAuditFields(t *testing.T) {
+	repo := &outcomeSummaryTemplateFakeRepo{
 		resp: &jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateResponse{
 			Success: true,
 			Found:   true,
@@ -185,8 +185,8 @@ func TestResolvePublishedReportCardTemplate_ClearsAuditFields(t *testing.T) {
 			},
 		},
 	}
-	uc := reportCardTemplateUseCase(repo, exportPerm())
-	ctx := reportCardTemplateTestCtx(principalTypeOperatorOwner)
+	uc := outcomeSummaryTemplateUseCase(repo, exportPerm())
+	ctx := outcomeSummaryTemplateTestCtx(principalTypeOperatorOwner)
 
 	resp, err := uc.Execute(ctx, &jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateRequest{})
 	if err != nil {
@@ -203,9 +203,9 @@ func TestResolvePublishedReportCardTemplate_ClearsAuditFields(t *testing.T) {
 	}
 }
 
-func TestResolvePublishedReportCardTemplate_NilRepoReturnsError(t *testing.T) {
-	uc := reportCardTemplateUseCase(nil, exportPerm())
-	ctx := reportCardTemplateTestCtx(principalTypeOperatorOwner)
+func TestResolvePublishedOutcomeSummaryTemplate_NilRepoReturnsError(t *testing.T) {
+	uc := outcomeSummaryTemplateUseCase(nil, exportPerm())
+	ctx := outcomeSummaryTemplateTestCtx(principalTypeOperatorOwner)
 
 	_, err := uc.Execute(ctx, &jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateRequest{})
 	if err == nil {
@@ -213,11 +213,11 @@ func TestResolvePublishedReportCardTemplate_NilRepoReturnsError(t *testing.T) {
 	}
 }
 
-func TestResolvePublishedReportCardTemplate_RepoErrorPropagates(t *testing.T) {
+func TestResolvePublishedOutcomeSummaryTemplate_RepoErrorPropagates(t *testing.T) {
 	wantErr := errors.New("boom")
-	repo := &reportCardTemplateFakeRepo{err: wantErr}
-	uc := reportCardTemplateUseCase(repo, exportPerm())
-	ctx := reportCardTemplateTestCtx(principalTypeOperatorOwner)
+	repo := &outcomeSummaryTemplateFakeRepo{err: wantErr}
+	uc := outcomeSummaryTemplateUseCase(repo, exportPerm())
+	ctx := outcomeSummaryTemplateTestCtx(principalTypeOperatorOwner)
 
 	_, err := uc.Execute(ctx, &jobdoctmplpb.FindApplicableJobOutcomeSummaryDocumentTemplateRequest{})
 	if err == nil || !strings.Contains(err.Error(), "boom") {
@@ -225,10 +225,10 @@ func TestResolvePublishedReportCardTemplate_RepoErrorPropagates(t *testing.T) {
 	}
 }
 
-func TestResolvePublishedReportCardTemplate_NilRequestRejected(t *testing.T) {
-	repo := &reportCardTemplateFakeRepo{}
-	uc := reportCardTemplateUseCase(repo, exportPerm())
-	ctx := reportCardTemplateTestCtx(principalTypeOperatorOwner)
+func TestResolvePublishedOutcomeSummaryTemplate_NilRequestRejected(t *testing.T) {
+	repo := &outcomeSummaryTemplateFakeRepo{}
+	uc := outcomeSummaryTemplateUseCase(repo, exportPerm())
+	ctx := outcomeSummaryTemplateTestCtx(principalTypeOperatorOwner)
 
 	_, err := uc.Execute(ctx, nil)
 	if err == nil {

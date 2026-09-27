@@ -142,7 +142,7 @@ func (uc *ReconcileSubscriptionGroupProductPlanAssignmentsUseCase) Execute(ctx c
 	}
 
 	for _, member := range members {
-		jobs, err := uc.listStudentSubjectJobs(ctx, member.GetClientId(), class.GetJobTemplateId())
+		jobs, err := uc.listClientJobsForTemplate(ctx, member.GetClientId(), class.GetJobTemplateId())
 		if err != nil {
 			return nil, err
 		}
@@ -329,14 +329,14 @@ func (uc *ReconcileSubscriptionGroupProductPlanAssignmentsUseCase) listActiveMem
 	return out, nil
 }
 
-// listStudentSubjectJobs finds the student's job(s) for this class's subject
+// listClientJobsForTemplate finds the student's job(s) for this class's subject
 // (job.client_id == studentID AND job.job_template_id == the class's curriculum
 // anchor) — the W-SPAWN "one job PER STUDENT per subject" contract
 // (docs/wiki business-logic-education-vertical.md). Zero results means the job
 // has not been spawned yet (skip, not an error); MaterializeJobsForSubscription
 // is expected to spawn exactly one, but this defensively iterates every match.
-func (uc *ReconcileSubscriptionGroupProductPlanAssignmentsUseCase) listStudentSubjectJobs(ctx context.Context, studentClientID, jobTemplateID string) ([]*jobpb.Job, error) {
-	if studentClientID == "" || jobTemplateID == "" {
+func (uc *ReconcileSubscriptionGroupProductPlanAssignmentsUseCase) listClientJobsForTemplate(ctx context.Context, clientID, jobTemplateID string) ([]*jobpb.Job, error) {
+	if clientID == "" || jobTemplateID == "" {
 		return nil, nil
 	}
 	resp, err := uc.repositories.Job.ListJobs(ctx, &jobpb.ListJobsRequest{
@@ -344,7 +344,7 @@ func (uc *ReconcileSubscriptionGroupProductPlanAssignmentsUseCase) listStudentSu
 			Filters: []*commonpb.TypedFilter{
 				{
 					Field:      "client_id",
-					FilterType: &commonpb.TypedFilter_StringFilter{StringFilter: &commonpb.StringFilter{Value: studentClientID, Operator: commonpb.StringOperator_STRING_EQUALS}},
+					FilterType: &commonpb.TypedFilter_StringFilter{StringFilter: &commonpb.StringFilter{Value: clientID, Operator: commonpb.StringOperator_STRING_EQUALS}},
 				},
 				{
 					Field:      "job_template_id",
@@ -361,7 +361,7 @@ func (uc *ReconcileSubscriptionGroupProductPlanAssignmentsUseCase) listStudentSu
 		if j == nil || !j.GetActive() {
 			continue
 		}
-		if j.GetClientId() != studentClientID || j.GetJobTemplateId() != jobTemplateID {
+		if j.GetClientId() != clientID || j.GetJobTemplateId() != jobTemplateID {
 			continue
 		}
 		out = append(out, j)

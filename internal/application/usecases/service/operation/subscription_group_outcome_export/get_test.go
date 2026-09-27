@@ -328,7 +328,7 @@ func TestGetSubscriptionGroupOutcomeExport_TableDriven(t *testing.T) {
 			expectGetCalled:   true,
 		},
 		{
-			name:    "missing enrollment evidence rejects",
+			name:    "missing task outcome evidence rejects",
 			allowed: []string{exportPerm(), perm(entityid.Workspace)},
 			req: &exportpb.GetSubscriptionGroupOutcomeExportRequest{
 				SubscriptionGroupId: "grp-A",
@@ -363,7 +363,7 @@ func TestGetSubscriptionGroupOutcomeExport_TableDriven(t *testing.T) {
 				},
 			},
 			expectErr:         true,
-			expectErrContains: "contains a cell without enrollment evidence",
+			expectErrContains: "contains a cell without task outcome evidence",
 			expectGetCalled:   true,
 		},
 		{
@@ -398,12 +398,12 @@ func TestGetSubscriptionGroupOutcomeExport_TableDriven(t *testing.T) {
 						ClientId: "client-a",
 						Cells: []*exportpb.SubscriptionGroupOutcomeCell{
 							{
-								JobTemplateId:      "tp-a",
-								EnrollmentEvidence: &exportpb.EnrollmentEvidence{},
+								JobTemplateId:       "tp-a",
+								TaskOutcomeEvidence: &exportpb.TaskOutcomeEvidence{},
 							},
 							{
-								JobTemplateId:      "tp-a",
-								EnrollmentEvidence: &exportpb.EnrollmentEvidence{},
+								JobTemplateId:       "tp-a",
+								TaskOutcomeEvidence: &exportpb.TaskOutcomeEvidence{},
 							},
 						},
 					},
@@ -444,7 +444,7 @@ func TestGetSubscriptionGroupOutcomeExport_TableDriven(t *testing.T) {
 						ClientId: "client-a",
 						Cells: []*exportpb.SubscriptionGroupOutcomeCell{
 							{
-								EnrollmentEvidence: &exportpb.EnrollmentEvidence{},
+								TaskOutcomeEvidence: &exportpb.TaskOutcomeEvidence{},
 							},
 						},
 					},
@@ -485,8 +485,8 @@ func TestGetSubscriptionGroupOutcomeExport_TableDriven(t *testing.T) {
 						ClientId: "client-a",
 						Cells: []*exportpb.SubscriptionGroupOutcomeCell{
 							{
-								JobTemplateId:      "tp-z",
-								EnrollmentEvidence: &exportpb.EnrollmentEvidence{},
+								JobTemplateId:       "tp-z",
+								TaskOutcomeEvidence: &exportpb.TaskOutcomeEvidence{},
 							},
 						},
 					},
@@ -528,12 +528,12 @@ func TestGetSubscriptionGroupOutcomeExport_TableDriven(t *testing.T) {
 						ClientId: "client-a",
 						Cells: []*exportpb.SubscriptionGroupOutcomeCell{
 							{
-								JobTemplateId:      "tp-a",
-								EnrollmentEvidence: &exportpb.EnrollmentEvidence{},
+								JobTemplateId:       "tp-a",
+								TaskOutcomeEvidence: &exportpb.TaskOutcomeEvidence{},
 							},
 							{
-								JobTemplateId:      "tp-b",
-								EnrollmentEvidence: &exportpb.EnrollmentEvidence{},
+								JobTemplateId:       "tp-b",
+								TaskOutcomeEvidence: &exportpb.TaskOutcomeEvidence{},
 							},
 						},
 					},

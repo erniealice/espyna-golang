@@ -99,7 +99,7 @@ func initServiceOperationJobListTabSupport(db *sql.DB, i18nSvc ports.Translator,
 // operationRepos threads through the SAME josdt repository the domain
 // package's list-gated FindApplicableUseCase wraps (repos.
 // JobOutcomeSummaryDocumentTemplate — see providers/domain/operation.go),
-// so this package's render-scoped ResolvePublishedReportCardTemplate use case
+// so this package's render-scoped ResolvePublishedOutcomeSummaryTemplate use case
 // (R3 / DEC-3) can call FindApplicableJobOutcomeSummaryDocumentTemplate
 // directly under subscription_group_outcome_export:read instead of the
 // management-only job_outcome_summary_document_template:list gate. Nil-safe:
@@ -107,25 +107,25 @@ func initServiceOperationJobListTabSupport(db *sql.DB, i18nSvc ports.Translator,
 // the use case fails closed with an "unavailable" error rather than a panic.
 func initServiceOperationSubscriptionGroupOutcomeExport(db *sql.DB, landingInput internalregistry.SubscriptionGroupOutcomeLandingFactoryInput, i18nSvc ports.Translator, actionGate *actiongate.ActionGatekeeper, operationRepos *domain.OperationRepositories) *subscriptiongroupexportusecases.UseCases {
 	query := subscriptionGroupOutcomeExportQueryFromDB(db)
-	var clientReportCardQuery ports.SubscriptionGroupClientReportCardQueryService
+	var clientOutcomeSummaryQuery ports.SubscriptionGroupClientOutcomeSummaryQueryService
 	if query != nil {
 		var ok bool
-		clientReportCardQuery, ok = query.(ports.SubscriptionGroupClientReportCardQueryService)
+		clientOutcomeSummaryQuery, ok = query.(ports.SubscriptionGroupClientOutcomeSummaryQueryService)
 		if !ok {
 			log.Printf("subscription group client report projection is unavailable: registered export query does not implement the projection capability")
 		}
 	}
 	landingQuery := subscriptionGroupOutcomeLandingQueryFromProvider(landingInput)
-	var reportCardTemplateRepo jobdoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer
+	var outcomeSummaryTemplateRepo jobdoctmplpb.JobOutcomeSummaryDocumentTemplateDomainServiceServer
 	if operationRepos != nil {
-		reportCardTemplateRepo = operationRepos.JobOutcomeSummaryDocumentTemplate
+		outcomeSummaryTemplateRepo = operationRepos.JobOutcomeSummaryDocumentTemplate
 	}
 	return subscriptiongroupexportusecases.NewUseCases(
 		subscriptiongroupexportusecases.Repositories{
 			Query:                             query,
-			ClientReportCardQuery:             clientReportCardQuery,
+			ClientOutcomeSummaryQuery:         clientOutcomeSummaryQuery,
 			LandingQuery:                      landingQuery,
-			JobOutcomeSummaryDocumentTemplate: reportCardTemplateRepo,
+			JobOutcomeSummaryDocumentTemplate: outcomeSummaryTemplateRepo,
 		},
 		subscriptiongroupexportusecases.Services{Translator: i18nSvc, ActionGatekeeper: actionGate},
 	)

@@ -74,7 +74,7 @@ func (uc *ReadBalanceUseCase) Execute(ctx context.Context, req *balancepb.ReadBa
 				uc.services.Translator,
 				"balance.errors.not_found",
 				map[string]interface{}{"balanceId": req.Data.Id},
-				"Student account balance not found [DEFAULT]",
+				"Client account balance not found [DEFAULT]",
 			)
 			return nil, errors.New(translatedError)
 		}

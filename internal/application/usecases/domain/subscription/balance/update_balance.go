@@ -56,18 +56,18 @@ func (uc *UpdateBalanceUseCase) Execute(ctx context.Context, req *balancepb.Upda
 	// Authorization check
 	userID, err := contextutil.RequireUserIDFromContext(ctx)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "authorization.errors.access_denied", "Authorization failed for student account balances [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "authorization.errors.access_denied", "Authorization failed for client account balances [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
 	permission := entityid.EntityPermission(entityid.Balance, entityid.ActionUpdate)
 	hasPerm, err := uc.services.Authorizer.HasPermission(ctx, userID, permission)
 	if err != nil {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "authorization.errors.access_denied", "Authorization failed for student account balances [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "authorization.errors.access_denied", "Authorization failed for client account balances [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 	if !hasPerm {
-		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "authorization.errors.access_denied", "Authorization failed for student account balances [DEFAULT]")
+		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "authorization.errors.access_denied", "Authorization failed for client account balances [DEFAULT]")
 		return nil, errors.New(translatedError)
 	}
 
@@ -98,7 +98,7 @@ func (uc *UpdateBalanceUseCase) Execute(ctx context.Context, req *balancepb.Upda
 				uc.services.Translator,
 				"balance.errors.not_found",
 				map[string]interface{}{"balanceId": req.Data.Id},
-				"Student account balance not found [DEFAULT]",
+				"Client account balance not found [DEFAULT]",
 			)
 			return nil, errors.New(translatedError)
 		}

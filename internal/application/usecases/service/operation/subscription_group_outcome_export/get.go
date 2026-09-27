@@ -172,8 +172,8 @@ func validateExportResponse(req *exportpb.GetSubscriptionGroupOutcomeExportReque
 		}
 		cellIDs := make(map[string]struct{}, len(row.GetCells()))
 		for _, cell := range row.GetCells() {
-			if cell == nil || cell.GetEnrollmentEvidence() == nil {
-				return fmt.Errorf("client %q contains a cell without enrollment evidence", row.GetClientId())
+			if cell == nil || cell.GetTaskOutcomeEvidence() == nil {
+				return fmt.Errorf("client %q contains a cell without task outcome evidence", row.GetClientId())
 			}
 			if _, known := columnIDs[cell.GetJobTemplateId()]; !known {
 				return fmt.Errorf("client %q contains an unknown job template cell", row.GetClientId())

@@ -21,12 +21,12 @@ const (
 )
 
 type Repositories struct {
-	Query                 ports.SubscriptionGroupOutcomeExportQueryService
-	ClientReportCardQuery ports.SubscriptionGroupClientReportCardQueryService
-	LandingQuery          ports.SubscriptionGroupOutcomeLandingQueryService
+	Query                     ports.SubscriptionGroupOutcomeExportQueryService
+	ClientOutcomeSummaryQuery ports.SubscriptionGroupClientOutcomeSummaryQueryService
+	LandingQuery              ports.SubscriptionGroupOutcomeLandingQueryService
 	// JobOutcomeSummaryDocumentTemplate is the SAME josdt repository the domain
 	// package's FindApplicableUseCase wraps (job_outcome_summary_document_template:
-	// list, a MANAGEMENT-only gate). ResolvePublishedReportCardTemplateUseCase
+	// list, a MANAGEMENT-only gate). ResolvePublishedOutcomeSummaryTemplateUseCase
 	// calls FindApplicableJobOutcomeSummaryDocumentTemplate on it DIRECTLY,
 	// bypassing that gate, and authorizes instead via this package's report
 	// scope (subscription_group_outcome_export:read) — see R3 / DEC-3. Nil-safe:
@@ -41,15 +41,15 @@ type Services struct {
 
 type UseCases struct {
 	GetSubscriptionGroupOutcomeExport                *GetUseCase
-	GetSubscriptionGroupClientReportCard             *GetClientReportCardUseCase
+	GetSubscriptionGroupClientOutcomeSummary         *GetClientOutcomeSummaryUseCase
 	ResolveSubscriptionGroupOutcomeDocumentForRender *ResolveDocumentUseCase
 	ListSubscriptionGroupOutcomeLanding              *ListSubscriptionGroupOutcomeLandingUseCase
-	// ResolvePublishedReportCardTemplate is the render-scoped josdt resolver
+	// ResolvePublishedOutcomeSummaryTemplate is the render-scoped josdt resolver
 	// (R3 / DEC-3): same repository call as the domain package's
 	// FindApplicableJobOutcomeSummaryDocumentTemplate, but authorized against
 	// subscription_group_outcome_export:read so a STAFF principal (type 7) can
 	// resolve the published binding it is already entitled to read/export.
-	ResolvePublishedReportCardTemplate *ResolvePublishedReportCardTemplateUseCase
+	ResolvePublishedOutcomeSummaryTemplate *ResolvePublishedOutcomeSummaryTemplateUseCase
 }
 
 func NewUseCases(repositories Repositories, services Services) *UseCases {
@@ -63,10 +63,10 @@ func NewUseCases(repositories Repositories, services Services) *UseCases {
 	}
 	return &UseCases{
 		GetSubscriptionGroupOutcomeExport:                &GetUseCase{repositories: repositories, services: services},
-		GetSubscriptionGroupClientReportCard:             &GetClientReportCardUseCase{repositories: repositories, services: services},
+		GetSubscriptionGroupClientOutcomeSummary:         &GetClientOutcomeSummaryUseCase{repositories: repositories, services: services},
 		ResolveSubscriptionGroupOutcomeDocumentForRender: &ResolveDocumentUseCase{repositories: repositories, services: services},
 		ListSubscriptionGroupOutcomeLanding:              &ListSubscriptionGroupOutcomeLandingUseCase{repositories: repositories, services: services},
-		ResolvePublishedReportCardTemplate:               &ResolvePublishedReportCardTemplateUseCase{repositories: repositories, services: services},
+		ResolvePublishedOutcomeSummaryTemplate:           &ResolvePublishedOutcomeSummaryTemplateUseCase{repositories: repositories, services: services},
 	}
 }
 
@@ -86,7 +86,7 @@ func (s Services) reportScope(ctx context.Context) (ports.SubscriptionGroupOutco
 	case principalTypeOperatorOwner, principalTypeOperatorStaff, principalTypeStaff:
 		// Exact allowlist. Operator principals may bypass group servicing grants
 		// only when their active binding also holds workspace:list, matching the
-		// established report-card landing scope. Otherwise OPERATOR_STAFF stays
+		// established outcome summary landing scope. Otherwise OPERATOR_STAFF stays
 		// servicing-grant scoped. STAFF stays servicing-grant scoped even if one of
 		// its roles happens to carry workspace:list. Since the 2026-09-21 owner
 		// decision an assigned STAFF principal reads the WHOLE assigned section

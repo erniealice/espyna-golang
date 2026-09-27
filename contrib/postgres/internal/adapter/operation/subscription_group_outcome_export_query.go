@@ -63,19 +63,19 @@ func (q *PostgresSubscriptionGroupOutcomeExportQuery) GetSubscriptionGroupOutcom
 	return q.GetSubscriptionGroupOutcomeExportScoped(ctx, req, ports.SubscriptionGroupOutcomeExportScope{})
 }
 
-// GetSubscriptionGroupClientReportCardScoped is an in-process projection read
+// GetSubscriptionGroupClientOutcomeSummaryScoped is an in-process projection read
 // for one client enrollment. It intentionally is not an RPC method: its input
 // attribute allowlist is supplied by trusted application composition, while
 // the workspace and acting workspace-user always come from request identity.
-func (q *PostgresSubscriptionGroupOutcomeExportQuery) GetSubscriptionGroupClientReportCardScoped(
+func (q *PostgresSubscriptionGroupOutcomeExportQuery) GetSubscriptionGroupClientOutcomeSummaryScoped(
 	ctx context.Context,
-	req *exportpb.GetSubscriptionGroupClientReportCardRequest,
+	req *exportpb.GetSubscriptionGroupClientOutcomeSummaryRequest,
 	scope ports.SubscriptionGroupOutcomeExportScope,
-) (*exportpb.GetSubscriptionGroupClientReportCardResponse, error) {
+) (*exportpb.GetSubscriptionGroupClientOutcomeSummaryResponse, error) {
 	if q == nil || q.db == nil {
-		return nil, fmt.Errorf("subscription group client report card requires PostgreSQL")
+		return nil, fmt.Errorf("subscription group client outcome summary requires PostgreSQL")
 	}
-	response := &exportpb.GetSubscriptionGroupClientReportCardResponse{Success: true}
+	response := &exportpb.GetSubscriptionGroupClientOutcomeSummaryResponse{Success: true}
 	if req == nil || strings.TrimSpace(req.GetSubscriptionGroupId()) == "" || strings.TrimSpace(req.GetClientId()) == "" {
 		return response, nil
 	}
@@ -90,7 +90,7 @@ func (q *PostgresSubscriptionGroupOutcomeExportQuery) GetSubscriptionGroupClient
 	}
 	codesJSON, err := json.Marshal(codes)
 	if err != nil {
-		return nil, fmt.Errorf("subscription group client report card attribute codes: %w", err)
+		return nil, fmt.Errorf("subscription group client outcome summary attribute codes: %w", err)
 	}
 	planCodes := req.GetPlanAttributeCodes()
 	if planCodes == nil {
@@ -98,40 +98,40 @@ func (q *PostgresSubscriptionGroupOutcomeExportQuery) GetSubscriptionGroupClient
 	}
 	planCodesJSON, err := json.Marshal(planCodes)
 	if err != nil {
-		return nil, fmt.Errorf("subscription group client report card plan attribute codes: %w", err)
+		return nil, fmt.Errorf("subscription group client outcome summary plan attribute codes: %w", err)
 	}
-	built := buildSubscriptionGroupClientReportCardSQL(id, req, scope, string(codesJSON), string(planCodesJSON))
+	built := buildSubscriptionGroupClientOutcomeSummarySQL(id, req, scope, string(codesJSON), string(planCodesJSON))
 	rows, err := adaptercore.ExecutorFromContext(ctx, q.db).QueryContext(ctx, built.statement, built.args...)
 	if err != nil {
-		return nil, fmt.Errorf("subscription group client report card query: %w", err)
+		return nil, fmt.Errorf("subscription group client outcome summary query: %w", err)
 	}
 	defer rows.Close()
 
-	projection := &exportpb.ClientReportCardProjection{}
+	projection := &exportpb.ClientOutcomeSummaryProjection{}
 	for rows.Next() {
 		var kind string
 		var payload []byte
 		if err := rows.Scan(&kind, &payload); err != nil {
-			return nil, fmt.Errorf("subscription group client report card scan: %w", err)
+			return nil, fmt.Errorf("subscription group client outcome summary scan: %w", err)
 		}
-		if err := appendClientReportCardPayload(projection, kind, payload); err != nil {
-			return nil, fmt.Errorf("subscription group client report card %s payload: %w", kind, err)
+		if err := appendClientOutcomeSummaryPayload(projection, kind, payload); err != nil {
+			return nil, fmt.Errorf("subscription group client outcome summary %s payload: %w", kind, err)
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("subscription group client report card rows: %w", err)
+		return nil, fmt.Errorf("subscription group client outcome summary rows: %w", err)
 	}
 	if projection.GetContext() != nil && projection.GetClient() != nil && len(projection.GetClientSubscriptionIds()) > 0 {
-		response.ReportCard = projection
+		response.OutcomeSummary = projection
 	}
 	return response, nil
 }
 
-// appendClientReportCardPayload decodes one explicit SQL JSON object into the
+// appendClientOutcomeSummaryPayload decodes one explicit SQL JSON object into the
 // matching typed projection field. protojson accepts the snake_case SQL keys
 // and validates each row against the generated DTO, rejecting accidental
 // expansion of this report-only boundary.
-func appendClientReportCardPayload(projection *exportpb.ClientReportCardProjection, kind string, payload []byte) error {
+func appendClientOutcomeSummaryPayload(projection *exportpb.ClientOutcomeSummaryProjection, kind string, payload []byte) error {
 	field, repeated := "", true
 	switch kind {
 	case "context":
@@ -174,8 +174,8 @@ func appendClientReportCardPayload(projection *exportpb.ClientReportCardProjecti
 		field = "job_outcome_lines"
 	case "staff":
 		field = "staff"
-	case "teacher_assignment":
-		field = "teacher_assignments"
+	case "staff_assignment":
+		field = "staff_assignments"
 	case "render_gate_job_id":
 		field = "render_gate_job_ids"
 	case "render_gate_group_id":
@@ -200,7 +200,7 @@ func appendClientReportCardPayload(projection *exportpb.ClientReportCardProjecti
 		wrapped = append(wrapped, ']')
 	}
 	wrapped = append(wrapped, '}')
-	row := &exportpb.ClientReportCardProjection{}
+	row := &exportpb.ClientOutcomeSummaryProjection{}
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(wrapped, row); err != nil {
 		return err
 	}
@@ -240,17 +240,17 @@ type exportColumnJSON struct {
 }
 
 type exportCellJSON struct {
-	ClientID        string   `json:"client_id"`
-	ClientName      string   `json:"client_name"`
-	ClientFirstName string   `json:"client_first_name"`
-	ClientLastName  string   `json:"client_last_name"`
-	JobTemplateID   string   `json:"job_template_id"`
-	JobPresent      bool     `json:"job_present"`
-	ScaledLabel     *string  `json:"scaled_label"`
-	ScaledScore     *float64 `json:"scaled_score"`
-	SummaryScore    *float64 `json:"summary_score"`
-	HasMarks        bool     `json:"has_marks"`
-	HasPositiveMark bool     `json:"has_positive_mark"`
+	ClientID               string   `json:"client_id"`
+	ClientName             string   `json:"client_name"`
+	ClientFirstName        string   `json:"client_first_name"`
+	ClientLastName         string   `json:"client_last_name"`
+	JobTemplateID          string   `json:"job_template_id"`
+	JobPresent             bool     `json:"job_present"`
+	ScaledLabel            *string  `json:"scaled_label"`
+	ScaledScore            *float64 `json:"scaled_score"`
+	SummaryScore           *float64 `json:"summary_score"`
+	HasTaskOutcome         bool     `json:"has_task_outcome"`
+	HasPositiveTaskOutcome bool     `json:"has_positive_task_outcome"`
 }
 
 type exportScopeSQL struct {
@@ -259,9 +259,9 @@ type exportScopeSQL struct {
 	staffScoped bool
 }
 
-func buildSubscriptionGroupClientReportCardSQL(
+func buildSubscriptionGroupClientOutcomeSummarySQL(
 	id *identity.RequestIdentity,
-	req *exportpb.GetSubscriptionGroupClientReportCardRequest,
+	req *exportpb.GetSubscriptionGroupClientOutcomeSummaryRequest,
 	scope ports.SubscriptionGroupOutcomeExportScope,
 	codesJSON string,
 	planCodesJSON string,
@@ -271,7 +271,7 @@ func buildSubscriptionGroupClientReportCardSQL(
 	args = append(args, gateArgs...)
 	args = append(args, planCodesJSON)
 	planCodesParam := fmt.Sprintf("$%d", len(args))
-	statement := strings.ReplaceAll(clientReportCardCTEs, "{{render_gate_group_narrow}}", gateNarrow) + clientReportCardRowsSQL
+	statement := strings.ReplaceAll(clientOutcomeSummaryCTEs, "{{render_gate_group_narrow}}", gateNarrow) + clientOutcomeSummaryRowsSQL
 	statement = strings.ReplaceAll(statement, "{{plan_attribute_codes_param}}", planCodesParam)
 	return exportScopeSQL{
 		statement: renderOutcomeExportTables(statement),
@@ -282,10 +282,10 @@ func buildSubscriptionGroupClientReportCardSQL(
 // The source tables below deliberately use explicit JSON field lists. In
 // particular, client attributes are keyed by the server-configured request
 // codes, and task outcomes/staff/client data cross this boundary only through
-// their narrow report-card DTOs. Tables without workspace_id (client_attribute,
+// their narrow outcome summary DTOs. Tables without workspace_id (client_attribute,
 // attribute, product_plan, and user) are constrained through a workspace-owned
 // client, SGPP/job chain, or staff row respectively.
-const clientReportCardCTEs = `
+const clientOutcomeSummaryCTEs = `
 WITH group_context AS MATERIALIZED (
   SELECT sg.id, sg.name, sg.active, NOT sg.active AS historical,
          sg.price_schedule_id, COALESCE(ps.name, '') AS price_schedule_name,
@@ -523,7 +523,7 @@ WITH group_context AS MATERIALIZED (
     JOIN {{plan_attribute}} pa ON pa.plan_id = g.plan_id AND pa.active = true
     JOIN {{attribute}} attr ON attr.id = pa.attribute_id AND attr.active = true
    WHERE attr.code IN (SELECT jsonb_array_elements_text({{plan_attribute_codes_param}}::jsonb))
-), teacher_candidates AS MATERIALIZED (
+), staff_candidates AS MATERIALIZED (
   -- Direct task assignees are the override. A class-edge fallback is used only
   -- for phases with no valid active direct assignee. SGPP is scoped by workspace
   -- and exact group; product_plan has no workspace_id in the current schema and
@@ -532,7 +532,7 @@ WITH group_context AS MATERIALIZED (
   -- list's classEdgeEligibilityLivePredicate in job_template_summary_query.go)
   -- and returns EVERY qualifying primary edge, not just the newest one: a
   -- demoted-to-secondary staff member must never outrank a still-active
-  -- primary teacher just because their edge sorts newer.
+  -- primary staff just because their edge sorts newer.
   SELECT DISTINCT j.id AS job_id, jp.id AS job_phase_id, s.id AS staff_id,
          COALESCE(NULLIF(btrim(concat_ws(' ', u.first_name, u.last_name)), ''), s.id) AS display_name,
          0 AS source_order, ''::text AS edge_sort
@@ -569,17 +569,17 @@ WITH group_context AS MATERIALIZED (
         AND direct_staff.workspace_id = $1 AND direct_staff.active = true
       WHERE direct_task.job_phase_id = jp.id
    )
-), teacher_assignments AS MATERIALIZED (
+), staff_assignments AS MATERIALIZED (
   SELECT DISTINCT ON (job_id, job_phase_id, staff_id)
          job_id, job_phase_id, staff_id, display_name
-    FROM teacher_candidates
+    FROM staff_candidates
    ORDER BY job_id, job_phase_id, staff_id, source_order, edge_sort
 ), staff_rows AS MATERIALIZED (
-  SELECT DISTINCT staff_id, display_name FROM teacher_assignments
+  SELECT DISTINCT staff_id, display_name FROM staff_assignments
 )
 `
 
-const clientReportCardRowsSQL = `
+const clientOutcomeSummaryRowsSQL = `
 SELECT kind, payload
   FROM (
     SELECT 0 AS kind_order, 'context'::text AS kind, ''::text AS sort_key_1, ''::text AS sort_key_2,
@@ -693,10 +693,10 @@ SELECT kind, payload
     SELECT 18, 'staff', s.staff_id, '', jsonb_build_object('staff_id', s.staff_id, 'display_name', s.display_name)
       FROM staff_rows s
     UNION ALL
-    SELECT 19, 'teacher_assignment', ta.job_id, ta.job_phase_id || ':' || ta.staff_id,
+    SELECT 19, 'staff_assignment', ta.job_id, ta.job_phase_id || ':' || ta.staff_id,
            jsonb_build_object('job_id', ta.job_id, 'job_phase_id', ta.job_phase_id,
              'staff_id', ta.staff_id, 'display_name', ta.display_name)
-      FROM teacher_assignments ta
+      FROM staff_assignments ta
     UNION ALL
     SELECT DISTINCT 20, 'render_gate_job_id', j.id, '', to_jsonb(j.id)
       FROM job_rows j
@@ -862,7 +862,7 @@ func (q *PostgresSubscriptionGroupOutcomeExportQuery) GetSubscriptionGroupOutcom
 			row.Cells = append(row.Cells, &exportpb.SubscriptionGroupOutcomeCell{
 				JobTemplateId: value.JobTemplateID, JobPresent: value.JobPresent,
 				ScaledLabel: value.ScaledLabel, ScaledScore: value.ScaledScore, SummaryScore: value.SummaryScore,
-				EnrollmentEvidence: &exportpb.EnrollmentEvidence{HasMarks: value.HasMarks, HasPositiveMark: value.HasPositiveMark},
+				TaskOutcomeEvidence: &exportpb.TaskOutcomeEvidence{HasTaskOutcome: value.HasTaskOutcome, HasPositiveTaskOutcome: value.HasPositiveTaskOutcome},
 			})
 		default:
 			return nil, fmt.Errorf("subscription group outcome export returned unknown row kind %q", kind)
@@ -1165,8 +1165,8 @@ WITH group_context AS (
          CASE WHEN $6 = 'phase' THEN phase_summary.scaled_label ELSE final_summary.scaled_label END AS scaled_label,
          CASE WHEN $6 = 'phase' THEN phase_summary.scaled_score ELSE final_summary.scaled_score END AS scaled_score,
          CASE WHEN $6 = 'phase' THEN phase_summary.summary_score ELSE final_summary.summary_score END AS summary_score,
-         COALESCE(evidence.has_marks, false) AS has_marks,
-         COALESCE(evidence.has_positive_mark, false) AS has_positive_mark
+         COALESCE(evidence.has_task_outcome, false) AS has_task_outcome,
+         COALESCE(evidence.has_positive_task_outcome, false) AS has_positive_task_outcome
     FROM matrix_members m
     CROSS JOIN matrix_columns col
     LEFT JOIN selected_jobs sj
@@ -1213,8 +1213,8 @@ WITH group_context AS (
        LIMIT 1
     ) final_summary ON true
     LEFT JOIN LATERAL (
-      SELECT count(*) FILTER (WHERE outcome.numeric_value IS NOT NULL) > 0 AS has_marks,
-             count(*) FILTER (WHERE outcome.numeric_value > 0) > 0 AS has_positive_mark
+      SELECT count(*) FILTER (WHERE outcome.numeric_value IS NOT NULL) > 0 AS has_task_outcome,
+             count(*) FILTER (WHERE outcome.numeric_value > 0) > 0 AS has_positive_task_outcome
         FROM {{job_phase}} evidence_phase
         JOIN {{job_task}} task
           ON task.job_phase_id = evidence_phase.id
@@ -1273,7 +1273,7 @@ SELECT kind, payload
              'job_template_id', job_template_id, 'job_present', job_present,
              'scaled_label', scaled_label, 'scaled_score', scaled_score,
              'summary_score', summary_score,
-             'has_marks', has_marks, 'has_positive_mark', has_positive_mark
+             'has_task_outcome', has_task_outcome, 'has_positive_task_outcome', has_positive_task_outcome
            )
       FROM matrix_cells
   ) rows

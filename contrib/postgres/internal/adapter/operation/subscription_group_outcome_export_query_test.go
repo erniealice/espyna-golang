@@ -4,6 +4,7 @@ package operation
 
 import (
 	"context"
+	"encoding/json"
 	"regexp"
 	"sort"
 	"strings"
@@ -391,7 +392,7 @@ func TestBuildSubscriptionGroupOutcomeDocumentResolverSQL_ClientPhaseUsesNullCat
 
 func TestNarrowStaffReportsPolicyDocumentedOff(t *testing.T) {
 	if narrowStaffReportsToReachableJobs {
-		t.Fatal("narrowStaffReportsToReachableJobs must stay false; flipping it requires a conscious review in docs/plan/20260921-section-manager-report-card-access/plan.md")
+		t.Fatal("narrowStaffReportsToReachableJobs must stay false; flipping it requires a conscious review in docs/plan/20260921-section-manager-outcome summary-access/plan.md")
 	}
 }
 
@@ -429,17 +430,17 @@ func TestBuildSubscriptionGroupOutcomeExportSQL_PlaceholdersAndTables(t *testing
 	}
 }
 
-func TestBuildSubscriptionGroupClientReportCardSQL_IsClientAnchoredTenantScopedAndAllowlisted(t *testing.T) {
+func TestBuildSubscriptionGroupClientOutcomeSummarySQL_IsClientAnchoredTenantScopedAndAllowlisted(t *testing.T) {
 	t.Parallel()
 
 	ctx := identityContext("ws-1", "user-1", 1, "non-staff-1")
 	id := requestIdentityFromContext(t, ctx)
-	req := &exportpb.GetSubscriptionGroupClientReportCardRequest{
+	req := &exportpb.GetSubscriptionGroupClientOutcomeSummaryRequest{
 		SubscriptionGroupId:  "sg-1",
 		ClientId:             "client-9",
 		ClientAttributeCodes: []string{"student_code", "display_name'); SELECT pg_sleep(9); --"},
 	}
-	built := buildSubscriptionGroupClientReportCardSQL(id, req, ports.SubscriptionGroupOutcomeExportScope{}, `[
+	built := buildSubscriptionGroupClientOutcomeSummarySQL(id, req, ports.SubscriptionGroupOutcomeExportScope{}, `[
 		"student_code", "display_name'); SELECT pg_sleep(9); --"
 	]`, `["program_year"]`)
 	statement := built.statement
@@ -559,11 +560,11 @@ func TestBuildSubscriptionGroupClientReportCardSQL_IsClientAnchoredTenantScopedA
 		t.Fatal("projection must use explicit safe fields, never serialize whole sensitive rows")
 	}
 	if strings.Contains(statement, "{{") || strings.Contains(statement, "}}") {
-		t.Fatal("client report card SQL contains an unrendered table placeholder")
+		t.Fatal("client outcome summary SQL contains an unrendered table placeholder")
 	}
 }
 
-// TestBuildSubscriptionGroupClientReportCardSQL_TeacherFallbackPrimaryEligibleAllQualifying
+// TestBuildSubscriptionGroupClientOutcomeSummarySQL_StaffFallbackPrimaryEligibleAllQualifying
 // pins the T-F5 fix: the class-edge teacher fallback in teacher_candidates
 // (a) considers only role='primary' edges (DP-10/DP-11), (b) applies the
 // product_plan_staff eligibility gate mirrored from job_template_summary_query.go's
@@ -571,16 +572,16 @@ func TestBuildSubscriptionGroupClientReportCardSQL_IsClientAnchoredTenantScopedA
 // dropped), and (c) never truncates to a single "newest" edge via LIMIT 1 — a
 // demoted-to-secondary staff member's newer edge must never eclipse a still
 // -active primary teacher's older one.
-func TestBuildSubscriptionGroupClientReportCardSQL_TeacherFallbackPrimaryEligibleAllQualifying(t *testing.T) {
+func TestBuildSubscriptionGroupClientOutcomeSummarySQL_StaffFallbackPrimaryEligibleAllQualifying(t *testing.T) {
 	t.Parallel()
 
 	ctx := identityContext("ws-1", "user-1", 1, "non-staff-1")
 	id := requestIdentityFromContext(t, ctx)
-	req := &exportpb.GetSubscriptionGroupClientReportCardRequest{
+	req := &exportpb.GetSubscriptionGroupClientOutcomeSummaryRequest{
 		SubscriptionGroupId: "sg-1",
 		ClientId:            "client-9",
 	}
-	built := buildSubscriptionGroupClientReportCardSQL(id, req, ports.SubscriptionGroupOutcomeExportScope{}, `[]`, `[]`)
+	built := buildSubscriptionGroupClientOutcomeSummarySQL(id, req, ports.SubscriptionGroupOutcomeExportScope{}, `[]`, `[]`)
 	statement := built.statement
 
 	fallbackAt := strings.Index(statement, "JOIN LATERAL (")
@@ -606,14 +607,14 @@ func TestBuildSubscriptionGroupClientReportCardSQL_TeacherFallbackPrimaryEligibl
 		t.Fatal("teacher fallback must return ALL qualifying primary edges, not the newest via LIMIT 1")
 	}
 	if strings.Contains(statement, "{{") || strings.Contains(statement, "}}") {
-		t.Fatal("client report card SQL contains an unrendered table placeholder")
+		t.Fatal("client outcome summary SQL contains an unrendered table placeholder")
 	}
 }
 
-func TestAppendClientReportCardPayloadDecodesTypedNarrowRows(t *testing.T) {
+func TestAppendClientOutcomeSummaryPayloadDecodesTypedNarrowRows(t *testing.T) {
 	t.Parallel()
 
-	projection := &exportpb.ClientReportCardProjection{}
+	projection := &exportpb.ClientOutcomeSummaryProjection{}
 	rows := []struct{ kind, payload string }{
 		{"client", `{"client_id":"c-1","name":"Ada","first_name":"Ada","last_name":"Lovelace"}`},
 		{"job_template", `{"id":"template-1","workspace_id":"ws-1","name":"Attendance","template_code":"attendance-template-code","job_category_id":"category-1","active":true}`},
@@ -626,7 +627,7 @@ func TestAppendClientReportCardPayloadDecodesTypedNarrowRows(t *testing.T) {
 		{"attribute", `{"code":"student_code","value":"S-1"}`},
 	}
 	for _, row := range rows {
-		if err := appendClientReportCardPayload(projection, row.kind, []byte(row.payload)); err != nil {
+		if err := appendClientOutcomeSummaryPayload(projection, row.kind, []byte(row.payload)); err != nil {
 			t.Fatalf("append %s: %v", row.kind, err)
 		}
 	}
@@ -644,6 +645,40 @@ func TestAppendClientReportCardPayloadDecodesTypedNarrowRows(t *testing.T) {
 	}
 	if len(projection.GetAttributes()) != 1 || projection.GetAttributes()[0].GetCode() != "student_code" {
 		t.Fatalf("attribute decode = %v", projection.GetAttributes())
+	}
+}
+
+func TestAppendClientOutcomeSummaryPayload_DecodesStaffAssignment(t *testing.T) {
+	t.Parallel()
+	projection := &exportpb.ClientOutcomeSummaryProjection{}
+	payload := []byte(`{"job_id":"job-1","job_phase_id":"phase-1","staff_id":"staff-1","display_name":"Ada"}`)
+	if err := appendClientOutcomeSummaryPayload(projection, "staff_assignment", payload); err != nil {
+		t.Fatalf("decode staff assignment: %v", err)
+	}
+	assignments := projection.GetStaffAssignments()
+	if len(assignments) != 1 || assignments[0].GetJobId() != "job-1" || assignments[0].GetJobPhaseId() != "phase-1" || assignments[0].GetStaffId() != "staff-1" || assignments[0].GetDisplayName() != "Ada" {
+		t.Fatalf("decoded staff assignments = %v", assignments)
+	}
+	if err := appendClientOutcomeSummaryPayload(projection, "teacher_assignment", payload); err == nil {
+		t.Fatal("legacy projection kind unexpectedly accepted")
+	}
+}
+
+func TestTaskOutcomeEvidenceRow_DecodesRenamedAliases(t *testing.T) {
+	t.Parallel()
+	var row exportCellJSON
+	if err := json.Unmarshal([]byte(`{"has_task_outcome":true,"has_positive_task_outcome":true}`), &row); err != nil {
+		t.Fatal(err)
+	}
+	if !row.HasTaskOutcome || !row.HasPositiveTaskOutcome {
+		t.Fatalf("renamed aliases did not decode: %+v", row)
+	}
+	row = exportCellJSON{}
+	if err := json.Unmarshal([]byte(`{"has_marks":true,"has_positive_mark":true}`), &row); err != nil {
+		t.Fatal(err)
+	}
+	if row.HasTaskOutcome || row.HasPositiveTaskOutcome {
+		t.Fatalf("legacy aliases unexpectedly populated evidence: %+v", row)
 	}
 }
 

@@ -406,14 +406,28 @@ WITH group_context AS MATERIALIZED (
     JOIN {{template_task_criteria}} ttc
       ON ttc.job_template_task_id = tt.id AND ttc.workspace_id = $1
    WHERE tt.historical OR ttc.active = true
-), outcome_criteria AS MATERIALIZED (
+), linked_outcome_criteria AS MATERIALIZED (
   SELECT DISTINCT oc.id, oc.workspace_id, oc.name, oc.code, oc.unit,
          oc.decimal_places, oc.min_score, oc.max_score, oc.score_increment,
-         oc.pass_label, oc.fail_label, oc.required, oc.active, ttc.historical
+         oc.pass_label, oc.fail_label, oc.required, oc.active, oc.overrides_id,
+         ttc.historical
     FROM template_task_criteria ttc
     JOIN {{outcome_criteria}} oc
       ON oc.id = ttc.outcome_criteria_id AND oc.workspace_id = $1
    WHERE ttc.historical OR oc.active = true
+), outcome_criteria AS MATERIALIZED (
+  -- Linked criteria plus the same-workspace criteria they override, so a
+  -- code-less per-activity variant can report under its parent's code.
+  SELECT * FROM linked_outcome_criteria
+  UNION
+  SELECT DISTINCT parent.id, parent.workspace_id, parent.name, parent.code, parent.unit,
+         parent.decimal_places, parent.min_score, parent.max_score, parent.score_increment,
+         parent.pass_label, parent.fail_label, parent.required, parent.active, parent.overrides_id,
+         loc.historical
+    FROM linked_outcome_criteria loc
+    JOIN {{outcome_criteria}} parent
+      ON parent.id = loc.overrides_id AND parent.workspace_id = $1
+   WHERE loc.historical OR parent.active = true
 ), latest_task_outcomes AS MATERIALIZED (
   SELECT DISTINCT ON (jt.id, ttc.id)
          jt.id AS job_task_id, ttc.id AS template_task_criteria_id,
@@ -650,7 +664,8 @@ SELECT kind, payload
     SELECT 12, 'outcome_criteria', oc.id, '', jsonb_build_object('id', oc.id, 'workspace_id', oc.workspace_id,
              'name', oc.name, 'code', oc.code, 'unit', oc.unit, 'decimal_places', oc.decimal_places,
              'min_score', oc.min_score, 'max_score', oc.max_score, 'score_increment', oc.score_increment,
-             'pass_label', oc.pass_label, 'fail_label', oc.fail_label, 'required', oc.required, 'active', oc.active)
+             'pass_label', oc.pass_label, 'fail_label', oc.fail_label, 'required', oc.required, 'active', oc.active,
+             'overrides_id', oc.overrides_id)
       FROM outcome_criteria oc
     UNION ALL
     SELECT 13, 'template_task_criteria', ttc.id, '', jsonb_build_object('id', ttc.id, 'workspace_id', ttc.workspace_id,

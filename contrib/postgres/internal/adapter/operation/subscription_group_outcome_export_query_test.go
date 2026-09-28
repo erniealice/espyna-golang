@@ -494,6 +494,8 @@ func TestBuildSubscriptionGroupClientReportCardSQL_IsClientAnchoredTenantScopedA
 		"local_jt.id = j.job_template_id AND local_jt.workspace_id = $1",
 		"SELECT DISTINCT jt.id, jt.workspace_id, jt.name, jt.template_code, jt.job_category_id, jt.active",
 		"'template_code', jt.template_code",
+		"parent.id = loc.overrides_id AND parent.workspace_id = $1",
+		"'overrides_id', oc.overrides_id",
 		"jc.workspace_id = $1",
 		"jp.job_id = j.id AND jp.workspace_id = $1",
 		"DISTINCT ON (a.client_id, j.job_template_id)",

@@ -18,6 +18,16 @@ func InitializeTreasury(
 ) (*treasury.TreasuryUseCases, error) {
 	return treasury.NewUseCases(
 		treasury.TreasuryRepositories{
+			// Slice B known-cost recovery (S1)
+			CollectionApplication: repos.CollectionApplication,
+			RevenuePayment:        repos.RevenuePayment,
+			RecoveryDocument:      repos.RecoveryDocument,
+			RecoveryDocumentLine:  repos.RecoveryDocumentLine,
+			BillableCharge:        repos.BillableCharge,
+			ChargeComponent:       repos.ChargeComponent,
+			ChargePolicyPosting:   repos.ChargePolicyPosting,
+			ChargeEffect:          repos.ChargeEffect,
+			Client:                repos.Client,
 			// Existing treasury repositories
 			Collection:           repos.Collection,
 			CollectionMethod:     repos.CollectionMethod,

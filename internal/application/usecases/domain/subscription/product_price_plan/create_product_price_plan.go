@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	chargepolicypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy"
+	chargepolicyversionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_version"
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
@@ -20,15 +22,19 @@ type CreateProductPricePlanRepositories struct {
 	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
 	PricePlan        priceplanpb.PricePlanDomainServiceServer
 	ProductPlan      productplanpb.ProductPlanDomainServiceServer
+	// Optional charge policy opt-in guard collaborators (nil = a line that sets
+	// charge_policy_id is refused, fail closed).
+	ChargePolicy        chargepolicypb.ChargePolicyDomainServiceServer
+	ChargePolicyVersion chargepolicyversionpb.ChargePolicyVersionDomainServiceServer
 }
 
 // CreateProductPricePlanServices groups all business service dependencies
 type CreateProductPricePlanServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // CreateProductPricePlanUseCase handles the business logic for creating product price plans
@@ -114,6 +120,15 @@ func (uc *CreateProductPricePlanUseCase) executeCore(ctx context.Context, req *p
 	if err := uc.validateEntityReferencesWithTranslation(ctx, req.Data); err != nil {
 		msg := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "product_price_plan.errors.entity_reference_validation_failed", "Entity reference validation failed [DEFAULT]")
 		return nil, fmt.Errorf("%s: %w", msg, err)
+	}
+
+	// Charge policy opt-in guard (AC-CP-06 / AC-UC-35 / AC-UC-11): no-op without charge_policy_id.
+	if err := validateChargePolicyOptIn(ctx, chargePolicyDeps{
+		ChargePolicy:        uc.repositories.ChargePolicy,
+		ChargePolicyVersion: uc.repositories.ChargePolicyVersion,
+		PricePlan:           uc.repositories.PricePlan,
+	}, req.Data, uc.services.Translator); err != nil {
+		return nil, err
 	}
 
 	resp, err := uc.repositories.ProductPricePlan.CreateProductPricePlan(ctx, req)

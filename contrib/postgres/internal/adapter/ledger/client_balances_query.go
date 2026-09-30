@@ -13,12 +13,15 @@ import "fmt"
 //
 //	$1 = workspace_id (text or NULL)
 //
+// The S1 application leg (recovery_application_leg.go) subtracts CASH APPLIED collection
+// applications on the revenue; with none it subtracts zero.
+//
 // Returns two columns: client_id (text), outstanding (int8 centavos).
 func buildClientBalancesQuery(tc TableConfig) (string, []any) {
 	return fmt.Sprintf(`
 SELECT
     r.client_id,
-    COALESCE(SUM(r.total_amount), 0) - COALESCE(SUM(received.total_received), 0) AS outstanding
+    COALESCE(SUM(r.total_amount), 0) - COALESCE(SUM(received.total_received), 0) - COALESCE(SUM(applied.total_applied), 0) AS outstanding
 FROM %s r
 LEFT JOIN (
     SELECT tc.revenue_id, SUM(tc.amount) AS total_received
@@ -26,11 +29,12 @@ LEFT JOIN (
     WHERE tc.active = true AND tc.status IN ('paid', 'completed')
     GROUP BY tc.revenue_id
 ) received ON received.revenue_id = r.id
+LEFT JOIN %s applied ON applied.revenue_id = r.id AND applied.workspace_id = r.workspace_id
 WHERE r.active = true
   AND r.status NOT IN ('cancelled', 'draft')
   AND r.client_id IS NOT NULL
   AND ($1::text IS NULL OR r.workspace_id = $1)
 GROUP BY r.client_id
-HAVING COALESCE(SUM(r.total_amount), 0) - COALESCE(SUM(received.total_received), 0) != 0`,
-		tc.Revenue, tc.TreasuryCollection), nil
+HAVING COALESCE(SUM(r.total_amount), 0) - COALESCE(SUM(received.total_received), 0) - COALESCE(SUM(applied.total_applied), 0) != 0`,
+		tc.Revenue, tc.TreasuryCollection, appliedToRevenueSubquery(tc.CollectionApplication, "")), nil
 }

@@ -8,12 +8,15 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
+	chargepolicypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy"
+	chargepolicyversionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_version"
 	productplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/product/product_plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
+	"google.golang.org/protobuf/proto"
 )
 
 // UpdateProductPricePlanRepositories groups all repository dependencies
@@ -21,13 +24,16 @@ type UpdateProductPricePlanRepositories struct {
 	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
 	PricePlan        priceplanpb.PricePlanDomainServiceServer
 	ProductPlan      productplanpb.ProductPlanDomainServiceServer
+	// Optional charge policy opt-in guard collaborators (see create).
+	ChargePolicy        chargepolicypb.ChargePolicyDomainServiceServer
+	ChargePolicyVersion chargepolicyversionpb.ChargePolicyVersionDomainServiceServer
 }
 
 // UpdateProductPricePlanServices groups all business service dependencies
 type UpdateProductPricePlanServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -116,6 +122,13 @@ func (uc *UpdateProductPricePlanUseCase) executeCore(ctx context.Context, req *p
 		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
 
+	// Charge policy opt-in guard on the EFFECTIVE line (stored row overlaid with the request):
+	// a partial update that changes billing_treatment or markup_bps of a policy-bound line is
+	// re-validated, and a request that sets charge_policy_id is validated as a whole.
+	if err := uc.guardChargePolicy(ctx, req.Data); err != nil {
+		return nil, err
+	}
+
 	resp, err := uc.repositories.ProductPricePlan.UpdateProductPricePlan(ctx, req)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
@@ -190,4 +203,72 @@ func (uc *UpdateProductPricePlanUseCase) validateEntityReferencesWithTranslation
 	}
 
 	return nil
+}
+
+// guardChargePolicy merges the stored line with the request and runs validateChargePolicyOptIn.
+// When the request touches none of the guarded fields and the stored line has no policy, the
+// legacy path is untouched (no extra reads beyond the single stored-row read).
+func (uc *UpdateProductPricePlanUseCase) guardChargePolicy(ctx context.Context, patch *productpriceplanpb.ProductPricePlan) error {
+	if uc.repositories.ProductPricePlan == nil {
+		return nil
+	}
+	touches := patch.ChargePolicyId != nil || patch.MarkupBps != nil || patch.BillingTreatment != productpriceplanpb.BillingTreatment_BILLING_TREATMENT_UNSPECIFIED || patch.PricePlanId != ""
+	if !touches {
+		return nil
+	}
+	cur, err := uc.repositories.ProductPricePlan.ReadProductPricePlan(ctx, &productpriceplanpb.ReadProductPricePlanRequest{Data: &productpriceplanpb.ProductPricePlan{Id: patch.Id}})
+	if err != nil && !isRepoNotFound(err) {
+		// Fail closed (C12): a stored-row read failure must never let an unguarded write through.
+		return guardRepoErr("read product_price_plan", err, patch.Id)
+	}
+	if err != nil || cur == nil || len(cur.Data) == 0 {
+		if isClearChargePolicy(patch) {
+			// Fail closed on the explicit clear: a foreign-workspace or unknown row is not found
+			// (the workspace-scoped read hides it); never fall through to a write.
+			msg := contextutil.GetTranslatedMessageWithContextAndTags(ctx, uc.services.Translator, "product_price_plan.errors.not_found", map[string]interface{}{"productPricePlanId": patch.Id}, "Product price plan not found")
+			return errors.New(msg)
+		}
+		// Unknown row: the update itself will report not-found; the guard has nothing to merge.
+		return nil
+	}
+	// Derived write (C12, moved here from the view): switching a policy-bound line off
+	// USAGE_BASED clears the policy in the same write, whichever edit surface sent the request
+	// (an explicit charge_policy_id in the request still wins and is refused by the guard below).
+	if patch.ChargePolicyId == nil && cur.Data[0].GetChargePolicyId() != "" &&
+		patch.BillingTreatment != productpriceplanpb.BillingTreatment_BILLING_TREATMENT_UNSPECIFIED &&
+		patch.BillingTreatment != productpriceplanpb.BillingTreatment_BILLING_TREATMENT_USAGE_BASED {
+		cleared := ""
+		patch.ChargePolicyId = &cleared
+	}
+	eff := proto.Clone(cur.Data[0]).(*productpriceplanpb.ProductPricePlan)
+	if isClearChargePolicy(patch) {
+		// Explicit clear: the effective line has no policy and no markup (always allowed).
+		eff.ChargePolicyId = nil
+		eff.MarkupBps = nil
+	} else {
+		if patch.ChargePolicyId != nil {
+			eff.ChargePolicyId = patch.ChargePolicyId
+		}
+		if patch.MarkupBps != nil {
+			eff.MarkupBps = patch.MarkupBps
+		}
+	}
+	if patch.BillingTreatment != productpriceplanpb.BillingTreatment_BILLING_TREATMENT_UNSPECIFIED {
+		eff.BillingTreatment = patch.BillingTreatment
+	}
+	if patch.PricePlanId != "" {
+		eff.PricePlanId = patch.PricePlanId
+	}
+	return validateChargePolicyOptIn(ctx, chargePolicyDeps{
+		ChargePolicy:        uc.repositories.ChargePolicy,
+		ChargePolicyVersion: uc.repositories.ChargePolicyVersion,
+		PricePlan:           uc.repositories.PricePlan,
+	}, eff, uc.services.Translator)
+}
+
+// isClearChargePolicy reports the typed "clear charge policy" intent: charge_policy_id present
+// (optional field set) and empty. The postgres adapter maps it to charge_policy_id = NULL and
+// markup_bps = NULL; an empty string is never written to the FK column.
+func isClearChargePolicy(patch *productpriceplanpb.ProductPricePlan) bool {
+	return patch.ChargePolicyId != nil && patch.GetChargePolicyId() == ""
 }

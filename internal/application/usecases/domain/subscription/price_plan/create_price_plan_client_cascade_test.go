@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
+	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
+	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
@@ -89,6 +91,8 @@ func newCreateFixture(t *testing.T) (*CreatePricePlanUseCase, *mockPlanRepoForCr
 			Transactor:  noTxnCreate{},
 			Translator:  ports.NewNoOpTranslator(),
 			IDGenerator: &stubIDSvc{},
+			// the create use case gates through the ActionGatekeeper (a nil gatekeeper denies)
+			ActionGatekeeper: actiongate.NewActionGatekeeper(cpAllowAll{}, ports.NewNoOpTranslator()),
 		},
 	)
 	return uc, planRepo, ppRepo
@@ -120,7 +124,7 @@ func TestCreatePricePlan_ClientScopedParent_ChildInheritsClientID(t *testing.T) 
 	uc, planRepo, ppRepo := newCreateFixture(t)
 	planRepo.plans["plan-1"] = seedPlanForCreate("plan-1", "client-cruz")
 
-	if _, err := uc.Execute(context.Background(), basePricePlanRequest("plan-1")); err != nil {
+	if _, err := uc.Execute(contextutil.WithUserID(context.Background(), "u1"), basePricePlanRequest("plan-1")); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if ppRepo.captured == nil {
@@ -135,7 +139,7 @@ func TestCreatePricePlan_MasterParent_ChildIsMaster(t *testing.T) {
 	uc, planRepo, ppRepo := newCreateFixture(t)
 	planRepo.plans["plan-1"] = seedPlanForCreate("plan-1", "")
 
-	if _, err := uc.Execute(context.Background(), basePricePlanRequest("plan-1")); err != nil {
+	if _, err := uc.Execute(contextutil.WithUserID(context.Background(), "u1"), basePricePlanRequest("plan-1")); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if got := ppRepo.captured.GetClientId(); got != "" {
@@ -151,7 +155,7 @@ func TestCreatePricePlan_BodyClientID_Overwritten(t *testing.T) {
 	other := "client-other"
 	body.Data.ClientId = &other // operator tries to spoof a different client
 
-	if _, err := uc.Execute(context.Background(), body); err != nil {
+	if _, err := uc.Execute(contextutil.WithUserID(context.Background(), "u1"), body); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if got := ppRepo.captured.GetClientId(); got != "client-cruz" {

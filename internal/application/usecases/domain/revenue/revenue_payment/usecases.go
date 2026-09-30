@@ -3,7 +3,10 @@ package revenuepayment
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
+	revenuepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_payment"
+	agreementlinetermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/agreement_line_term"
+	collectionapplicationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_application"
 )
 
 // entityRevenuePayment is the authorization entity id for revenue_payment.
@@ -18,15 +21,21 @@ const entityRevenuePayment = "revenue_payment"
 // RevenuePaymentRepositories groups all repository dependencies
 type RevenuePaymentRepositories struct {
 	RevenuePayment pb.RevenuePaymentDomainServiceServer // Primary entity repository
+
+	// Legacy-payment guard collaborators (20260927-usage-and-pass-through-charges, build-spec §6.1,
+	// AC-UC-33). All optional: with no Revenue repository the guard is off and behaviour is unchanged.
+	Revenue               revenuepb.RevenueDomainServiceServer
+	CollectionApplication collectionapplicationpb.CollectionApplicationDomainServiceServer
+	AgreementLineTerm     agreementlinetermpb.AgreementLineTermDomainServiceServer
 }
 
 // RevenuePaymentServices groups all business service dependencies
 type RevenuePaymentServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // UseCases contains all revenue payment use cases
@@ -45,61 +54,61 @@ func NewUseCases(
 	repositories RevenuePaymentRepositories,
 	services RevenuePaymentServices,
 ) *UseCases {
-	createRepos := CreateRevenuePaymentRepositories(repositories)
+	createRepos := CreateRevenuePaymentRepositories{RevenuePayment: repositories.RevenuePayment, Guard: guardFrom(repositories)}
 	createServices := CreateRevenuePaymentServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer:  services.Authorizer,
-		Transactor:  services.Transactor,
-		Translator:  services.Translator,
-		IDGenerator: services.IDGenerator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
+		IDGenerator:      services.IDGenerator,
 	}
 
-	readRepos := ReadRevenuePaymentRepositories(repositories)
+	readRepos := ReadRevenuePaymentRepositories{RevenuePayment: repositories.RevenuePayment}
 	readServices := ReadRevenuePaymentServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
-	updateRepos := UpdateRevenuePaymentRepositories(repositories)
+	updateRepos := UpdateRevenuePaymentRepositories{RevenuePayment: repositories.RevenuePayment, Guard: guardFrom(repositories)}
 	updateServices := UpdateRevenuePaymentServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
-	deleteRepos := DeleteRevenuePaymentRepositories(repositories)
+	deleteRepos := DeleteRevenuePaymentRepositories{RevenuePayment: repositories.RevenuePayment, Guard: guardFrom(repositories)}
 	deleteServices := DeleteRevenuePaymentServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
-	listRepos := ListRevenuePaymentsRepositories(repositories)
+	listRepos := ListRevenuePaymentsRepositories{RevenuePayment: repositories.RevenuePayment}
 	listServices := ListRevenuePaymentsServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
-	getListPageDataRepos := GetRevenuePaymentListPageDataRepositories(repositories)
+	getListPageDataRepos := GetRevenuePaymentListPageDataRepositories{RevenuePayment: repositories.RevenuePayment}
 	getListPageDataServices := GetRevenuePaymentListPageDataServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
-	getItemPageDataRepos := GetRevenuePaymentItemPageDataRepositories(repositories)
+	getItemPageDataRepos := GetRevenuePaymentItemPageDataRepositories{RevenuePayment: repositories.RevenuePayment}
 	getItemPageDataServices := GetRevenuePaymentItemPageDataServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	return &UseCases{

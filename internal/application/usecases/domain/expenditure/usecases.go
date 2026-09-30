@@ -1,6 +1,18 @@
 package expenditure
 
 import (
+	allocationbatchuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/expenditure/allocation_batch"
+	allocationshareuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/expenditure/allocation_share"
+	costsourcecomponentuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/expenditure/cost_source_component"
+	allocationbatchpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/allocation_batch"
+	allocationsharepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/allocation_share"
+	costsourcecomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/cost_source_component"
+	chargepolicycomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_component"
+	chargepolicyversionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_version"
+	agreementlinetermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/agreement_line_term"
+	billablechargepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billable_charge"
+	chargecomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/charge_component"
+	taxtreatmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_treatment"
 	// Expenditure use cases
 	accruedExpenseUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/expenditure/accrued_expense"
 
@@ -64,6 +76,18 @@ import (
 
 // ExpenditureRepositories contains all expenditure domain repositories
 type ExpenditureRepositories struct {
+	// Slice B known-cost recovery (20260927-usage-and-pass-through-charges, S1)
+	CostSourceComponent costsourcecomponentpb.CostSourceComponentDomainServiceServer
+	AllocationBatch     allocationbatchpb.AllocationBatchDomainServiceServer
+	AllocationShare     allocationsharepb.AllocationShareDomainServiceServer
+	// Cross-domain collaborators of allocation publish (W3-A).
+	AgreementLineTerm     agreementlinetermpb.AgreementLineTermDomainServiceServer
+	ChargePolicyVersion   chargepolicyversionpb.ChargePolicyVersionDomainServiceServer
+	ChargePolicyComponent chargepolicycomponentpb.ChargePolicyComponentDomainServiceServer
+	BillableCharge        billablechargepb.BillableChargeDomainServiceServer
+	ChargeComponent       chargecomponentpb.ChargeComponentDomainServiceServer
+	// TaxTreatment validates cost_source_component.tax_treatment_id (cross-domain: tax).
+	TaxTreatment           taxtreatmentpb.TaxTreatmentDomainServiceServer
 	Expenditure            expenditurepb.ExpenditureDomainServiceServer
 	ExpenditureLineItem    expenditurelineitempb.ExpenditureLineItemDomainServiceServer
 	ExpenditureCategory    expenditurecategorypb.ExpenditureCategoryDomainServiceServer
@@ -103,6 +127,10 @@ type ExpenditureRepositories struct {
 //   - RecognizeExpenseFromSupplierSubscription → .ExpenseRecognition.RecognizeFromSupplierSubscription
 //   - ListExpenseRunCandidates + GenerateExpenseRun → .ExpenseRecognitionRun.*
 type ExpenditureUseCases struct {
+	// Slice B known-cost recovery (S1)
+	CostSourceComponent    *costsourcecomponentuc.UseCases
+	AllocationBatch        *allocationbatchuc.UseCases
+	AllocationShare        *allocationshareuc.UseCases
 	Expenditure            *expenditureUseCases.UseCases
 	ExpenditureLineItem    *expenditureLineItemUseCases.UseCases
 	ExpenditureCategory    *expenditureCategoryUseCases.UseCases
@@ -322,6 +350,7 @@ func NewUseCases(
 			Expenditure:            repos.Expenditure,
 			ExpenditureLineItem:    repos.ExpenditureLineItem,
 			SupplierSubscription:   repos.SupplierSubscription,
+			CostSourceComponent:    repos.CostSourceComponent,
 		},
 		expenseRecognitionUseCases.ExpenseRecognitionServices{
 			Authorizer:       authSvc,
@@ -471,7 +500,72 @@ func NewUseCases(
 		expenseRecognitionRunUC.GenerateExpenseRun = generateExpenseRun
 	}
 
+	// Slice B known-cost recovery (S1). The aggregates are opt-in (C32): each is nil unless its own
+	// table is wired, so a consumer's Mount fails closed on a provider without the S1 tables.
+	var costsourcecomponentUC *costsourcecomponentuc.UseCases
+	if repos.CostSourceComponent != nil {
+		costsourcecomponentUC = costsourcecomponentuc.NewUseCases(
+			costsourcecomponentuc.Repositories{
+				CostSourceComponent: repos.CostSourceComponent,
+				Expenditure:         repos.Expenditure,
+				ExpenditureLineItem: repos.ExpenditureLineItem,
+				TaxTreatment:        repos.TaxTreatment,
+				// ReconcileCostSource collaborators
+				AllocationBatch: repos.AllocationBatch,
+				AllocationShare: repos.AllocationShare,
+				BillableCharge:  repos.BillableCharge,
+			},
+			costsourcecomponentuc.Services{
+				Authorizer:       authSvc,
+				Translator:       i18nSvc,
+				ActionGatekeeper: actionGate,
+				Transactor:       txSvc,
+				IDGenerator:      idService,
+			},
+		)
+	}
+
+	var allocationbatchUC *allocationbatchuc.UseCases
+	if repos.AllocationBatch != nil {
+		allocationbatchUC = allocationbatchuc.NewUseCases(
+			allocationbatchuc.Repositories{
+				AllocationBatch:       repos.AllocationBatch,
+				AllocationShare:       repos.AllocationShare,
+				CostSourceComponent:   repos.CostSourceComponent,
+				AgreementLineTerm:     repos.AgreementLineTerm,
+				ChargePolicyVersion:   repos.ChargePolicyVersion,
+				ChargePolicyComponent: repos.ChargePolicyComponent,
+				BillableCharge:        repos.BillableCharge,
+				ChargeComponent:       repos.ChargeComponent,
+			},
+			allocationbatchuc.Services{
+				Authorizer:       authSvc,
+				Translator:       i18nSvc,
+				ActionGatekeeper: actionGate,
+				Transactor:       txSvc,
+				IDGenerator:      idService,
+			},
+		)
+	}
+
+	var allocationshareUC *allocationshareuc.UseCases
+	if repos.AllocationShare != nil {
+		allocationshareUC = allocationshareuc.NewUseCases(
+			allocationshareuc.Repositories{
+				AllocationShare: repos.AllocationShare,
+			},
+			allocationshareuc.Services{
+				Authorizer:       authSvc,
+				Translator:       i18nSvc,
+				ActionGatekeeper: actionGate,
+			},
+		)
+	}
+
 	return &ExpenditureUseCases{
+		CostSourceComponent:               costsourcecomponentUC,
+		AllocationBatch:                   allocationbatchUC,
+		AllocationShare:                   allocationshareUC,
 		Expenditure:                       expenditureUC,
 		ExpenditureLineItem:               expenditureLineItemUC,
 		ExpenditureCategory:               expenditureCategoryUC,

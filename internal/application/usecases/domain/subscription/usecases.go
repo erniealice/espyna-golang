@@ -1,6 +1,15 @@
 package subscription
 
 import (
+	chargepolicyuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/ledger/charge_policy"
+	agreementlinetermuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/agreement_line_term"
+	billablechargeuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/billable_charge"
+	chargecomponentuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/charge_component"
+	chargepolicypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy"
+	chargepolicyversionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_version"
+	agreementlinetermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/agreement_line_term"
+	billablechargepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billable_charge"
+	chargecomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/charge_component"
 	// Subscription use cases
 	balanceUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/balance"
 	balanceAttributeUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/subscription/balance_attribute"
@@ -62,23 +71,31 @@ import (
 
 // SubscriptionRepositories contains all subscription domain repositories
 type SubscriptionRepositories struct {
-	Workspace        workspacepb.WorkspaceDomainServiceServer
-	Balance          balancepb.BalanceDomainServiceServer
-	BalanceAttribute balanceattributepb.BalanceAttributeDomainServiceServer
-	BillingEvent     billingeventpb.BillingEventDomainServiceServer
-	Client           clientpb.ClientDomainServiceServer
-	Invoice          invoicepb.InvoiceDomainServiceServer
-	InvoiceAttribute invoiceattributepb.InvoiceAttributeDomainServiceServer
-	Plan             planpb.PlanDomainServiceServer
-	PlanAttribute    planattributepb.PlanAttributeDomainServiceServer
-	PlanSettings     plansettingspb.PlanSettingsDomainServiceServer
-	PricePlan        priceplanpb.PricePlanDomainServiceServer
-	PriceSchedule    priceschedulepb.PriceScheduleDomainServiceServer
-	ProductPlan      productplanpb.ProductPlanDomainServiceServer // Cross-domain (Model D: product_price_plan.product_plan_id FK validation)
+	// Slice B known-cost recovery (20260927-usage-and-pass-through-charges, S1)
+	AgreementLineTerm agreementlinetermpb.AgreementLineTermDomainServiceServer
+	BillableCharge    billablechargepb.BillableChargeDomainServiceServer
+	ChargeComponent   chargecomponentpb.ChargeComponentDomainServiceServer
+	Workspace         workspacepb.WorkspaceDomainServiceServer
+	Balance           balancepb.BalanceDomainServiceServer
+	BalanceAttribute  balanceattributepb.BalanceAttributeDomainServiceServer
+	BillingEvent      billingeventpb.BillingEventDomainServiceServer
+	Client            clientpb.ClientDomainServiceServer
+	Invoice           invoicepb.InvoiceDomainServiceServer
+	InvoiceAttribute  invoiceattributepb.InvoiceAttributeDomainServiceServer
+	Plan              planpb.PlanDomainServiceServer
+	PlanAttribute     planattributepb.PlanAttributeDomainServiceServer
+	PlanSettings      plansettingspb.PlanSettingsDomainServiceServer
+	PricePlan         priceplanpb.PricePlanDomainServiceServer
+	PriceSchedule     priceschedulepb.PriceScheduleDomainServiceServer
+	ProductPlan       productplanpb.ProductPlanDomainServiceServer // Cross-domain (Model D: product_price_plan.product_plan_id FK validation)
 	// ProductPlanStaff — cross-domain (product): backs the sgpps class-edge
 	// eligibility guard (red-team HIGH #5).
-	ProductPlanStaff      productplanstaffpb.ProductPlanStaffDomainServiceServer
-	ProductPricePlan      productpriceplanpb.ProductPricePlanDomainServiceServer
+	ProductPlanStaff productplanstaffpb.ProductPlanStaffDomainServiceServer
+	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
+	// Charge policy opt-in guard collaborators (cross-domain: ledger); nil = lines that
+	// set charge_policy_id are refused.
+	ChargePolicy          chargepolicypb.ChargePolicyDomainServiceServer
+	ChargePolicyVersion   chargepolicyversionpb.ChargePolicyVersionDomainServiceServer
 	Subscription          subscriptionpb.SubscriptionDomainServiceServer
 	SubscriptionAttribute subscriptionattributepb.SubscriptionAttributeDomainServiceServer
 	// Outsourcing-vertical seat + servicing membership
@@ -108,6 +125,10 @@ type SubscriptionRepositories struct {
 //     (flat fields) nested under .Subscription.MaterializeJobs and
 //     .Subscription.MaterializeInstanceJobs respectively.
 type SubscriptionUseCases struct {
+	// Slice B known-cost recovery (S1)
+	AgreementLineTerm     *agreementlinetermuc.UseCases
+	BillableCharge        *billablechargeuc.UseCases
+	ChargeComponent       *chargecomponentuc.UseCases
 	Balance               *balanceUseCases.UseCases
 	BalanceAttribute      *balanceAttributeUseCases.UseCases
 	BillingEvent          *billingEventUseCases.UseCases
@@ -215,6 +236,8 @@ func NewUseCases(
 			Plan:          repos.Plan,
 			PriceSchedule: repos.PriceSchedule,
 			Client:        repos.Client,
+			// C12: UpdatePricePlan re-checks opted-in lines when billing_kind changes.
+			ProductPricePlan: repos.ProductPricePlan,
 		},
 		pricePlanUseCases.PricePlanServices{
 			Authorizer:       authSvc,
@@ -239,9 +262,11 @@ func NewUseCases(
 
 	productPricePlanUC := productPricePlanUseCases.NewUseCases(
 		productPricePlanUseCases.ProductPricePlanRepositories{
-			ProductPricePlan: repos.ProductPricePlan,
-			PricePlan:        repos.PricePlan,
-			ProductPlan:      repos.ProductPlan,
+			ProductPricePlan:    repos.ProductPricePlan,
+			PricePlan:           repos.PricePlan,
+			ProductPlan:         repos.ProductPlan,
+			ChargePolicy:        repos.ChargePolicy,
+			ChargePolicyVersion: repos.ChargePolicyVersion,
 		},
 		productPricePlanUseCases.ProductPricePlanServices{
 			Authorizer:       authSvc,
@@ -252,6 +277,17 @@ func NewUseCases(
 		},
 	)
 
+	// Agreement terms on create resolve the package line's policy through the ledger
+	// ResolveChargePolicy use case (charge_policy:read), built from the same repositories the
+	// opt-in guard uses; nil repositories leave the resolver nil (opted-in lines then refuse).
+	var chargePolicyResolver subscriptionUseCases.ChargePolicyResolver
+	if repos.ChargePolicy != nil && repos.ChargePolicyVersion != nil {
+		chargePolicyResolver = chargepolicyuc.NewResolveChargePolicyUseCase(
+			chargepolicyuc.ResolveChargePolicyRepositories{ChargePolicy: repos.ChargePolicy, ChargePolicyVersion: repos.ChargePolicyVersion},
+			chargepolicyuc.ResolveChargePolicyServices{Authorizer: authSvc, Transactor: txSvc, Translator: i18nSvc, IDGenerator: idService, ActionGatekeeper: actionGate},
+		)
+	}
+
 	subscriptionUC := subscriptionUseCases.NewUseCases(
 		subscriptionUseCases.SubscriptionRepositories{
 			Subscription:  repos.Subscription,
@@ -259,6 +295,9 @@ func NewUseCases(
 			PricePlan:     repos.PricePlan,
 			Plan:          repos.Plan,
 			PriceSchedule: repos.PriceSchedule,
+
+			ProductPricePlan:  repos.ProductPricePlan,
+			AgreementLineTerm: repos.AgreementLineTerm,
 		},
 		subscriptionUseCases.SubscriptionServices{
 			Authorizer:              authSvc,
@@ -268,6 +307,7 @@ func NewUseCases(
 			JobTemplateInstantiator: jobTemplateInstantiator,
 			ActionGatekeeper:        actionGate,
 			CodeFormat:              codeFormat,
+			ChargePolicyResolver:    chargePolicyResolver,
 		},
 	)
 
@@ -468,7 +508,58 @@ func NewUseCases(
 		},
 	)
 
+	// Slice B known-cost recovery (S1). The aggregates are opt-in (C32): each is nil unless its own
+	// table is wired, so a consumer's Mount fails closed on a provider without the S1 tables
+	// (subscription is in the Firestore set).
+	var agreementlinetermUC *agreementlinetermuc.UseCases
+	if repos.AgreementLineTerm != nil {
+		agreementlinetermUC = agreementlinetermuc.NewUseCases(
+			agreementlinetermuc.Repositories{
+				AgreementLineTerm: repos.AgreementLineTerm,
+			},
+			agreementlinetermuc.Services{
+				Authorizer:       authSvc,
+				Translator:       i18nSvc,
+				ActionGatekeeper: actionGate,
+			},
+		)
+	}
+
+	var billablechargeUC *billablechargeuc.UseCases
+	if repos.BillableCharge != nil {
+		billablechargeUC = billablechargeuc.NewUseCases(
+			billablechargeuc.Repositories{
+				BillableCharge:  repos.BillableCharge,
+				ChargeComponent: repos.ChargeComponent,
+			},
+			billablechargeuc.Services{
+				Authorizer:       authSvc,
+				Translator:       i18nSvc,
+				ActionGatekeeper: actionGate,
+				Transactor:       txSvc,
+				IDGenerator:      idService,
+			},
+		)
+	}
+
+	var chargecomponentUC *chargecomponentuc.UseCases
+	if repos.ChargeComponent != nil {
+		chargecomponentUC = chargecomponentuc.NewUseCases(
+			chargecomponentuc.Repositories{
+				ChargeComponent: repos.ChargeComponent,
+			},
+			chargecomponentuc.Services{
+				Authorizer:       authSvc,
+				Translator:       i18nSvc,
+				ActionGatekeeper: actionGate,
+			},
+		)
+	}
+
 	return &SubscriptionUseCases{
+		AgreementLineTerm:                 agreementlinetermUC,
+		BillableCharge:                    billablechargeUC,
+		ChargeComponent:                   chargecomponentUC,
 		Balance:                           balanceUC,
 		BalanceAttribute:                  balanceAttributeUC,
 		BillingEvent:                      billingEventUC,

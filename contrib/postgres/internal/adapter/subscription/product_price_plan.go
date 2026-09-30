@@ -163,6 +163,16 @@ func (r *PostgresProductPricePlanRepository) UpdateProductPricePlan(ctx context.
 		return nil, fmt.Errorf("failed to unmarshal JSON to map: %w", err)
 	}
 
+	// Typed clear intent (usage-and-pass-through): charge_policy_id present-but-empty means
+	// "remove the policy" -> write NULL to charge_policy_id and markup_bps. An empty string
+	// must never reach the FK column.
+	if req.Data.ChargePolicyId != nil && req.Data.GetChargePolicyId() == "" {
+		delete(data, "chargePolicyId")
+		delete(data, "markupBps")
+		data["charge_policy_id"] = nil
+		data["markup_bps"] = nil
+	}
+
 	// Update document using common operations
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {

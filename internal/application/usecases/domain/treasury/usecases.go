@@ -2,12 +2,22 @@ package treasury
 
 import (
 	collectionUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/collection"
+	collectionapplicationuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/collection_application"
 	collectionMethodUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/collection_method"
 	disbursementUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/disbursement"
 	disbursementscheduleUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/disbursement_schedule"
 	pettyCashUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/petty_cash"
 	securityDepositUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/security_deposit"
 	withholdingCertificateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/treasury/withholding_certificate"
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	chargeeffectpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_effect"
+	chargepolicypostingpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_posting"
+	recoverydocumentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/recovery_document"
+	recoverydocumentlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/recovery_document_line"
+	revenuepaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_payment"
+	billablechargepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billable_charge"
+	chargecomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/charge_component"
+	collectionapplicationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_application"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
@@ -39,6 +49,19 @@ import (
 
 // TreasuryRepositories contains all treasury domain repositories
 type TreasuryRepositories struct {
+	// Slice B known-cost recovery (20260927-usage-and-pass-through-charges, S1)
+	CollectionApplication collectionapplicationpb.CollectionApplicationDomainServiceServer
+	// Cross-domain collaborators of the collection_application behaviour RPCs (receive / preview /
+	// reverse read and lock open invoices and recovery documents and write charge effects).
+	// Populated by the provider block; Revenue and Collection come from the fields below.
+	RevenuePayment       revenuepaymentpb.RevenuePaymentDomainServiceServer
+	RecoveryDocument     recoverydocumentpb.RecoveryDocumentDomainServiceServer
+	RecoveryDocumentLine recoverydocumentlinepb.RecoveryDocumentLineDomainServiceServer
+	BillableCharge       billablechargepb.BillableChargeDomainServiceServer
+	ChargeComponent      chargecomponentpb.ChargeComponentDomainServiceServer
+	ChargePolicyPosting  chargepolicypostingpb.ChargePolicyPostingDomainServiceServer
+	ChargeEffect         chargeeffectpb.ChargeEffectDomainServiceServer
+	Client               clientpb.ClientDomainServiceServer
 	// Existing treasury repositories
 	Collection           collectionpb.CollectionDomainServiceServer
 	CollectionMethod     collectionmethodpb.CollectionMethodDomainServiceServer
@@ -78,6 +101,8 @@ type TreasuryRepositories struct {
 // The cross-entity GetAdvancesDashboard use case is replaced by two entity-
 // side ListAdvancesForDashboard use cases (F5).
 type TreasuryUseCases struct {
+	// Slice B known-cost recovery (S1)
+	CollectionApplication  *collectionapplicationuc.UseCases
 	Collection             *collectionUseCases.UseCases
 	CollectionMethod       *collectionMethodUseCases.UseCases
 	Disbursement           *disbursementUseCases.UseCases
@@ -105,7 +130,8 @@ func NewUseCases(
 ) *TreasuryUseCases {
 	collectionUC := collectionUseCases.NewUseCases(
 		collectionUseCases.CollectionRepositories{
-			Collection: repos.Collection,
+			Collection:            repos.Collection,
+			CollectionApplication: repos.CollectionApplication,
 		},
 		collectionUseCases.CollectionServices{
 			Authorizer:       authSvc,
@@ -389,7 +415,37 @@ func NewUseCases(
 		)
 	}
 
+	// Slice B known-cost recovery (S1): the collection_application aggregate is opt-in (C32) - nil
+	// unless its table is wired, so a consumer's Mount fails closed on a provider without it.
+	var collectionapplicationUC *collectionapplicationuc.UseCases
+	if repos.CollectionApplication != nil {
+		collectionapplicationUC = collectionapplicationuc.NewUseCases(
+			collectionapplicationuc.Repositories{
+				Collection:            repos.Collection,
+				CollectionApplication: repos.CollectionApplication,
+				Revenue:               repos.Revenue,
+				RevenuePayment:        repos.RevenuePayment,
+				RecoveryDocument:      repos.RecoveryDocument,
+				RecoveryDocumentLine:  repos.RecoveryDocumentLine,
+				BillableCharge:        repos.BillableCharge,
+				ChargeComponent:       repos.ChargeComponent,
+				ChargePolicyPosting:   repos.ChargePolicyPosting,
+				ChargeEffect:          repos.ChargeEffect,
+				Client:                repos.Client,
+				CollectionMethod:      repos.CollectionMethod,
+			},
+			collectionapplicationuc.Services{
+				Authorizer:       authSvc,
+				Translator:       i18nSvc,
+				ActionGatekeeper: actionGate,
+				Transactor:       txSvc,
+				IDGenerator:      idService,
+			},
+		)
+	}
+
 	return &TreasuryUseCases{
+		CollectionApplication:  collectionapplicationUC,
 		Collection:             collectionUC,
 		CollectionMethod:       collectionMethodUC,
 		Disbursement:           disbursementUC,

@@ -8,10 +8,20 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	expenserecognitionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// contractCycleRecognitionDate is the cycle date (YYYY-MM-DD) as the recognition date, or now when
+// the caller supplied something that is not a date.
+func contractCycleRecognitionDate(cycleDate string, now time.Time) time.Time {
+	if d, err := time.Parse("2006-01-02", cycleDate); err == nil {
+		return d
+	}
+	return now.UTC()
+}
 
 // RecognizeFromContractRepositories groups repository dependencies.
 type RecognizeFromContractRepositories struct {
@@ -20,11 +30,11 @@ type RecognizeFromContractRepositories struct {
 
 // RecognizeFromContractServices groups service dependencies.
 type RecognizeFromContractServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // RecognizeFromContractUseCase converts a recurring contract cycle into a
@@ -71,7 +81,12 @@ func (uc *RecognizeFromContractUseCase) Execute(ctx context.Context, req *expens
 	cycleDate := req.GetCycleDate()
 	createReq := &expenserecognitionpb.CreateExpenseRecognitionRequest{
 		Data: &expenserecognitionpb.ExpenseRecognition{
-			Id:                 id,
+			Id: id,
+			// NOT NULL header columns (internal_id UNIQUE, name, recognition_date): same class as
+			// recognize_from_expenditure.go's header; precedent entity/supplier/create_supplier.go:208.
+			InternalId:         uc.services.IDGenerator.GenerateID(),
+			Name:               fmt.Sprintf("Contract %s - %s", contractID, cycleDate),
+			RecognitionDate:    timestamppb.New(contractCycleRecognitionDate(cycleDate, now)),
 			DateCreated:        &[]int64{now.UnixMilli()}[0],
 			DateCreatedString:  &[]string{now.Format(time.RFC3339)}[0],
 			DateModified:       &[]int64{now.UnixMilli()}[0],

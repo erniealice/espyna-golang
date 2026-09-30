@@ -57,7 +57,7 @@ FROM (
     UNION ALL
 
     SELECT
-        TO_CHAR(TO_TIMESTAMP(d.payment_date / 1000.0), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS transaction_date,
+        TO_CHAR(NULLIF(d.payment_date, '')::timestamptz, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS transaction_date,
         'payment' AS transaction_type,
         COALESCE(d.reference_number, '') AS reference,
         COALESCE(d.name, '') AS description,
@@ -70,8 +70,8 @@ FROM (
     WHERE d.active = true
       AND d.status IN ('paid', 'completed')
       AND e.supplier_id = $1
-      AND ($2::timestamptz IS NULL OR TO_TIMESTAMP(d.payment_date / 1000.0) >= $2::timestamptz)
-      AND ($3::timestamptz IS NULL OR TO_TIMESTAMP(d.payment_date / 1000.0) <= $3::timestamptz)
+      AND ($2::timestamptz IS NULL OR NULLIF(d.payment_date, '')::timestamptz >= $2::timestamptz)
+      AND ($3::timestamptz IS NULL OR NULLIF(d.payment_date, '')::timestamptz <= $3::timestamptz)
       AND ($4::text IS NULL OR e.workspace_id = $4)
 ) combined
 ORDER BY transaction_date ASC,

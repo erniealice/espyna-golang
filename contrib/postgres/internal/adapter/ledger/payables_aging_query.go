@@ -145,7 +145,7 @@ WITH outstanding AS (
         e.total_amount - COALESCE(SUM(td.amount), 0) AS balance,
         CASE
             WHEN e.due_date IS NULL THEN 0
-            ELSE (($1::date) - TO_TIMESTAMP(e.due_date / 1000.0)::date)
+            ELSE (($1::date) - e.due_date::date)
         END AS days_overdue
     FROM %s e
     LEFT JOIN %s td

@@ -16,13 +16,15 @@ import (
 // UpdateRevenuePaymentRepositories groups all repository dependencies
 type UpdateRevenuePaymentRepositories struct {
 	RevenuePayment pb.RevenuePaymentDomainServiceServer
+	// Guard refuses legacy payment writes on participating revenues (AC-UC-33); zero value = off.
+	Guard ParticipationGuard
 }
 
 // UpdateRevenuePaymentServices groups all business service dependencies
 type UpdateRevenuePaymentServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -57,6 +59,20 @@ func (uc *UpdateRevenuePaymentUseCase) Execute(ctx context.Context, req *pb.Upda
 	if err := uc.validateInput(ctx, req); err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "revenue_payment.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
+	}
+
+	// Legacy-payment guard (AC-UC-33): the stored revenue and, if it is being moved, the target one.
+	if uc.repositories.Guard.Revenue != nil {
+		storedRevenueID, err := revenueOfPayment(ctx, uc.repositories.RevenuePayment, req.Data.Id)
+		if err != nil {
+			return nil, err
+		}
+		if err := uc.repositories.Guard.refuseIfParticipating(ctx, uc.services.Translator, storedRevenueID); err != nil {
+			return nil, err
+		}
+		if err := uc.repositories.Guard.refuseIfParticipating(ctx, uc.services.Translator, req.Data.RevenueId); err != nil {
+			return nil, err
+		}
 	}
 
 	// Business logic and enrichment

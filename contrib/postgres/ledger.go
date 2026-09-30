@@ -44,6 +44,8 @@ func init() {
 			cfg.TreasuryCollection = getStringField(v, "TreasuryCollection")
 			cfg.CollectionMethod = getStringField(v, "CollectionMethod")
 			cfg.PaymentTerm = getStringField(v, "PaymentTerm")
+			cfg.CollectionApplication = getStringField(v, "CollectionApplication")
+			cfg.RecoveryDocument = getStringField(v, "RecoveryDocument")
 		}
 		return ledgeradapter.NewLedgerReportingAdapter(sqlDB, cfg)
 	})

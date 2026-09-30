@@ -8,6 +8,7 @@ import (
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
+	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 )
 
 // PricePlanRepositories groups all repository dependencies for price plan use cases.
@@ -21,6 +22,9 @@ type PricePlanRepositories struct {
 	Plan          planpb.PlanDomainServiceServer
 	PriceSchedule priceschedulepb.PriceScheduleDomainServiceServer
 	Client        clientpb.ClientDomainServiceServer
+	// ProductPricePlan backs the UpdatePricePlan charge-policy guard (C12): a billing-kind change
+	// re-checks the price plan's opted-in lines. nil = the re-check is skipped (composition wires it).
+	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
 }
 
 // PricePlanServices groups all business service dependencies for price plan use cases
@@ -50,7 +54,13 @@ func NewUseCases(
 	services PricePlanServices,
 ) *UseCases {
 	// Build individual grouped parameters for each use case
-	createRepos := CreatePricePlanRepositories(repositories)
+	createRepos := CreatePricePlanRepositories{
+		Workspace:     repositories.Workspace,
+		PricePlan:     repositories.PricePlan,
+		Plan:          repositories.Plan,
+		PriceSchedule: repositories.PriceSchedule,
+		Client:        repositories.Client,
+	}
 	createServices := CreatePricePlanServices{
 		ActionGatekeeper: services.ActionGatekeeper,
 		Authorizer:       services.Authorizer,

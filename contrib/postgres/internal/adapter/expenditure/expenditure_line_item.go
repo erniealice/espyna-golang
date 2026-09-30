@@ -15,6 +15,7 @@ import (
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
+	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	expenditurelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_line_item"
 )
 
@@ -85,6 +86,7 @@ func (r *PostgresExpenditureLineItemRepository) CreateExpenditureLineItem(ctx co
 		return nil, fmt.Errorf("failed to create expenditure line item: %w", err)
 	}
 
+	normalizeLineItemRow(result)
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -112,6 +114,7 @@ func (r *PostgresExpenditureLineItemRepository) ReadExpenditureLineItem(ctx cont
 		return nil, fmt.Errorf("failed to read expenditure line item: %w", err)
 	}
 
+	normalizeLineItemRow(result)
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -147,11 +150,18 @@ func (r *PostgresExpenditureLineItemRepository) UpdateExpenditureLineItem(ctx co
 	convertMillisToTime(data, "dateCreated", "date_created")
 	convertMillisToTime(data, "dateModified", "date_modified")
 
+	// Same proto totalPrice → DB column line_amount mapping as Create.
+	if v, ok := data["totalPrice"]; ok {
+		data["line_amount"] = v
+		delete(data, "totalPrice")
+	}
+
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update expenditure line item: %w", err)
 	}
 
+	normalizeLineItemRow(result)
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result to JSON: %w", err)
@@ -187,35 +197,33 @@ func (r *PostgresExpenditureLineItemRepository) DeleteExpenditureLineItem(ctx co
 // ListExpenditureLineItems lists expenditure line item records with optional filters.
 // Supports filtering by expenditure_id when req.ExpenditureId is set.
 func (r *PostgresExpenditureLineItemRepository) ListExpenditureLineItems(ctx context.Context, req *expenditurelineitempb.ListExpenditureLineItemsRequest) (*expenditurelineitempb.ListExpenditureLineItemsResponse, error) {
-	var params *interfaces.ListParams
-	if req != nil && req.Filters != nil {
-		params = &interfaces.ListParams{Filters: req.Filters}
+	// Search/sort/pagination are forwarded like the sibling adapters (allocation_batch.go
+	// ListAllocationBatches). The expenditure_id request field is pushed down as an AND-ed equality
+	// filter so it is applied BEFORE paging (a post-page client-side filter would return short pages).
+	filters := req.GetFilters()
+	if id := req.GetExpenditureId(); id != "" {
+		merged := &commonpb.FilterRequest{Logic: filters.GetLogic()}
+		merged.Filters = append(merged.Filters, filters.GetFilters()...)
+		merged.Filters = append(merged.Filters, &commonpb.TypedFilter{
+			Field: "expenditure_id",
+			FilterType: &commonpb.TypedFilter_StringFilter{StringFilter: &commonpb.StringFilter{
+				Value: id, Operator: commonpb.StringOperator_STRING_EQUALS,
+			}},
+		})
+		filters = merged
+	}
+	params, err := postgresCore.ScopedListParams(req.GetSearch(), filters, req.GetSort(), req.GetPagination())
+	if err != nil {
+		return nil, err
 	}
 	listResult, err := r.dbOps.List(ctx, r.tableName, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list expenditure line items: %w", err)
 	}
 
-	// Optional filter by expenditure_id (applied client-side after generic List)
-	var expenditureIDFilter string
-	if req != nil && req.ExpenditureId != nil {
-		expenditureIDFilter = *req.ExpenditureId
-	}
-
 	var items []*expenditurelineitempb.ExpenditureLineItem
 	for _, result := range listResult.Data {
-		// Apply expenditure_id filter
-		if expenditureIDFilter != "" {
-			eid, _ := result["expenditure_id"].(string)
-			if eid != expenditureIDFilter {
-				continue
-			}
-		}
-
-		// Map DB column line_amount → proto field totalPrice so protojson can decode it
-		if v, ok := result["line_amount"]; ok {
-			result["totalPrice"] = v
-		}
+		normalizeLineItemRow(result)
 
 		resultJSON, err := json.Marshal(result)
 		if err != nil {
@@ -235,4 +243,22 @@ func (r *PostgresExpenditureLineItemRepository) ListExpenditureLineItems(ctx con
 		Success: true,
 		Data:    items,
 	}, nil
+}
+
+// normalizeLineItemRow reconciles the two storage columns of the proto field total_price on a row
+// read back from the generic operations. The legacy column line_amount (NOT NULL, the one Create
+// writes and the reports sum) is the source of truth; the descriptor-aligned total_price column
+// (20260822213000, absent on older databases, NULL for rows written through Create) would decode
+// to the SAME proto field, and protojson rejects a document carrying both spellings of one field
+// ("duplicate field totalPrice"). Emit exactly one: totalPrice from line_amount, falling back to
+// total_price when line_amount is absent.
+func normalizeLineItemRow(row map[string]any) {
+	total, hasTotal := row["total_price"]
+	delete(row, "total_price")
+	delete(row, "totalPrice")
+	if v, ok := row["line_amount"]; ok && v != nil {
+		row["totalPrice"] = v
+	} else if hasTotal && total != nil {
+		row["totalPrice"] = total
+	}
 }

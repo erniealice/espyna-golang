@@ -48,21 +48,21 @@ func normalizeCollectionDimension(dim string) string {
 func getCollectionPivotDimensionConfig(tc TableConfig, dimension string) pivotDimensionConfig {
 	switch dimension {
 	case "monthly":
-		expr := "date_trunc('month', tc.payment_date::timestamptz)"
+		expr := "date_trunc('month', NULLIF(tc.payment_date, '')::timestamptz)"
 		return pivotDimensionConfig{
 			selectKey: fmt.Sprintf("TO_CHAR(%s, 'Month YYYY')", expr),
 			selectID:  fmt.Sprintf("%s::text", expr),
 			groupBy:   expr,
 		}
 	case "quarterly":
-		expr := "date_trunc('quarter', tc.payment_date::timestamptz)"
+		expr := "date_trunc('quarter', NULLIF(tc.payment_date, '')::timestamptz)"
 		return pivotDimensionConfig{
 			selectKey: fmt.Sprintf("'Q' || EXTRACT(QUARTER FROM %s)::int || ' ' || EXTRACT(YEAR FROM %s)::int", expr, expr),
 			selectID:  fmt.Sprintf("%s::text", expr),
 			groupBy:   expr,
 		}
 	case "yearly":
-		expr := "date_trunc('year', tc.payment_date::timestamptz)"
+		expr := "date_trunc('year', NULLIF(tc.payment_date, '')::timestamptz)"
 		return pivotDimensionConfig{
 			selectKey: fmt.Sprintf("EXTRACT(YEAR FROM %s)::int::text", expr),
 			selectID:  fmt.Sprintf("%s::text", expr),
@@ -162,8 +162,8 @@ func buildCollectionSummaryQuery(tc TableConfig, req *collsumpb.CollectionSummar
 		nilIfEmpty(workspaceID),
 	}
 
-	query := fmt.Sprintf(`
-WITH collection_pivot AS (
+	// Main leg (unchanged): receipts linked to a revenue through treasury_collection.revenue_id.
+	mainLeg := fmt.Sprintf(`
     SELECT
         %s AS row_key,
         %s AS row_id,
@@ -175,20 +175,15 @@ WITH collection_pivot AS (
     JOIN %s r ON r.id = tc.revenue_id
     %s
     WHERE tc.active = true
-      AND ($1::text IS NULL OR tc.payment_date >= $1::date)
-      AND ($2::text IS NULL OR tc.payment_date < ($2::date + interval '1 day'))
+      AND ($1::text IS NULL OR NULLIF(tc.payment_date, '')::date >= $1::date)
+      AND ($2::text IS NULL OR NULLIF(tc.payment_date, '')::date < ($2::date + interval '1 day'))
       AND ($3::text IS NULL OR r.client_id = $3)
       AND ($4::text IS NULL OR r.location_id = $4)
       AND ($5::text IS NULL OR tc.collection_method_id = $5)
       AND ($6::text IS NULL OR tc.currency = $6)
       AND ($7::text IS NULL OR tc.collection_type = $7)
       AND ($8::text IS NULL OR r.workspace_id = $8)
-    GROUP BY %s, %s
-)
-SELECT row_key, row_id, col_key, col_id,
-       total_collected, transaction_count
-FROM collection_pivot
-ORDER BY row_key, col_key`,
+    GROUP BY %s, %s`,
 		rowConfig.selectKey, rowConfig.selectID,
 		colConfig.selectKey, colConfig.selectID,
 		tc.TreasuryCollection,
@@ -196,6 +191,62 @@ ORDER BY row_key, col_key`,
 		extraJoins,
 		rowConfig.groupBy, colConfig.groupBy,
 	)
+
+	// S1 application leg (recovery_application_leg.go): receipts created by "Receive & apply" carry
+	// revenue_id NULL and the client on treasury_collection itself, so the main leg cannot see them.
+	// The derived table r exposes the columns the dimension fragments reference (client_id,
+	// location_id, workspace_id, name); each receipt is counted once at its full amount. Strict
+	// workspace: the leg contributes nothing unless a workspace parameter is supplied.
+	appLeg := fmt.Sprintf(`
+    SELECT
+        %s AS row_key,
+        %s AS row_id,
+        %s AS col_key,
+        %s AS col_id,
+        SUM(tc.amount)::bigint   AS total_collected,
+        COUNT(tc.id)::bigint     AS transaction_count
+    FROM %s tc
+    JOIN (
+        SELECT tcx.id AS id, tcx.client_id AS client_id, NULL::text AS location_id,
+               tcx.workspace_id AS workspace_id, NULL::text AS name
+        FROM %s tcx
+    ) r ON r.id = tc.id
+    %s
+    WHERE tc.active = true
+      AND tc.revenue_id IS NULL
+      AND tc.collection_type = '`+receiptCollectionType+`'
+      AND tc.client_id IS NOT NULL
+      AND ($1::text IS NULL OR NULLIF(tc.payment_date, '')::date >= $1::date)
+      AND ($2::text IS NULL OR NULLIF(tc.payment_date, '')::date < ($2::date + interval '1 day'))
+      AND ($3::text IS NULL OR r.client_id = $3)
+      AND ($4::text IS NULL OR r.location_id = $4)
+      AND ($5::text IS NULL OR tc.collection_method_id = $5)
+      AND ($6::text IS NULL OR tc.currency = $6)
+      AND ($7::text IS NULL OR tc.collection_type = $7)
+      AND $8::text IS NOT NULL AND r.workspace_id = $8
+    GROUP BY %s, %s`,
+		rowConfig.selectKey, rowConfig.selectID,
+		colConfig.selectKey, colConfig.selectID,
+		tc.TreasuryCollection,
+		tc.TreasuryCollection,
+		extraJoins,
+		rowConfig.groupBy, colConfig.groupBy,
+	)
+
+	query := `
+WITH collection_pivot AS (
+    SELECT row_key, row_id, col_key, col_id,
+           SUM(total_collected)::bigint AS total_collected,
+           SUM(transaction_count)::bigint AS transaction_count
+    FROM (` + mainLeg + `
+        UNION ALL` + appLeg + `
+    ) legs
+    GROUP BY row_key, row_id, col_key, col_id
+)
+SELECT row_key, row_id, col_key, col_id,
+       total_collected, transaction_count
+FROM collection_pivot
+ORDER BY row_key, col_key`
 
 	return query, args
 }

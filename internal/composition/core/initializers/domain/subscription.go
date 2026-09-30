@@ -24,6 +24,10 @@ func InitializeSubscription(
 	// Use the domain's constructor which properly handles all use case creation
 	return subscription.NewUseCases(
 		subscription.SubscriptionRepositories{
+			// Slice B known-cost recovery (S1)
+			AgreementLineTerm:                 repos.AgreementLineTerm,
+			BillableCharge:                    repos.BillableCharge,
+			ChargeComponent:                   repos.ChargeComponent,
 			Workspace:                         repos.Workspace,
 			Balance:                           repos.Balance,
 			BalanceAttribute:                  repos.BalanceAttribute,
@@ -39,6 +43,8 @@ func InitializeSubscription(
 			ProductPlan:                       repos.ProductPlan,
 			ProductPlanStaff:                  repos.ProductPlanStaff,
 			ProductPricePlan:                  repos.ProductPricePlan,
+			ChargePolicy:                      repos.ChargePolicy,
+			ChargePolicyVersion:               repos.ChargePolicyVersion,
 			Subscription:                      repos.Subscription,
 			SubscriptionAttribute:             repos.SubscriptionAttribute,
 			SubscriptionSeat:                  repos.SubscriptionSeat,

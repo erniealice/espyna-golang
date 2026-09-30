@@ -11,6 +11,7 @@ import (
 
 	espynahttp "github.com/erniealice/espyna-golang/contrib/http"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	domainports "github.com/erniealice/espyna-golang/internal/application/ports/domain"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
@@ -370,12 +371,18 @@ func (r *PostgresPricePlanRepository) GetPricePlanListPageData(ctx context.Conte
 		}
 		if billingKindRaw.Valid {
 			value, ok := priceplanpb.BillingKind_value[billingKindRaw.String]
-			if !ok { rows.Close(); return nil, fmt.Errorf("unknown billing kind %q", billingKindRaw.String) }
+			if !ok {
+				rows.Close()
+				return nil, fmt.Errorf("unknown billing kind %q", billingKindRaw.String)
+			}
 			pricePlan.BillingKind = priceplanpb.BillingKind(value)
 		}
 		if amountBasisRaw.Valid {
 			value, ok := priceplanpb.AmountBasis_value[amountBasisRaw.String]
-			if !ok { rows.Close(); return nil, fmt.Errorf("unknown amount basis %q", amountBasisRaw.String) }
+			if !ok {
+				rows.Close()
+				return nil, fmt.Errorf("unknown amount basis %q", amountBasisRaw.String)
+			}
 			pricePlan.AmountBasis = priceplanpb.AmountBasis(value)
 		}
 		if billingCycleValue.Valid {
@@ -523,4 +530,29 @@ func (r *PostgresPricePlanRepository) GetPricePlanItemPageData(ctx context.Conte
 func NewPricePlanRepository(db *sql.DB, tableName string) priceplanpb.PricePlanDomainServiceServer {
 	dbOps := postgresCore.NewWorkspaceAwareOperations(db)
 	return NewPostgresPricePlanRepository(dbOps, tableName)
+}
+
+// LockPricePlanForUpdate serializes charge policy opt-in guard writes on one price plan
+// (domainports.PricePlanLocker). price_plan has no workspace_id, so the lock is taken on the parent
+// plan row through core.LockScopedRowForUpdate, whose statement carries the workspace predicate:
+// a price plan of another workspace is indistinguishable from a missing one.
+func (r *PostgresPricePlanRepository) LockPricePlanForUpdate(ctx context.Context, id string) error {
+	if id == "" {
+		return fmt.Errorf("price_plan lock: ID is required")
+	}
+	exec := postgresCore.TxExecutor(ctx, r.dbOps)
+	if exec == nil {
+		return fmt.Errorf("price_plan lock: no SQL executor available")
+	}
+	if _, isTx := exec.(*sql.Tx); !isTx {
+		return fmt.Errorf("price_plan lock: requires an ambient transaction (fail closed)")
+	}
+	var planID string
+	if err := exec.QueryRowContext(ctx, `SELECT plan_id FROM `+r.tableName+` WHERE id = $1`, id).Scan(&planID); err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("price_plan lock: %w", domainports.ErrLockedRowNotFound)
+		}
+		return fmt.Errorf("price_plan lock: %w", err)
+	}
+	return postgresCore.LockScopedRowForUpdate(ctx, r.dbOps, "plan", planID)
 }

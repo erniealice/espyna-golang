@@ -42,6 +42,16 @@ func InitializeExpenditure(
 	var amortizeAdvDis = treasuryAmortizeAdvanceDisbursement(treasuryUseCases)
 	return expenditure.NewUseCases(
 		expenditure.ExpenditureRepositories{
+			// Slice B known-cost recovery (S1)
+			CostSourceComponent:    repos.CostSourceComponent,
+			AllocationBatch:        repos.AllocationBatch,
+			AllocationShare:        repos.AllocationShare,
+			AgreementLineTerm:      repos.AgreementLineTerm,
+			ChargePolicyVersion:    repos.ChargePolicyVersion,
+			ChargePolicyComponent:  repos.ChargePolicyComponent,
+			BillableCharge:         repos.BillableCharge,
+			ChargeComponent:        repos.ChargeComponent,
+			TaxTreatment:           repos.TaxTreatment,
 			Expenditure:            repos.Expenditure,
 			ExpenditureLineItem:    repos.ExpenditureLineItem,
 			ExpenditureCategory:    repos.ExpenditureCategory,

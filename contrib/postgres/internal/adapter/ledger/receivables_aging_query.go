@@ -130,16 +130,17 @@ WITH outstanding AS (
         %s,
         %s,
         r.total_amount,
-        COALESCE(SUM(tc.amount), 0) AS total_paid,
-        r.total_amount - COALESCE(SUM(tc.amount), 0) AS balance,
+        COALESCE(SUM(tc.amount), 0) + COALESCE(MAX(ap.total_applied), 0) AS total_paid,
+        r.total_amount - COALESCE(SUM(tc.amount), 0) - COALESCE(MAX(ap.total_applied), 0) AS balance,
         CASE
             WHEN r.due_date IS NULL THEN 0
-            ELSE (($1::date) - TO_TIMESTAMP(r.due_date / 1000.0)::date)
+            ELSE (($1::date) - r.due_date::date)
         END AS days_overdue
     FROM %s r
     LEFT JOIN %s tc
         ON tc.revenue_id = r.id
-        AND tc.payment_date < ($1::date + interval '1 day')
+        AND NULLIF(tc.payment_date, '')::date < ($1::date + interval '1 day')
+    LEFT JOIN %s ap ON ap.revenue_id = r.id AND ap.workspace_id = r.workspace_id
     %s
     WHERE r.status != 'cancelled'
         AND r.active = true
@@ -151,7 +152,7 @@ WITH outstanding AS (
         AND ($7::text IS NULL OR r.revenue_date < ($7::date + interval '1 day'))
         AND ($8::text IS NULL OR r.workspace_id = $8)
     GROUP BY r.id, r.total_amount, r.due_date, %s
-    HAVING r.total_amount - COALESCE(SUM(tc.amount), 0) > 0
+    HAVING r.total_amount - COALESCE(SUM(tc.amount), 0) - COALESCE(MAX(ap.total_applied), 0) > 0
 )
 SELECT
     row_key,
@@ -169,6 +170,7 @@ ORDER BY row_key`,
 		dimConfig.selectKey, dimConfig.selectID,
 		tc.Revenue,
 		tc.TreasuryCollection,
+		appliedToRevenueSubquery(tc.CollectionApplication, "COALESCE(ca.applied_at, 0) < (EXTRACT(EPOCH FROM ($1::date + interval '1 day')) * 1000)::bigint"),
 		dimConfig.extraJoins,
 		dimConfig.groupBy,
 	)

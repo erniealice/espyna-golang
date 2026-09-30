@@ -62,6 +62,30 @@ var workspaceScopePolicies = map[string]workspaceScopePolicy{
 	entityid.RatingDescriptionSet:            workspaceScopeDirectRequired,
 	entityid.RatingDescriptionSetEntry:       workspaceScopeDirectRequired,
 	entityid.RatingDescriptionSetProductPlan: workspaceScopeDirectRequired,
+
+	// Charge policy (20260927-usage-and-pass-through-charges Slice A, AC-CP-08).
+	// All 4 tables carry workspace_id NOT NULL (migration 20260930100000), so generic
+	// operations require a trusted workspace and never wildcard.
+	entityid.ChargePolicy:          workspaceScopeDirectRequired,
+	entityid.ChargePolicyVersion:   workspaceScopeDirectRequired,
+	entityid.ChargePolicyComponent: workspaceScopeDirectRequired,
+	entityid.ChargePolicyPosting:   workspaceScopeDirectRequired,
+	// C12 SoD editor rows (migration 20260930100000): workspace_id NOT NULL.
+	entityid.ChargePolicyVersionEditor: workspaceScopeDirectRequired,
+
+	// Slice B known-cost recovery (S1; migration 20260930110000). All 11 tables carry
+	// workspace_id NOT NULL, so generic operations require a trusted workspace and never wildcard.
+	entityid.CostSourceComponent:   workspaceScopeDirectRequired,
+	entityid.AllocationBatch:       workspaceScopeDirectRequired,
+	entityid.AllocationShare:       workspaceScopeDirectRequired,
+	entityid.AgreementLineTerm:     workspaceScopeDirectRequired,
+	entityid.BillableCharge:        workspaceScopeDirectRequired,
+	entityid.ChargeComponent:       workspaceScopeDirectRequired,
+	entityid.DocumentSeries:        workspaceScopeDirectRequired,
+	entityid.RecoveryDocument:      workspaceScopeDirectRequired,
+	entityid.RecoveryDocumentLine:  workspaceScopeDirectRequired,
+	entityid.CollectionApplication: workspaceScopeDirectRequired,
+	entityid.ChargeEffect:          workspaceScopeDirectRequired,
 }
 
 type workspaceColumnProbe func(context.Context, string) (map[string]bool, error)

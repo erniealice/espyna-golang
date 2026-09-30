@@ -15,13 +15,15 @@ import (
 // DeleteRevenuePaymentRepositories groups all repository dependencies
 type DeleteRevenuePaymentRepositories struct {
 	RevenuePayment pb.RevenuePaymentDomainServiceServer
+	// Guard refuses legacy payment writes on participating revenues (AC-UC-33); zero value = off.
+	Guard ParticipationGuard
 }
 
 // DeleteRevenuePaymentServices groups all business service dependencies
 type DeleteRevenuePaymentServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -56,6 +58,17 @@ func (uc *DeleteRevenuePaymentUseCase) Execute(ctx context.Context, req *pb.Dele
 	if err := uc.validateInput(ctx, req); err != nil {
 		translatedError := contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "revenue_payment.errors.input_validation_failed", "[ERR-DEFAULT] Input validation failed")
 		return nil, fmt.Errorf("%s: %w", translatedError, err)
+	}
+
+	// Legacy-payment guard (AC-UC-33)
+	if uc.repositories.Guard.Revenue != nil {
+		revenueID, err := revenueOfPayment(ctx, uc.repositories.RevenuePayment, req.Data.Id)
+		if err != nil {
+			return nil, err
+		}
+		if err := uc.repositories.Guard.refuseIfParticipating(ctx, uc.services.Translator, revenueID); err != nil {
+			return nil, err
+		}
 	}
 
 	// Call repository

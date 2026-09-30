@@ -23,7 +23,8 @@ an unambiguously pure leaf utility).
 | `authcheck/` | Deprecated entry point — calls `actiongate` under the hood. New callers should use `actiongate` directly. | — |
 | `amortize_schedule/` | Pure period and tranche math engine. No proto, no DB. The `usecases/service/amortization/` wrapper provides the versioned proto contract. | — |
 | `context/` | Principal ID extraction from `context.Context`. | — |
-| `listdata/` | Go helper layer over `proto/v1/domain/common/{pagination,sort,filter}`. | — |
+| `listdata/` | Go helper layer over `proto/v1/domain/common/{pagination,sort,filter}`; also the bounded complete scan `ListAll` + `EqFilter`/`IDSort` used by use cases that must see every row. | — |
+| `usecaseerr/` | The one coded-refusal contract (`New`/`Error`/`IsCode`/`Localize`) plus `RepoErr`/`IsNotFound` (build-spec §7c C29). | — |
 | `testutil/` | Test infrastructure helpers. | — |
 | `evaluation_score/` | Weighted-average score computation over snapshotted evaluation responses. Pure math, no proto, no DB. | — |
 

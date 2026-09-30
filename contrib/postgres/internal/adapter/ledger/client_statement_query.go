@@ -33,7 +33,7 @@ func buildClientStatementQuery(tc TableConfig, req *clientstmtpb.ClientStatement
 	query := fmt.Sprintf(`
 WITH statement AS (
     SELECT
-        r.revenue_date AS date,
+        TO_CHAR(r.revenue_date::date, 'YYYY-MM-DD') AS date,
         'invoice' AS type,
         r.reference_number,
         r.name AS description,
@@ -45,15 +45,15 @@ WITH statement AS (
     WHERE r.client_id = $1
         AND r.status != 'cancelled'
         AND r.active = true
-        AND ($2::text IS NULL OR r.revenue_date >= $2)
-        AND ($3::text IS NULL OR r.revenue_date <= $3)
+        AND ($2::text IS NULL OR r.revenue_date >= $2::date)
+        AND ($3::text IS NULL OR r.revenue_date < ($3::date + interval '1 day'))
         AND ($4::text IS NULL OR r.currency = $4)
         AND ($5::text IS NULL OR r.workspace_id = $5)
 
     UNION ALL
 
     SELECT
-        tc.payment_date AS date,
+        COALESCE(TO_CHAR(NULLIF(tc.payment_date, '')::date, 'YYYY-MM-DD'), '') AS date,
         'collection' AS type,
         tc.reference_number,
         tc.name AS description,
@@ -66,10 +66,56 @@ WITH statement AS (
     WHERE r.client_id = $1
         AND r.status != 'cancelled'
         AND r.active = true
-        AND ($2::text IS NULL OR tc.payment_date >= $2::date)
-        AND ($3::text IS NULL OR tc.payment_date < ($3::date + interval '1 day'))
+        AND ($2::text IS NULL OR NULLIF(tc.payment_date, '')::date >= $2::date)
+        AND ($3::text IS NULL OR NULLIF(tc.payment_date, '')::date < ($3::date + interval '1 day'))
         AND ($4::text IS NULL OR tc.currency = $4)
         AND ($5::text IS NULL OR r.workspace_id = $5)
+
+    UNION ALL
+
+    -- S1 recovery documents as billed rows (credit notes are negative). Strict workspace.
+    SELECT
+        rd.issue_date AS date,
+        'recovery_document' AS type,
+        rd.document_number AS reference_number,
+        CASE WHEN rd.document_type = '`+recoveryDocTypeCreditNote+`' THEN 'Credit note' ELSE 'Recovery statement' END AS description,
+        rd.total_amount::bigint AS billed,
+        0::bigint AS received,
+        rd.id AS entity_id,
+        rd.status
+    FROM %s rd
+    WHERE rd.client_id = $1
+        AND rd.status = '`+recoveryDocStatusIssued+`'
+        AND rd.active = true
+        AND ($2::text IS NULL OR rd.issue_date >= $2)
+        AND ($3::text IS NULL OR rd.issue_date <= $3)
+        AND ($4::text IS NULL OR rd.currency = $4)
+        AND $5::text IS NOT NULL AND rd.workspace_id = $5
+
+    UNION ALL
+
+    -- S1 CASH applications as received rows (revenue and recovery-document targets). Strict workspace.
+    SELECT
+        TO_CHAR(TO_TIMESTAMP(COALESCE(ca.applied_at, 0) / 1000.0) AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS date,
+        'application' AS type,
+        COALESCE(ctc.reference_number, '') AS reference_number,
+        'Applied to ' || COALESCE(car.reference_number, card.document_number, '') AS description,
+        0::bigint AS billed,
+        ca.amount::bigint AS received,
+        ca.id AS entity_id,
+        ca.status
+    FROM %s ca
+    LEFT JOIN %s ctc ON ctc.id = ca.treasury_collection_id AND ctc.workspace_id = ca.workspace_id
+    LEFT JOIN %s car ON car.id = ca.revenue_id AND car.workspace_id = ca.workspace_id
+    LEFT JOIN %s card ON card.id = ca.recovery_document_id AND card.workspace_id = ca.workspace_id
+    WHERE ca.client_id = $1
+        AND ca.status = '`+appStatusApplied+`'
+        AND ca.application_kind = '`+appKindCash+`'
+        AND ca.active = true
+        AND ($2::text IS NULL OR TO_CHAR(TO_TIMESTAMP(COALESCE(ca.applied_at, 0) / 1000.0) AT TIME ZONE 'UTC', 'YYYY-MM-DD') >= $2)
+        AND ($3::text IS NULL OR TO_CHAR(TO_TIMESTAMP(COALESCE(ca.applied_at, 0) / 1000.0) AT TIME ZONE 'UTC', 'YYYY-MM-DD') <= $3)
+        AND ($4::text IS NULL OR ca.currency = $4)
+        AND $5::text IS NOT NULL AND ca.workspace_id = $5
 )
 SELECT
     date,
@@ -78,14 +124,19 @@ SELECT
     COALESCE(description, '') AS description,
     billed,
     received,
-    SUM(billed - received) OVER (ORDER BY date, CASE type WHEN 'invoice' THEN 0 WHEN 'collection' THEN 1 END) AS balance,
+    SUM(billed - received) OVER (ORDER BY date, CASE type WHEN 'invoice' THEN 0 WHEN 'recovery_document' THEN 0 WHEN 'collection' THEN 1 WHEN 'application' THEN 1 END) AS balance,
     entity_id,
     status
 FROM statement
-ORDER BY date, CASE type WHEN 'invoice' THEN 0 WHEN 'collection' THEN 1 END`,
+ORDER BY date, CASE type WHEN 'invoice' THEN 0 WHEN 'recovery_document' THEN 0 WHEN 'collection' THEN 1 WHEN 'application' THEN 1 END`,
 		tc.Revenue,
 		tc.TreasuryCollection,
 		tc.Revenue,
+		tc.RecoveryDocument,
+		tc.CollectionApplication,
+		tc.TreasuryCollection,
+		tc.Revenue,
+		tc.RecoveryDocument,
 	)
 
 	return query, args
@@ -124,9 +175,9 @@ func buildClientStatementSummary(entries []*clientstmtpb.StatementEntry, req *cl
 		s.TotalBilled += e.Billed
 		s.TotalReceived += e.Received
 		switch e.Type {
-		case "invoice":
+		case "invoice", "recovery_document":
 			s.InvoiceCount++
-		case "collection":
+		case "collection", "application":
 			s.CollectionCount++
 		}
 	}

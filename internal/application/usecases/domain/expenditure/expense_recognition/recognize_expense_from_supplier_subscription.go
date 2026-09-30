@@ -76,11 +76,11 @@ type RecognizeExpenseFromSupplierSubscriptionRepositories struct {
 
 // RecognizeExpenseFromSupplierSubscriptionServices groups infra deps.
 type RecognizeExpenseFromSupplierSubscriptionServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // RecognizeExpenseFromSupplierSubscriptionUseCase is the buying-side mirror
@@ -532,6 +532,7 @@ func (uc *RecognizeExpenseFromSupplierSubscriptionUseCase) insertRecognition(
 		DateModified:       &dc,
 		DateModifiedString: &dcStr,
 		Active:             true,
+		InternalId:         id,
 		Name:               fmt.Sprintf("%s — %s → %s", sub.GetName(), input.PeriodStart, input.PeriodEnd),
 		RecognitionDate:    recognitionDate,
 		PeriodStart:        periodStart,

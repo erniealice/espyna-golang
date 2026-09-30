@@ -49,6 +49,9 @@ type TableConfig struct {
 	TreasuryCollection   string // treasury_collection table
 	CollectionMethod     string // collection_method table
 	PaymentTerm          string // payment_term table
+	// S1 application leg (recovery_application_leg.go)
+	CollectionApplication string // collection_application table
+	RecoveryDocument      string // recovery_document table
 }
 
 // LedgerReportingAdapter implements ports.LedgerReportingService using PostgreSQL.

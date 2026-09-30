@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	chargeeffectpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_effect"
 	// Document template use cases
 	documentTemplateUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/document/template"
 
@@ -21,6 +22,15 @@ import (
 	fiscalPeriodUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/ledger/fiscal_period"
 	journalEntryUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/ledger/journal_entry"
 
+	// Charge policy use cases (20260927-usage-and-pass-through-charges)
+	chargePolicyUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/ledger/charge_policy"
+	chargepolicypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy"
+	chargepolicycomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_component"
+	chargepolicypostingpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_posting"
+	chargepolicyversionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_version"
+	chargepolicyversioneditorpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_version_editor"
+	taxtreatmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_treatment"
+
 	// Protobuf domain services for ledger repositories
 	attachmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/attachment"
 	documenttemplatepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/document/template"
@@ -37,6 +47,8 @@ import (
 
 // LedgerRepositories groups all repository dependencies for ledger use cases.
 type LedgerRepositories struct {
+	// Slice B known-cost recovery (20260927-usage-and-pass-through-charges, S1)
+	ChargeEffect chargeeffectpb.ChargeEffectDomainServiceServer
 	// Existing document repositories
 	DocumentTemplate documenttemplatepb.DocumentTemplateDomainServiceServer
 	Attachment       attachmentpb.AttachmentDomainServiceServer
@@ -52,10 +64,20 @@ type LedgerRepositories struct {
 	RecurringJournalTemplate recurringjournaltemplatepb.RecurringJournalTemplateDomainServiceServer
 	EquityAccount            equityaccountpb.EquityAccountDomainServiceServer
 	EquityTransaction        equitytransactionpb.EquityTransactionDomainServiceServer
+
+	// Charge policy repositories
+	ChargePolicy          chargepolicypb.ChargePolicyDomainServiceServer
+	ChargePolicyVersion   chargepolicyversionpb.ChargePolicyVersionDomainServiceServer
+	ChargePolicyComponent chargepolicycomponentpb.ChargePolicyComponentDomainServiceServer
+	ChargePolicyPosting   chargepolicypostingpb.ChargePolicyPostingDomainServiceServer
+	// ChargePolicyVersionEditor (C12 SoD) and TaxTreatment (cross-domain existence check).
+	ChargePolicyVersionEditor chargepolicyversioneditorpb.ChargePolicyVersionEditorDomainServiceServer
+	TaxTreatment              taxtreatmentpb.TaxTreatmentDomainServiceServer
 }
 
 // LedgerUseCases contains all ledger-related use cases.
 type LedgerUseCases struct {
+	// Slice B known-cost recovery (S1)
 	DocumentTemplate             *documentTemplateUseCases.UseCases
 	Attachment                   *attachmentUseCases.UseCases
 	GetGrossProfitReport         *grossprofit.GetGrossProfitReportUseCase
@@ -66,6 +88,10 @@ type LedgerUseCases struct {
 	Account      *accountUseCases.UseCases
 	JournalEntry *journalEntryUseCases.UseCases
 	FiscalPeriod *fiscalPeriodUseCases.UseCases
+
+	// ChargePolicy — versioned charge policies, approval, resolver (nil when any of the four
+	// charge policy repositories is unavailable, e.g. non-postgres providers).
+	ChargePolicy *chargePolicyUseCases.UseCases
 
 	// Dashboard fields retired 2026-05-21 (Wave B P1.C.3 Ledger + P1.C.4
 	// Equity) — both ledger + equity dashboards now live under
@@ -163,10 +189,33 @@ func NewUseCases(
 		)
 	}
 
+	var chargePolicyUC *chargePolicyUseCases.UseCases
+	if repos.ChargePolicy != nil && repos.ChargePolicyVersion != nil && repos.ChargePolicyComponent != nil && repos.ChargePolicyPosting != nil && repos.ChargePolicyVersionEditor != nil {
+		chargePolicyUC = chargePolicyUseCases.NewUseCases(
+			chargePolicyUseCases.Repositories{
+				ChargePolicy:              repos.ChargePolicy,
+				ChargePolicyVersion:       repos.ChargePolicyVersion,
+				ChargePolicyComponent:     repos.ChargePolicyComponent,
+				ChargePolicyPosting:       repos.ChargePolicyPosting,
+				ChargePolicyVersionEditor: repos.ChargePolicyVersionEditor,
+				Account:                   repos.Account,
+				TaxTreatment:              repos.TaxTreatment,
+			},
+			chargePolicyUseCases.Services{
+				Authorizer:       authSvc,
+				Transactor:       txSvc,
+				Translator:       i18nSvc,
+				IDGenerator:      idService,
+				ActionGatekeeper: actionGate,
+			},
+		)
+	}
+
 	// Ledger + Equity dashboard wiring retired 2026-05-21 (Wave B P1.C.3 +
 	// P1.C.4) — type-assertion + factory wiring now lives in the service-
 	// layer initializer at `internal/composition/core/initializers/service.go`
 	// (search "Wave B P1.C.3 Ledger" and "Wave B P1.C.4 Equity").
+	// Slice B known-cost recovery (S1)
 	return &LedgerUseCases{
 		DocumentTemplate:             documentTemplateUC,
 		Attachment:                   attachmentUC,
@@ -176,5 +225,6 @@ func NewUseCases(
 		Account:                      accountUC,
 		JournalEntry:                 journalEntryUC,
 		FiscalPeriod:                 fiscalPeriodUC,
+		ChargePolicy:                 chargePolicyUC,
 	}
 }

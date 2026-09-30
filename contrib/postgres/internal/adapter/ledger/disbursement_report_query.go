@@ -50,7 +50,7 @@ func normalizeDisbursementDimension(dim string) string {
 // getDisbursementPivotDimensionConfig returns SQL fragments for the requested disbursement dimension.
 // Table names come from TableConfig (developer-configured, safe for fmt.Sprintf).
 func getDisbursementPivotDimensionConfig(tc TableConfig, dimension string) pivotDimensionConfig {
-	dateExpr := "TO_TIMESTAMP(d.payment_date / 1000.0)"
+	dateExpr := "NULLIF(d.payment_date, '')::timestamptz"
 
 	switch dimension {
 	case "monthly":
@@ -176,7 +176,7 @@ func buildDisbursementReportQuery(tc TableConfig, req *disbreportpb.Disbursement
 		nilIfEmpty(workspaceID),
 	}
 
-	dateExpr := "TO_TIMESTAMP(d.payment_date / 1000.0)"
+	dateExpr := "NULLIF(d.payment_date, '')::timestamptz"
 
 	query := fmt.Sprintf(`
 WITH disbursement_pivot AS (

@@ -99,11 +99,19 @@ func (g *ActionGatekeeper) Check(ctx context.Context, req *CheckActionRequest) e
 
 	if !hasPerm {
 		log.Printf("AUTHZ_DENIED | user=%s | permission=%s", userID, permission)
-		return errors.New(g.translate(ctx, "common.errors.permission_denied", "Permission denied"))
+		return &permissionDeniedError{msg: g.translate(ctx, "common.errors.permission_denied", "Permission denied")}
 	}
 
 	return nil
 }
+
+// permissionDeniedError is the coded denial of Check and CheckStrict: the message is unchanged,
+// ErrorCode() returns "permission_denied" so views map it to CommonLabels.Errors.PermissionDenied
+// instead of the generic error (precedent: the coded refusals of charge_policy.Error).
+type permissionDeniedError struct{ msg string }
+
+func (e *permissionDeniedError) Error() string     { return e.msg }
+func (e *permissionDeniedError) ErrorCode() string { return "permission_denied" }
 
 // deniableAuthorizer is the OPTIONAL deny-capable slice of the RBAC
 // authorizer (implemented by rbac.PermissionAuthorizer). HasPermissionStrict
@@ -163,7 +171,7 @@ func (g *ActionGatekeeper) CheckStrict(ctx context.Context, req *CheckActionRequ
 	}
 	if !hasPerm {
 		log.Printf("AUTHZ_DENIED | strict | user=%s | permission=%s", userID, permission)
-		return errors.New(g.translate(ctx, "common.errors.permission_denied", "Permission denied"))
+		return &permissionDeniedError{msg: g.translate(ctx, "common.errors.permission_denied", "Permission denied")}
 	}
 	return nil
 }

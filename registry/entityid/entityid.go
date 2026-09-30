@@ -147,6 +147,10 @@ const (
 	RevenueRunAttempt = "revenue_run_attempt"
 	RevenueTaxLine    = "revenue_tax_line"
 	RevenuePayment    = "revenue_payment"
+	// Known-cost recovery documents (20260927-usage-and-pass-through-charges, build-spec §6.2)
+	DocumentSeries       = "document_series"
+	RecoveryDocument     = "recovery_document"
+	RecoveryDocumentLine = "recovery_document_line"
 )
 
 // Expenditure domain
@@ -164,6 +168,10 @@ const (
 	// Expense Run (20260517) — recurrence-engine parent + per-attempt rows.
 	ExpenseRecognitionRun        = "expense_recognition_run"
 	ExpenseRecognitionRunAttempt = "expense_recognition_run_attempt"
+	// Known-cost recovery cost sources and allocations (20260927-usage-and-pass-through-charges)
+	CostSourceComponent = "cost_source_component"
+	AllocationBatch     = "allocation_batch"
+	AllocationShare     = "allocation_share"
 )
 
 // Inventory domain
@@ -208,6 +216,10 @@ const (
 	// staff edge (plan.md §1.1b).
 	SubscriptionGroupProductPlan = "subscription_group_product_plan"
 	PriceScheduleWorkspaceUser   = "price_schedule_workspace_user"
+	// Known-cost recovery agreement terms and charges (20260927-usage-and-pass-through-charges)
+	AgreementLineTerm = "agreement_line_term"
+	BillableCharge    = "billable_charge"
+	ChargeComponent   = "charge_component"
 )
 
 // Treasury domain
@@ -221,6 +233,8 @@ const (
 	// SUM(tranche_amount) <= advance.amount is application-layer-enforced.
 	CollectionBillingEvent           = "collection_billing_event"
 	DisbursementSupplierBillingEvent = "disbursement_supplier_billing_event"
+	// Known-cost recovery: a receipt applied to an invoice or recovery document (20260927-usage-and-pass-through-charges)
+	CollectionApplication = "collection_application"
 )
 
 // Ledger / Document domain
@@ -364,6 +378,16 @@ const (
 	RecurringJournalTemplate = "recurring_journal_template"
 	EquityAccount            = "equity_account"
 	EquityTransaction        = "equity_transaction"
+
+	// Charge policy (20260927-usage-and-pass-through-charges, Slice A)
+	ChargePolicy          = "charge_policy"
+	ChargePolicyVersion   = "charge_policy_version"
+	ChargePolicyComponent = "charge_policy_component"
+	ChargePolicyPosting   = "charge_policy_posting"
+	// ChargePolicyVersionEditor records every user who edited a draft version (C12 separation of duties).
+	ChargePolicyVersionEditor = "charge_policy_version_editor"
+	// ChargeEffect is the balanced DR/CR posting row of one charge event (known-cost recovery).
+	ChargeEffect = "charge_effect"
 )
 
 // Treasury domain — Schedules (extends existing Treasury)
@@ -481,7 +505,7 @@ var ProductEntities = []string{
 }
 
 // RevenueEntities lists all entity IDs in the Revenue domain.
-var RevenueEntities = []string{Revenue, RevenueAttribute, RevenueCategory, RevenueLineItem, DeferredRevenue, RevenueRun, RevenueRunAttempt, RevenueTaxLine, RevenuePayment}
+var RevenueEntities = []string{Revenue, RevenueAttribute, RevenueCategory, RevenueLineItem, DeferredRevenue, RevenueRun, RevenueRunAttempt, RevenueTaxLine, RevenuePayment, DocumentSeries, RecoveryDocument, RecoveryDocumentLine}
 
 // ExpenditureEntities lists all entity IDs in the Expenditure domain.
 var ExpenditureEntities = []string{
@@ -496,6 +520,8 @@ var ExpenditureEntities = []string{
 	// Advance-cash-events + Expense Run (20260517)
 	SupplierBillingEvent,
 	ExpenseRecognitionRun, ExpenseRecognitionRunAttempt,
+	// Slice B known-cost recovery (S1)
+	CostSourceComponent, AllocationBatch, AllocationShare,
 }
 
 // InventoryEntities lists all entity IDs in the Inventory domain.
@@ -517,6 +543,8 @@ var SubscriptionEntities = []string{
 	// Education-grading R5 (2026-06-22)
 	SubscriptionGroup, SubscriptionGroupMember, SubscriptionGroupWorkspaceUser,
 	SubscriptionGroupProductPlanStaff, PriceScheduleWorkspaceUser,
+	// Slice B known-cost recovery (S1)
+	AgreementLineTerm, BillableCharge, ChargeComponent,
 }
 
 // TreasuryEntities lists all entity IDs in the Treasury domain.
@@ -530,6 +558,8 @@ var TreasuryEntities = []string{
 	// Advance-cash-events (20260517) — MILESTONE junction tables
 	CollectionBillingEvent,
 	DisbursementSupplierBillingEvent,
+	// Slice B known-cost recovery (S1)
+	CollectionApplication,
 }
 
 // LedgerDocumentEntities lists all entity IDs in the Ledger / Document domain.
@@ -579,6 +609,8 @@ var LedgerAccountingEntities = []string{
 	JournalEntry, JournalLine,
 	FiscalPeriod, RecurringJournalTemplate,
 	EquityAccount, EquityTransaction,
+	ChargePolicy, ChargePolicyVersion, ChargePolicyComponent, ChargePolicyPosting, ChargePolicyVersionEditor,
+	ChargeEffect,
 }
 
 // PayrollEntities lists all entity IDs in the Payroll domain.
@@ -719,6 +751,18 @@ const (
 	// rating_description_set:publish / :deprecate).
 	ActionPublish   = "publish"   // rating_description_set:publish
 	ActionDeprecate = "deprecate" // rating_description_set:deprecate
+
+	// Charge policy lifecycle verbs (build-spec §0 UI-CP-8: charge_policy:approve,
+	// charge_policy:approve_own, charge_policy:retire).
+	ActionApprove    = "approve"     // charge_policy:approve
+	ActionApproveOwn = "approve_own" // charge_policy:approve_own
+	ActionRetire     = "retire"      // charge_policy:retire
+
+	// Financial-document verbs (20260927-usage-and-pass-through-charges, build-spec §6.4 / §7 C10).
+	ActionIssue   = "issue"   // recovery_document:issue
+	ActionVoid    = "void"    // recovery_document:void
+	ActionReverse = "reverse" // collection_application:reverse
+	ActionAdjust  = "adjust"  // billable_charge:adjust
 )
 
 // EntityPermission builds a permission code from an entity name and action verb.

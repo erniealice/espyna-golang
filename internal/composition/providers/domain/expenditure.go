@@ -2,6 +2,10 @@ package domain
 
 import (
 	"fmt"
+	allocationbatchpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/allocation_batch"
+	allocationsharepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/allocation_share"
+	costsourcecomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/cost_source_component"
+	taxtreatmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_treatment"
 
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
@@ -36,10 +40,27 @@ import (
 	suppliercontractlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_line"
 	scpspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule"
 	scpslpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/supplier_contract_price_schedule_line"
+	chargepolicycomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_component"
+	chargepolicyversionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_version"
+	agreementlinetermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/agreement_line_term"
+	billablechargepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billable_charge"
+	chargecomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/charge_component"
 )
 
 // ExpenditureRepositories contains all expenditure domain repositories
 type ExpenditureRepositories struct {
+	// Slice B known-cost recovery (20260927-usage-and-pass-through-charges, S1)
+	CostSourceComponent costsourcecomponentpb.CostSourceComponentDomainServiceServer
+	AllocationBatch     allocationbatchpb.AllocationBatchDomainServiceServer
+	AllocationShare     allocationsharepb.AllocationShareDomainServiceServer
+	// Cross-domain collaborators of allocation publish (W3-A); nil-safe, the write use cases fail closed.
+	AgreementLineTerm     agreementlinetermpb.AgreementLineTermDomainServiceServer
+	ChargePolicyVersion   chargepolicyversionpb.ChargePolicyVersionDomainServiceServer
+	ChargePolicyComponent chargepolicycomponentpb.ChargePolicyComponentDomainServiceServer
+	BillableCharge        billablechargepb.BillableChargeDomainServiceServer
+	ChargeComponent       chargecomponentpb.ChargeComponentDomainServiceServer
+	// TaxTreatment validates cost_source_component.tax_treatment_id (cross-domain: tax).
+	TaxTreatment           taxtreatmentpb.TaxTreatmentDomainServiceServer
 	Expenditure            expenditurepb.ExpenditureDomainServiceServer
 	ExpenditureLineItem    expenditurelineitempb.ExpenditureLineItemDomainServiceServer
 	ExpenditureCategory    expenditurecategorypb.ExpenditureCategoryDomainServiceServer
@@ -160,6 +181,35 @@ func NewExpenditureRepositories(dbProvider contracts.Provider, tableConfig *regi
 	// Plan A Phase 4 — ExpenseRecognitionRun (entity ID + table registered in Phase 0).
 	if r := tryCreate(entityid.ExpenseRecognitionRun); r != nil {
 		repos.ExpenseRecognitionRun = r.(expenserecognitionrunpb.ExpenseRecognitionRunDomainServiceServer)
+	}
+
+	// Slice B known-cost recovery (S1)
+	if r := tryCreate(entityid.CostSourceComponent); r != nil {
+		repos.CostSourceComponent = r.(costsourcecomponentpb.CostSourceComponentDomainServiceServer)
+	}
+	if r := tryCreate(entityid.AllocationBatch); r != nil {
+		repos.AllocationBatch = r.(allocationbatchpb.AllocationBatchDomainServiceServer)
+	}
+	if r := tryCreate(entityid.AllocationShare); r != nil {
+		repos.AllocationShare = r.(allocationsharepb.AllocationShareDomainServiceServer)
+	}
+	if r := tryCreate(entityid.AgreementLineTerm); r != nil {
+		repos.AgreementLineTerm = r.(agreementlinetermpb.AgreementLineTermDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ChargePolicyVersion); r != nil {
+		repos.ChargePolicyVersion, _ = r.(chargepolicyversionpb.ChargePolicyVersionDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ChargePolicyComponent); r != nil {
+		repos.ChargePolicyComponent, _ = r.(chargepolicycomponentpb.ChargePolicyComponentDomainServiceServer)
+	}
+	if r := tryCreate(entityid.BillableCharge); r != nil {
+		repos.BillableCharge = r.(billablechargepb.BillableChargeDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ChargeComponent); r != nil {
+		repos.ChargeComponent = r.(chargecomponentpb.ChargeComponentDomainServiceServer)
+	}
+	if r := tryCreate(entityid.TaxTreatment); r != nil {
+		repos.TaxTreatment, _ = r.(taxtreatmentpb.TaxTreatmentDomainServiceServer)
 	}
 
 	if len(skipped) > 0 {

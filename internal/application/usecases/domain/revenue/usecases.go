@@ -1,6 +1,18 @@
 package revenue
 
 import (
+	documentseriesuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/revenue/document_series"
+	recoverydocumentuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/revenue/recovery_document"
+	recoverydocumentlineuc "github.com/erniealice/espyna-golang/internal/application/usecases/domain/revenue/recovery_document_line"
+	chargeeffectpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_effect"
+	chargepolicypostingpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_posting"
+	documentseriespb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/document_series"
+	recoverydocumentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/recovery_document"
+	recoverydocumentlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/recovery_document_line"
+	agreementlinetermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/agreement_line_term"
+	billablechargepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billable_charge"
+	chargecomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/charge_component"
+	collectionapplicationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_application"
 	// Revenue use cases
 	deferredRevenueUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/revenue/deferred_revenue"
 	revenueUseCases "github.com/erniealice/espyna-golang/internal/application/usecases/domain/revenue/revenue"
@@ -52,13 +64,25 @@ import (
 // gracefully degrades (returns appropriate validation errors) when a
 // repository is missing.
 type RevenueRepositories struct {
-	Revenue          revenuepb.RevenueDomainServiceServer
-	RevenueLineItem  revenuelineitempb.RevenueLineItemDomainServiceServer
-	RevenuePayment   revenuepaymentpb.RevenuePaymentDomainServiceServer
-	RevenueCategory  revenuecategorypb.RevenueCategoryDomainServiceServer
-	RevenueAttribute revenueattributepb.RevenueAttributeDomainServiceServer
-	DeferredRevenue  deferredrevenuepb.DeferredRevenueDomainServiceServer
-	RevenueTaxLine   revenuetaxlinepb.RevenueTaxLineDomainServiceServer
+	// Slice B known-cost recovery (20260927-usage-and-pass-through-charges, S1)
+	DocumentSeries       documentseriespb.DocumentSeriesDomainServiceServer
+	RecoveryDocument     recoverydocumentpb.RecoveryDocumentDomainServiceServer
+	RecoveryDocumentLine recoverydocumentlinepb.RecoveryDocumentLineDomainServiceServer
+	// Issuance / void collaborators (W3-B)
+	BillableCharge        billablechargepb.BillableChargeDomainServiceServer
+	ChargeComponent       chargecomponentpb.ChargeComponentDomainServiceServer
+	ChargePolicyPosting   chargepolicypostingpb.ChargePolicyPostingDomainServiceServer
+	ChargeEffect          chargeeffectpb.ChargeEffectDomainServiceServer
+	CollectionApplication collectionapplicationpb.CollectionApplicationDomainServiceServer
+	// Legacy-payment guard collaborator (W3-C).
+	AgreementLineTerm agreementlinetermpb.AgreementLineTermDomainServiceServer
+	Revenue           revenuepb.RevenueDomainServiceServer
+	RevenueLineItem   revenuelineitempb.RevenueLineItemDomainServiceServer
+	RevenuePayment    revenuepaymentpb.RevenuePaymentDomainServiceServer
+	RevenueCategory   revenuecategorypb.RevenueCategoryDomainServiceServer
+	RevenueAttribute  revenueattributepb.RevenueAttributeDomainServiceServer
+	DeferredRevenue   deferredrevenuepb.DeferredRevenueDomainServiceServer
+	RevenueTaxLine    revenuetaxlinepb.RevenueTaxLineDomainServiceServer
 	// Cross-domain dependency: payment term lookup for due date computation
 	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
 
@@ -93,13 +117,17 @@ type RevenueRepositories struct {
 
 // RevenueUseCases contains all revenue-related use cases
 type RevenueUseCases struct {
-	Revenue          *revenueUseCases.UseCases
-	RevenueLineItem  *revenueLineItemUseCases.UseCases
-	RevenuePayment   *revenuePaymentUseCases.UseCases
-	RevenueCategory  *revenueCategoryUseCases.UseCases
-	RevenueAttribute *revenueAttributeUseCases.UseCases
-	DeferredRevenue  *deferredRevenueUseCases.UseCases
-	RevenueTaxLine   *revenueTaxLineUseCases.UseCases
+	// Slice B known-cost recovery (S1)
+	DocumentSeries       *documentseriesuc.UseCases
+	RecoveryDocument     *recoverydocumentuc.UseCases
+	RecoveryDocumentLine *recoverydocumentlineuc.UseCases
+	Revenue              *revenueUseCases.UseCases
+	RevenueLineItem      *revenueLineItemUseCases.UseCases
+	RevenuePayment       *revenuePaymentUseCases.UseCases
+	RevenueCategory      *revenueCategoryUseCases.UseCases
+	RevenueAttribute     *revenueAttributeUseCases.UseCases
+	DeferredRevenue      *deferredRevenueUseCases.UseCases
+	RevenueTaxLine       *revenueTaxLineUseCases.UseCases
 }
 
 // NewUseCases creates all revenue use cases with proper constructor injection.
@@ -168,7 +196,10 @@ func NewUseCases(
 
 	revenuePaymentUC := revenuePaymentUseCases.NewUseCases(
 		revenuePaymentUseCases.RevenuePaymentRepositories{
-			RevenuePayment: repos.RevenuePayment,
+			RevenuePayment:        repos.RevenuePayment,
+			Revenue:               repos.Revenue,
+			CollectionApplication: repos.CollectionApplication,
+			AgreementLineTerm:     repos.AgreementLineTerm,
 		},
 		revenuePaymentUseCases.RevenuePaymentServices{
 			Authorizer:       authSvc,
@@ -229,14 +260,73 @@ func NewUseCases(
 		},
 	)
 
+	// Slice B known-cost recovery (S1). The aggregates are opt-in (C32): each is nil unless its own
+	// table is wired, so a consumer's Mount fails closed on a provider without the S1 tables.
+	var documentseriesUC *documentseriesuc.UseCases
+	if repos.DocumentSeries != nil {
+		documentseriesUC = documentseriesuc.NewUseCases(
+			documentseriesuc.Repositories{
+				DocumentSeries: repos.DocumentSeries,
+			},
+			documentseriesuc.Services{
+				Authorizer:       authSvc,
+				Translator:       i18nSvc,
+				ActionGatekeeper: actionGate,
+				Transactor:       txSvc,
+				IDGenerator:      idService,
+			},
+		)
+	}
+
+	var recoverydocumentUC *recoverydocumentuc.UseCases
+	if repos.RecoveryDocument != nil {
+		recoverydocumentUC = recoverydocumentuc.NewUseCases(
+			recoverydocumentuc.Repositories{
+				RecoveryDocument:      repos.RecoveryDocument,
+				RecoveryDocumentLine:  repos.RecoveryDocumentLine,
+				DocumentSeries:        repos.DocumentSeries,
+				BillableCharge:        repos.BillableCharge,
+				ChargeComponent:       repos.ChargeComponent,
+				ChargePolicyPosting:   repos.ChargePolicyPosting,
+				ChargeEffect:          repos.ChargeEffect,
+				CollectionApplication: repos.CollectionApplication,
+				Client:                repos.Client,
+			},
+			recoverydocumentuc.Services{
+				Authorizer:       authSvc,
+				Translator:       i18nSvc,
+				ActionGatekeeper: actionGate,
+				Transactor:       txSvc,
+				IDGenerator:      idService,
+			},
+		)
+	}
+
+	var recoverydocumentlineUC *recoverydocumentlineuc.UseCases
+	if repos.RecoveryDocumentLine != nil {
+		recoverydocumentlineUC = recoverydocumentlineuc.NewUseCases(
+			recoverydocumentlineuc.Repositories{
+				RecoveryDocumentLine: repos.RecoveryDocumentLine,
+			},
+			recoverydocumentlineuc.Services{
+				Authorizer:       authSvc,
+				Translator:       i18nSvc,
+				ActionGatekeeper: actionGate,
+			},
+		)
+	}
+
 	return &RevenueUseCases{
-		Revenue:          revenueUC,
-		RevenueLineItem:  revenueLineItemUC,
-		RevenuePayment:   revenuePaymentUC,
-		RevenueCategory:  revenueCategoryUC,
-		RevenueAttribute: revenueAttributeUC,
-		DeferredRevenue:  deferredRevenueUC,
-		RevenueTaxLine:   revenueTaxLineUC,
+		DocumentSeries:       documentseriesUC,
+		RecoveryDocument:     recoverydocumentUC,
+		RecoveryDocumentLine: recoverydocumentlineUC,
+		Revenue:              revenueUC,
+		RevenueLineItem:      revenueLineItemUC,
+		RevenuePayment:       revenuePaymentUC,
+		RevenueCategory:      revenueCategoryUC,
+		RevenueAttribute:     revenueAttributeUC,
+		DeferredRevenue:      deferredRevenueUC,
+		RevenueTaxLine:       revenueTaxLineUC,
 	}
 }
 

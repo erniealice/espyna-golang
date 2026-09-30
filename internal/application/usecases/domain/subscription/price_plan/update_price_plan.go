@@ -15,6 +15,7 @@ import (
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
+	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 )
 
 // UpdatePricePlanRepositories groups all repository dependencies.
@@ -28,6 +29,8 @@ type UpdatePricePlanRepositories struct {
 	Plan          planpb.PlanDomainServiceServer
 	PriceSchedule priceschedulepb.PriceScheduleDomainServiceServer
 	Client        clientpb.ClientDomainServiceServer
+	// ProductPricePlan backs the charge-policy opt-in re-check (see charge_policy_lines_guard.go).
+	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
 }
 
 // UpdatePricePlanServices groups all business service dependencies
@@ -93,8 +96,10 @@ func (uc *UpdatePricePlanUseCase) Execute(ctx context.Context, req *priceplanpb.
 		return nil, err
 	}
 
-	// Call repository
-	result, err := uc.repositories.PricePlan.UpdatePricePlan(ctx, req)
+	// Charge policy opt-in re-check (C12): a billing_kind / amount_basis change that no longer
+	// allows a charge policy is refused while any of the plan's lines is opted in. The check and
+	// the write run under the price plan's lock in one transaction (guardedUpdate).
+	result, err := uc.guardedUpdate(ctx, req)
 	if err != nil {
 		return nil, err
 	}

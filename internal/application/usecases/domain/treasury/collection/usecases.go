@@ -4,20 +4,24 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
+	collectionapplicationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_application"
 )
 
 // CollectionRepositories groups all repository dependencies for collection use cases
 type CollectionRepositories struct {
 	Collection collectionpb.CollectionDomainServiceServer
+	// CollectionApplication lets update/delete refuse a receipt that anchors APPLIED applications
+	// (build-spec §7c C25). Nil on providers without the S1 tables (nothing to protect there).
+	CollectionApplication collectionapplicationpb.CollectionApplicationDomainServiceServer
 }
 
 // CollectionServices groups all business service dependencies for collection use cases
 type CollectionServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // UseCases contains all collection-related use cases
@@ -47,45 +51,45 @@ func NewUseCases(
 	repositories CollectionRepositories,
 	services CollectionServices,
 ) *UseCases {
-	createRepos := CreateCollectionRepositories(repositories)
+	createRepos := CreateCollectionRepositories{Collection: repositories.Collection}
 	createServices := CreateCollectionServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer:  services.Authorizer,
-		Transactor:  services.Transactor,
-		Translator:  services.Translator,
-		IDGenerator: services.IDGenerator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
+		IDGenerator:      services.IDGenerator,
 	}
 
-	readRepos := ReadCollectionRepositories(repositories)
+	readRepos := ReadCollectionRepositories{Collection: repositories.Collection}
 	readServices := ReadCollectionServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	updateRepos := UpdateCollectionRepositories(repositories)
 	updateServices := UpdateCollectionServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	deleteRepos := DeleteCollectionRepositories(repositories)
 	deleteServices := DeleteCollectionServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
-	listRepos := ListCollectionsRepositories(repositories)
+	listRepos := ListCollectionsRepositories{Collection: repositories.Collection}
 	listServices := ListCollectionsServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Transactor: services.Transactor,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Transactor:       services.Transactor,
+		Translator:       services.Translator,
 	}
 
 	listByClientRepos := ListByClientRepositories{
@@ -93,8 +97,8 @@ func NewUseCases(
 	}
 	listByClientServices := ListByClientServices{
 		ActionGatekeeper: services.ActionGatekeeper,
-		Authorizer: services.Authorizer,
-		Translator: services.Translator,
+		Authorizer:       services.Authorizer,
+		Translator:       services.Translator,
 	}
 
 	return &UseCases{

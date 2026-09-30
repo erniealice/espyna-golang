@@ -33,10 +33,34 @@ import (
 	billingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billing_event"
 	collectionbillingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_billing_event"
 	disbursementsupplierbillingeventpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/disbursement_supplier_billing_event"
+
+	// Slice B known-cost recovery (20260927-usage-and-pass-through-charges, S1): collection_application
+	// and the cross-domain collaborators of its receive / preview / reverse use cases.
+	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	chargeeffectpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_effect"
+	chargepolicypostingpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_posting"
+	recoverydocumentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/recovery_document"
+	recoverydocumentlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/recovery_document_line"
+	revenuepaymentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/revenue_payment"
+	billablechargepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billable_charge"
+	chargecomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/charge_component"
+	collectionapplicationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_application"
 )
 
 // TreasuryRepositories contains all treasury domain repositories
 type TreasuryRepositories struct {
+	// Slice B known-cost recovery (20260927-usage-and-pass-through-charges, S1)
+	CollectionApplication collectionapplicationpb.CollectionApplicationDomainServiceServer
+	// Cross-domain collaborators of the collection_application behaviour RPCs (created here, as the
+	// revenue provider block creates its S1 collaborators).
+	RevenuePayment       revenuepaymentpb.RevenuePaymentDomainServiceServer
+	RecoveryDocument     recoverydocumentpb.RecoveryDocumentDomainServiceServer
+	RecoveryDocumentLine recoverydocumentlinepb.RecoveryDocumentLineDomainServiceServer
+	BillableCharge       billablechargepb.BillableChargeDomainServiceServer
+	ChargeComponent      chargecomponentpb.ChargeComponentDomainServiceServer
+	ChargePolicyPosting  chargepolicypostingpb.ChargePolicyPostingDomainServiceServer
+	ChargeEffect         chargeeffectpb.ChargeEffectDomainServiceServer
+	Client               clientpb.ClientDomainServiceServer
 	// Existing treasury repositories
 	Collection           collectionpb.CollectionDomainServiceServer
 	CollectionMethod     collectionmethodpb.CollectionMethodDomainServiceServer
@@ -142,6 +166,35 @@ func NewTreasuryRepositories(dbProvider contracts.Provider, tableConfig *registr
 	}
 	if r := tryCreate(entityid.DisbursementSupplierBillingEvent); r != nil {
 		repos.DisbursementSupplierBillingEvent = r.(disbursementsupplierbillingeventpb.DisbursementSupplierBillingEventDomainServiceServer)
+	}
+
+	// Slice B known-cost recovery (S1)
+	if r := tryCreate(entityid.CollectionApplication); r != nil {
+		repos.CollectionApplication = r.(collectionapplicationpb.CollectionApplicationDomainServiceServer)
+	}
+	if r := tryCreate(entityid.RevenuePayment); r != nil {
+		repos.RevenuePayment = r.(revenuepaymentpb.RevenuePaymentDomainServiceServer)
+	}
+	if r := tryCreate(entityid.RecoveryDocument); r != nil {
+		repos.RecoveryDocument = r.(recoverydocumentpb.RecoveryDocumentDomainServiceServer)
+	}
+	if r := tryCreate(entityid.RecoveryDocumentLine); r != nil {
+		repos.RecoveryDocumentLine = r.(recoverydocumentlinepb.RecoveryDocumentLineDomainServiceServer)
+	}
+	if r := tryCreate(entityid.BillableCharge); r != nil {
+		repos.BillableCharge = r.(billablechargepb.BillableChargeDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ChargeComponent); r != nil {
+		repos.ChargeComponent = r.(chargecomponentpb.ChargeComponentDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ChargePolicyPosting); r != nil {
+		repos.ChargePolicyPosting = r.(chargepolicypostingpb.ChargePolicyPostingDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ChargeEffect); r != nil {
+		repos.ChargeEffect = r.(chargeeffectpb.ChargeEffectDomainServiceServer)
+	}
+	if r := tryCreate(entityid.Client); r != nil {
+		repos.Client = r.(clientpb.ClientDomainServiceServer)
 	}
 
 	if len(skipped) > 0 {

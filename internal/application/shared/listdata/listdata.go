@@ -27,6 +27,9 @@
 //     get_*_list_page_data.go (~20 callers across 5 domains).
 //   - internal/infrastructure/adapters/secondary/database/mock/entity/session.go
 //     (mock adapter list paging).
+//   - scan.go ListAll/EqFilter/IDSort (complete, bounded repository scans): the S1 use cases
+//     usecases/domain/{treasury/{collection,collection_application}, revenue/{recovery_document,
+//     revenue_payment}, ledger/{charge_policy,charge_effect}, expenditure/cost_source_component}.
 package listdata
 
 import (

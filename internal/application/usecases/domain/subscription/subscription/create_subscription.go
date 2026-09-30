@@ -7,9 +7,11 @@ import (
 	"time"
 
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	agreementlinetermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/agreement_line_term"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
+	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -24,6 +26,12 @@ type CreateSubscriptionRepositories struct {
 	PricePlan     priceplanpb.PricePlanDomainServiceServer
 	Plan          planpb.PlanDomainServiceServer
 	PriceSchedule priceschedulepb.PriceScheduleDomainServiceServer
+
+	// Optional S1 collaborators (20260927-usage-and-pass-through-charges): agreement_line_term
+	// creation for package lines that opted in to a charge policy. Any nil = no term step. The
+	// policy itself is resolved by services.ChargePolicyResolver.
+	ProductPricePlan  productpriceplanpb.ProductPricePlanDomainServiceServer
+	AgreementLineTerm agreementlinetermpb.AgreementLineTermDomainServiceServer
 }
 
 type CreateSubscriptionServices struct {
@@ -33,6 +41,9 @@ type CreateSubscriptionServices struct {
 	ActionGatekeeper        *actiongate.ActionGatekeeper
 	IDGenerator             ports.IDGenerator
 	JobTemplateInstantiator JobTemplateInstantiator
+	// ChargePolicyResolver resolves a package line's charge policy to its approved version when
+	// the create writes agreement line terms (see agreement_terms.go); nil = opted-in lines refuse.
+	ChargePolicyResolver ChargePolicyResolver
 	// CodeFormat is the SUBSCRIPTION_CODE_FORMAT template threaded from the
 	// composition root (.env). Empty or "auto" -> DefaultCodeFormat. The domain
 	// layer never reads env directly; this value is injected.
@@ -166,10 +177,10 @@ func (uc *CreateSubscriptionUseCase) Execute(ctx context.Context, req *subscript
 	// Legacy path — byte-unchanged behavior. Use transaction service if available.
 	var resp *subscriptionpb.CreateSubscriptionResponse
 	if uc.services.Transactor != nil && uc.services.Transactor.SupportsTransactions() {
-		resp, err = uc.executeWithTransaction(ctx, req, enrichedSubscription)
+		resp, err = uc.executeWithTransaction(ctx, req, enrichedSubscription, pricePlan)
 	} else {
 		// Fallback to non-transactional execution
-		resp, err = uc.executeCore(ctx, req, enrichedSubscription)
+		resp, err = uc.executeCoreWithTerms(ctx, req, enrichedSubscription, pricePlan, false)
 	}
 	if err != nil {
 		return nil, err
@@ -211,7 +222,7 @@ func (uc *CreateSubscriptionUseCase) executeWithRequiredSpawn(
 	spawnJobs bool,
 ) (*subscriptionpb.CreateSubscriptionResponse, error) {
 	createAndSpawn := func(txCtx context.Context) (*subscriptionpb.CreateSubscriptionResponse, error) {
-		resp, err := uc.executeCore(txCtx, req, enrichedSubscription)
+		resp, err := uc.executeCoreWithTerms(txCtx, req, enrichedSubscription, pricePlan, true)
 		if err != nil {
 			return nil, err
 		}
@@ -381,10 +392,10 @@ func (a *MaterializeJobsForSubscriptionInstantiator) InstantiateJobsFromPlanDeta
 }
 
 // executeWithTransaction executes subscription creation within a transaction
-func (uc *CreateSubscriptionUseCase) executeWithTransaction(ctx context.Context, req *subscriptionpb.CreateSubscriptionRequest, enrichedSubscription *subscriptionpb.Subscription) (*subscriptionpb.CreateSubscriptionResponse, error) {
+func (uc *CreateSubscriptionUseCase) executeWithTransaction(ctx context.Context, req *subscriptionpb.CreateSubscriptionRequest, enrichedSubscription *subscriptionpb.Subscription, pricePlan *priceplanpb.PricePlan) (*subscriptionpb.CreateSubscriptionResponse, error) {
 	var result *subscriptionpb.CreateSubscriptionResponse
 	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
-		res, err := uc.executeCore(txCtx, req, enrichedSubscription)
+		res, err := uc.executeCoreWithTerms(txCtx, req, enrichedSubscription, pricePlan, true)
 		if err != nil {
 			return err
 		}
@@ -398,14 +409,33 @@ func (uc *CreateSubscriptionUseCase) executeWithTransaction(ctx context.Context,
 	return result, nil
 }
 
-// executeCore contains the core business logic for creating a subscription
+// executeCore is the legacy entry (no agreement terms): the AD_HOC pool-invoice path uses it, and
+// charge-policy lines are refused on AD_HOC / TOTAL_PACKAGE price plans, so it never needs terms.
 func (uc *CreateSubscriptionUseCase) executeCore(ctx context.Context, req *subscriptionpb.CreateSubscriptionRequest, enrichedSubscription *subscriptionpb.Subscription) (*subscriptionpb.CreateSubscriptionResponse, error) {
+	return uc.executeCoreWithTerms(ctx, req, enrichedSubscription, nil, false)
+}
+
+// executeCoreWithTerms contains the core business logic for creating a subscription and, inside the
+// same transaction (inTx), its S1 agreement line terms: the terms are resolved with reads BEFORE the
+// subscription is written, so a refusal (resolver, no transaction) leaves nothing behind. A nil
+// pricePlan (the legacy AD_HOC path) resolves no terms.
+func (uc *CreateSubscriptionUseCase) executeCoreWithTerms(ctx context.Context, req *subscriptionpb.CreateSubscriptionRequest, enrichedSubscription *subscriptionpb.Subscription, pricePlan *priceplanpb.PricePlan, inTx bool) (*subscriptionpb.CreateSubscriptionResponse, error) {
+	agreementTerms, err := uc.resolveAgreementTerms(ctx, enrichedSubscription, pricePlan)
+	if err != nil {
+		return nil, err
+	}
+	if len(agreementTerms) > 0 && !inTx {
+		return nil, uc.refuseTerm(ctx, codeTransactionRequired) // never leave a subscription without its terms
+	}
 	resp, err := uc.repositories.Subscription.CreateSubscription(ctx, &subscriptionpb.CreateSubscriptionRequest{
 		Data: enrichedSubscription,
 	})
 	if err != nil {
 		log.Printf("CreateSubscription DB error: %v", err)
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "subscription.errors.creation_failed", "[ERR-DEFAULT] Subscription creation failed"))
+	}
+	if err := uc.createAgreementTerms(ctx, enrichedSubscription, agreementTerms); err != nil {
+		return nil, err // inside the transaction: the subscription rolls back with its terms
 	}
 	return resp, nil
 }

@@ -44,6 +44,9 @@ type ledgerReportingTableConfig struct {
 	TreasuryCollection   string
 	CollectionMethod     string
 	PaymentTerm          string
+	// S1 application leg of the receivables reports
+	CollectionApplication string
+	RecoveryDocument      string
 }
 
 // buildLedgerReportingAdapter creates the raw ledger reporting adapter from
@@ -87,6 +90,9 @@ func buildLedgerReportingAdapter(db *sql.DB) any {
 		TreasuryCollection:   "treasury_collection",
 		CollectionMethod:     "collection_method",
 		PaymentTerm:          "payment_term",
+		// S1 application leg of the receivables reports
+		CollectionApplication: "collection_application",
+		RecoveryDocument:      "recovery_document",
 	}
 	return factory(db, tableConfig)
 }

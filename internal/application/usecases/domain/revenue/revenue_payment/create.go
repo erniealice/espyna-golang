@@ -16,15 +16,17 @@ import (
 // CreateRevenuePaymentRepositories groups all repository dependencies
 type CreateRevenuePaymentRepositories struct {
 	RevenuePayment pb.RevenuePaymentDomainServiceServer
+	// Guard refuses legacy payment writes on participating revenues (AC-UC-33); zero value = off.
+	Guard ParticipationGuard
 }
 
 // CreateRevenuePaymentServices groups all business service dependencies
 type CreateRevenuePaymentServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // CreateRevenuePaymentUseCase handles the business logic for creating revenue payments
@@ -87,6 +89,11 @@ func (uc *CreateRevenuePaymentUseCase) executeWithTransaction(ctx context.Contex
 func (uc *CreateRevenuePaymentUseCase) executeCore(ctx context.Context, req *pb.CreateRevenuePaymentRequest) (*pb.CreateRevenuePaymentResponse, error) {
 	// Input validation
 	if err := uc.validateInput(ctx, req); err != nil {
+		return nil, err
+	}
+
+	// Legacy-payment guard (AC-UC-33): participating revenues settle through applications.
+	if err := uc.repositories.Guard.refuseIfParticipating(ctx, uc.services.Translator, req.Data.RevenueId); err != nil {
 		return nil, err
 	}
 

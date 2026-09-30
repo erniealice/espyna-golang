@@ -2,6 +2,13 @@ package domain
 
 import (
 	"fmt"
+	chargeeffectpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_effect"
+	chargepolicypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy"
+	chargepolicycomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_component"
+	chargepolicypostingpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_posting"
+	chargepolicyversionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_version"
+	chargepolicyversioneditorpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_version_editor"
+	taxtreatmentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/tax/tax_treatment"
 
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
@@ -25,6 +32,8 @@ import (
 
 // LedgerRepositories contains all ledger domain repositories
 type LedgerRepositories struct {
+	// Slice B known-cost recovery (20260927-usage-and-pass-through-charges, S1)
+	ChargeEffect chargeeffectpb.ChargeEffectDomainServiceServer
 	// Existing document repositories
 	DocumentTemplate documenttemplatepb.DocumentTemplateDomainServiceServer
 	Attachment       attachmentpb.AttachmentDomainServiceServer
@@ -39,6 +48,16 @@ type LedgerRepositories struct {
 	RecurringJournalTemplate recurringjournaltemplatepb.RecurringJournalTemplateDomainServiceServer
 	EquityAccount            equityaccountpb.EquityAccountDomainServiceServer
 	EquityTransaction        equitytransactionpb.EquityTransactionDomainServiceServer
+
+	// Charge policy (20260927-usage-and-pass-through-charges, Slice A)
+	ChargePolicy          chargepolicypb.ChargePolicyDomainServiceServer
+	ChargePolicyVersion   chargepolicyversionpb.ChargePolicyVersionDomainServiceServer
+	ChargePolicyComponent chargepolicycomponentpb.ChargePolicyComponentDomainServiceServer
+	ChargePolicyPosting   chargepolicypostingpb.ChargePolicyPostingDomainServiceServer
+	// ChargePolicyVersionEditor records draft editors for the approval separation-of-duties rule (C12).
+	ChargePolicyVersionEditor chargepolicyversioneditorpb.ChargePolicyVersionEditorDomainServiceServer
+	// TaxTreatment (cross-domain: tax) backs the existence check of a version's tax_treatment_id.
+	TaxTreatment taxtreatmentpb.TaxTreatmentDomainServiceServer
 }
 
 // NewLedgerRepositories creates and returns a new set of LedgerRepositories.
@@ -92,6 +111,29 @@ func NewLedgerRepositories(dbProvider contracts.Provider, tableConfig *registry.
 	if r := tryCreate(entityid.JournalLine); r != nil {
 		repos.JournalLine = r.(journallinepb.JournalLineDomainServiceServer)
 	}
+	if r := tryCreate(entityid.ChargePolicy); r != nil {
+		repos.ChargePolicy = r.(chargepolicypb.ChargePolicyDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ChargePolicyVersion); r != nil {
+		repos.ChargePolicyVersion = r.(chargepolicyversionpb.ChargePolicyVersionDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ChargePolicyComponent); r != nil {
+		repos.ChargePolicyComponent = r.(chargepolicycomponentpb.ChargePolicyComponentDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ChargePolicyPosting); r != nil {
+		repos.ChargePolicyPosting = r.(chargepolicypostingpb.ChargePolicyPostingDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ChargePolicyVersionEditor); r != nil {
+		repos.ChargePolicyVersionEditor = r.(chargepolicyversioneditorpb.ChargePolicyVersionEditorDomainServiceServer)
+	}
+	if r := tryCreate(entityid.TaxTreatment); r != nil {
+		repos.TaxTreatment = r.(taxtreatmentpb.TaxTreatmentDomainServiceServer)
+	}
+	// Slice B known-cost recovery (S1)
+	if r := tryCreate(entityid.ChargeEffect); r != nil {
+		repos.ChargeEffect = r.(chargeeffectpb.ChargeEffectDomainServiceServer)
+	}
+
 	if r := tryCreate(entityid.FiscalPeriod); r != nil {
 		repos.FiscalPeriod = r.(fiscalperiodpb.FiscalPeriodDomainServiceServer)
 	}

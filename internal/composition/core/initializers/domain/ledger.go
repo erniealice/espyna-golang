@@ -18,6 +18,8 @@ func InitializeLedger(
 ) (*ledger.LedgerUseCases, error) {
 	return ledger.NewUseCases(
 		ledger.LedgerRepositories{
+			// Slice B known-cost recovery (S1)
+			ChargeEffect: repos.ChargeEffect,
 			// Existing document repositories
 			DocumentTemplate: repos.DocumentTemplate,
 			Attachment:       repos.Attachment,
@@ -32,6 +34,13 @@ func InitializeLedger(
 			RecurringJournalTemplate: repos.RecurringJournalTemplate,
 			EquityAccount:            repos.EquityAccount,
 			EquityTransaction:        repos.EquityTransaction,
+
+			ChargePolicy:              repos.ChargePolicy,
+			ChargePolicyVersion:       repos.ChargePolicyVersion,
+			ChargePolicyComponent:     repos.ChargePolicyComponent,
+			ChargePolicyPosting:       repos.ChargePolicyPosting,
+			ChargePolicyVersionEditor: repos.ChargePolicyVersionEditor,
+			TaxTreatment:              repos.TaxTreatment,
 		},
 		authSvc,
 		txSvc,

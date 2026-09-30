@@ -2,6 +2,15 @@ package domain
 
 import (
 	"fmt"
+	chargeeffectpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_effect"
+	chargepolicypostingpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_posting"
+	documentseriespb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/document_series"
+	recoverydocumentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/recovery_document"
+	recoverydocumentlinepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/revenue/recovery_document_line"
+	agreementlinetermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/agreement_line_term"
+	billablechargepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billable_charge"
+	chargecomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/charge_component"
+	collectionapplicationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_application"
 
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
@@ -46,13 +55,25 @@ import (
 // dependencies needed by the RecognizeRevenueFromSubscription use case:
 // Subscription, PricePlan, ProductPricePlan, PriceSchedule, and Client.
 type RevenueRepositories struct {
-	Revenue          revenuepb.RevenueDomainServiceServer
-	RevenueLineItem  revenuelineitempb.RevenueLineItemDomainServiceServer
-	RevenuePayment   revenuepaymentpb.RevenuePaymentDomainServiceServer
-	RevenueCategory  revenuecategorypb.RevenueCategoryDomainServiceServer
-	RevenueAttribute revenueattributepb.RevenueAttributeDomainServiceServer
-	DeferredRevenue  deferredrevenuepb.DeferredRevenueDomainServiceServer
-	RevenueTaxLine   revenuetaxlinepb.RevenueTaxLineDomainServiceServer
+	// Slice B known-cost recovery (20260927-usage-and-pass-through-charges, S1)
+	DocumentSeries       documentseriespb.DocumentSeriesDomainServiceServer
+	RecoveryDocument     recoverydocumentpb.RecoveryDocumentDomainServiceServer
+	RecoveryDocumentLine recoverydocumentlinepb.RecoveryDocumentLineDomainServiceServer
+	// Issuance / void collaborators (W3-B): cross-domain repositories for IssueRecoveryDocuments etc.
+	BillableCharge        billablechargepb.BillableChargeDomainServiceServer
+	ChargeComponent       chargecomponentpb.ChargeComponentDomainServiceServer
+	ChargePolicyPosting   chargepolicypostingpb.ChargePolicyPostingDomainServiceServer
+	ChargeEffect          chargeeffectpb.ChargeEffectDomainServiceServer
+	CollectionApplication collectionapplicationpb.CollectionApplicationDomainServiceServer
+	// Legacy-payment guard collaborator (W3-C)
+	AgreementLineTerm agreementlinetermpb.AgreementLineTermDomainServiceServer
+	Revenue           revenuepb.RevenueDomainServiceServer
+	RevenueLineItem   revenuelineitempb.RevenueLineItemDomainServiceServer
+	RevenuePayment    revenuepaymentpb.RevenuePaymentDomainServiceServer
+	RevenueCategory   revenuecategorypb.RevenueCategoryDomainServiceServer
+	RevenueAttribute  revenueattributepb.RevenueAttributeDomainServiceServer
+	DeferredRevenue   deferredrevenuepb.DeferredRevenueDomainServiceServer
+	RevenueTaxLine    revenuetaxlinepb.RevenueTaxLineDomainServiceServer
 	// Cross-domain dependency: payment term lookup for due date computation
 	PaymentTerm paymenttermpb.PaymentTermDomainServiceServer
 
@@ -177,6 +198,35 @@ func NewRevenueRepositories(dbProvider contracts.Provider, tableConfig *registry
 	// Treasury — selling-side advance Collection (Plan B Phase 5a).
 	if r := tryCreate(entityid.TreasuryCollection); r != nil {
 		repos.TreasuryCollection = r.(collectionpb.CollectionDomainServiceServer)
+	}
+
+	// Slice B known-cost recovery (S1)
+	if r := tryCreate(entityid.DocumentSeries); r != nil {
+		repos.DocumentSeries = r.(documentseriespb.DocumentSeriesDomainServiceServer)
+	}
+	if r := tryCreate(entityid.RecoveryDocument); r != nil {
+		repos.RecoveryDocument = r.(recoverydocumentpb.RecoveryDocumentDomainServiceServer)
+	}
+	if r := tryCreate(entityid.RecoveryDocumentLine); r != nil {
+		repos.RecoveryDocumentLine = r.(recoverydocumentlinepb.RecoveryDocumentLineDomainServiceServer)
+	}
+	if r := tryCreate(entityid.BillableCharge); r != nil {
+		repos.BillableCharge = r.(billablechargepb.BillableChargeDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ChargeComponent); r != nil {
+		repos.ChargeComponent = r.(chargecomponentpb.ChargeComponentDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ChargePolicyPosting); r != nil {
+		repos.ChargePolicyPosting = r.(chargepolicypostingpb.ChargePolicyPostingDomainServiceServer)
+	}
+	if r := tryCreate(entityid.ChargeEffect); r != nil {
+		repos.ChargeEffect = r.(chargeeffectpb.ChargeEffectDomainServiceServer)
+	}
+	if r := tryCreate(entityid.CollectionApplication); r != nil {
+		repos.CollectionApplication = r.(collectionapplicationpb.CollectionApplicationDomainServiceServer)
+	}
+	if r := tryCreate(entityid.AgreementLineTerm); r != nil {
+		repos.AgreementLineTerm = r.(agreementlinetermpb.AgreementLineTermDomainServiceServer)
 	}
 
 	if len(skipped) > 0 {

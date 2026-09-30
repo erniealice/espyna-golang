@@ -2,6 +2,11 @@ package domain
 
 import (
 	"fmt"
+	chargepolicypb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy"
+	chargepolicyversionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/ledger/charge_policy_version"
+	agreementlinetermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/agreement_line_term"
+	billablechargepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/billable_charge"
+	chargecomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/charge_component"
 
 	"github.com/erniealice/espyna-golang/internal/composition/contracts"
 	"github.com/erniealice/espyna-golang/internal/infrastructure/registry"
@@ -41,22 +46,30 @@ import (
 
 // SubscriptionRepositories contains all subscription domain repositories
 type SubscriptionRepositories struct {
-	Workspace        workspacepb.WorkspaceDomainServiceServer
-	Balance          balancepb.BalanceDomainServiceServer
-	BalanceAttribute balanceattributepb.BalanceAttributeDomainServiceServer
-	BillingEvent     billingeventpb.BillingEventDomainServiceServer
-	Client           clientpb.ClientDomainServiceServer // Cross-domain dependency
-	Invoice          invoicepb.InvoiceDomainServiceServer
-	InvoiceAttribute invoiceattributepb.InvoiceAttributeDomainServiceServer
-	Plan             planpb.PlanDomainServiceServer
-	PlanAttribute    planattributepb.PlanAttributeDomainServiceServer
-	PlanSettings     plansettingspb.PlanSettingsDomainServiceServer
-	PricePlan        priceplanpb.PricePlanDomainServiceServer
-	PriceSchedule    priceschedulepb.PriceScheduleDomainServiceServer
-	ProductPlan      productplanpb.ProductPlanDomainServiceServer // Cross-domain dependency (Model D)
+	// Slice B known-cost recovery (20260927-usage-and-pass-through-charges, S1)
+	AgreementLineTerm agreementlinetermpb.AgreementLineTermDomainServiceServer
+	BillableCharge    billablechargepb.BillableChargeDomainServiceServer
+	ChargeComponent   chargecomponentpb.ChargeComponentDomainServiceServer
+	Workspace         workspacepb.WorkspaceDomainServiceServer
+	Balance           balancepb.BalanceDomainServiceServer
+	BalanceAttribute  balanceattributepb.BalanceAttributeDomainServiceServer
+	BillingEvent      billingeventpb.BillingEventDomainServiceServer
+	Client            clientpb.ClientDomainServiceServer // Cross-domain dependency
+	Invoice           invoicepb.InvoiceDomainServiceServer
+	InvoiceAttribute  invoiceattributepb.InvoiceAttributeDomainServiceServer
+	Plan              planpb.PlanDomainServiceServer
+	PlanAttribute     planattributepb.PlanAttributeDomainServiceServer
+	PlanSettings      plansettingspb.PlanSettingsDomainServiceServer
+	PricePlan         priceplanpb.PricePlanDomainServiceServer
+	PriceSchedule     priceschedulepb.PriceScheduleDomainServiceServer
+	ProductPlan       productplanpb.ProductPlanDomainServiceServer // Cross-domain dependency (Model D)
 	// ProductPlanStaff — cross-domain (product): sgpps eligibility guard anchor.
-	ProductPlanStaff      productplanstaffpb.ProductPlanStaffDomainServiceServer
-	ProductPricePlan      productpriceplanpb.ProductPricePlanDomainServiceServer
+	ProductPlanStaff productplanstaffpb.ProductPlanStaffDomainServiceServer
+	ProductPricePlan productpriceplanpb.ProductPricePlanDomainServiceServer
+	// Charge policy opt-in guard collaborators (cross-domain: ledger). Best-effort: nil when the
+	// provider has no charge_policy adapter; the guard then refuses lines that set a policy.
+	ChargePolicy          chargepolicypb.ChargePolicyDomainServiceServer
+	ChargePolicyVersion   chargepolicyversionpb.ChargePolicyVersionDomainServiceServer
 	Subscription          subscriptionpb.SubscriptionDomainServiceServer
 	SubscriptionAttribute subscriptionattributepb.SubscriptionAttributeDomainServiceServer
 	// Outsourcing-vertical seat + servicing membership
@@ -144,6 +157,30 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, tableConfig *reg
 	productPlanRepo, err := repoCreator.CreateRepository(entityid.ProductPlan, conn, tableConfig.TableName(entityid.ProductPlan))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create product_plan repository: %w", err)
+	}
+
+	// Optional cross-domain charge policy repositories for the package-line opt-in guard.
+	var chargePolicyServer chargepolicypb.ChargePolicyDomainServiceServer
+	if r, cErr := repoCreator.CreateRepository(entityid.ChargePolicy, conn, tableConfig.TableName(entityid.ChargePolicy)); cErr == nil {
+		chargePolicyServer, _ = r.(chargepolicypb.ChargePolicyDomainServiceServer)
+	}
+	var chargePolicyVersionServer chargepolicyversionpb.ChargePolicyVersionDomainServiceServer
+	if r, cErr := repoCreator.CreateRepository(entityid.ChargePolicyVersion, conn, tableConfig.TableName(entityid.ChargePolicyVersion)); cErr == nil {
+		chargePolicyVersionServer, _ = r.(chargepolicyversionpb.ChargePolicyVersionDomainServiceServer)
+	}
+
+	// Slice B known-cost recovery (S1) — optional: absent adapters leave the field nil.
+	var agreementLineTermServer agreementlinetermpb.AgreementLineTermDomainServiceServer
+	if r, cErr := repoCreator.CreateRepository(entityid.AgreementLineTerm, conn, tableConfig.TableName(entityid.AgreementLineTerm)); cErr == nil {
+		agreementLineTermServer, _ = r.(agreementlinetermpb.AgreementLineTermDomainServiceServer)
+	}
+	var billableChargeServer billablechargepb.BillableChargeDomainServiceServer
+	if r, cErr := repoCreator.CreateRepository(entityid.BillableCharge, conn, tableConfig.TableName(entityid.BillableCharge)); cErr == nil {
+		billableChargeServer, _ = r.(billablechargepb.BillableChargeDomainServiceServer)
+	}
+	var chargeComponentServer chargecomponentpb.ChargeComponentDomainServiceServer
+	if r, cErr := repoCreator.CreateRepository(entityid.ChargeComponent, conn, tableConfig.TableName(entityid.ChargeComponent)); cErr == nil {
+		chargeComponentServer, _ = r.(chargecomponentpb.ChargeComponentDomainServiceServer)
 	}
 
 	subscriptionRepo, err := repoCreator.CreateRepository(entityid.Subscription, conn, tableConfig.TableName(entityid.Subscription))
@@ -280,6 +317,11 @@ func NewSubscriptionRepositories(dbProvider contracts.Provider, tableConfig *reg
 		ProductPlan:                       productPlanRepo.(productplanpb.ProductPlanDomainServiceServer),
 		ProductPlanStaff:                  productPlanStaffServer,
 		ProductPricePlan:                  productPricePlanRepo.(productpriceplanpb.ProductPricePlanDomainServiceServer),
+		ChargePolicy:                      chargePolicyServer,
+		ChargePolicyVersion:               chargePolicyVersionServer,
+		AgreementLineTerm:                 agreementLineTermServer,
+		BillableCharge:                    billableChargeServer,
+		ChargeComponent:                   chargeComponentServer,
 		Subscription:                      subscriptionRepo.(subscriptionpb.SubscriptionDomainServiceServer),
 		SubscriptionAttribute:             subscriptionAttributeRepo.(subscriptionattributepb.SubscriptionAttributeDomainServiceServer),
 		SubscriptionSeat:                  subscriptionSeatServer,

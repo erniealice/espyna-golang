@@ -6,9 +6,11 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	clientpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/client"
+	agreementlinetermpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/agreement_line_term"
 	planpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/plan"
 	priceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_plan"
 	priceschedulepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/price_schedule"
+	productpriceplanpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/product_price_plan"
 	subscriptionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/subscription/subscription"
 )
 
@@ -32,6 +34,10 @@ type SubscriptionRepositories struct {
 	PricePlan     priceplanpb.PricePlanDomainServiceServer
 	Plan          planpb.PlanDomainServiceServer                   // Only for CreateSubscription code-gen ({grade})
 	PriceSchedule priceschedulepb.PriceScheduleDomainServiceServer // Only for CreateSubscription code-gen ({price_schedule})
+
+	// Optional S1 collaborators for CreateSubscription (agreement_line_term creation).
+	ProductPricePlan  productpriceplanpb.ProductPricePlanDomainServiceServer
+	AgreementLineTerm agreementlinetermpb.AgreementLineTermDomainServiceServer
 }
 
 // SubscriptionServices groups all business service dependencies
@@ -43,6 +49,8 @@ type SubscriptionServices struct {
 	IDGenerator             ports.IDGenerator // Only for CreateSubscription
 	JobTemplateInstantiator JobTemplateInstantiator
 	CodeFormat              string // SUBSCRIPTION_CODE_FORMAT template; only for CreateSubscription
+	// ChargePolicyResolver: only for CreateSubscription's agreement terms (S1); nil = opted-in lines refuse.
+	ChargePolicyResolver ChargePolicyResolver
 }
 
 // UseCases contains all subscription-related use cases.
@@ -82,6 +90,9 @@ func NewUseCases(
 		PricePlan:     repositories.PricePlan,
 		Plan:          repositories.Plan,
 		PriceSchedule: repositories.PriceSchedule,
+
+		ProductPricePlan:  repositories.ProductPricePlan,
+		AgreementLineTerm: repositories.AgreementLineTerm,
 	}
 	createServices := CreateSubscriptionServices{
 		ActionGatekeeper:        services.ActionGatekeeper,
@@ -91,6 +102,7 @@ func NewUseCases(
 		IDGenerator:             services.IDGenerator,
 		JobTemplateInstantiator: services.JobTemplateInstantiator,
 		CodeFormat:              services.CodeFormat,
+		ChargePolicyResolver:    services.ChargePolicyResolver,
 	}
 
 	readRepos := ReadSubscriptionRepositories{

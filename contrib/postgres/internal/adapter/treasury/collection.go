@@ -182,6 +182,24 @@ func (r *PostgresCollectionRepository) ReadCollection(ctx context.Context, req *
 	}, nil
 }
 
+// LockCollectionForUpdate takes one treasury_collection row FOR UPDATE inside the ambient
+// transaction (domainports.CollectionLocker); workspace-scoped, fail closed without a transaction,
+// foreign or missing row = not found. The legacy collection update/delete take it before checking
+// for APPLIED applications, so an edit cannot race a receipt's application (build-spec §7c C25).
+func (r *PostgresCollectionRepository) LockCollectionForUpdate(ctx context.Context, id string) (*collectionpb.Collection, error) {
+	if err := postgresCore.LockScopedRowForUpdate(ctx, r.dbOps, r.tableName, id); err != nil {
+		return nil, err
+	}
+	resp, err := r.ReadCollection(ctx, &collectionpb.ReadCollectionRequest{Data: &collectionpb.Collection{Id: id}})
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.GetData()) == 0 {
+		return nil, fmt.Errorf("treasury_collection lock: not found")
+	}
+	return resp.Data[0], nil
+}
+
 // UpdateCollection updates a collection record
 func (r *PostgresCollectionRepository) UpdateCollection(ctx context.Context, req *collectionpb.UpdateCollectionRequest) (*collectionpb.UpdateCollectionResponse, error) {
 	if req.Data == nil || req.Data.Id == "" {

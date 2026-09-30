@@ -3,6 +3,7 @@ package expenserecognition
 import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
+	costsourcecomponentpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/cost_source_component"
 	expenditurepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure"
 	expenditurelineitempb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expenditure_line_item"
 	expenserecognitionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/expenditure/expense_recognition"
@@ -19,15 +20,17 @@ type ExpenseRecognitionRepositories struct {
 	// Optional: when set, supplier subscription workspace ownership is validated on
 	// RecognizeFromExpenditure calls that carry a supplier_subscription_id.
 	SupplierSubscription suppliersubscriptionpb.SupplierSubscriptionDomainServiceServer
+	// Optional: S1 shared source claim for RecognizeFromExpenditure (see its repositories doc).
+	CostSourceComponent costsourcecomponentpb.CostSourceComponentDomainServiceServer
 }
 
 // ExpenseRecognitionServices groups all service dependencies.
 type ExpenseRecognitionServices struct {
-	Authorizer  ports.Authorizer
-	Transactor  ports.Transactor
-	Translator  ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
-	IDGenerator ports.IDGenerator
+	IDGenerator      ports.IDGenerator
 }
 
 // UseCases contains all expense recognition use cases.
@@ -58,42 +61,42 @@ func NewUseCases(
 		CreateExpenseRecognition: NewCreateExpenseRecognitionUseCase(
 			CreateExpenseRecognitionRepositories{ExpenseRecognition: repositories.ExpenseRecognition},
 			CreateExpenseRecognitionServices{
-				Authorizer:  services.Authorizer,
-				Transactor:  services.Transactor,
-				Translator:  services.Translator,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
 				ActionGatekeeper: services.ActionGatekeeper,
-				IDGenerator: services.IDGenerator,
+				IDGenerator:      services.IDGenerator,
 			},
 		),
 		ReadExpenseRecognition: NewReadExpenseRecognitionUseCase(
 			ReadExpenseRecognitionRepositories{ExpenseRecognition: repositories.ExpenseRecognition},
 			ReadExpenseRecognitionServices{
-				Authorizer: services.Authorizer,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Translator:       services.Translator,
 				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		UpdateExpenseRecognition: NewUpdateExpenseRecognitionUseCase(
 			UpdateExpenseRecognitionRepositories{ExpenseRecognition: repositories.ExpenseRecognition},
 			UpdateExpenseRecognitionServices{
-				Authorizer: services.Authorizer,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Translator:       services.Translator,
 				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		DeleteExpenseRecognition: NewDeleteExpenseRecognitionUseCase(
 			DeleteExpenseRecognitionRepositories{ExpenseRecognition: repositories.ExpenseRecognition},
 			DeleteExpenseRecognitionServices{
-				Authorizer: services.Authorizer,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Translator:       services.Translator,
 				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
 		ListExpenseRecognitions: NewListExpenseRecognitionsUseCase(
 			ListExpenseRecognitionsRepositories{ExpenseRecognition: repositories.ExpenseRecognition},
 			ListExpenseRecognitionsServices{
-				Authorizer: services.Authorizer,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Translator:       services.Translator,
 				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),
@@ -104,40 +107,41 @@ func NewUseCases(
 				Expenditure:            repositories.Expenditure,
 				ExpenditureLineItem:    repositories.ExpenditureLineItem,
 				SupplierSubscription:   repositories.SupplierSubscription,
+				CostSourceComponent:    repositories.CostSourceComponent,
 			},
 			RecognizeFromExpenditureServices{
-				Authorizer:  services.Authorizer,
-				Transactor:  services.Transactor,
-				Translator:  services.Translator,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
 				ActionGatekeeper: services.ActionGatekeeper,
-				IDGenerator: services.IDGenerator,
+				IDGenerator:      services.IDGenerator,
 			},
 		),
 		RecognizeFromContract: NewRecognizeFromContractUseCase(
 			RecognizeFromContractRepositories{ExpenseRecognition: repositories.ExpenseRecognition},
 			RecognizeFromContractServices{
-				Authorizer:  services.Authorizer,
-				Transactor:  services.Transactor,
-				Translator:  services.Translator,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
 				ActionGatekeeper: services.ActionGatekeeper,
-				IDGenerator: services.IDGenerator,
+				IDGenerator:      services.IDGenerator,
 			},
 		),
 		ReverseExpenseRecognition: NewReverseExpenseRecognitionUseCase(
 			ReverseExpenseRecognitionRepositories{ExpenseRecognition: repositories.ExpenseRecognition},
 			ReverseExpenseRecognitionServices{
-				Authorizer:  services.Authorizer,
-				Transactor:  services.Transactor,
-				Translator:  services.Translator,
+				Authorizer:       services.Authorizer,
+				Transactor:       services.Transactor,
+				Translator:       services.Translator,
 				ActionGatekeeper: services.ActionGatekeeper,
-				IDGenerator: services.IDGenerator,
+				IDGenerator:      services.IDGenerator,
 			},
 		),
 		GetUnrecognizedExpenditures: NewGetUnrecognizedExpendituresUseCase(
 			GetUnrecognizedExpendituresRepositories{ExpenseRecognition: repositories.ExpenseRecognition},
 			GetUnrecognizedExpendituresServices{
-				Authorizer: services.Authorizer,
-				Translator: services.Translator,
+				Authorizer:       services.Authorizer,
+				Translator:       services.Translator,
 				ActionGatekeeper: services.ActionGatekeeper,
 			},
 		),

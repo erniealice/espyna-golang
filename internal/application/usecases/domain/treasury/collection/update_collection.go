@@ -8,21 +8,23 @@ import (
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
-	"github.com/erniealice/espyna-golang/registry/entityid"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/registry/entityid"
 	collectionpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection"
+	collectionapplicationpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/treasury/collection_application"
 )
 
 // UpdateCollectionRepositories groups all repository dependencies
 type UpdateCollectionRepositories struct {
-	Collection collectionpb.CollectionDomainServiceServer
+	Collection            collectionpb.CollectionDomainServiceServer
+	CollectionApplication collectionapplicationpb.CollectionApplicationDomainServiceServer
 }
 
 // UpdateCollectionServices groups all business service dependencies
 type UpdateCollectionServices struct {
-	Authorizer ports.Authorizer
-	Transactor ports.Transactor
-	Translator ports.Translator
+	Authorizer       ports.Authorizer
+	Transactor       ports.Transactor
+	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
 }
 
@@ -94,6 +96,12 @@ func (uc *UpdateCollectionUseCase) Execute(ctx context.Context, req *collectionp
 func (uc *UpdateCollectionUseCase) executeCore(ctx context.Context, req *collectionpb.UpdateCollectionRequest) (*collectionpb.UpdateCollectionResponse, error) {
 	if req == nil || req.Data == nil || req.Data.Id == "" {
 		return nil, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "collection.validation.id_required", "Collection ID is required [DEFAULT]"))
+	}
+
+	// C25: a receipt that anchors APPLIED applications is immutable; the row lock serialises this
+	// edit against a concurrent application.
+	if err := refuseAppliedReceipt(ctx, uc.services.Translator, uc.repositories.Collection, uc.repositories.CollectionApplication, req.Data.Id); err != nil {
+		return nil, err
 	}
 
 	// Set date_modified

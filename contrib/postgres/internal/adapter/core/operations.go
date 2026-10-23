@@ -1397,12 +1397,15 @@ func (p *PostgresOperations) buildDateFilter(field string, filter *commonpb.Date
 	return condition, values, paramIndex
 }
 
-// getTableColumns retrieves column names for a table
+// getTableColumns retrieves column names for a table. Both reflection queries
+// are pinned to current_schema(): on Supabase, same-named tables in other
+// schemas (realtime.subscription, auth.schema_migrations) would otherwise merge
+// into the column list and break Create's RETURNING scan.
 func (p *PostgresOperations) getTableColumns(ctx context.Context, tableName string) ([]string, error) {
 	query := `
 		SELECT column_name
 		FROM information_schema.columns
-		WHERE table_name = $1
+		WHERE table_schema = current_schema() AND table_name = $1
 		ORDER BY ordinal_position
 	`
 
@@ -1458,7 +1461,7 @@ func (p *PostgresOperations) getTableColumnTypes(ctx context.Context, tableName 
 	query := `
 		SELECT column_name, data_type
 		FROM information_schema.columns
-		WHERE table_name = $1
+		WHERE table_schema = current_schema() AND table_name = $1
 	`
 	rows, err := p.getExecutor(ctx).QueryContext(ctx, query, tableName)
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
+	"github.com/erniealice/espyna-golang/internal/application/shared/approvalctx"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
 	"github.com/erniealice/espyna-golang/internal/application/shared/gradecompute"
 	"github.com/erniealice/espyna-golang/registry/entityid"
@@ -96,7 +97,7 @@ func (uc *ComputeJobOutcomeUseCase) Execute(ctx context.Context, req *ComputeJob
 		return nil, err
 	}
 
-	return uc.run(ctx, req)
+	return uc.run(ctx, req, false)
 }
 
 // ExecuteAfterRecord runs the same roll-up when it is triggered by a grade the
@@ -109,12 +110,20 @@ func (uc *ComputeJobOutcomeUseCase) ExecuteAfterRecord(ctx context.Context, req 
 	if err := checkRecordGrant(ctx, uc.services.ActionGatekeeper); err != nil {
 		return nil, err
 	}
-	return uc.run(ctx, req)
+	return uc.run(ctx, req, true)
 }
 
 // run is the roll-up body shared by Execute and ExecuteAfterRecord (both
 // authorize first).
-func (uc *ComputeJobOutcomeUseCase) run(ctx context.Context, req *ComputeJobOutcomeRequest) (*ComputeJobOutcomeResponse, error) {
+//
+// afterRecord marks the grade-sheet save seam: inside the roll-up's own
+// transaction it runs as the trusted recompute (approvalctx), so the summary and
+// outcome reads drop the acting teacher's STAFF row scope. Without it the existing
+// summary (issued_by never set by the roll-up) is invisible to a staff-scoped
+// GetByJobPhase/GetByJob, every save INSERTS a fresh active summary, and the
+// average covers only the saving teacher's own outcomes. The marker is honoured
+// only on the ambient *sql.Tx, never on the pool.
+func (uc *ComputeJobOutcomeUseCase) run(ctx context.Context, req *ComputeJobOutcomeRequest, afterRecord bool) (*ComputeJobOutcomeResponse, error) {
 	if req == nil || req.JobId == "" {
 		return nil, errors.New(uc.msg(ctx, "grade_compute.validation.job_id_required", "[ERR-DEFAULT] Job ID is required"))
 	}
@@ -126,6 +135,9 @@ func (uc *ComputeJobOutcomeUseCase) run(ctx context.Context, req *ComputeJobOutc
 		// closure instead of rolling it back.
 		var blankErr error
 		err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+			if afterRecord {
+				txCtx = approvalctx.WithTrustedRecompute(txCtx)
+			}
 			res, err := uc.executeJobCore(txCtx, req)
 			if err != nil {
 				if errors.Is(err, ErrNoGradedPhases) {

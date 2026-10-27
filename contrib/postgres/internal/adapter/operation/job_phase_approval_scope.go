@@ -26,8 +26,10 @@ import (
 //   - reviewer edge: every job in the sheet belongs to a product plan offering
 //     the acting staff REVIEWS (product_plan_staff.role = 'reviewer', active).
 //
-// Operator sessions keep the pre-2026-09-24 behaviour (RBAC-only verify /
-// publish / return) — owner decision D-RUN-3. Submit keeps its own D7 ownership
+// Operator sessions (kinds 1/2) carry no staff facet, so they approve only with
+// workspace scope; a reviewer approves on the staff login, where the reviewer
+// edge scopes the sheet (owner 2026-10-27, Endorsement Form #29 — supersedes
+// D-RUN-3's RBAC-only operator approvals). Submit keeps its own D7 ownership
 // gate (class edge or explicit assignment), widened by the reviewer edge.
 // ============================================================================
 
@@ -73,14 +75,18 @@ func sheetOutsideReviewerScopeSQL(narrow string) string {
 }
 
 // assertApprovalScope enforces the scope axis for verify / publish / return.
-// verb names the transition in errors. Operator sessions (kinds 1/2) pass
-// unchanged; a STAFF session passes with workspace scope, otherwise EVERY phase
-// of the sheet must be inside the re-proven staff facet's reviewer scope; every
-// other kind fails closed. Fail closed on a malformed staff session, a facet
+// verb names the transition in errors. An operator session (kinds 1/2) passes
+// only with workspace scope; a STAFF session passes with workspace scope,
+// otherwise EVERY phase of the sheet must be inside the re-proven staff facet's
+// reviewer scope; every other kind fails closed. Fail closed on a malformed staff session, a facet
 // that cannot be re-proven, or a probe error.
 func assertApprovalScope(ctx context.Context, exec sqlexec.DBExecutor, verb, templateID, phaseID, wsID, groupID string) error {
+	d, _ := approvalctx.ScopeDecisionFromContext(ctx)
 	if principalscope.IsOperatorSession(ctx) {
-		return nil
+		if d.WorkspaceScope {
+			return nil
+		}
+		return fmt.Errorf("job_phase %s: operator login without approval_scope:workspace — approve on the staff login (reviewer scope) — fail closed", verb)
 	}
 	staffID, isStaff := principalscope.ActingStaff(ctx)
 	if !isStaff {
@@ -91,7 +97,6 @@ func assertApprovalScope(ctx context.Context, exec sqlexec.DBExecutor, verb, tem
 		// A malformed STAFF session never trusts a scope decision (review wave-2 #1).
 		return fmt.Errorf("job_phase %s: staff session has no resolved principal id — fail closed", verb)
 	}
-	d, _ := approvalctx.ScopeDecisionFromContext(ctx)
 	if d.WorkspaceScope {
 		return nil
 	}

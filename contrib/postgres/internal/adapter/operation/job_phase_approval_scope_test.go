@@ -62,11 +62,28 @@ func staffCtx() context.Context {
 	})
 }
 
-func TestAssertApprovalScope_OperatorPassesWithoutDB(t *testing.T) {
-	ctx := identity.WithRequestIdentity(context.Background(), &identity.RequestIdentity{UserID: "u1", WorkspaceID: "ws1", PrincipalType: 2, PrincipalID: "wu-1"})
-	// nil exec: an operator session must not touch the database here.
-	if err := assertApprovalScope(ctx, nil, "verify", "t1", "p1", "ws1", ""); err != nil {
-		t.Fatalf("operator session should pass the staff scope axis unchanged: %v", err)
+func TestAssertApprovalScope_OperatorWithWorkspaceScopePassesWithoutDB(t *testing.T) {
+	for _, kind := range []int32{1, 2} {
+		ctx := approvalctx.WithScopeDecision(identity.WithRequestIdentity(context.Background(),
+			&identity.RequestIdentity{UserID: "u1", WorkspaceID: "ws1", PrincipalType: kind, PrincipalID: "wu-1"}),
+			approvalctx.ScopeDecision{WorkspaceScope: true})
+		// nil exec: an operator session must not touch the database here.
+		if err := assertApprovalScope(ctx, nil, "verify", "t1", "p1", "ws1", ""); err != nil {
+			t.Fatalf("kind %d operator with approval_scope:workspace should pass: %v", kind, err)
+		}
+	}
+}
+
+// A reviewer's operator login has no staff facet to scope by, so it must not
+// approve at all (the staff login carries the reviewer edge).
+func TestAssertApprovalScope_OperatorWithoutWorkspaceScopeFailsClosed(t *testing.T) {
+	for _, kind := range []int32{1, 2} {
+		ctx := identity.WithRequestIdentity(context.Background(), &identity.RequestIdentity{UserID: "u1", WorkspaceID: "ws1", PrincipalType: kind, PrincipalID: "wu-1"})
+		for _, verb := range []string{"verify", "return", "publish"} {
+			if err := assertApprovalScope(ctx, nil, verb, "t1", "p1", "ws1", ""); err == nil {
+				t.Errorf("kind %d %s without approval_scope:workspace must fail closed", kind, verb)
+			}
+		}
 	}
 }
 

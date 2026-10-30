@@ -232,8 +232,11 @@ func (a *PostgresJobTemplateSummaryQuery) ListJobTemplateSummaries(
 			groupLowestRank                      sql.NullInt64
 			groupMixedAttention                  sql.NullBool
 			templateGrainFallback                sql.NullBool
-			rowTotalItems                        int64
-			rowCategoryCountsJSON                []byte
+			// Field 23: the per-phase (group, template) states as an ordered jsonb
+			// array (gp_status); NULL only on the metadata-only row.
+			groupPhaseStatusesJSON []byte
+			rowTotalItems          int64
+			rowCategoryCountsJSON  []byte
 		)
 		if err := rows.Scan(
 			&templateID, &templateName,
@@ -246,6 +249,7 @@ func (a *PostgresJobTemplateSummaryQuery) ListJobTemplateSummaries(
 			&publishedCount, &phaseCount, &lowestRank, &mixedAttention,
 			&groupPublishedCount, &groupPhaseCount, &groupLowestRank, &groupMixedAttention,
 			&templateGrainFallback,
+			&groupPhaseStatusesJSON,
 			&rowTotalItems, &rowCategoryCountsJSON,
 		); err != nil {
 			return nil, fmt.Errorf("job_template_summary: scan: %w", err)
@@ -280,6 +284,10 @@ func (a *PostgresJobTemplateSummaryQuery) ListJobTemplateSummaries(
 		if err != nil {
 			return nil, err
 		}
+		groupPhaseStatuses, err := decodeGroupPhaseStatuses(groupPhaseStatusesJSON)
+		if err != nil {
+			return nil, err
+		}
 		scanned = append(scanned, summaryScanRow{
 			templateID: templateID.String, templateName: templateName.String,
 			groupID: groupID.String, groupName: groupName.String,
@@ -299,6 +307,7 @@ func (a *PostgresJobTemplateSummaryQuery) ListJobTemplateSummaries(
 			groupLowestRank:       nullRankToInt(groupLowestRank),
 			groupMixedAttention:   groupMixedAttention.Bool,
 			templateGrainFallback: templateGrainFallback.Bool,
+			groupPhaseStatuses:    groupPhaseStatuses,
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -388,6 +397,9 @@ type summaryScanRow struct {
 	groupLowestRank                      int
 	groupMixedAttention                  bool
 	templateGrainFallback                bool
+	// Field 23 — per-phase (group, template) states in phase_order, determined
+	// by (templateID, groupID) ⊆ the collation key (set-once first-seen).
+	groupPhaseStatuses []*summarypb.JobTemplateSummaryPhaseStatus
 }
 
 // deliveryPairs joins the two ordered SQL arrays into the response deliverers.
@@ -420,7 +432,51 @@ func summaryFromScanRow(r summaryScanRow) *summarypb.JobTemplateSummary {
 		GroupPublishedCount: r.groupPublishedCount, GroupPhaseCount: r.groupPhaseCount,
 		GroupLowestStatus: approvalRankToStatus(r.groupLowestRank), GroupMixedAttention: r.groupMixedAttention,
 		TemplateGrainFallback: r.templateGrainFallback,
+		GroupPhaseStatuses:    r.groupPhaseStatuses,
 	}
+}
+
+// jobTemplateSummaryPhaseStatusJSON is one gp_status jsonb element. The keys
+// are the SQL jsonb_build_object keys; lowest_rank is the ladder rank (0 = no
+// job_phase row in the slice → UNSPECIFIED via approvalRankToStatus).
+type jobTemplateSummaryPhaseStatusJSON struct {
+	JobTemplatePhaseID string `json:"job_template_phase_id"`
+	Code               string `json:"code"`
+	Name               string `json:"name"`
+	PhaseOrder         int32  `json:"phase_order"`
+	LowestRank         int    `json:"lowest_rank"`
+	MixedAttention     bool   `json:"mixed_attention"`
+	HasData            bool   `json:"has_data"`
+}
+
+// decodeGroupPhaseStatuses maps the gp_status array (already ordered by
+// phase_order, id in SQL) to field 23, preserving that order. NULL/empty → nil
+// (a template with no active phase, a group-less or fallback row). A malformed
+// payload fails the read rather than rendering a guessed state.
+func decodeGroupPhaseStatuses(raw []byte) ([]*summarypb.JobTemplateSummaryPhaseStatus, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	var items []jobTemplateSummaryPhaseStatusJSON
+	if err := json.Unmarshal(raw, &items); err != nil {
+		return nil, fmt.Errorf("job_template_summary: group phase statuses: %w", err)
+	}
+	if len(items) == 0 {
+		return nil, nil
+	}
+	out := make([]*summarypb.JobTemplateSummaryPhaseStatus, 0, len(items))
+	for _, it := range items {
+		out = append(out, &summarypb.JobTemplateSummaryPhaseStatus{
+			JobTemplatePhaseId: it.JobTemplatePhaseID,
+			Code:               it.Code,
+			Name:               it.Name,
+			PhaseOrder:         it.PhaseOrder,
+			LowestStatus:       approvalRankToStatus(it.LowestRank),
+			MixedAttention:     it.MixedAttention,
+			HasData:            it.HasData,
+		})
+	}
+	return out, nil
 }
 
 func summaryCountInt32(name string, value sql.NullInt64) (int32, error) {
@@ -488,6 +544,8 @@ func collateDeliverySummaries(scanned []summaryScanRow) []*summarypb.JobTemplate
 				GroupLowestStatus:     approvalRankToStatus(r.groupLowestRank),
 				GroupMixedAttention:   r.groupMixedAttention,
 				TemplateGrainFallback: r.templateGrainFallback,
+				// Field 23 is determined by (template, group) ⊆ the key — set once.
+				GroupPhaseStatuses: r.groupPhaseStatuses,
 			}
 			byKey[key] = s
 			out = append(out, s)
@@ -1066,6 +1124,16 @@ func jobTemplateSummaryPageBase(orderBy, limitClause string) string {
 // MATERIALIZED planner fences: page_base's live cardinality was severely
 // underestimated, which otherwise let PostgreSQL re-execute final GroupAggregates
 // under each page row.
+//
+// gp_phase_rows → gp_phase → gp_status (field 23) keep group_phase's per-phase
+// grain instead of folding it like ga: every ACTIVE job_template_phase of a
+// grouped page row's template becomes one ordered jsonb element. The template
+// phases and the group_phase states meet through UNION + GROUP BY, NOT a join:
+// both inputs are CTE scans the planner estimates at rows=1, and a join between
+// them was measured as a quadratic nested loop (1,424 × 1,400 probes, ~0.66 s
+// unpaginated). Branch rows are disjoint (is_template_phase differs), so UNION
+// drops nothing; HAVING BOOL_OR(is_template_phase) discards states of phases
+// that are no longer active on the template.
 func jobTemplateSummaryApprovalCTEs() string {
 	return `candidate_templates AS (
     SELECT DISTINCT job_template_id AS template_id FROM page_base
@@ -1124,6 +1192,51 @@ ga AS MATERIALIZED (
            COALESCE(BOOL_OR(min_rank <> max_rank) FILTER (WHERE has_data), false) AS mixed_attention
     FROM group_phase
     GROUP BY template_id, group_id
+),
+gp_phase_rows AS (
+    SELECT cg.template_id, cg.group_id, jtp.id AS phase_id,
+           COALESCE(jtp.code, '') AS code,
+           COALESCE(jtp.name, '') AS name,
+           COALESCE(jtp.phase_order, 0) AS phase_order,
+           NULL::int AS min_rank, NULL::int AS max_rank, NULL::boolean AS has_data,
+           true AS is_template_phase
+    FROM candidate_groups cg
+    JOIN ` + entityid.JobTemplatePhase + ` jtp
+           ON jtp.job_template_id = cg.template_id
+          AND jtp.workspace_id = $1 AND jtp.active
+    WHERE cg.group_id <> ''
+    UNION
+    SELECT template_id, group_id, template_phase_id,
+           NULL, NULL, NULL,
+           min_rank, max_rank, has_data,
+           false
+    FROM group_phase
+),
+gp_phase AS (
+    SELECT template_id, group_id, phase_id,
+           MAX(code) AS code, MAX(name) AS name, MAX(phase_order) AS phase_order,
+           COALESCE(MAX(min_rank), 0) AS lowest_rank,
+           COALESCE(BOOL_OR(min_rank <> max_rank), false) AS mixed_attention,
+           COALESCE(BOOL_OR(has_data), false) AS has_data
+    FROM gp_phase_rows
+    GROUP BY template_id, group_id, phase_id
+    HAVING BOOL_OR(is_template_phase)
+),
+gp_status AS MATERIALIZED (
+    SELECT template_id, group_id,
+           jsonb_agg(
+               jsonb_build_object(
+                   'job_template_phase_id', phase_id,
+                   'code', code,
+                   'name', name,
+                   'phase_order', phase_order,
+                   'lowest_rank', lowest_rank,
+                   'mixed_attention', mixed_attention,
+                   'has_data', has_data
+               ) ORDER BY phase_order, phase_id
+           ) AS phase_statuses_json
+    FROM gp_phase
+    GROUP BY template_id, group_id
 )`
 }
 
@@ -1176,12 +1289,15 @@ page_enriched AS MATERIALIZED (
     COALESCE(ga.phase_count, 0)            AS group_phase_count,
     ga.lowest_rank                         AS group_lowest_rank,
     COALESCE(ga.mixed_attention, false)    AS group_mixed_attention,
-    page_base.template_grain_fallback
+    page_base.template_grain_fallback,
+    COALESCE(gp_status.phase_statuses_json, '[]'::jsonb) AS group_phase_statuses_json
     FROM page_base
     LEFT JOIN ta
            ON ta.template_id = page_base.job_template_id
     LEFT JOIN ga
            ON ga.template_id = page_base.job_template_id AND ga.group_id = page_base.subscription_group_id
+    LEFT JOIN gp_status
+           ON gp_status.template_id = page_base.job_template_id AND gp_status.group_id = page_base.subscription_group_id
 )
 SELECT
     page_enriched.job_template_id,
@@ -1205,6 +1321,7 @@ SELECT
     page_enriched.group_lowest_rank,
     page_enriched.group_mixed_attention,
     page_enriched.template_grain_fallback,
+    page_enriched.group_phase_statuses_json,
     metadata.total_items,
     metadata.category_counts_json
 FROM metadata

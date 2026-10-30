@@ -56,6 +56,7 @@ func TestJobTemplateSummarySQL_TableNamesFromEntityID(t *testing.T) {
 		{"tk", entityid.JobTask},                  // pa CTE (R7 P4)
 		{"tox", entityid.TaskOutcome},             // pa CTE (R7 P4)
 		{"gm", entityid.SubscriptionGroupMember},  // pa CTE (R7 P4)
+		{"jtp", entityid.JobTemplatePhase},        // gp_status CTE (field 23)
 		// dd CTE, class-edge (sgpps) branch (C11): the class edge itself + a
 		// SECOND subscription_group_member alias (m) that carries the (subscription,
 		// client, group) triple for a section that has servicers but zero seats.
@@ -1491,6 +1492,298 @@ func TestJobTemplateSummaryDB_ComponentTimings(t *testing.T) {
 			t.Logf("component=%s value=%d elapsed=%s", tc.name, value, time.Since(started))
 		})
 	}
+}
+
+// TestJobTemplateSummarySQL_GroupPhaseStatuses locks field 23 (plan
+// 20261029-classes-phase-status AC-2): the per-phase (group, template) states
+// ride the SAME statement as ONE MATERIALIZED roll-up over the existing
+// group_phase grain — driven by the row's ACTIVE template phases, joined to the
+// final page rows only after page_base, with no new scan of the approval
+// tables and no new placeholder.
+func TestJobTemplateSummarySQL_GroupPhaseStatuses(t *testing.T) {
+	sql := fullSummarySQL()
+
+	t.Run("fenced_rollup_between_ga_and_page_enriched", func(t *testing.T) {
+		ga := strings.Index(sql, "ga AS MATERIALIZED (")
+		gp := strings.Index(sql, "gp_status AS MATERIALIZED (")
+		pe := strings.Index(sql, "page_enriched AS MATERIALIZED (")
+		if ga < 0 || gp < ga || pe < gp {
+			t.Fatalf("gp_status must be a MATERIALIZED fence after ga and before page_enriched (ga=%d gp=%d pe=%d)\nSQL:\n%s", ga, gp, pe, sql)
+		}
+		if strings.Contains(sql, "gp_status AS (") {
+			t.Errorf("gp_status must stay a MATERIALIZED planner fence\nSQL:\n%s", sql)
+		}
+	})
+
+	t.Run("driven_by_active_template_phases_of_grouped_rows", func(t *testing.T) {
+		for _, frag := range []string{
+			"FROM candidate_groups cg\n    JOIN " + entityid.JobTemplatePhase + " jtp\n           ON jtp.job_template_id = cg.template_id\n          AND jtp.workspace_id = $1 AND jtp.active",
+			// Fallback rows carry group '' and group-less rows NULL: neither gets a
+			// phase list.
+			"WHERE cg.group_id <> ''",
+			// The per-phase states come from the existing group_phase grain via a
+			// UNION + GROUP BY, keeping only the template's active phases.
+			"UNION\n    SELECT template_id, group_id, template_phase_id,",
+			"FROM group_phase\n),",
+			"GROUP BY template_id, group_id, phase_id\n    HAVING BOOL_OR(is_template_phase)",
+			"COALESCE(MAX(min_rank), 0) AS lowest_rank",
+			"COALESCE(BOOL_OR(min_rank <> max_rank), false) AS mixed_attention",
+			"COALESCE(BOOL_OR(has_data), false) AS has_data",
+			") ORDER BY phase_order, phase_id",
+		} {
+			if !strings.Contains(sql, frag) {
+				t.Errorf("gp_status missing %q\nSQL:\n%s", frag, sql)
+			}
+		}
+		// Join-free by construction: a join against the group_phase CTE scan
+		// plans as a nested loop under the page_base rows=1 estimate (measured
+		// quadratic — 1,424×1,400 probes, ~0.66 s on the unpaginated read).
+		if strings.Contains(sql, "JOIN group_phase") {
+			t.Errorf("gp_status must not JOIN the group_phase CTE (quadratic nested loop)\nSQL:\n%s", sql)
+		}
+	})
+
+	t.Run("joined_on_row_grain_and_projected_last_before_metadata", func(t *testing.T) {
+		for _, frag := range []string{
+			"LEFT JOIN gp_status\n           ON gp_status.template_id = page_base.job_template_id AND gp_status.group_id = page_base.subscription_group_id",
+			"COALESCE(gp_status.phase_statuses_json, '[]'::jsonb) AS group_phase_statuses_json",
+			"page_enriched.template_grain_fallback,\n    page_enriched.group_phase_statuses_json,\n    metadata.total_items",
+		} {
+			if !strings.Contains(sql, frag) {
+				t.Errorf("page projection missing %q\nSQL:\n%s", frag, sql)
+			}
+		}
+	})
+
+	t.Run("no_new_scans_or_placeholders", func(t *testing.T) {
+		// The per-phase states reuse group_phase: the gp_* CTEs add no job_phase
+		// walk (base-agnostic — the count elsewhere depends on the page_phases
+		// refactor).
+		gpStart := strings.Index(sql, "gp_phase_rows AS (")
+		gpEnd := strings.Index(sql, "page_enriched AS MATERIALIZED (")
+		if gpStart < 0 || gpEnd < gpStart {
+			t.Fatalf("gp_phase_rows..page_enriched not found\nSQL:\n%s", sql)
+		}
+		if strings.Contains(sql[gpStart:gpEnd], "JOIN "+entityid.JobPhase+" ") {
+			t.Errorf("gp_* CTEs must not walk job_phase again\nCTE:\n%s", sql[gpStart:gpEnd])
+		}
+		stmt, _ := buildListJobTemplateSummariesSQL("ws-1", "JOB_STATUS_ACTIVE", "grp-1", 25, 0, nil)
+		start := strings.Index(stmt, "gp_status AS MATERIALIZED (")
+		end := strings.Index(stmt, "page_enriched AS MATERIALIZED (")
+		if start < 0 || end < start {
+			t.Fatalf("gp_status not found in narrowed statement\nSQL:\n%s", stmt)
+		}
+		body := stmt[start:end]
+		for _, ph := range []string{"$2", "$3", "$4", "$5"} {
+			if strings.Contains(body, ph) {
+				t.Errorf("gp_status must reference only $1 (workspace), found %s\nCTE:\n%s", ph, body)
+			}
+		}
+	})
+}
+
+// TestSummaryRowGroupPhaseStatusesDecoding pins the jsonb → field 23 mapping
+// (AC-3): SQL order is preserved, the ladder rank maps through
+// approvalRankToStatus (0 → UNSPECIFIED), empty/NULL yields none, and a
+// malformed payload fails the read instead of rendering a guessed state.
+func TestSummaryRowGroupPhaseStatusesDecoding(t *testing.T) {
+	t.Run("ordered_array_maps_ranks_and_flags", func(t *testing.T) {
+		raw := []byte(`[
+			{"job_template_phase_id":"p-b","code":"s1","name":"Phase B","phase_order":1,"lowest_rank":2,"mixed_attention":true,"has_data":true},
+			{"job_template_phase_id":"p-a","code":"s2","name":"Phase A","phase_order":2,"lowest_rank":0,"mixed_attention":false,"has_data":false},
+			{"job_template_phase_id":"p-c","code":"s3","name":"Phase C","phase_order":3,"lowest_rank":4,"mixed_attention":false,"has_data":true}
+		]`)
+		got, err := decodeGroupPhaseStatuses(raw)
+		if err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if len(got) != 3 || got[0].GetJobTemplatePhaseId() != "p-b" || got[1].GetJobTemplatePhaseId() != "p-a" || got[2].GetJobTemplatePhaseId() != "p-c" {
+			t.Fatalf("SQL order not preserved: %+v", got)
+		}
+		if got[0].GetLowestStatus() != jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_FOR_REVIEW ||
+			!got[0].GetMixedAttention() || !got[0].GetHasData() || got[0].GetCode() != "s1" ||
+			got[0].GetName() != "Phase B" || got[0].GetPhaseOrder() != 1 {
+			t.Errorf("first entry mapped wrong: %+v", got[0])
+		}
+		if got[1].GetLowestStatus() != jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_UNSPECIFIED || got[1].GetHasData() {
+			t.Errorf("rank 0 (no job_phase in slice) must be UNSPECIFIED without data: %+v", got[1])
+		}
+		if got[2].GetLowestStatus() != jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_PUBLISHED {
+			t.Errorf("rank 4 must be PUBLISHED: %+v", got[2])
+		}
+		row := summaryFromScanRow(summaryScanRow{templateID: "t", groupID: "g", groupPhaseStatuses: got})
+		if len(row.GetGroupPhaseStatuses()) != 3 || row.GetGroupPhaseStatuses()[0].GetJobTemplatePhaseId() != "p-b" {
+			t.Errorf("summaryFromScanRow dropped field 23: %+v", row.GetGroupPhaseStatuses())
+		}
+	})
+
+	t.Run("empty_and_null_yield_none", func(t *testing.T) {
+		for _, raw := range [][]byte{nil, []byte(""), []byte("[]")} {
+			got, err := decodeGroupPhaseStatuses(raw)
+			if err != nil || got != nil {
+				t.Errorf("decode(%q) = %+v, %v; want nil, nil", raw, got, err)
+			}
+		}
+	})
+
+	t.Run("malformed_fails_closed", func(t *testing.T) {
+		if _, err := decodeGroupPhaseStatuses([]byte(`{"job_template_phase_id":"p"}`)); err == nil {
+			t.Error("a non-array payload must fail the read")
+		}
+	})
+}
+
+// TestCollateDeliverySummaries_GroupPhaseStatusesSetOnce (AC-4): field 23 is
+// determined by (template, group) ⊆ the collation key, so the legacy staff fold
+// carries it once and never duplicates it per deliverer row.
+func TestCollateDeliverySummaries_GroupPhaseStatusesSetOnce(t *testing.T) {
+	phases := []*summarypb.JobTemplateSummaryPhaseStatus{
+		{JobTemplatePhaseId: "p1", PhaseOrder: 1},
+		{JobTemplatePhaseId: "p2", PhaseOrder: 2},
+	}
+	got := collateDeliverySummaries([]summaryScanRow{
+		{templateID: "t1", groupID: "g1", staffID: "s1", staffName: "A", jobCount: 3, groupPhaseStatuses: phases},
+		{templateID: "t1", groupID: "g1", staffID: "s2", staffName: "B", jobCount: 3, groupPhaseStatuses: phases},
+		{templateID: "t1", groupID: "g2", staffID: "s1", staffName: "A", jobCount: 2},
+	})
+	if len(got) != 2 {
+		t.Fatalf("want 2 summaries (two groups), got %d", len(got))
+	}
+	if n := len(got[0].GetGroupPhaseStatuses()); n != 2 {
+		t.Errorf("g1 phase statuses = %d, want 2 (set once, not per deliverer)", n)
+	}
+	if n := len(got[1].GetGroupPhaseStatuses()); n != 0 {
+		t.Errorf("g2 (no phases) = %d, want 0", n)
+	}
+}
+
+// TestJobTemplateSummaryDB_GroupPhaseStatuses is the READ-ONLY, DB-gated AC-5
+// evidence (TEST_DATABASE_URL; optional TEST_STAFF_ID). On the first bounded
+// Courses page (ACTIVE, fallback requested — the live request shape) for the
+// admin AND a seat-STAFF persona it proves: fallback/group-less rows carry no
+// phases; grouped rows list EXACTLY the template's active phases in
+// phase_order; and folding field 23 reproduces fields 18–21 (count, lowest,
+// mixed over data-bearing phases) — the two grains cannot disagree.
+func TestJobTemplateSummaryDB_GroupPhaseStatuses(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+	ctx := context.Background()
+
+	var ws string
+	if err := db.QueryRowContext(ctx,
+		`SELECT workspace_id FROM `+entityid.Job+` GROUP BY workspace_id ORDER BY COUNT(*) DESC LIMIT 1`,
+	).Scan(&ws); err != nil {
+		t.Fatalf("resolve workspace: %v", err)
+	}
+
+	activePhases := map[string][]string{} // template → active phase ids in phase_order, id
+	rows, err := db.QueryContext(ctx,
+		`SELECT job_template_id, id FROM `+entityid.JobTemplatePhase+
+			` WHERE workspace_id = $1 AND active ORDER BY job_template_id, phase_order, id`, ws)
+	if err != nil {
+		t.Fatalf("active phases: %v", err)
+	}
+	for rows.Next() {
+		var tmpl, id string
+		if err := rows.Scan(&tmpl, &id); err != nil {
+			t.Fatalf("scan active phase: %v", err)
+		}
+		activePhases[tmpl] = append(activePhases[tmpl], id)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("active phase rows: %v", err)
+	}
+	rows.Close()
+
+	includeFallback := true
+	req := &summarypb.ListJobTemplateSummariesRequest{
+		Status:                  "JOB_STATUS_ACTIVE",
+		IncludeTemplateFallback: &includeFallback,
+		Pagination: &commonpb.PaginationRequest{
+			Limit:  100,
+			Method: &commonpb.PaginationRequest_Offset{Offset: &commonpb.OffsetPagination{Page: 1}},
+		},
+	}
+
+	check := func(t *testing.T, persona string, pctx context.Context, req *summarypb.ListJobTemplateSummariesRequest) {
+		t.Helper()
+		started := time.Now()
+		resp, err := NewPostgresJobTemplateSummaryQuery(db).ListJobTemplateSummaries(pctx, req)
+		if err != nil {
+			t.Fatalf("%s list: %v", persona, err)
+		}
+		elapsed := time.Since(started)
+		withPhases, badgeTotal := 0, 0
+		states := map[string]int{}
+		for _, s := range resp.GetSummaries() {
+			ps := s.GetGroupPhaseStatuses()
+			if s.GetTemplateGrainFallback() || s.GetSubscriptionGroupId() == "" {
+				if len(ps) != 0 {
+					t.Errorf("%s: fallback/group-less row %s carries %d phases", persona, s.GetJobTemplateId(), len(ps))
+				}
+				continue
+			}
+			want := activePhases[s.GetJobTemplateId()]
+			if len(ps) != len(want) {
+				t.Errorf("%s: template %s group %s phases=%d want %d active", persona, s.GetJobTemplateId(), s.GetSubscriptionGroupId(), len(ps), len(want))
+				continue
+			}
+			var dataCount, published int32
+			lowest := 0
+			mixed := false
+			for i, p := range ps {
+				if p.GetJobTemplatePhaseId() != want[i] {
+					t.Errorf("%s: template %s phase[%d]=%s want %s (phase_order)", persona, s.GetJobTemplateId(), i, p.GetJobTemplatePhaseId(), want[i])
+				}
+				states[p.GetLowestStatus().String()]++
+				badgeTotal++
+				if !p.GetHasData() {
+					continue
+				}
+				dataCount++
+				r := int(p.GetLowestStatus())
+				if lowest == 0 || r < lowest {
+					lowest = r
+				}
+				if p.GetLowestStatus() == jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_PUBLISHED && !p.GetMixedAttention() {
+					published++
+				}
+				mixed = mixed || p.GetMixedAttention()
+			}
+			withPhases++
+			if dataCount != s.GetGroupPhaseCount() || published != s.GetGroupPublishedCount() ||
+				lowest != int(s.GetGroupLowestStatus()) || mixed != s.GetGroupMixedAttention() {
+				t.Errorf("%s: template %s group %s field 23 fold (count=%d pub=%d lowest=%d mixed=%v) != 18-21 (%d %d %d %v)",
+					persona, s.GetJobTemplateId(), s.GetSubscriptionGroupId(), dataCount, published, lowest, mixed,
+					s.GetGroupPhaseCount(), s.GetGroupPublishedCount(), int(s.GetGroupLowestStatus()), s.GetGroupMixedAttention())
+			}
+		}
+		t.Logf("%s: rows=%d rows_with_phases=%d badges=%d states=%v elapsed=%s",
+			persona, len(resp.GetSummaries()), withPhases, badgeTotal, states, elapsed)
+	}
+
+	t.Run("admin", func(t *testing.T) {
+		check(t, "admin", identity.WithRequestIdentity(ctx, &identity.RequestIdentity{WorkspaceID: ws}), req)
+	})
+
+	t.Run("staff", func(t *testing.T) {
+		staffID := os.Getenv("TEST_STAFF_ID")
+		if staffID == "" {
+			if err := db.QueryRowContext(ctx,
+				`SELECT staff_id FROM `+entityid.SubscriptionSeat+` WHERE status = 'active' AND active AND workspace_id = $1 ORDER BY staff_id LIMIT 1`,
+				ws,
+			).Scan(&staffID); err != nil {
+				t.Skipf("no active seat staff to impersonate: %v", err)
+			}
+		}
+		// Unpaginated, no status filter, no fallback — the staff_grain_parity
+		// shape. Fallback rows (group '') sort first and would fill a page,
+		// hiding the staff's few reachable grouped rows.
+		staffReq := &summarypb.ListJobTemplateSummariesRequest{}
+		check(t, "STAFF", identity.WithRequestIdentity(ctx, &identity.RequestIdentity{
+			WorkspaceID: ws, PrincipalType: 7, PrincipalID: staffID,
+		}), staffReq)
+	})
 }
 
 func assertArgs(t *testing.T, got, want []any) {

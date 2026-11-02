@@ -806,6 +806,17 @@ func (s *Server) finalizePreset(p consumermw.Preset) consumermw.Preset {
 				}
 				return int32(resp.Kind), resp.PrincipalId
 			}
+			wpCfg.ActingAsLookup = func(r *http.Request) (clientID, supplierID string) {
+				token := consumer.GetSessionTokenFromContext(r.Context())
+				if token == "" {
+					return "", ""
+				}
+				resp, err := lookupUC.Execute(r.Context(), &authpb.LookupSessionPrincipalRequest{Token: token})
+				if err != nil || resp == nil {
+					return "", ""
+				}
+				return resp.GetActingAsClientId(), resp.GetActingAsSupplierId()
+			}
 		}
 
 		// BindingResolver: ResolveBinding use case → neutral WorkspaceBinding.

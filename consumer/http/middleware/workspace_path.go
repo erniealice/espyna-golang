@@ -113,6 +113,11 @@ type WorkspacePathConfig struct {
 	// request. Optional; nil = "no hint".
 	PrincipalLookup func(r *http.Request) (kind int32, principalID string)
 
+	// ActingAsLookup reads the acting-as targets the session already holds, so an
+	// /as/{id} request whose session holds that target does not switch again.
+	// Optional: when nil every /as/{id} request switches.
+	ActingAsLookup func(r *http.Request) (clientID, supplierID string)
+
 	// ExecuteSwitch performs the atomic session update for a URL-driven
 	// workspace navigation. binding is the exact value BindingResolver
 	// returned (with URL-derived acting-as applied). Required.

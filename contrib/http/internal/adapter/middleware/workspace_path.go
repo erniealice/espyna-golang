@@ -21,7 +21,9 @@
 //     shape (303 to /auth/select-workspace-role).
 //  8. Optional /as/{client_id} extraction.
 //  9. Per-user rotation rate limit (10/min default).
-//  10. URL-driven rotation when URL workspace differs from session workspace.
+//  10. URL-driven rotation when URL workspace differs from session workspace, or
+//     /as/{id} names a target the session does not hold. GET and HEAD redirect to
+//     the same URL after the switch; any other method is refused before it.
 //  11. SameSite=Strict on rotated session cookies.
 //  12. Bind workspace_id into request context.
 //  13. Strip prefix and dispatch.
@@ -31,6 +33,8 @@ package middleware
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"log"
 	"net/http"
@@ -216,6 +220,10 @@ type WorkspacePathConfig struct {
 
 	// ExecuteSwitch performs atomic session rotation. Required.
 	ExecuteSwitch ExecuteSwitchFunc
+
+	// ActingAsLookup reads the acting-as targets the session already holds. Optional:
+	// when nil every /as/{id} request switches.
+	ActingAsLookup func(r *http.Request) (clientID, supplierID string)
 
 	// SetSessionCookie writes the rotated session cookie. When nil the
 	// middleware uses writeStrictSessionCookie.
@@ -421,10 +429,31 @@ func (m *WorkspacePathMiddleware) handle(next http.Handler) http.Handler {
 		// 8. URL-driven rotation.
 		rotationNeeded := sessionWsID != workspaceID
 		if actingAsClientID != "" {
-			rotationNeeded = true
+			rotationNeeded = !m.sessionHoldsActingAs(r, sessionWsID, workspaceID, actingAsClientID,
+				binding, sessionPrincipalKind, sessionPrincipalID)
 		}
+		guard := readSwitchGuard(r)
 
 		if rotationNeeded {
+			// 8a-i. A switch changes the identity the rest of the chain would use, and
+			// only a safe method can be replayed through a redirect. Anything else is
+			// refused before any switch or write.
+			if r.Method != http.MethodGet && r.Method != http.MethodHead {
+				log.Printf("[workspace_path] %s refused: session needs a switch user=%s url_ws=%s",
+					r.Method, userID, workspaceID)
+				wsRefuseUnsafeSwitch(w, r)
+				return
+			}
+
+			// 8a-ii. Loop guard: this URL was already redirected after a switch and the
+			// session still does not match, so another redirect could not help.
+			if guard.landed {
+				log.Printf("[workspace_path] switch did not take effect user=%s url_ws=%s", userID, workspaceID)
+				clearSwitchGuardCookie(w)
+				wsRedirectTo(w, r, pickerRedirectURL)
+				return
+			}
+
 			// 8a. Per-user rate limit.
 			if !m.limiter.allow(userID) {
 				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
@@ -459,58 +488,43 @@ func (m *WorkspacePathMiddleware) handle(next http.Handler) http.Handler {
 				return
 			}
 
-			// KNOWN GAP — deferred acting-as identity rehydration (item #6 codex
-			// follow-up, tracked separately from this CSRF-cookie fix). This block
-			// rehydrates only the SESSION TOKEN (for ws_csrf lock-step) and only
-			// when a NEW token is minted. Same-workspace acting-as switches mutate
-			// the session in place and return no new token, so the current request
-			// is NOT re-bound to the switched principal (stale-privilege window);
-			// and ExecuteSwitch/rate-limit already ran above even on a no-op target.
-			// A full fix needs the switched principal_type/id + acting_as identity
-			// plumbed into this middleware and a mid-request RequestIdentity rebuild
-			// — new capability on the auth hot path, beyond this PR's CSRF-cookie
-			// charter (agnostic surfaces stay pass-through; HMAC claim unchanged).
-			// See docs/plan/20260717-grade-sheet-followups codex-item6-review.
-			//
 			// 8d. Cookie write — ONLY when the switch produced a genuinely NEW
-			// session token. When ExecuteSwitch is a no-op because the session
-			// already binds the resolved target, NewToken == token: writing a new
-			// session cookie + a second ws_csrf would be a redundant re-issue that
-			// re-opens the very desync this guards against. Skipping it makes the
-			// switch idempotent (item #6, (iii)) — the belt to the rotationNeeded
-			// gate's suspenders (which already skips when sessionWsID == workspaceID).
-			if result != nil && result.NewToken != "" && result.NewToken != token {
+			// session token. An in-place switch (same workspace, new acting-as)
+			// keeps the token and writes no cookie.
+			rotated := result != nil && result.NewToken != "" && result.NewToken != token
+			if rotated {
 				if m.cfg.SetSessionCookie != nil {
 					m.cfg.SetSessionCookie(w, result.NewToken)
 				} else {
 					writeStrictSessionCookie(w, m.cfg.CookieName, result.NewToken)
 				}
-				// ws_csrf issuer #1 (item #6, (i)) — the ONE authoritative ws_csrf
-				// write for this response, bound to the FINAL post-rotation session
-				// token. The downstream CSRF GET-refresh is told (via the ctx flag
-				// below) that the cookie is already issued, so it does NOT re-write
-				// a second, stale-token-bound ws_csrf and clobber this one.
 				if m.cfg.SetCSRFCookie != nil {
 					m.cfg.SetCSRFCookie(w, result.NewToken, workspaceID)
-					ctx = markWorkspaceCSRFIssued(ctx)
 				}
-				// Rehydrate the request context with the rotated token (item #6,
-				// (ii)) so GetSessionTokenFromContext returns newToken for every
-				// downstream reader — the CSRF claim check, the action guard, the
-				// GET-refresh — keeping cookie and session in lock-step. The session
-				// middleware ran first and wrote the STALE token; it never refreshes
-				// after rotation, so without this the claim readers see the wrong
-				// session and the next POST /action/* 403s on a claim mismatch.
-				if m.cfg.WithSessionToken != nil {
-					ctx = m.cfg.WithSessionToken(ctx, result.NewToken)
-				}
+			}
 
-				// 8e. Banner data. Written under pyeza render's canonical key so
-				// the render pipeline (the reader) round-trips it.
-				prevSlug, _ := m.cache.getSlugByID(sessionWsID)
+			// 8e. Redirect to the same URL. The identity on this request was built
+			// from the session as it was before the switch, so the page is served by
+			// the next request, which the session middleware binds to the new one.
+			prevSlug := ""
+			if rotated {
+				prevSlug, _ = m.cache.getSlugByID(sessionWsID)
+			}
+			writeSwitchGuardCookie(w, r.URL.Path, rotated, prevSlug)
+			w.Header().Set("Cache-Control", "no-store")
+			http.Redirect(w, r, r.URL.RequestURI(), http.StatusSeeOther)
+			return
+		}
+
+		// 8f. The request that follows a switch redirect: drop the guard and show
+		// the post-rotation banner. Written under pyeza render's canonical key so
+		// the render pipeline (the reader) round-trips it.
+		if guard.landed {
+			clearSwitchGuardCookie(w)
+			if guard.rotated {
 				ctx = render.WithPostRotationBanner(ctx, &render.PostRotationBannerData{
 					TargetSlug:   slugLower,
-					PreviousSlug: prevSlug,
+					PreviousSlug: guard.prevSlug,
 				})
 			}
 		}
@@ -522,6 +536,122 @@ func (m *WorkspacePathMiddleware) handle(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r2)
 	})
+}
+
+// sessionHoldsActingAs reports whether the session is already acting as the /as/{id}
+// target, so no switch is needed. The target must still be among the binding's active
+// targets: otherwise a revoked grant would keep working, because the switch is what
+// re-checks it. Anything unproven returns false and the request switches as before.
+func (m *WorkspacePathMiddleware) sessionHoldsActingAs(
+	r *http.Request,
+	sessionWsID, workspaceID, target string,
+	binding *Principal,
+	sessionKind PrincipalType,
+	sessionPrincipalID string,
+) bool {
+	if m.cfg.ActingAsLookup == nil || binding == nil || sessionWsID != workspaceID {
+		return false
+	}
+	if sessionPrincipalID == "" || binding.ID != sessionPrincipalID || binding.Type != sessionKind {
+		return false
+	}
+	active := false
+	for _, t := range binding.ActingAsTargets {
+		if t.ID == target {
+			active = true
+			break
+		}
+	}
+	if !active {
+		return false
+	}
+	clientID, supplierID := m.cfg.ActingAsLookup(r)
+	switch binding.Type {
+	case PrincipalTypeClientDelegate:
+		return clientID == target
+	case PrincipalTypeSupplierDelegate:
+		return supplierID == target
+	}
+	return false
+}
+
+// --- Switch redirect guard ---
+//
+// A short-lived cookie set on the redirect that follows a switch. It stops a redirect
+// loop if the session still does not match on arrival, and carries the banner's
+// previous slug across the redirect. It grants nothing: a forged one can only send its
+// own holder to the picker or show them a banner.
+
+const (
+	switchGuardCookieName = "ws_switch_guard"
+	switchGuardMaxAge     = 30 // seconds; only has to outlive one redirect
+	switchGuardRotated    = "r"
+	switchGuardInPlace    = "i"
+)
+
+type switchGuard struct {
+	landed   bool
+	rotated  bool
+	prevSlug string
+}
+
+func switchGuardPathKey(path string) string {
+	sum := sha256.Sum256([]byte(path))
+	return hex.EncodeToString(sum[:8])
+}
+
+func writeSwitchGuardCookie(w http.ResponseWriter, path string, rotated bool, prevSlug string) {
+	kind := switchGuardInPlace
+	if rotated {
+		kind = switchGuardRotated
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     switchGuardCookieName,
+		Value:    switchGuardPathKey(path) + "." + kind + "." + prevSlug,
+		Path:     "/",
+		MaxAge:   switchGuardMaxAge,
+		HttpOnly: true,
+		Secure:   secureCookies,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func clearSwitchGuardCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     switchGuardCookieName,
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   secureCookies,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// readSwitchGuard reads the guard for this request's URL. A guard for another URL is
+// left to expire, so a parallel request cannot use it up.
+func readSwitchGuard(r *http.Request) switchGuard {
+	c, err := r.Cookie(switchGuardCookieName)
+	if err != nil {
+		return switchGuard{}
+	}
+	parts := strings.SplitN(c.Value, ".", 3)
+	if len(parts) != 3 || parts[0] != switchGuardPathKey(r.URL.Path) {
+		return switchGuard{}
+	}
+	g := switchGuard{landed: true, rotated: parts[1] == switchGuardRotated}
+	if isValidSlugFormat(parts[2]) {
+		g.prevSlug = parts[2]
+	}
+	return g
+}
+
+// wsRefuseUnsafeSwitch answers a non-GET request whose session needs a switch. The page
+// that sent it is stale, so an htmx caller reloads it: that GET performs the switch.
+func wsRefuseUnsafeSwitch(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("HX-Refresh", "true")
+	}
+	http.Error(w, "Conflict: reload this page and try again", http.StatusConflict)
 }
 
 // --- CSRF preflight ---

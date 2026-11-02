@@ -62,6 +62,7 @@ func BuildWorkspacePath(cfg consumermw.WorkspacePathConfig) func(http.Handler) h
 		AppOrigin:               cfg.AppOrigin,
 		SlugCacheTTL:            cfg.SlugCacheTTL,
 		RotationRateLimitPerMin: cfg.RotationRateLimitPerMin,
+		ActingAsLookup:          cfg.ActingAsLookup,
 	}
 
 	if cfg.BindingResolver != nil {

@@ -335,6 +335,7 @@ const (
 	RatingDescriptionSet            = "rating_description_set"
 	RatingDescriptionSetEntry       = "rating_description_set_entry"
 	RatingDescriptionSetProductPlan = "rating_description_set_product_plan"
+	RatingDescriptionSetSelectable  = "rating_description_set_selectable"
 )
 
 // Operation domain — Performance Evaluation (20260604-performance-evaluation v1)

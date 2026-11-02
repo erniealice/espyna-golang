@@ -3,9 +3,11 @@
 package operation
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"testing"
@@ -769,5 +771,450 @@ func TestIntegrationResolveCellRatingDescriptions_PlaceholderRendering(t *testin
 	}
 	if r := resp.GetResults()[0]; len(r.GetDescriptions()) != 0 {
 		t.Errorf("foreign-workspace caller must not receive rendered text, got %q", descTexts(r))
+	}
+}
+
+// -----------------------------------------------------------------------
+// Selection options (rating_description_set_selectable) — rollback-only.
+// -----------------------------------------------------------------------
+
+type selectionFixture struct {
+	tx                     *sql.Tx
+	ctx                    context.Context
+	id                     func(string) string
+	exec                   func(string, ...any)
+	ws, foreignWS          string
+	schedule, productPlan  string
+	setDefault, setB, setC string
+	cell                   *matrixpb.CellRatingRef
+	cellOtherClient        *matrixpb.CellRatingRef
+	defaultTexts           []string
+	addSelectable          func(setID, label string, seq int)
+}
+
+func newSelectionFixture(t *testing.T) *selectionFixture {
+	t.Helper()
+	db := openResolveCellRatingDescriptionsDB(t)
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("begin rollback-only fixture transaction: %v", err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback() })
+	ctx := context.Background()
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	id := func(name string) string { return "rdsel-it-" + name + "-" + suffix }
+	exec := func(query string, args ...any) {
+		t.Helper()
+		if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+			t.Fatalf("fixture statement %q: %v", query, err)
+		}
+	}
+
+	f := &selectionFixture{tx: tx, ctx: ctx, id: id, exec: exec, ws: id("ws"), foreignWS: id("ws-foreign"), schedule: id("schedule"), productPlan: id("pp"),
+		setDefault: id("set-default"), setB: id("set-b"), setC: id("set-c")}
+	planID, subID, pricePlanID := id("plan"), id("sub"), id("price-plan")
+	templateID, templatePhaseID, templateTaskID := id("template"), id("template-phase"), id("template-task")
+	criteriaID, ttcID, productID := id("criteria"), id("ttc"), id("product")
+	scaleID, band1, band2 := id("scale"), id("band-1"), id("band-2")
+
+	exec(`INSERT INTO workspace (id, name, active) VALUES ($1, 'rdsel it', true), ($2, 'rdsel it foreign', true)`, f.ws, f.foreignWS)
+	exec(`INSERT INTO plan (id, active) VALUES ($1, true)`, planID)
+	exec(`INSERT INTO `+entityid.PriceSchedule+` (id, active) VALUES ($1, true)`, f.schedule)
+	exec(`INSERT INTO price_plan (id, plan_id, price_schedule_id, active) VALUES ($1, $2, $3, true)`, pricePlanID, planID, f.schedule)
+	exec(`INSERT INTO subscription (id, price_plan_id, workspace_id, active) VALUES ($1, $2, $3, true)`, subID, pricePlanID, f.ws)
+	exec(`INSERT INTO `+entityid.JobTemplate+` (id, name, active, workspace_id) VALUES ($1, 'rdsel template', true, $2)`, templateID, f.ws)
+	exec(`INSERT INTO `+entityid.JobTemplatePhase+` (id, job_template_id, name, phase_order, active, workspace_id) VALUES ($1, $2, 'Term 1', 1, true, $3)`, templatePhaseID, templateID, f.ws)
+	exec(`INSERT INTO `+entityid.JobTemplateTask+` (id, job_template_phase_id, name, step_order, active, workspace_id) VALUES ($1, $2, 'Task A', 1, true, $3)`, templateTaskID, templatePhaseID, f.ws)
+	exec(`INSERT INTO `+entityid.OutcomeCriteria+`
+		(id, name, criteria_type, min_score, max_score, score_increment, required, active, workspace_id)
+		VALUES ($1, 'Criterion', 'CRITERIA_TYPE_NUMERIC_SCORE', 0, 8, 1, true, true, $2)`, criteriaID, f.ws)
+	exec(`INSERT INTO `+entityid.ScoreScale+`
+		(id, scale_group_id, version, version_status, name, scale_kind, input_unit, output_unit, workspace_id, active, created_by)
+		VALUES ($1, $2, 1, 'VERSION_STATUS_PUBLISHED', 'rdsel scale', 'SCALE_KIND_EXACT_MAP', 'score', 'label', $3, true, 'rdsel-it'),
+		       ($4, $5, 1, 'VERSION_STATUS_PUBLISHED', 'rdsel scale other', 'SCALE_KIND_EXACT_MAP', 'score', 'label', $3, true, 'rdsel-it')`,
+		scaleID, id("scale-group"), f.ws, id("scale-other"), id("scale-group-other"))
+	exec(`INSERT INTO `+entityid.ScoreScaleBand+`
+		(id, workspace_id, active, score_scale_id, sequence_order, input_match, output_value, output_label)
+		VALUES ($1, $2, true, $3, 1, '1', 1, 'One'), ($4, $2, true, $3, 2, '2', 2, 'Two')`, band1, f.ws, scaleID, band2)
+	exec(`INSERT INTO `+entityid.TemplateTaskCriteria+`
+		(id, job_template_task_id, outcome_criteria_id, sequence_order, active, workspace_id, rating_mode, rating_scale_id)
+		VALUES ($1, $2, $3, 1, true, $4, 'RATING_MODE_NUMERIC_WITH_DESCRIPTION', $5)`, ttcID, templateTaskID, criteriaID, f.ws, scaleID)
+	exec(`INSERT INTO product (id, active) VALUES ($1, true)`, productID)
+	exec(`INSERT INTO `+entityid.ProductPlan+` (id, active, product_id, plan_id, product_variant_id) VALUES ($1, true, $2, $3, NULL)`, f.productPlan, productID, planID)
+
+	for _, s := range []struct{ id, word string }{{f.setDefault, "default"}, {f.setB, "second"}, {f.setC, "third"}} {
+		exec(`INSERT INTO `+ratingDescriptionSetTable+`
+			(id, workspace_id, version, version_status, name, score_scale_id, active)
+			VALUES ($1, $2, 1, 'VERSION_STATUS_PUBLISHED', $3, $4, true)`, s.id, f.ws, s.word, scaleID)
+		for i, band := range []string{band1, band2} {
+			exec(`INSERT INTO `+ratingDescriptionSetEntryTable+`
+				(id, workspace_id, rating_description_set_id, outcome_criteria_id, score_scale_band_id, description, sequence_order, active)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, true)`,
+				id(fmt.Sprintf("entry-%s-%d", s.word, i)), f.ws, s.id, criteriaID, band,
+				fmt.Sprintf("{client.user.first_name} %s wording band %d.", s.word, i+1), i+1)
+		}
+	}
+	exec(`INSERT INTO `+ratingDescriptionSetProductPlanTable+`
+		(id, workspace_id, rating_description_set_id, product_plan_id, price_schedule_id, active) VALUES ($1, $2, $3, $4, $5, true)`,
+		id("link"), f.ws, f.setDefault, f.productPlan, f.schedule)
+
+	cellFor := func(key, first string) *matrixpb.CellRatingRef {
+		userID, clientID := id("user-"+key), id("client-"+key)
+		jobID, phaseID, taskID := id("job-"+key), id("phase-"+key), id("task-"+key)
+		exec(`INSERT INTO "user" (id, first_name, last_name, active) VALUES ($1, $2, 'x', true)`, userID, first)
+		exec(`INSERT INTO `+entityid.Client+` (id, user_id, workspace_id, active) VALUES ($1, $2, $3, true)`, clientID, userID, f.ws)
+		exec(`INSERT INTO `+entityid.Job+`
+			(id, job_template_id, origin_id, workspace_id, output_product_id, client_id, active)
+			VALUES ($1, $2, $3, $4, $5, $6, true)`, jobID, templateID, subID, f.ws, productID, clientID)
+		exec(`INSERT INTO `+entityid.JobPhase+` (id, job_id, template_phase_id, active, workspace_id) VALUES ($1, $2, $3, true, $4)`, phaseID, jobID, templatePhaseID, f.ws)
+		exec(`INSERT INTO `+entityid.JobTask+` (id, job_phase_id, template_task_id, active, workspace_id) VALUES ($1, $2, $3, true, $4)`, taskID, phaseID, templateTaskID, f.ws)
+		return &matrixpb.CellRatingRef{JobId: jobID, JobTaskId: taskID, OutcomeCriteriaId: criteriaID}
+	}
+	f.cell = cellFor("a", "Ana")
+	f.cellOtherClient = cellFor("b", "Ben")
+	f.defaultTexts = []string{"Ana default wording band 1.", "Ana default wording band 2."}
+
+	n := 0
+	f.addSelectable = func(setID, label string, seq int) {
+		n++
+		exec(`INSERT INTO `+ratingDescriptionSetSelectableTable+`
+			(id, workspace_id, product_plan_id, price_schedule_id, rating_description_set_id, option_label, sequence_order, active)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, true)`, id(fmt.Sprintf("sel-%d", n)), f.ws, f.productPlan, f.schedule, setID, label, seq)
+	}
+	return f
+}
+
+// TestIntegrationResolveCellRatingDescriptions_DefaultUnchangedBySelectableRows
+// is AC-12 and the auto-fill gate at the resolver: rows change nothing on the
+// save path, which runs the same query count without touching the new table.
+func TestIntegrationResolveCellRatingDescriptions_DefaultUnchangedBySelectableRows(t *testing.T) {
+	f := newSelectionFixture(t)
+	a := &PostgresOutcomeMatrixQuery{}
+	resolved := enumspb.RatingDescriptionResolutionStatus_RATING_DESCRIPTION_RESOLUTION_STATUS_RESOLVED
+
+	snapshot := func(flag bool) (string, int) {
+		t.Helper()
+		c := &countingQueryer{q: f.tx}
+		resp, err := a.resolveCellRatingDescriptionsWithOptionsFrom(f.ctx, c, []*matrixpb.CellRatingRef{f.cell}, f.ws, flag)
+		if err != nil {
+			t.Fatalf("resolve: %v", err)
+		}
+		r := resp.GetResults()[0]
+		if r.GetStatus() != resolved {
+			t.Fatalf("status = %v (%s)", r.GetStatus(), r.GetReason())
+		}
+		s := r.GetRatingDescriptionSetId()
+		for _, d := range r.GetDescriptions() {
+			s += "|" + d.GetRatingDescriptionSetEntryId() + "=" + d.GetDescription()
+		}
+		return s, c.n
+	}
+
+	before, nBefore := snapshot(false)
+	if nBefore != 6 {
+		t.Errorf("save path query count = %d, want 6", nBefore)
+	}
+	if !strings.Contains(before, f.defaultTexts[0]) || !strings.Contains(before, f.setDefault) {
+		t.Errorf("default snapshot = %q", before)
+	}
+	withFlagNoRows, nFlagNoRows := snapshot(true)
+	if withFlagNoRows != before {
+		t.Errorf("flag with no rows changed the default:\n%s\n%s", before, withFlagNoRows)
+	}
+	if nFlagNoRows != 8 {
+		t.Errorf("flag with no rows query count = %d, want 8 (one selectable read, one RLS check)", nFlagNoRows)
+	}
+
+	f.addSelectable(f.setDefault, "1", 1)
+	f.addSelectable(f.setB, "3", 2)
+	after, nAfter := snapshot(false)
+	if after != before || nAfter != nBefore {
+		t.Errorf("rows changed the save path: %d queries\n%s\n%s", nAfter, before, after)
+	}
+	flagged, _ := snapshot(true)
+	if flagged != before {
+		t.Errorf("flag with rows changed the default:\n%s\n%s", before, flagged)
+	}
+
+	// A queryer that refuses any read of the new table proves two things: the
+	// save path never issues one, and on the drawer path its failure hides the
+	// options but still returns the default.
+	refusing := &refusingSelectableQueryer{q: f.tx}
+	resp, err := a.resolveCellRatingDescriptionsFrom(f.ctx, refusing, []*matrixpb.CellRatingRef{f.cell}, f.ws)
+	if err != nil || refusing.refused != 0 {
+		t.Errorf("save path touched the selectable table: err=%v refused=%d", err, refusing.refused)
+	}
+	if got := resp.GetResults()[0]; got.GetStatus() != resolved || got.GetDescriptions()[0].GetDescription() != f.defaultTexts[0] {
+		t.Errorf("save path result = %v", got)
+	}
+	refusing = &refusingSelectableQueryer{q: f.tx}
+	resp, err = a.resolveCellRatingDescriptionsWithOptionsFrom(f.ctx, refusing, []*matrixpb.CellRatingRef{f.cell}, f.ws, true)
+	if err != nil {
+		t.Fatalf("selectable read failure must not fail the call: %v", err)
+	}
+	if refusing.refused != 1 {
+		t.Errorf("refused = %d, want 1", refusing.refused)
+	}
+	got := resp.GetResults()[0]
+	if got.GetStatus() != resolved || got.GetDescriptions()[0].GetDescription() != f.defaultTexts[0] || len(got.GetSelectionOptions()) != 0 {
+		t.Errorf("selectable read failure: status=%v options=%d", got.GetStatus(), len(got.GetSelectionOptions()))
+	}
+}
+
+// TestIntegrationResolveCellRatingDescriptions_HiddenSelectableRowsLogOnce runs as a
+// non-owner role with row-level security on the table: zero rows, no error. It needs
+// the table to hold committed rows, so that the statistics report them.
+func TestIntegrationResolveCellRatingDescriptions_HiddenSelectableRowsLogOnce(t *testing.T) {
+	f := newSelectionFixture(t)
+	var live int64
+	if err := f.tx.QueryRowContext(f.ctx, `SELECT pg_stat_get_live_tuples('`+ratingDescriptionSetSelectableTable+`'::regclass)`).Scan(&live); err != nil {
+		t.Fatalf("statistics: %v", err)
+	}
+	if live == 0 {
+		t.Skip("needs a database whose selectable table holds committed rows")
+	}
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	ratingSelectableHiddenLogged.Store(false)
+	t.Cleanup(func() { ratingSelectableHiddenLogged.Store(false) })
+
+	a := &PostgresOutcomeMatrixQuery{}
+	resolve := func() *matrixpb.CellRatingResolution {
+		t.Helper()
+		resp, err := a.resolveCellRatingDescriptionsWithOptionsFrom(f.ctx, f.tx, []*matrixpb.CellRatingRef{f.cell}, f.ws, true)
+		if err != nil {
+			t.Fatalf("resolve: %v", err)
+		}
+		return resp.GetResults()[0]
+	}
+	const line = "reads none in this workspace"
+
+	// Owner, RLS off: an offering without rows is normal, so no line.
+	resolve()
+	if strings.Contains(buf.String(), line) {
+		t.Errorf("logged for an offering that simply has no rows")
+	}
+
+	role := f.id("role")
+	f.exec(`CREATE ROLE "` + role + `"`)
+	f.exec(`GRANT USAGE ON SCHEMA public TO "` + role + `"`)
+	f.exec(`GRANT SELECT ON ALL TABLES IN SCHEMA public TO "` + role + `"`)
+	f.exec(`ALTER TABLE ` + ratingDescriptionSetSelectableTable + ` ENABLE ROW LEVEL SECURITY`)
+	f.exec(`SET LOCAL ROLE "` + role + `"`)
+
+	// The copy's other tables carry row-level security too, so this role cannot run the
+	// whole resolver. The check is called directly; the query-count test above proves
+	// the option path reaches it when no rows come back.
+	a.logIfSelectableRowsHidden(f.ctx, f.tx, f.ws)
+	a.logIfSelectableRowsHidden(f.ctx, f.tx, f.ws)
+	if got := strings.Count(buf.String(), line); got != 1 {
+		t.Errorf("logged %d times, want once", got)
+	}
+	f.exec(`RESET ROLE`)
+
+	// The save path never runs the check, and the default is intact.
+	ratingSelectableHiddenLogged.Store(false)
+	buf.Reset()
+	resp, err := a.resolveCellRatingDescriptionsFrom(f.ctx, f.tx, []*matrixpb.CellRatingRef{f.cell}, f.ws)
+	if err != nil {
+		t.Fatalf("save path: %v", err)
+	}
+	if r := resp.GetResults()[0]; r.GetRatingDescriptionSetId() != f.setDefault || len(r.GetDescriptions()) != 2 {
+		t.Errorf("save path default not intact: status=%v", r.GetStatus())
+	}
+	if strings.Contains(buf.String(), line) {
+		t.Errorf("the save path logged")
+	}
+}
+
+type refusingSelectableQueryer struct {
+	q       outcomeMatrixRowsQueryer
+	refused int
+}
+
+func (c *refusingSelectableQueryer) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	if strings.Contains(query, ratingDescriptionSetSelectableTable) {
+		c.refused++
+		return nil, fmt.Errorf(`relation "%s" does not exist`, ratingDescriptionSetSelectableTable)
+	}
+	return c.q.QueryContext(ctx, query, args...)
+}
+
+// TestIntegrationResolveCellRatingDescriptions_SelectionOptions is AC-13 and AC-14.
+func TestIntegrationResolveCellRatingDescriptions_SelectionOptions(t *testing.T) {
+	resolve := func(t *testing.T, f *selectionFixture, flag bool, cells ...*matrixpb.CellRatingRef) []*matrixpb.CellRatingResolution {
+		t.Helper()
+		a := &PostgresOutcomeMatrixQuery{}
+		resp, err := a.resolveCellRatingDescriptionsWithOptionsFrom(f.ctx, f.tx, cells, f.ws, flag)
+		if err != nil {
+			t.Fatalf("resolve: %v", err)
+		}
+		return resp.GetResults()
+	}
+	assertDefaultIntact := func(t *testing.T, f *selectionFixture, r *matrixpb.CellRatingResolution) {
+		t.Helper()
+		if r.GetRatingDescriptionSetId() != f.setDefault || len(r.GetDescriptions()) != 2 || r.GetDescriptions()[0].GetDescription() != f.defaultTexts[0] {
+			t.Errorf("default not intact: set=%s descriptions=%d status=%v", r.GetRatingDescriptionSetId(), len(r.GetDescriptions()), r.GetStatus())
+		}
+	}
+
+	t.Run("phase not in progress has no options, default intact", func(t *testing.T) {
+		f := newSelectionFixture(t)
+		f.addSelectable(f.setDefault, "1", 1)
+		f.addSelectable(f.setB, "3", 2)
+		if _, err := f.tx.ExecContext(f.ctx, `UPDATE job_phase SET approval_status = 'PHASE_APPROVAL_STATUS_FOR_REVIEW'
+			WHERE id = (SELECT job_phase_id FROM job_task WHERE id = $1)`, f.cell.GetJobTaskId()); err != nil {
+			t.Fatalf("phase update: %v", err)
+		}
+		res := resolve(t, f, true, f.cell)
+		if len(res[0].GetSelectionOptions()) != 0 {
+			t.Errorf("options on a phase sent for review: %d", len(res[0].GetSelectionOptions()))
+		}
+		assertDefaultIntact(t, f, res[0])
+	})
+
+	t.Run("options per set with entry ids after rendering", func(t *testing.T) {
+		f := newSelectionFixture(t)
+		f.addSelectable(f.setDefault, "1", 1)
+		f.addSelectable(f.setB, "3", 2)
+		f.addSelectable(f.setC, "5", 3)
+		res := resolve(t, f, true, f.cell, f.cellOtherClient)
+		assertDefaultIntact(t, f, res[0])
+		opts := res[0].GetSelectionOptions()
+		if len(opts) != 3 {
+			t.Fatalf("options = %d, want 3", len(opts))
+		}
+		wantLabel, wantWord := []string{"1", "3", "5"}, []string{"default", "second", "third"}
+		seen := map[string]bool{}
+		for i, o := range opts {
+			if o.GetOptionLabel() != wantLabel[i] {
+				t.Errorf("option %d label = %q", i, o.GetOptionLabel())
+			}
+			if o.GetIsDefault() != (i == 0) {
+				t.Errorf("option %d is_default = %v", i, o.GetIsDefault())
+			}
+			if len(o.GetDescriptions()) != 2 {
+				t.Fatalf("option %d descriptions = %d", i, len(o.GetDescriptions()))
+			}
+			for b, d := range o.GetDescriptions() {
+				want := fmt.Sprintf("Ana %s wording band %d.", wantWord[i], b+1)
+				if d.GetDescription() != want {
+					t.Errorf("option %d band %d text = %q, want %q", i, b, d.GetDescription(), want)
+				}
+				if d.GetRatingDescriptionSetEntryId() == "" || seen[d.GetRatingDescriptionSetEntryId()] {
+					t.Errorf("option %d band %d entry id missing or repeated: %q", i, b, d.GetRatingDescriptionSetEntryId())
+				}
+				seen[d.GetRatingDescriptionSetEntryId()] = true
+			}
+		}
+		if got := res[1].GetSelectionOptions()[1].GetDescriptions()[0].GetDescription(); got != "Ben second wording band 1." {
+			t.Errorf("second cell must render its own name, got %q", got)
+		}
+	})
+
+	t.Run("no flag no options", func(t *testing.T) {
+		f := newSelectionFixture(t)
+		f.addSelectable(f.setDefault, "1", 1)
+		f.addSelectable(f.setB, "3", 2)
+		if opts := resolve(t, f, false, f.cell)[0].GetSelectionOptions(); len(opts) != 0 {
+			t.Errorf("options without flag = %d", len(opts))
+		}
+	})
+
+	t.Run("inactive rows are off", func(t *testing.T) {
+		f := newSelectionFixture(t)
+		f.addSelectable(f.setDefault, "1", 1)
+		f.addSelectable(f.setB, "3", 2)
+		f.exec(`UPDATE `+ratingDescriptionSetSelectableTable+` SET active = false WHERE workspace_id = $1`, f.ws)
+		if opts := resolve(t, f, true, f.cell)[0].GetSelectionOptions(); len(opts) != 0 {
+			t.Errorf("options = %d", len(opts))
+		}
+	})
+
+	t.Run("deprecated or inactive non-default set is not offered", func(t *testing.T) {
+		for name, stmt := range map[string]string{
+			"deprecated": `UPDATE ` + ratingDescriptionSetTable + ` SET version_status = 'VERSION_STATUS_DEPRECATED' WHERE id = $1`,
+			"inactive":   `UPDATE ` + ratingDescriptionSetTable + ` SET active = false WHERE id = $1`,
+		} {
+			t.Run(name, func(t *testing.T) {
+				f := newSelectionFixture(t)
+				f.addSelectable(f.setDefault, "1", 1)
+				f.addSelectable(f.setB, "3", 2)
+				f.addSelectable(f.setC, "5", 3)
+				f.exec(stmt, f.setB)
+				r := resolve(t, f, true, f.cell)[0]
+				assertDefaultIntact(t, f, r)
+				opts := r.GetSelectionOptions()
+				if len(opts) != 2 || opts[0].GetRatingDescriptionSetId() != f.setDefault || opts[1].GetRatingDescriptionSetId() != f.setC {
+					t.Errorf("options = %v, want the default and the third set", opts)
+				}
+			})
+		}
+	})
+
+	t.Run("deprecated default keeps resolving and hides the list", func(t *testing.T) {
+		f := newSelectionFixture(t)
+		f.addSelectable(f.setDefault, "1", 1)
+		f.addSelectable(f.setB, "3", 2)
+		f.exec(`UPDATE `+ratingDescriptionSetTable+` SET version_status = 'VERSION_STATUS_DEPRECATED' WHERE id = $1`, f.setDefault)
+		r := resolve(t, f, true, f.cell)[0]
+		assertDefaultIntact(t, f, r)
+		if opts := r.GetSelectionOptions(); len(opts) != 0 {
+			t.Errorf("options = %d, want none", len(opts))
+		}
+	})
+
+	t.Run("option set without entries offers no text", func(t *testing.T) {
+		f := newSelectionFixture(t)
+		f.addSelectable(f.setDefault, "1", 1)
+		f.addSelectable(f.setB, "3", 2)
+		f.exec(`UPDATE `+ratingDescriptionSetEntryTable+` SET active = false WHERE rating_description_set_id = $1`, f.setB)
+		r := resolve(t, f, true, f.cell)[0]
+		assertDefaultIntact(t, f, r)
+		if opts := r.GetSelectionOptions(); len(opts) != 2 || len(opts[1].GetDescriptions()) != 0 {
+			t.Errorf("options = %v, want the empty set to carry no descriptions", opts)
+		}
+	})
+
+	for _, tc := range []struct {
+		name    string
+		breakIt func(f *selectionFixture)
+	}{
+		{"default not among rows", func(f *selectionFixture) {
+			f.addSelectable(f.setB, "3", 2)
+			f.addSelectable(f.setC, "5", 3)
+		}},
+		{"option set on another scale", func(f *selectionFixture) {
+			f.addSelectable(f.setDefault, "1", 1)
+			f.addSelectable(f.setB, "3", 2)
+			f.exec(`UPDATE `+ratingDescriptionSetTable+` SET score_scale_id = $1 WHERE id = $2`, f.id("scale-other"), f.setB)
+		}},
+		{"option set unpublished", func(f *selectionFixture) {
+			f.addSelectable(f.setDefault, "1", 1)
+			f.addSelectable(f.setB, "3", 2)
+			f.exec(`UPDATE `+ratingDescriptionSetTable+` SET version_status = 'VERSION_STATUS_DRAFT' WHERE id = $1`, f.setB)
+		}},
+		{"option set in another workspace", func(f *selectionFixture) {
+			f.addSelectable(f.setDefault, "1", 1)
+			f.addSelectable(f.setB, "3", 2)
+			f.exec(`UPDATE `+ratingDescriptionSetEntryTable+` SET workspace_id = $1 WHERE rating_description_set_id = $2`, f.foreignWS, f.setB)
+			f.exec(`UPDATE `+ratingDescriptionSetTable+` SET workspace_id = $1 WHERE id = $2`, f.foreignWS, f.setB)
+		}},
+		{"rows in another workspace are ignored", func(f *selectionFixture) {
+			f.addSelectable(f.setDefault, "1", 1)
+			f.addSelectable(f.setB, "3", 2)
+			f.exec(`UPDATE `+ratingDescriptionSetSelectableTable+` SET workspace_id = $1 WHERE workspace_id = $2`, f.foreignWS, f.ws)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newSelectionFixture(t)
+			tc.breakIt(f)
+			r := resolve(t, f, true, f.cell)[0]
+			assertDefaultIntact(t, f, r)
+			if len(r.GetSelectionOptions()) != 0 {
+				t.Errorf("options = %d, want 0", len(r.GetSelectionOptions()))
+			}
+		})
 	}
 }

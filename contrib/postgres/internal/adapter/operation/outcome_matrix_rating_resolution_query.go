@@ -6,13 +6,19 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
+	"sync/atomic"
 
 	"github.com/lib/pq"
 
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	matrixpb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/outcome_matrix"
+
+	// Links the table's descriptor: there is no adapter for it, and the boot schema
+	// check needs the descriptor to reconcile the live table.
+	_ "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/rating_description_set_selectable"
 
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/shared/identity"
@@ -27,6 +33,8 @@ const (
 	ratingDescriptionSetTable            = entityid.RatingDescriptionSet
 	ratingDescriptionSetEntryTable       = entityid.RatingDescriptionSetEntry
 	ratingDescriptionSetProductPlanTable = entityid.RatingDescriptionSetProductPlan
+	ratingDescriptionSetSelectableTable  = entityid.RatingDescriptionSetSelectable
+	ratingSelectableDeprecatedStatus     = "VERSION_STATUS_DEPRECATED"
 )
 
 const (
@@ -67,7 +75,7 @@ func (a *PostgresOutcomeMatrixQuery) ResolveCellRatingDescriptions(
 		}, nil
 	}
 
-	return a.resolveCellRatingDescriptionsFrom(ctx, a.db, req.GetCells(), id.WorkspaceID)
+	return a.resolveCellRatingDescriptionsWithOptionsFrom(ctx, a.db, req.GetCells(), id.WorkspaceID, req.GetIncludeSelectionOptions())
 }
 
 // failClosedResolutions builds one CellRatingResolution per cell, all sharing
@@ -117,6 +125,21 @@ func (a *PostgresOutcomeMatrixQuery) resolveCellRatingDescriptionsFrom(
 	cells []*matrixpb.CellRatingRef,
 	workspaceID string,
 ) (*matrixpb.ResolveCellRatingDescriptionsResponse, error) {
+	return a.resolveCellRatingDescriptionsWithOptionsFrom(ctx, queryer, cells, workspaceID, false)
+}
+
+// resolveCellRatingDescriptionsWithOptionsFrom adds, only when includeOptions is
+// set, one bounded selectable-rows query plus the set, entries and placeholder
+// queries again for the shadow states. Saves never set it, so the save path
+// never reads the selectable table and cannot depend on its rows, its
+// permissions or its existence.
+func (a *PostgresOutcomeMatrixQuery) resolveCellRatingDescriptionsWithOptionsFrom(
+	ctx context.Context,
+	queryer outcomeMatrixRowsQueryer,
+	cells []*matrixpb.CellRatingRef,
+	workspaceID string,
+	includeOptions bool,
+) (*matrixpb.ResolveCellRatingDescriptionsResponse, error) {
 	states := make([]*cellResolutionState, len(cells))
 	for i, c := range cells {
 		states[i] = &cellResolutionState{cell: c}
@@ -141,6 +164,11 @@ func (a *PostgresOutcomeMatrixQuery) resolveCellRatingDescriptionsFrom(
 		return nil, fmt.Errorf("resolve_cell_rating_descriptions: placeholder values query: %w", err)
 	}
 
+	var options map[*cellResolutionState][]*matrixpb.CellRatingSelectionOption
+	if includeOptions {
+		options = a.resolveRatingSelectionOptions(ctx, queryer, states, workspaceID)
+	}
+
 	results := make([]*matrixpb.CellRatingResolution, len(states))
 	for i, st := range states {
 		// Defensive: every state must be terminal by here. A state that
@@ -158,9 +186,238 @@ func (a *PostgresOutcomeMatrixQuery) resolveCellRatingDescriptionsFrom(
 			RatingDescriptionSetId: st.setID,
 			Descriptions:           st.descriptionsOut,
 			Reason:                 st.reason,
+			SelectionOptions:       options[st],
 		}
 	}
 	return &matrixpb.ResolveCellRatingDescriptionsResponse{Results: results, Success: true}, nil
+}
+
+// ratingSelectableHiddenLogged keeps logIfSelectableRowsHidden to one line per process.
+var ratingSelectableHiddenLogged atomic.Bool
+
+// ratingSelectableRow is one active rating_description_set_selectable row.
+type ratingSelectableRow struct {
+	setID string
+	label string
+}
+
+// resolveRatingSelectionOptions builds, for each RESOLVED cell whose offering x
+// year has selectable rows, one option per row. Each row becomes a shadow state
+// that runs through the same set, entries and placeholder stages as the default,
+// so the checks and the rendering cannot differ. Any failure yields no options
+// for the affected cells and is logged; it never changes the default result.
+func (a *PostgresOutcomeMatrixQuery) resolveRatingSelectionOptions(ctx context.Context, queryer outcomeMatrixRowsQueryer, states []*cellResolutionState, workspaceID string) map[*cellResolutionState][]*matrixpb.CellRatingSelectionOption {
+	resolved := enumspb.RatingDescriptionResolutionStatus_RATING_DESCRIPTION_RESOLUTION_STATUS_RESOLVED
+
+	order := make([]ratingLinkKey, 0, len(states))
+	seen := make(map[ratingLinkKey]int, len(states))
+	for _, st := range states {
+		if st.status != resolved {
+			continue
+		}
+		k := ratingLinkKey{st.productPlanID, st.scheduleID}
+		if _, ok := seen[k]; !ok {
+			seen[k] = len(order) + 1
+			order = append(order, k)
+		}
+	}
+	if len(order) == 0 {
+		return nil
+	}
+
+	rowsByOrd, err := a.loadRatingSelectableRows(ctx, queryer, order, workspaceID)
+	if err != nil {
+		log.Printf("resolve_cell_rating_descriptions: selection options unavailable: %v", err)
+		return nil
+	}
+	if len(rowsByOrd) == 0 {
+		a.logIfSelectableRowsHidden(ctx, queryer, workspaceID)
+		return nil
+	}
+	openTasks, err := a.loadRatingOpenTasks(ctx, queryer, states, workspaceID)
+	if err != nil {
+		log.Printf("resolve_cell_rating_descriptions: selection options unavailable: phase query: %v", err)
+		return nil
+	}
+
+	type cellOptions struct {
+		st      *cellResolutionState
+		rows    []ratingSelectableRow
+		shadows []*cellResolutionState
+	}
+	var work []*cellOptions
+	var shadows []*cellResolutionState
+	for _, st := range states {
+		if st.status != resolved {
+			continue
+		}
+		rows := rowsByOrd[seen[ratingLinkKey{st.productPlanID, st.scheduleID}]]
+		if len(rows) == 0 || !openTasks[st.cell.GetJobTaskId()] {
+			continue
+		}
+		defaultListed := false
+		for _, r := range rows {
+			if r.setID == st.setID {
+				defaultListed = true
+				break
+			}
+		}
+		if !defaultListed {
+			log.Printf("resolve_cell_rating_descriptions: selection options hidden for product_plan %s: default set is not among the selectable rows", st.productPlanID)
+			continue
+		}
+		c := &cellOptions{st: st, rows: rows}
+		for _, r := range rows {
+			shadow := &cellResolutionState{cell: st.cell, setID: r.setID, ratingScaleID: st.ratingScaleID}
+			c.shadows = append(c.shadows, shadow)
+			shadows = append(shadows, shadow)
+		}
+		work = append(work, c)
+	}
+	if len(work) == 0 {
+		return nil
+	}
+
+	if err := a.resolveRatingSets(ctx, queryer, shadows, workspaceID); err != nil {
+		log.Printf("resolve_cell_rating_descriptions: selection options unavailable: set query: %v", err)
+		return nil
+	}
+	if err := a.resolveRatingEntries(ctx, queryer, shadows, workspaceID); err != nil {
+		log.Printf("resolve_cell_rating_descriptions: selection options unavailable: entries query: %v", err)
+		return nil
+	}
+	if err := a.renderRatingPlaceholders(ctx, queryer, shadows, workspaceID); err != nil {
+		log.Printf("resolve_cell_rating_descriptions: selection options unavailable: placeholder query: %v", err)
+		return nil
+	}
+
+	out := make(map[*cellResolutionState][]*matrixpb.CellRatingSelectionOption, len(work))
+	for _, c := range work {
+		options := make([]*matrixpb.CellRatingSelectionOption, 0, len(c.rows))
+		for i, shadow := range c.shadows {
+			if shadow.status != resolved {
+				log.Printf("resolve_cell_rating_descriptions: selection options hidden for product_plan %s: set %s: %s", c.st.productPlanID, shadow.setID, shadow.reason)
+				options = nil
+				break
+			}
+			options = append(options, &matrixpb.CellRatingSelectionOption{
+				RatingDescriptionSetId: shadow.setID,
+				OptionLabel:            c.rows[i].label,
+				IsDefault:              shadow.setID == c.st.setID,
+				Descriptions:           shadow.descriptionsOut,
+			})
+		}
+		if len(options) > 0 {
+			out[c.st] = options
+		}
+	}
+	return out
+}
+
+// logIfSelectableRowsHidden catches row-level security hiding the whole table from
+// this role, which reads as zero rows with no error. Most offerings have no rows, so
+// zero rows alone means nothing: this logs only when RLS is active for the role, the
+// statistics say the table holds rows, and none is readable in this workspace. It
+// logs once per process and runs only on the option path, never on a save.
+func (a *PostgresOutcomeMatrixQuery) logIfSelectableRowsHidden(ctx context.Context, queryer outcomeMatrixRowsQueryer, workspaceID string) {
+	if ratingSelectableHiddenLogged.Load() {
+		return
+	}
+	table := ratingDescriptionSetSelectableTable
+	rows, err := queryer.QueryContext(ctx, `
+		SELECT row_security_active('`+table+`'::regclass)
+			AND pg_stat_get_live_tuples('`+table+`'::regclass) > 0
+			AND NOT EXISTS (SELECT 1 FROM `+table+` WHERE active AND workspace_id = $1)`, workspaceID)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	var hidden bool
+	if !rows.Next() || rows.Scan(&hidden) != nil || !hidden {
+		return
+	}
+	if ratingSelectableHiddenLogged.CompareAndSwap(false, true) {
+		log.Printf("resolve_cell_rating_descriptions: %s has rows but this database role reads none in this workspace, so no descriptor list can appear; check its row-level security policies for the runtime role", table)
+	}
+}
+
+// loadRatingOpenTasks returns the job_tasks whose own job_phase is IN_PROGRESS, the
+// rule the cell-write guard applies per row. The grid's roll-up cannot answer this
+// for one cell: unfiltered, it reports "mixed" once any other group is sent for review.
+func (a *PostgresOutcomeMatrixQuery) loadRatingOpenTasks(ctx context.Context, queryer outcomeMatrixRowsQueryer, states []*cellResolutionState, workspaceID string) (map[string]bool, error) {
+	taskIDs := make([]string, 0, len(states))
+	for _, st := range states {
+		if st.status == enumspb.RatingDescriptionResolutionStatus_RATING_DESCRIPTION_RESOLUTION_STATUS_RESOLVED {
+			taskIDs = append(taskIDs, st.cell.GetJobTaskId())
+		}
+	}
+	q := `
+		SELECT jt.id
+		FROM ` + entityid.JobTask + ` jt
+		JOIN ` + entityid.JobPhase + ` jp ON jp.id = jt.job_phase_id AND jp.active AND jp.workspace_id = $2
+		WHERE jt.id = ANY($1) AND jt.active AND jt.workspace_id = $2
+			AND jp.approval_status = 'PHASE_APPROVAL_STATUS_IN_PROGRESS'`
+	rows, err := queryer.QueryContext(ctx, q, pq.Array(taskIDs), workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make(map[string]bool, len(taskIDs))
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
+// loadRatingSelectableRows reads active rows per offering x year, workspace-scoped,
+// in sequence_order, leaving out deprecated and inactive sets. Links to a deprecated
+// set keep resolving as a default; only the offer of its wording stops here, and a
+// default that drops out hides the whole list. A draft stays in, so that the set
+// stage still rejects it and hides the list as a misconfiguration. The returned slice
+// index is the key's 1-based position.
+func (a *PostgresOutcomeMatrixQuery) loadRatingSelectableRows(ctx context.Context, queryer outcomeMatrixRowsQueryer, order []ratingLinkKey, workspaceID string) (map[int][]ratingSelectableRow, error) {
+	productPlanIDs := make([]string, len(order))
+	scheduleIDs := make([]string, len(order))
+	for i, k := range order {
+		productPlanIDs[i] = k.productPlanID
+		scheduleIDs[i] = k.scheduleID
+	}
+
+	q := `
+		WITH keys(product_plan_id, price_schedule_id, ord) AS (
+			SELECT * FROM unnest($1::text[], $2::text[])
+				WITH ORDINALITY AS t(product_plan_id, price_schedule_id, ord)
+		)
+		SELECT k.ord, rdss.rating_description_set_id, rdss.option_label
+		FROM keys k
+		JOIN ` + ratingDescriptionSetSelectableTable + ` rdss
+			ON rdss.product_plan_id = k.product_plan_id AND rdss.price_schedule_id = k.price_schedule_id
+			AND rdss.active AND rdss.workspace_id = $3
+		JOIN ` + ratingDescriptionSetTable + ` rds
+			ON rds.id = rdss.rating_description_set_id AND rds.active
+			AND rds.version_status <> '` + ratingSelectableDeprecatedStatus + `'
+		ORDER BY k.ord, rdss.sequence_order, rdss.id`
+
+	rows, err := queryer.QueryContext(ctx, q, pq.Array(productPlanIDs), pq.Array(scheduleIDs), workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make(map[int][]ratingSelectableRow, len(order))
+	for rows.Next() {
+		var ord int
+		var row ratingSelectableRow
+		if err := rows.Scan(&ord, &row.setID, &row.label); err != nil {
+			return nil, err
+		}
+		out[ord] = append(out[ord], row)
+	}
+	return out, rows.Err()
 }
 
 // loadCellAncestryAndSlotMode is query 1/5. For each requested cell it
@@ -643,7 +900,7 @@ func (a *PostgresOutcomeMatrixQuery) resolveRatingEntries(ctx context.Context, q
 				 AND (ssb.workspace_id = $3 OR ssb.workspace_id IS NULL)
 				 AND (ss.workspace_id = $3 OR ss.workspace_id IS NULL)) AS ws_ok,
 				(ssb.score_scale_id = rds.score_scale_id) AS scale_ok,
-				ss.scale_kind, ssb.input_min, ssb.input_max, ssb.input_match, rdse.description
+				ss.scale_kind, ssb.input_min, ssb.input_max, ssb.input_match, rdse.description, rdse.id
 			FROM keys k
 			JOIN ` + ratingDescriptionSetEntryTable + ` rdse
 				ON rdse.rating_description_set_id = k.set_id AND rdse.outcome_criteria_id = k.criterion_id AND rdse.active
@@ -667,8 +924,8 @@ func (a *PostgresOutcomeMatrixQuery) resolveRatingEntries(ctx context.Context, q
 			var scaleKind sql.NullString
 			var inputMin, inputMax sql.NullFloat64
 			var inputMatch sql.NullString
-			var description string
-			if err := rows.Scan(&ord, &wsOK, &scaleOK, &scaleKind, &inputMin, &inputMax, &inputMatch, &description); err != nil {
+			var description, entryID string
+			if err := rows.Scan(&ord, &wsOK, &scaleOK, &scaleKind, &inputMin, &inputMax, &inputMatch, &description, &entryID); err != nil {
 				return err
 			}
 			if !wsOK || !scaleOK {
@@ -676,11 +933,12 @@ func (a *PostgresOutcomeMatrixQuery) resolveRatingEntries(ctx context.Context, q
 				continue
 			}
 			descByOrd[ord] = append(descByOrd[ord], &matrixpb.RatingDescription{
-				ScaleKind:   parseScaleKind(scaleKind),
-				InputMin:    nullFloat64Ptr(inputMin),
-				InputMax:    nullFloat64Ptr(inputMax),
-				InputMatch:  nullStringPtr(inputMatch),
-				Description: description,
+				ScaleKind:                   parseScaleKind(scaleKind),
+				InputMin:                    nullFloat64Ptr(inputMin),
+				InputMax:                    nullFloat64Ptr(inputMax),
+				InputMatch:                  nullStringPtr(inputMatch),
+				Description:                 description,
+				RatingDescriptionSetEntryId: &entryID,
 			})
 		}
 		if err := rows.Err(); err != nil {
@@ -840,11 +1098,12 @@ func (a *PostgresOutcomeMatrixQuery) renderRatingPlaceholders(ctx context.Contex
 				break
 			}
 			rendered = append(rendered, &matrixpb.RatingDescription{
-				ScaleKind:   d.GetScaleKind(),
-				InputMin:    d.InputMin,
-				InputMax:    d.InputMax,
-				InputMatch:  d.InputMatch,
-				Description: text,
+				ScaleKind:                   d.GetScaleKind(),
+				InputMin:                    d.InputMin,
+				InputMax:                    d.InputMax,
+				InputMatch:                  d.InputMatch,
+				Description:                 text,
+				RatingDescriptionSetEntryId: d.RatingDescriptionSetEntryId,
 			})
 		}
 		if failed != nil {

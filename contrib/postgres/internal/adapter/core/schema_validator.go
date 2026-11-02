@@ -131,6 +131,26 @@ var descriptorOutOfScope = map[string]bool{
 	"zz_t16_job_origin_backup_20260711":        true,
 	"plan_composition_successor_legacy_backup": true,
 	"plan_job_template":                        true,
+
+	// Schema release 2026.09.7 tables. A binary without the packages that use them
+	// links no descriptor for them, and must still boot on a database that has
+	// them, so the schema can ship ahead of those packages.
+	"allocation_batch":             true,
+	"allocation_share":             true,
+	"agreement_line_term":          true,
+	"billable_charge":              true,
+	"charge_component":             true,
+	"charge_effect":                true,
+	"charge_policy":                true,
+	"charge_policy_component":      true,
+	"charge_policy_posting":        true,
+	"charge_policy_version":        true,
+	"charge_policy_version_editor": true,
+	"collection_application":       true,
+	"cost_source_component":        true,
+	"document_series":              true,
+	"recovery_document":            true,
+	"recovery_document_line":       true,
 }
 
 // ValidateSchema is the registered postgresql SchemaValidator. It reads the live

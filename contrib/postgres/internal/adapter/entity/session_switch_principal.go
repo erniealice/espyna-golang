@@ -15,6 +15,7 @@ import (
 
 	"uuid"
 
+	audittrailenums "github.com/erniealice/esqyma/pkg/schema/v1/domain/audit_trail/enums"
 	principaltypepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/entity/principal_type"
 	authpb "github.com/erniealice/esqyma/pkg/schema/v1/service/auth"
 )
@@ -389,7 +390,7 @@ func (r *PostgresSessionRepository) SwitchPrincipal(
 		reason += " url:" + sanitizeSwitchAuditField(req.GetRequestUrl())
 	}
 	if req.GetReferer() != "" {
-		reason += " referer:" + sanitizeSwitchAuditField(req.GetReferer())
+		reason += " referer:" + sanitizeSwitchAuditField(refererWithoutQuery(req.GetReferer()))
 	}
 	if req.GetSecFetchSite() != "" {
 		reason += " sec_fetch_site:" + sanitizeSwitchAuditField(req.GetSecFetchSite())
@@ -543,8 +544,9 @@ type switchAuditRow struct {
 //
 // Returns the underlying error only when RequireAudit=true.
 func writeSwitchAuditRow(ctx context.Context, tx *sql.Tx, row switchAuditRow) error {
-	const auditAction = "AUDIT_ACTION_UPDATE"
-	const actorType = "ACTOR_TYPE_USER"
+	// actor_type and action are smallint columns holding the enum numbers.
+	auditAction := int32(audittrailenums.AuditAction_AUDIT_ACTION_UPDATE)
+	actorType := int32(audittrailenums.ActorType_ACTOR_TYPE_USER)
 
 	// occurred_at is timestamptz, populated via NOW() to avoid Go-side TZ
 	// nuance. id is generated client-side to match the rest of the codebase.
@@ -568,7 +570,7 @@ func writeSwitchAuditRow(ctx context.Context, tx *sql.Tx, row switchAuditRow) er
 			$3, $4, NULL, NULL,
 			'session', $5, 'auth', $6,
 			NULL, $7, $8, '',
-			NULL, 0, 0,
+			NULL, txid_current(), 0,
 			NOW()
 		)
 	`
@@ -604,6 +606,15 @@ func writeSwitchAuditRow(ctx context.Context, tx *sql.Tx, row switchAuditRow) er
 	}
 	_, _ = tx.ExecContext(ctx, `RELEASE SAVEPOINT audit_sp`)
 	return nil
+}
+
+// refererWithoutQuery drops the query string and fragment: a Referer can carry search
+// terms or tokens that do not belong in a retained audit row.
+func refererWithoutQuery(referer string) string {
+	if i := strings.IndexAny(referer, "?#"); i >= 0 {
+		return referer[:i]
+	}
+	return referer
 }
 
 // sanitizeSwitchAuditField scrubs whitespace so the structured reason

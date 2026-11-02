@@ -14,7 +14,9 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 
+	auditadapter "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/audit"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
+	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
@@ -22,6 +24,7 @@ import (
 	"github.com/erniealice/espyna-golang/shared/identity"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
+	audittrailenums "github.com/erniealice/esqyma/pkg/schema/v1/domain/audit_trail/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 )
 
@@ -42,6 +45,10 @@ type PostgresTaskOutcomeRepository struct {
 	dbOps     interfaces.DatabaseOperation
 	db        *sql.DB
 	tableName string
+	// audit records grade writes: UpdateTaskOutcome, UpdateTaskOutcomeIfUnchanged,
+	// CreateTaskOutcomeIfAbsent and DeleteTaskOutcome. CreateTaskOutcome is not audited.
+	// Nil: no audit.
+	audit infraports.AuditService
 }
 
 // NewPostgresTaskOutcomeRepository creates a new PostgreSQL task_outcome repository
@@ -55,10 +62,16 @@ func NewPostgresTaskOutcomeRepository(dbOps interfaces.DatabaseOperation, tableN
 		db = pgOps.GetDB()
 	}
 
+	var auditSvc infraports.AuditService
+	if db != nil {
+		auditSvc = auditadapter.New(db)
+	}
+
 	return &PostgresTaskOutcomeRepository{
 		dbOps:     dbOps,
 		db:        db,
 		tableName: tableName,
+		audit:     auditSvc,
 	}
 }
 
@@ -210,6 +223,8 @@ func (r *PostgresTaskOutcomeRepository) UpdateTaskOutcome(ctx context.Context, r
 	delete(data, "jobTaskId")
 	delete(data, "criteriaVersionId")
 
+	before := r.readTaskOutcomeForAudit(ctx, req.Data.Id)
+
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update task outcome: %w", err)
@@ -225,6 +240,17 @@ func (r *PostgresTaskOutcomeRepository) UpdateTaskOutcome(ctx context.Context, r
 		return nil, fmt.Errorf("failed to unmarshal JSON to protobuf: %w", err)
 	}
 
+	if before != nil {
+		r.auditTaskOutcomeWrite(ctx, taskOutcomeAuditWrite{
+			Action:     audittrailenums.AuditAction_AUDIT_ACTION_UPDATE,
+			Permission: "task_outcome:update",
+			Method:     "UpdateTaskOutcome",
+			ID:         req.Data.Id,
+			Before:     before,
+			After:      outcome,
+		})
+	}
+
 	return &pb.UpdateTaskOutcomeResponse{
 		Success: true,
 		Data:    []*pb.TaskOutcome{outcome},
@@ -237,9 +263,21 @@ func (r *PostgresTaskOutcomeRepository) DeleteTaskOutcome(ctx context.Context, r
 		return nil, fmt.Errorf("task outcome ID is required")
 	}
 
+	before := r.readTaskOutcomeForAudit(ctx, req.Data.Id)
+
 	err := r.dbOps.Delete(ctx, r.tableName, req.Data.Id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete task outcome: %w", err)
+	}
+
+	if before != nil {
+		r.auditTaskOutcomeWrite(ctx, taskOutcomeAuditWrite{
+			Action:     audittrailenums.AuditAction_AUDIT_ACTION_DELETE,
+			Permission: "task_outcome:delete",
+			Method:     "DeleteTaskOutcome",
+			ID:         req.Data.Id,
+			Before:     before,
+		})
 	}
 
 	return &pb.DeleteTaskOutcomeResponse{

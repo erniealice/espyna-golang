@@ -14,6 +14,7 @@ import (
 	portsdomain "github.com/erniealice/espyna-golang/internal/application/ports/domain"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/shared/identity"
+	audittrailenums "github.com/erniealice/esqyma/pkg/schema/v1/domain/audit_trail/enums"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 )
@@ -146,6 +147,15 @@ func (r *PostgresTaskOutcomeRepository) UpdateTaskOutcomeIfUnchanged(ctx context
 	if err != nil {
 		return nil, fmt.Errorf("task_outcome conditional update: %w", err)
 	}
+	r.auditTaskOutcomeWrite(ctx, taskOutcomeAuditWrite{
+		WorkspaceID: wsID,
+		Action:      audittrailenums.AuditAction_AUDIT_ACTION_UPDATE,
+		Permission:  "task_outcome:update",
+		Method:      "UpdateTaskOutcomeIfUnchanged",
+		ID:          out.GetId(),
+		Before:      expected,
+		After:       out,
+	})
 	return out, nil
 }
 
@@ -195,7 +205,16 @@ func (r *PostgresTaskOutcomeRepository) CreateTaskOutcomeIfAbsent(ctx context.Co
 	if len(resp.GetData()) == 0 || resp.GetData()[0] == nil {
 		return nil, fmt.Errorf("task_outcome create-if-absent: create returned no row")
 	}
-	return resp.GetData()[0], nil
+	created := resp.GetData()[0]
+	r.auditTaskOutcomeWrite(ctx, taskOutcomeAuditWrite{
+		WorkspaceID: wsID,
+		Action:      audittrailenums.AuditAction_AUDIT_ACTION_INSERT,
+		Permission:  "task_outcome:create",
+		Method:      "CreateTaskOutcomeIfAbsent",
+		ID:          created.GetId(),
+		After:       created,
+	})
+	return created, nil
 }
 
 func condNullFloat(v *float64) sql.NullFloat64 {

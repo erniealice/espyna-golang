@@ -1,0 +1,205 @@
+//go:build postgresql
+
+package operation
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"log/slog"
+	"strconv"
+
+	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
+	entityid "github.com/erniealice/espyna-golang/registry/entityid"
+	"github.com/erniealice/espyna-golang/shared/identity"
+	audittrailenums "github.com/erniealice/esqyma/pkg/schema/v1/domain/audit_trail/enums"
+	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
+	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
+)
+
+// Grade writes record their own audit here. The task_outcome repository is built on
+// operations that do not audit, so these are the only audit rows these writes get:
+// the conditional update, the locked create, the partial update behind the typed
+// note, and the delete behind a cleared cell.
+//
+// An audit failure never fails the save. A failed statement would abort the whole
+// transaction, so the audit runs in a savepoint; a failure rolls back to it and is
+// logged at error level. Other audited writes in this codebase, such as the job_phase
+// approvals, instead fail the write when the audit fails.
+const (
+	taskOutcomeAuditSavepoint = "task_outcome_audit"
+
+	// taskOutcomeAuditLockTimeout bounds how long an audit statement waits on a lock
+	// while the save holds its grade row and phase locks. Inserts into audit_entry only
+	// wait on partition maintenance, so waiting longer than this would just make
+	// teachers queue behind it, and a skipped row is logged at error level.
+	taskOutcomeAuditLockTimeout = "1s"
+)
+
+// taskOutcomeAuditWrite describes one grade write. Before is nil on a create, After
+// is nil on a delete.
+type taskOutcomeAuditWrite struct {
+	WorkspaceID string
+	Action      audittrailenums.AuditAction
+	Permission  string
+	Method      string
+	ID          string
+	Before      *pb.TaskOutcome
+	After       *pb.TaskOutcome
+}
+
+// isolateTaskOutcomeAudit runs fn so that its failure cannot reach the save, and so
+// that its lock timeout ends with it. With an ambient transaction that takes a
+// savepoint. Without one the save has already committed by the time fn runs, so a
+// failure cannot reach it, and fn runs on the pool with no lock timeout because
+// SET LOCAL needs a transaction.
+func (r *PostgresTaskOutcomeRepository) isolateTaskOutcomeAudit(ctx context.Context, id string, fn func() error) {
+	tx, inTx := r.executor(ctx).(*sql.Tx)
+	if !inTx || tx == nil {
+		if err := fn(); err != nil {
+			slog.Error("task_outcome audit failed; the save stands", "outcome_id", id, "err", err)
+		}
+		return
+	}
+	if _, err := tx.ExecContext(ctx, `SAVEPOINT `+taskOutcomeAuditSavepoint); err != nil {
+		slog.Error("task_outcome audit skipped: savepoint failed; the save stands", "outcome_id", id, "err", err)
+		return
+	}
+
+	err := func() error {
+		var previous string
+		if err := tx.QueryRowContext(ctx, `SELECT current_setting('lock_timeout')`).Scan(&previous); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `SELECT set_config('lock_timeout', $1, true)`, taskOutcomeAuditLockTimeout); err != nil {
+			return err
+		}
+		if err := fn(); err != nil {
+			return err
+		}
+		// RELEASE keeps a SET LOCAL for the rest of the transaction, so it is put back
+		// by hand. ROLLBACK TO, on the failure path, undoes it by itself.
+		_, err := tx.ExecContext(ctx, `SELECT set_config('lock_timeout', $1, true)`, previous)
+		return err
+	}()
+	if err != nil {
+		slog.Error("task_outcome audit failed; the save stands", "outcome_id", id, "err", err)
+		if _, rbErr := tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT `+taskOutcomeAuditSavepoint); rbErr != nil {
+			slog.Error("task_outcome audit: rollback to savepoint failed", "outcome_id", id, "err", rbErr)
+			return
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `RELEASE SAVEPOINT `+taskOutcomeAuditSavepoint); err != nil {
+		slog.Error("task_outcome audit: release savepoint failed", "outcome_id", id, "err", err)
+	}
+}
+
+// readTaskOutcomeForAudit reads the row before a write that does not return its old
+// values. Nil means no audit row will be written, and that is logged.
+func (r *PostgresTaskOutcomeRepository) readTaskOutcomeForAudit(ctx context.Context, id string) *pb.TaskOutcome {
+	if r.audit == nil {
+		return nil
+	}
+	wsID := ""
+	if idn, ok := identity.FromContext(ctx); ok && idn != nil {
+		wsID = idn.WorkspaceID
+	}
+	var before *pb.TaskOutcome
+	r.isolateTaskOutcomeAudit(ctx, id, func() error {
+		row, err := scanTaskOutcomeSingleRow(r.executor(ctx).QueryRowContext(ctx,
+			`SELECT `+taskOutcomeReturningCols+` FROM `+entityid.TaskOutcome+`
+			 WHERE id = $1 AND (NULLIF($2, '') IS NULL OR workspace_id = $2)`, id, wsID))
+		if errors.Is(err, sql.ErrNoRows) {
+			// Nothing to compare with, and no failure: the write that follows finds no
+			// row either, and reports that itself.
+			slog.Info("task_outcome audit: no row to read before the write", "outcome_id", id)
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		before = row
+		return nil
+	})
+	return before
+}
+
+// auditTaskOutcomeWrite records one grade write. A write that changed nothing the
+// audit tracks records nothing.
+func (r *PostgresTaskOutcomeRepository) auditTaskOutcomeWrite(ctx context.Context, w taskOutcomeAuditWrite) {
+	if r.audit == nil {
+		return
+	}
+	oldData, newData := taskOutcomeAuditFields(w.Before), taskOutcomeAuditFields(w.After)
+	if !taskOutcomeAuditChanged(oldData, newData) {
+		return
+	}
+	ac, _ := infraports.GetAuditContext(ctx)
+	if idn, ok := identity.FromContext(ctx); ok && idn != nil && idn.UserID != "" {
+		ac.ActorID = idn.UserID
+		ac.ActorType = "user"
+	}
+	auditCtx := infraports.WithAuditContext(ctx, ac)
+	r.isolateTaskOutcomeAudit(ctx, w.ID, func() error {
+		return infraports.DiffAndLog(auditCtx, r.audit, infraports.DiffAndLogRequest{
+			WorkspaceID:    w.WorkspaceID,
+			EntityType:     entityid.TaskOutcome,
+			EntityID:       w.ID,
+			Domain:         "fayna",
+			Action:         int32(w.Action),
+			PermissionCode: w.Permission,
+			UseCase:        w.Method,
+			MethodName:     "PostgresTaskOutcomeRepository." + w.Method,
+			OldData:        oldData,
+			NewData:        newData,
+		})
+	})
+}
+
+// taskOutcomeAuditChanged compares the way DiffAndLog does, where an absent field and
+// an empty one are the same text, so a write it would diff to nothing is never logged
+// as an entry with no field changes.
+func taskOutcomeAuditChanged(oldData, newData map[string]any) bool {
+	text := func(m map[string]any, k string) string {
+		s, _ := m[k].(string)
+		return s
+	}
+	for k := range newData {
+		if text(oldData, k) != text(newData, k) {
+			return true
+		}
+	}
+	for k := range oldData {
+		if text(oldData, k) != text(newData, k) {
+			return true
+		}
+	}
+	return false
+}
+
+// taskOutcomeAuditFields is the grade columns these writes can change, as text.
+func taskOutcomeAuditFields(o *pb.TaskOutcome) map[string]any {
+	fields := map[string]any{}
+	if o == nil {
+		return fields
+	}
+	if ct := o.GetCriteriaType(); ct != enumspb.CriteriaType_CRITERIA_TYPE_UNSPECIFIED {
+		fields["criteria_type"] = ct.String()
+	}
+	if o.NumericValue != nil {
+		fields["numeric_value"] = strconv.FormatFloat(*o.NumericValue, 'g', -1, 64)
+	}
+	if o.TextValue != nil {
+		fields["text_value"] = *o.TextValue
+	}
+	if o.CategoricalValue != nil {
+		fields["categorical_value"] = *o.CategoricalValue
+	}
+	if o.PassFailValue != nil {
+		fields["pass_fail_value"] = strconv.FormatBool(*o.PassFailValue)
+	}
+	if o.DeterminationNote != nil {
+		fields["determination_note"] = *o.DeterminationNote
+	}
+	return fields
+}

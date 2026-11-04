@@ -37,6 +37,18 @@ const (
 	// WorkspaceCSRFHeaderName is the request header that mirrors the cookie value.
 	WorkspaceCSRFHeaderName = "X-Ws-Csrf-Token"
 
+	// SessionExpiredHeader is set to "1" on every CSRF rejection of an
+	// /action/* mutation (missing cookie, missing header, cookie/header
+	// mismatch, or session/workspace claim mismatch). Each of these means the
+	// page's session credentials are no longer usable as-is, so the browser
+	// client (pyeza dialog.js) stops retrying, keeps unsaved input, and offers a
+	// fresh sign-in that returns to the same page. 20261104.
+	SessionExpiredHeader = "X-Session-Expired"
+
+	// SessionExpiredCode is the machine-readable "code" in the CSRF rejection's
+	// JSON body ({"error": ..., "code": "session_expired"}).
+	SessionExpiredCode = "session_expired"
+
 	// workspaceCSRFTokenVersion is the token format discriminator.
 	workspaceCSRFTokenVersion = "v1"
 

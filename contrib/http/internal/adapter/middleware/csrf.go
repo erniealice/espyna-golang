@@ -238,10 +238,17 @@ func verifyWorkspaceCSRFToken(secret []byte, token, wantSessionToken, wantWorksp
 	return consumermw.VerifyWorkspaceCSRFToken(secret, token, wantSessionToken, wantWorkspaceID)
 }
 
+// writeWorkspaceCSRFError answers a rejected /action/* mutation with 403 and a
+// machine-readable session-expired signal (20261104): the X-Session-Expired: 1
+// header plus "code":"session_expired" in the JSON body. Every CSRF failure
+// mode carries it — none can be fixed by retrying the same request, and all
+// are fixed by a fresh sign-in — so the browser client can stop its retry loop
+// and offer sign-in instead of showing a generic "Not saved".
 func writeWorkspaceCSRFError(w http.ResponseWriter, message string) {
 	if w.Header().Get("Content-Type") == "" {
 		w.Header().Set("Content-Type", "application/json")
 	}
+	w.Header().Set(consumermw.SessionExpiredHeader, "1")
 	w.WriteHeader(http.StatusForbidden)
-	fmt.Fprintf(w, `{"error":%q}`, message)
+	fmt.Fprintf(w, `{"error":%q,"code":%q}`, message, consumermw.SessionExpiredCode)
 }

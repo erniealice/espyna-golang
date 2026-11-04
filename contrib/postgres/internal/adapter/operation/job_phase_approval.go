@@ -961,9 +961,9 @@ func (r *PostgresJobPhaseRepository) SubmitJobPhaseApproval(ctx context.Context,
 	}
 
 	// Actor authorization (D7). Override resolved by the use case and threaded via
-	// context (staff session: approval_scope:workspace only; operator session:
-	// job_phase:publish or approval_scope:workspace — plan 20260924-approval-role-
-	// workflow D3); default fail-closed to the strict all-task ownership check,
+	// context (staff and operator sessions: approval_scope:workspace only — plan
+	// 20260924-approval-role-workflow D3, operator publish path removed by owner
+	// decision 2026-11-05); default fail-closed to the strict all-task ownership check,
 	// which a reviewer edge on the job's offering also satisfies.
 	decision, _ := approvalctx.SubmitDecisionFromContext(ctx)
 	if !decision.AdminOverride {

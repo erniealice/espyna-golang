@@ -172,18 +172,19 @@ func TestSubmit_RevokedInTx_Denied(t *testing.T) {
 	}
 }
 
-// TestSubmit_AdminOverride_UsesFreshVerdict proves the publish-derived admin
-// override reads the FRESH verdict: cached publish=allow, fresh publish=deny ⇒ NO
-// override (fall through to the D7 ownership check), never a stale cache grant.
+// TestSubmit_AdminOverride_UsesFreshVerdict proves the admin override reads the
+// FRESH verdict: cached approval_scope:workspace=allow, fresh=deny ⇒ NO override
+// (fall through to the D7 ownership check), never a stale cache grant. Operator
+// session, so the case would otherwise grant the override.
 func TestSubmit_AdminOverride_UsesFreshVerdict(t *testing.T) {
 	authz := &fakeAuthorizer{
 		enabled: true, strict: true,
-		perms:      map[string]bool{"job_phase:submit": true, "job_phase:publish": true},  // warm: publish allow
-		freshPerms: map[string]bool{"job_phase:submit": true, "job_phase:publish": false}, // in-tx: publish revoked
+		perms:      map[string]bool{"job_phase:submit": true, permApprovalScopeWorkspace: true},  // warm: scope allow
+		freshPerms: map[string]bool{"job_phase:submit": true, permApprovalScopeWorkspace: false}, // in-tx: scope revoked
 	}
 	repo := &capturingRepo{}
 	uc := newUC(t, authz, &fakeTransactor{supports: true}, repo)
-	_, err := uc.SubmitJobPhaseApproval.Execute(ctxWithUser("u1", "ws1"),
+	_, err := uc.SubmitJobPhaseApproval.Execute(ctxWithOperator("u1", "ws1"),
 		&pb.SubmitJobPhaseApprovalRequest{JobTemplateId: "t1", JobTemplatePhaseId: "p1"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -192,7 +193,7 @@ func TestSubmit_AdminOverride_UsesFreshVerdict(t *testing.T) {
 		t.Fatal("adapter did not observe a submit decision in ctx")
 	}
 	if repo.submitDecision.AdminOverride {
-		t.Fatal("AdminOverride granted from a stale cached publish verdict — must use the fresh in-tx verdict")
+		t.Fatal("AdminOverride granted from a stale cached scope verdict — must use the fresh in-tx verdict")
 	}
 }
 
@@ -204,7 +205,10 @@ func TestSubmit_AdminOverrideThreaded(t *testing.T) {
 		publishPerm bool
 		want        bool
 	}{
-		{"has publish authority -> override", true, true},
+		// Owner decision 2026-11-05: publish alone no longer grants the operator
+		// submit override; only approval_scope:workspace does (see
+		// TestSubmit_AdminOverride_ByPrincipalKind).
+		{"has publish authority only -> ownership (owner 2026-11-05)", true, false},
 		{"no publish authority -> ownership", false, false},
 	}
 	for _, tc := range cases {

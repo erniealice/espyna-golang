@@ -30,7 +30,9 @@ import (
 // workspace scope; a reviewer approves on the staff login, where the reviewer
 // edge scopes the sheet (owner 2026-10-27, Endorsement Form #29 — supersedes
 // D-RUN-3's RBAC-only operator approvals). Submit keeps its own D7 ownership
-// gate (class edge or explicit assignment), widened by the reviewer edge.
+// gate (class edge or explicit assignment), widened by the reviewer edge; its
+// skip (AdminOverride) follows approval_scope:workspace only, on every kind
+// (owner 2026-11-05 — job_phase:publish no longer grants it on operator logins).
 // ============================================================================
 
 // reviewerEdgeOwnedSQL is the reviewer-edge EXISTS fragment, correlated on the

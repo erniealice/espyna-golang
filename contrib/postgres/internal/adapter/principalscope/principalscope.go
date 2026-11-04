@@ -148,8 +148,10 @@ func WorkspaceWideStaff(ctx context.Context) bool {
 
 // IsOperatorSession reports whether the active session principal is an OPERATOR
 // (PRINCIPAL_TYPE_OPERATOR_OWNER = 1 or PRINCIPAL_TYPE_OPERATOR_STAFF = 2 —
-// WorkspaceUser-backed). Approval code keeps operator behaviour unchanged (plan
-// 20260924-approval-role-workflow D-RUN-3) ONLY for these two kinds; every other
+// WorkspaceUser-backed). Approval code gives operator-specific behaviour (plan
+// 20260924-approval-role-workflow D-RUN-3, since narrowed: approvals need
+// approval_scope:workspace since 2026-10-27, and the submit override follows
+// that scope only since 2026-11-05) ONLY to these two kinds; every other
 // non-staff kind (unresolved 0, portal 3-6) fails closed.
 func IsOperatorSession(ctx context.Context) bool {
 	id, ok := identity.FromContext(ctx)

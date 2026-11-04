@@ -189,17 +189,18 @@ func hasFresh(ctx context.Context, sa strictAuthorizer, code string) bool {
 //   - STAFF session (kind 7): only approval_scope:workspace (the Principal). Since
 //     2026-09-24 job_phase:publish is staff-holdable, and publish must no longer
 //     imply "submit any sheet" in the staff persona (plan D3).
-//   - operator session (kinds 1/2): job_phase:publish (the original D4 admin
-//     override, preserved — owner D-RUN-3) or approval_scope:workspace.
+//   - operator session (kinds 1/2): only approval_scope:workspace, as for staff.
+//     Owner decision 2026-11-05 ("code fix first, then Publish") supersedes
+//     D-RUN-3 for the submit override only: job_phase:publish no longer lets an
+//     operator login submit any sheet (plan 20261105-publish-submit-override).
+//     Approvals (verify/publish/return) are untouched by this decision.
 //   - any other kind (unresolved 0, portal 3-6): never.
 //
 // Anything else → false, and the adapter's strict ownership check runs.
 func resolveAdminOverride(ctx context.Context, sa strictAuthorizer) bool {
 	switch sessionKind(ctx) {
-	case principalTypeStaff:
+	case principalTypeStaff, principalTypeOperatorOwner, principalTypeOperatorStaff:
 		return hasFresh(ctx, sa, permApprovalScopeWorkspace)
-	case principalTypeOperatorOwner, principalTypeOperatorStaff:
-		return hasFresh(ctx, sa, permApprovalScopeWorkspace) || hasFresh(ctx, sa, "job_phase:publish")
 	default:
 		// Unresolved (0) and portal (3-6) kinds never get the override.
 		return false

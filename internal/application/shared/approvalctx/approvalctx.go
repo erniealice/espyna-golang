@@ -76,9 +76,10 @@ func IsTrustedRecompute(ctx context.Context) bool {
 
 // SubmitDecision is the resolved authorization decision for a submit transition.
 type SubmitDecision struct {
-	// AdminOverride is true when the acting user holds job_phase:publish
-	// authority (the D4 admin override: an admin can submit for an absent
-	// teacher / a multi-deliverer sheet). When true the adapter SKIPS the D7
+	// AdminOverride is true when the acting user holds approval_scope:workspace
+	// (the D4 admin override: an admin can submit for an absent teacher / a
+	// multi-deliverer sheet; job_phase:publish no longer grants it on any kind
+	// since owner decision 2026-11-05). When true the adapter SKIPS the D7
 	// all-task staff-ownership requirement; when false the adapter enforces it.
 	// Resolved with a STRICT (deny-capable) verdict INSIDE the transition
 	// transaction — never carried across the tx boundary as a stale allow bit.

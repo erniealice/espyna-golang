@@ -62,12 +62,19 @@ func TestSubmit_AdminOverride_ByPrincipalKind(t *testing.T) {
 		{"staff + approval_scope:workspace -> override", principalTypeStaff,
 			map[string]bool{permApprovalScopeWorkspace: true}, true},
 		{"staff + nothing -> no override", principalTypeStaff, map[string]bool{}, false},
-		{"operator staff + publish -> override (preserved D4)", principalTypeOperatorStaff,
-			map[string]bool{"job_phase:publish": true}, true},
-		{"operator owner + publish -> override (preserved D4)", principalTypeOperatorOwner,
-			map[string]bool{"job_phase:publish": true}, true},
-		{"operator + approval_scope:workspace -> override", principalTypeOperatorStaff,
+		// Owner decision 2026-11-05 (supersedes D-RUN-3 for the submit override only):
+		// job_phase:publish no longer grants an operator login the submit-any override.
+		{"operator staff + publish only -> no override (owner 2026-11-05)", principalTypeOperatorStaff,
+			map[string]bool{"job_phase:publish": true}, false},
+		{"operator owner + publish only -> no override (owner 2026-11-05)", principalTypeOperatorOwner,
+			map[string]bool{"job_phase:publish": true}, false},
+		{"operator staff + approval_scope:workspace -> override", principalTypeOperatorStaff,
 			map[string]bool{permApprovalScopeWorkspace: true}, true},
+		{"operator owner + approval_scope:workspace -> override", principalTypeOperatorOwner,
+			map[string]bool{permApprovalScopeWorkspace: true}, true},
+		{"operator + publish + approval_scope:workspace -> override (edu-admin/superadmin)", principalTypeOperatorStaff,
+			both, true},
+		{"staff + publish + approval_scope:workspace -> override", principalTypeStaff, both, true},
 		{"operator + nothing -> no override", principalTypeOperatorStaff, map[string]bool{}, false},
 		{"unresolved kind 0 + both -> no override (fail closed)", 0, both, false},
 		{"client kind 3 + both -> no override", 3, both, false},
@@ -181,5 +188,46 @@ func TestTransitions_MalformedStaffGetsNoScopeDecision(t *testing.T) {
 	}
 	if repo.verifyDec != (approvalctx.ScopeDecision{}) {
 		t.Fatalf("malformed staff got a scope decision %+v; want zero", repo.verifyDec)
+	}
+}
+
+// TestOperatorApprovals_PublishHolderUnchanged proves the 2026-11-05 submit
+// override change leaves the approval verbs alone: an operator login holding
+// job_phase:publish (and verify/return) without approval_scope:workspace still
+// passes the use-case verb gate for verify, publish and return, with the same
+// ScopeDecision as before (WorkspaceScope false, so the adapter's
+// assertApprovalScope keeps applying the 2026-10-27 operator rule unchanged).
+func TestOperatorApprovals_PublishHolderUnchanged(t *testing.T) {
+	for _, kind := range []int32{principalTypeOperatorOwner, principalTypeOperatorStaff} {
+		perms := map[string]bool{"job_phase:verify": true, "job_phase:publish": true, "job_phase:return": true}
+		repo := &scopeRepo{}
+		uc := newUC(t, &fakeAuthorizer{enabled: true, strict: true, perms: perms}, &fakeTransactor{supports: true}, repo)
+		ctx := ctxWithKind("u1", "ws1", kind, "wu-1")
+		if _, err := uc.VerifyJobPhaseApproval.Execute(ctx, &pb.VerifyJobPhaseApprovalRequest{JobTemplateId: "t1", JobTemplatePhaseId: "p1"}); err != nil {
+			t.Fatalf("kind %d verify: %v", kind, err)
+		}
+		if _, err := uc.PublishJobPhaseApproval.Execute(ctx, &pb.PublishJobPhaseApprovalRequest{JobTemplateId: "t1", JobTemplatePhaseId: "p1"}); err != nil {
+			t.Fatalf("kind %d publish: %v", kind, err)
+		}
+		if _, err := uc.ReturnJobPhaseApproval.Execute(ctx, &pb.ReturnJobPhaseApprovalRequest{JobTemplateId: "t1", JobTemplatePhaseId: "p1"}); err != nil {
+			t.Fatalf("kind %d return: %v", kind, err)
+		}
+		if !repo.verifyOK || !repo.publishOK || !repo.returnOK {
+			t.Fatalf("kind %d: a transition did not reach the repository", kind)
+		}
+		zero := approvalctx.ScopeDecision{}
+		if repo.verifyDec != zero || repo.publishDec != zero || repo.returnDec != zero {
+			t.Fatalf("kind %d: decisions changed: verify=%+v publish=%+v return=%+v", kind, repo.verifyDec, repo.publishDec, repo.returnDec)
+		}
+		// With approval_scope:workspace the operator's decision carries it, as before.
+		perms[permApprovalScopeWorkspace] = true
+		repo2 := &scopeRepo{}
+		uc2 := newUC(t, &fakeAuthorizer{enabled: true, strict: true, perms: perms}, &fakeTransactor{supports: true}, repo2)
+		if _, err := uc2.PublishJobPhaseApproval.Execute(ctx, &pb.PublishJobPhaseApprovalRequest{JobTemplateId: "t1", JobTemplatePhaseId: "p1"}); err != nil {
+			t.Fatalf("kind %d publish with scope: %v", kind, err)
+		}
+		if !repo2.publishDec.WorkspaceScope {
+			t.Fatalf("kind %d: workspace scope not threaded on publish", kind)
+		}
 	}
 }

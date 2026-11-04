@@ -282,3 +282,58 @@ func TestWorkspaceCSRF_EmptySessionGET_MintsOnlyWhenAbsent(t *testing.T) {
 		t.Error("an empty-claim cookie must not validate against a live session")
 	}
 }
+
+// TestWorkspaceCSRF_ValidMutationRenewsSameToken pins the 20261104 sliding
+// renewal: a validated POST re-sets the SAME ws_csrf value with a positive
+// MaxAge (so a cell-only editing session never outlives its cookie), and a
+// rejected POST sets no renewal cookie.
+func TestWorkspaceCSRF_ValidMutationRenewsSameToken(t *testing.T) {
+	const sess, ws = "live-session", "workspace-W1"
+	tok := issueWorkspaceCSRFToken(testCSRFSecret, sess, ws)
+	mw := NewWorkspaceCSRFMiddleware(WorkspaceCSRFConfig{
+		Secret:       testCSRFSecret,
+		SessionToken: func(*http.Request) string { return sess },
+		WorkspaceID:  func(*http.Request) string { return ws },
+	})
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodPost, "/action/grade-sheet/T/record", nil)
+	req.AddCookie(&http.Cookie{Name: WorkspaceCSRFCookieName, Value: tok})
+	req.Header.Set(WorkspaceCSRFHeaderName, tok)
+	rr := httptest.NewRecorder()
+	mw(next).ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("valid POST: got %d", rr.Code)
+	}
+	var renewed *http.Cookie
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == WorkspaceCSRFCookieName {
+			renewed = c
+		}
+	}
+	if renewed == nil {
+		t.Fatal("valid POST did not renew ws_csrf")
+	}
+	if renewed.Value != tok {
+		t.Errorf("renewal must keep the same token value")
+	}
+	if renewed.MaxAge <= 0 {
+		t.Errorf("renewal must carry a positive MaxAge, got %d", renewed.MaxAge)
+	}
+
+	// Rejected (claim for another session): no renewal cookie.
+	bad := issueWorkspaceCSRFToken(testCSRFSecret, "old-session", ws)
+	req2 := httptest.NewRequest(http.MethodPost, "/action/grade-sheet/T/record", nil)
+	req2.AddCookie(&http.Cookie{Name: WorkspaceCSRFCookieName, Value: bad})
+	req2.Header.Set(WorkspaceCSRFHeaderName, bad)
+	rr2 := httptest.NewRecorder()
+	mw(next).ServeHTTP(rr2, req2)
+	if rr2.Code != http.StatusForbidden {
+		t.Fatalf("mismatched POST: got %d", rr2.Code)
+	}
+	for _, c := range rr2.Result().Cookies() {
+		if c.Name == WorkspaceCSRFCookieName {
+			t.Errorf("rejected POST must not set ws_csrf")
+		}
+	}
+}

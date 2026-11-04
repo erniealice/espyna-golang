@@ -207,6 +207,14 @@ func NewWorkspaceCSRFMiddleware(cfg WorkspaceCSRFConfig) func(http.Handler) http
 				}
 			}
 
+			// Sliding renewal (20261104): ws_csrf has a one-hour MaxAge and a
+			// validated mutation is not a GET, so a teacher who only saves cells
+			// for over an hour lost the cookie mid-sheet ("Retry unsaved"). Re-set
+			// the SAME validated token with a fresh MaxAge: same session/workspace
+			// claim, no new nonce, so concurrent in-flight requests that mirrored
+			// this value keep matching. Nothing about the claim check changes.
+			http.SetCookie(w, consumermw.WorkspaceCSRFCookieSpec(cookieTok, secureCookies))
+
 			next.ServeHTTP(w, r)
 		})
 	}

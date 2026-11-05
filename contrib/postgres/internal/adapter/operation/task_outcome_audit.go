@@ -134,9 +134,11 @@ func reviewEditStrict(ctx context.Context, before *pb.TaskOutcome) bool {
 	d, _ := reviewedit.DecisionFromContext(ctx)
 	if !d.Allowed {
 		if d.ClassOverride {
-			// Main-teacher override: strict only for a recorded row by another staff.
+			// Main-teacher override: strict for any row by another staff. Fail closed
+			// exactly like the review edit: an unreadable previous row, or an empty
+			// acting staff, is strict (the caller then refuses the write).
 			staffID, _ := principalscope.ActingStaff(ctx)
-			return before != nil && staffID != "" && before.GetRecordedBy() != staffID
+			return before == nil || staffID == "" || before.GetRecordedBy() != staffID
 		}
 		return false
 	}

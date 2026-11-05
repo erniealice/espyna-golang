@@ -74,7 +74,7 @@ func TestResolve(t *testing.T) {
 func TestResolve_AsksForEachCode(t *testing.T) {
 	c := &codeChecker{perms: map[string]bool{PermissionCode: true}}
 	Resolve(sessionCtx(7, "staff-1", false), c)
-	want := []string{PermissionCode, CreateCode, DeleteCode, ClassCode}
+	want := []string{PermissionCode, CreateCode, DeleteCode, ClassOverrideCode}
 	if len(c.asked) != len(want) {
 		t.Fatalf("asked %v want %v", c.asked, want)
 	}
@@ -84,7 +84,7 @@ func TestResolve_AsksForEachCode(t *testing.T) {
 		}
 	}
 	if PermissionCode != "task_outcome:update_in_review_scope" ||
-		ClassCode != "task_outcome:update_in_class_scope" ||
+		ClassOverrideCode != "task_outcome:update_in_class_scope" ||
 		CreateCode != "task_outcome:create_in_review_scope" ||
 		DeleteCode != "task_outcome:delete_in_review_scope" {
 		t.Fatalf("codes changed: %q %q %q", PermissionCode, CreateCode, DeleteCode)
@@ -122,9 +122,9 @@ func TestResolve_FillClear(t *testing.T) {
 		{"update does not imply fill/clear", sessionCtx(7, "s", false), map[string]bool{PermissionCode: true}, nil, Decision{Allowed: true}},
 		{"kind 2 with all", sessionCtx(2, "op", true), map[string]bool{PermissionCode: true, CreateCode: true, DeleteCode: true}, nil, Decision{}},
 		{"kind 7 no principal", sessionCtx(7, "", true), map[string]bool{CreateCode: true, DeleteCode: true}, nil, Decision{}},
-		{"class only", sessionCtx(7, "s", true), map[string]bool{ClassCode: true}, nil, Decision{ClassOverride: true}},
-		{"class plus update ws", sessionCtx(7, "s", true), map[string]bool{ClassCode: true, PermissionCode: true}, nil, Decision{Allowed: true, ClassOverride: true, WorkspaceScope: true}},
-		{"class kind 2", sessionCtx(2, "op", true), map[string]bool{ClassCode: true}, nil, Decision{}},
+		{"class only", sessionCtx(7, "s", true), map[string]bool{ClassOverrideCode: true}, nil, Decision{ClassOverride: true}},
+		{"class plus update ws", sessionCtx(7, "s", true), map[string]bool{ClassOverrideCode: true, PermissionCode: true}, nil, Decision{Allowed: true, ClassOverride: true, WorkspaceScope: true}},
+		{"class kind 2", sessionCtx(2, "op", true), map[string]bool{ClassOverrideCode: true}, nil, Decision{}},
 		{"unrelated code", sessionCtx(7, "s", true), map[string]bool{"task_outcome:create": true, "task_outcome:delete": true}, nil, Decision{}},
 	}
 	for _, tc := range cases {

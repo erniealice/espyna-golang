@@ -321,7 +321,7 @@ func guardCellWrite(ctx context.Context, exec sqlexec.DBExecutor, jobTaskID, wsI
 
 	// 4. Only IN_PROGRESS phases are editable.
 	if status != apInProgress {
-		return fmt.Errorf("cell write guard: phase %s is %s (workflow-locked) — cell not editable, fail closed", jobPhaseID, status)
+		return fmt.Errorf("cell write guard: phase %s is %s (workflow-locked) — cell not editable, fail closed: %w", jobPhaseID, status, portsdomain.ErrTaskOutcomeNotEditable)
 	}
 
 	// 5. Hard-frozen recheck (closed schedule / authoritative final), workspace-scoped.
@@ -330,7 +330,7 @@ func guardCellWrite(ctx context.Context, exec sqlexec.DBExecutor, jobTaskID, wsI
 		return err
 	}
 	if frozen {
-		return fmt.Errorf("cell write guard: job %s is hard-frozen — cell not editable, fail closed", jobID)
+		return fmt.Errorf("cell write guard: job %s is hard-frozen — cell not editable, fail closed: %w", jobID, portsdomain.ErrTaskOutcomeNotEditable)
 	}
 	return nil
 }

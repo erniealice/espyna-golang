@@ -261,3 +261,111 @@ func TestUpdateIfUnchanged_NonTransactionalTypedConflictWritesNothing(t *testing
 		t.Fatalf("typed stale snapshot must conflict without writing: conflict=%v err=%v updates=%d", conflict, err, repo.updates)
 	}
 }
+
+// delRepo adds the review-override clear port to condRepo.
+type delRepo struct {
+	condRepo
+	condDeletes int
+	deleteErr   error
+}
+
+func (d *delRepo) DeleteTaskOutcomeIfUnchanged(_ context.Context, id string, expected *pb.TaskOutcome) (*pb.TaskOutcome, error) {
+	d.condDeletes++
+	if d.deleteErr != nil {
+		return nil, d.deleteErr
+	}
+	if !SnapshotMatches(d.stored, expected) {
+		return nil, portsdomain.ErrTaskOutcomeConflict
+	}
+	return d.stored, nil
+}
+
+func delSvcs(tx bool) DeleteTaskOutcomeServices {
+	return DeleteTaskOutcomeServices{
+		ActionGatekeeper: actiongate.NewActionGatekeeper(ports.NewNoOpAuthorizer(), ports.NewNoOpTranslator()),
+		Transactor:       fakeTx{supports: tx},
+		Translator:       ports.NewNoOpTranslator(),
+	}
+}
+
+func delReq() *pb.DeleteTaskOutcomeRequest {
+	return &pb.DeleteTaskOutcomeRequest{Data: &pb.TaskOutcome{Id: "o1"}}
+}
+
+func TestDeleteTaskOutcomeIfUnchanged_SuccessGuardsThenDeletes(t *testing.T) {
+	repo := &delRepo{condRepo: condRepo{plainRepo: plainRepo{stored: storedOutcome()}}}
+	uc := NewDeleteTaskOutcomeIfUnchangedUseCase(DeleteTaskOutcomeRepositories{TaskOutcome: repo}, delSvcs(true))
+	resp, conflict, err := uc.Execute(context.Background(), delReq(), storedOutcome())
+	if err != nil || conflict || resp == nil || !resp.GetSuccess() {
+		t.Fatalf("want success, got resp=%v conflict=%v err=%v", resp, conflict, err)
+	}
+	if len(repo.guardedTasks) != 1 || repo.guardedTasks[0] != "jt1" || repo.condDeletes != 1 {
+		t.Fatalf("guard must run on the owner task then delete once: guard=%v deletes=%d", repo.guardedTasks, repo.condDeletes)
+	}
+}
+
+func TestDeleteTaskOutcomeIfUnchanged_TransactionRequired(t *testing.T) {
+	repo := &delRepo{condRepo: condRepo{plainRepo: plainRepo{stored: storedOutcome()}}}
+	uc := NewDeleteTaskOutcomeIfUnchangedUseCase(DeleteTaskOutcomeRepositories{TaskOutcome: repo}, delSvcs(false))
+	resp, conflict, err := uc.Execute(context.Background(), delReq(), storedOutcome())
+	if err == nil || conflict || resp != nil {
+		t.Fatalf("no transaction must fail closed, got resp=%v conflict=%v err=%v", resp, conflict, err)
+	}
+	if repo.condDeletes != 0 || len(repo.guardedTasks) != 0 {
+		t.Fatal("nothing may run without a transaction")
+	}
+}
+
+func TestDeleteTaskOutcomeIfUnchanged_GuardErrorBlocksDelete(t *testing.T) {
+	boom := errors.New("phase locked")
+	repo := &delRepo{condRepo: condRepo{plainRepo: plainRepo{stored: storedOutcome()}, guardErr: boom}}
+	uc := NewDeleteTaskOutcomeIfUnchangedUseCase(DeleteTaskOutcomeRepositories{TaskOutcome: repo}, delSvcs(true))
+	resp, conflict, err := uc.Execute(context.Background(), delReq(), storedOutcome())
+	if !errors.Is(err, boom) || conflict || resp != nil {
+		t.Fatalf("guard error must surface, got resp=%v conflict=%v err=%v", resp, conflict, err)
+	}
+	if repo.condDeletes != 0 {
+		t.Fatal("a refused guard must not delete")
+	}
+}
+
+func TestDeleteTaskOutcomeIfUnchanged_ConflictMapsToFlag(t *testing.T) {
+	repo := &delRepo{condRepo: condRepo{plainRepo: plainRepo{stored: storedOutcome()}}, deleteErr: portsdomain.ErrTaskOutcomeConflict}
+	uc := NewDeleteTaskOutcomeIfUnchangedUseCase(DeleteTaskOutcomeRepositories{TaskOutcome: repo}, delSvcs(true))
+	resp, conflict, err := uc.Execute(context.Background(), delReq(), storedOutcome())
+	if err != nil || !conflict || resp != nil {
+		t.Fatalf("want conflict, got resp=%v conflict=%v err=%v", resp, conflict, err)
+	}
+}
+
+func TestDeleteTaskOutcomeIfUnchanged_GoneRowIsConflict(t *testing.T) {
+	repo := &delRepo{condRepo: condRepo{plainRepo: plainRepo{stored: nil}}}
+	uc := NewDeleteTaskOutcomeIfUnchangedUseCase(DeleteTaskOutcomeRepositories{TaskOutcome: repo}, delSvcs(true))
+	_, conflict, err := uc.Execute(context.Background(), delReq(), storedOutcome())
+	if err != nil || !conflict || repo.condDeletes != 0 {
+		t.Fatalf("unreadable row must be a conflict without a write: conflict=%v err=%v", conflict, err)
+	}
+}
+
+func TestDeleteTaskOutcomeIfUnchanged_NonConflictErrorPropagates(t *testing.T) {
+	boom := errors.New("sql down")
+	repo := &delRepo{condRepo: condRepo{plainRepo: plainRepo{stored: storedOutcome()}}, deleteErr: boom}
+	uc := NewDeleteTaskOutcomeIfUnchangedUseCase(DeleteTaskOutcomeRepositories{TaskOutcome: repo}, delSvcs(true))
+	_, conflict, err := uc.Execute(context.Background(), delReq(), storedOutcome())
+	if !errors.Is(err, boom) || conflict {
+		t.Fatalf("want plain error, got conflict=%v err=%v", conflict, err)
+	}
+}
+
+func TestDeleteTaskOutcomeIfUnchanged_MissingInterfaceFailsClosed(t *testing.T) {
+	// condRepo has the guard and the conditional writer but NOT the deleter.
+	repo := &condRepo{plainRepo: plainRepo{stored: storedOutcome()}}
+	uc := NewDeleteTaskOutcomeIfUnchangedUseCase(DeleteTaskOutcomeRepositories{TaskOutcome: repo}, delSvcs(true))
+	resp, conflict, err := uc.Execute(context.Background(), delReq(), storedOutcome())
+	if err == nil || conflict || resp != nil {
+		t.Fatalf("missing deleter must fail closed, got resp=%v conflict=%v err=%v", resp, conflict, err)
+	}
+	if len(repo.guardedTasks) != 0 {
+		t.Fatal("must fail before any repository call")
+	}
+}

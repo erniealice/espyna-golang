@@ -27,6 +27,11 @@ const CreateCode = "task_outcome:create_in_review_scope"
 // recorded by someone else (Decision.Clear, a snapshot-checked soft delete).
 const DeleteCode = "task_outcome:delete_in_review_scope"
 
+// ClassCode is the capability that lets a staff member holding a PRIMARY class
+// edge change any recorded grade in that class on an open sheet, whoever
+// recorded it (Decision.ClassOverride; design-v2 rule 4, main-teacher override).
+const ClassCode = "task_outcome:update_in_class_scope"
+
 // principalTypeStaff mirrors esqyma domain.entity.v1.PrincipalType STAFF (7), the
 // value the session binding stamps on identity.PrincipalType. No shared
 // constant is importable from the application layer (same local mirror as
@@ -41,6 +46,9 @@ type Decision struct {
 	Fill           bool
 	Clear          bool
 	WorkspaceScope bool
+	// ClassOverride = ClassCode (fresh strict verdict). It is NOT a review
+	// capability: Any() ignores it and WorkspaceScope is never derived from it.
+	ClassOverride bool
 }
 
 // Any reports whether at least one review capability is on.
@@ -93,7 +101,11 @@ func Resolve(ctx context.Context, c FreshChecker) Decision {
 		Fill:    has(CreateCode),
 		Clear:   has(DeleteCode),
 	}
+	d.ClassOverride = has(ClassCode)
 	if !d.Any() {
+		if d.ClassOverride {
+			return Decision{ClassOverride: true}
+		}
 		return Decision{}
 	}
 	d.WorkspaceScope = identity.HasWorkspaceRowScope(ctx)

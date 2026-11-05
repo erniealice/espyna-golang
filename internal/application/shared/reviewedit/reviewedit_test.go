@@ -52,8 +52,8 @@ func TestResolve(t *testing.T) {
 		want Decision
 	}{
 		// fakeChecker answers the same for every code, so all three capabilities follow.
-		{"staff with perm", sessionCtx(7, "staff-1", false), &fakeChecker{has: true}, Decision{Allowed: true, Fill: true, Clear: true}},
-		{"staff with perm and workspace scope", sessionCtx(7, "staff-1", true), &fakeChecker{has: true}, Decision{Allowed: true, Fill: true, Clear: true, WorkspaceScope: true}},
+		{"staff with perm", sessionCtx(7, "staff-1", false), &fakeChecker{has: true}, Decision{Allowed: true, Fill: true, Clear: true, ClassOverride: true}},
+		{"staff with perm and workspace scope", sessionCtx(7, "staff-1", true), &fakeChecker{has: true}, Decision{Allowed: true, Fill: true, Clear: true, WorkspaceScope: true, ClassOverride: true}},
 		{"workspace scope without perm", sessionCtx(7, "staff-1", true), &fakeChecker{has: false}, Decision{}},
 		{"kind 2", sessionCtx(2, "op-1", true), &fakeChecker{has: true}, Decision{}},
 		{"kind 0 no binding", contextutil.WithUserID(context.Background(), "user-1"), &fakeChecker{has: true}, Decision{}},
@@ -74,7 +74,7 @@ func TestResolve(t *testing.T) {
 func TestResolve_AsksForEachCode(t *testing.T) {
 	c := &codeChecker{perms: map[string]bool{PermissionCode: true}}
 	Resolve(sessionCtx(7, "staff-1", false), c)
-	want := []string{PermissionCode, CreateCode, DeleteCode}
+	want := []string{PermissionCode, CreateCode, DeleteCode, ClassCode}
 	if len(c.asked) != len(want) {
 		t.Fatalf("asked %v want %v", c.asked, want)
 	}
@@ -84,6 +84,7 @@ func TestResolve_AsksForEachCode(t *testing.T) {
 		}
 	}
 	if PermissionCode != "task_outcome:update_in_review_scope" ||
+		ClassCode != "task_outcome:update_in_class_scope" ||
 		CreateCode != "task_outcome:create_in_review_scope" ||
 		DeleteCode != "task_outcome:delete_in_review_scope" {
 		t.Fatalf("codes changed: %q %q %q", PermissionCode, CreateCode, DeleteCode)
@@ -121,6 +122,9 @@ func TestResolve_FillClear(t *testing.T) {
 		{"update does not imply fill/clear", sessionCtx(7, "s", false), map[string]bool{PermissionCode: true}, nil, Decision{Allowed: true}},
 		{"kind 2 with all", sessionCtx(2, "op", true), map[string]bool{PermissionCode: true, CreateCode: true, DeleteCode: true}, nil, Decision{}},
 		{"kind 7 no principal", sessionCtx(7, "", true), map[string]bool{CreateCode: true, DeleteCode: true}, nil, Decision{}},
+		{"class only", sessionCtx(7, "s", true), map[string]bool{ClassCode: true}, nil, Decision{ClassOverride: true}},
+		{"class plus update ws", sessionCtx(7, "s", true), map[string]bool{ClassCode: true, PermissionCode: true}, nil, Decision{Allowed: true, ClassOverride: true, WorkspaceScope: true}},
+		{"class kind 2", sessionCtx(2, "op", true), map[string]bool{ClassCode: true}, nil, Decision{}},
 		{"unrelated code", sessionCtx(7, "s", true), map[string]bool{"task_outcome:create": true, "task_outcome:delete": true}, nil, Decision{}},
 	}
 	for _, tc := range cases {
@@ -136,6 +140,9 @@ func TestResolve_FillClear(t *testing.T) {
 func TestDecision_Any(t *testing.T) {
 	if (Decision{WorkspaceScope: true}).Any() {
 		t.Fatal("WorkspaceScope alone must not be a capability")
+	}
+	if (Decision{ClassOverride: true}).Any() {
+		t.Fatal("ClassOverride is not a review capability")
 	}
 	for _, d := range []Decision{{Allowed: true}, {Fill: true}, {Clear: true}} {
 		if !d.Any() {

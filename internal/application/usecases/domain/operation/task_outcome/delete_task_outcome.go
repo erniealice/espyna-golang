@@ -81,6 +81,9 @@ func (uc *DeleteTaskOutcomeUseCase) Execute(ctx context.Context, req *pb.DeleteT
 func (uc *DeleteTaskOutcomeUseCase) executeGuarded(ctx context.Context, req *pb.DeleteTaskOutcomeRequest, guard cellWriteGuard) (*pb.DeleteTaskOutcomeResponse, error) {
 	var result *pb.DeleteTaskOutcomeResponse
 	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		// Review-override decision (Clear) on the tx ctx before any repository
+		// call (plan 20261106 §2.1).
+		txCtx = withReviewEdit(txCtx, uc.services.Authorizer)
 		existing, rerr := uc.repositories.TaskOutcome.ReadTaskOutcome(txCtx, &pb.ReadTaskOutcomeRequest{Data: &pb.TaskOutcome{Id: req.Data.Id}})
 		if rerr != nil || existing == nil || len(existing.GetData()) == 0 {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.errors.not_found", "[ERR-DEFAULT] Task outcome not found"))

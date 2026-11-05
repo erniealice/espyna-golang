@@ -93,6 +93,9 @@ func (uc *CreateTaskOutcomeUseCase) Execute(ctx context.Context, req *pb.CreateT
 func (uc *CreateTaskOutcomeUseCase) executeGuarded(ctx context.Context, req *pb.CreateTaskOutcomeRequest, enrichedData *pb.TaskOutcome, guard cellWriteGuard) (*pb.CreateTaskOutcomeResponse, error) {
 	var result *pb.CreateTaskOutcomeResponse
 	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		// Review-override decision (Fill) on the tx ctx before any repository
+		// call (plan 20261106 §2.4: the plain create refuses an override fill).
+		txCtx = withReviewEdit(txCtx, uc.services.Authorizer)
 		if err := guard.GuardCellWrite(txCtx, enrichedData.GetJobTaskId()); err != nil {
 			return err
 		}

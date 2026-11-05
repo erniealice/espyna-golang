@@ -34,3 +34,23 @@ type TaskOutcomeConditionalWriter interface {
 	// criteria_version_id); otherwise ErrTaskOutcomeConflict.
 	CreateTaskOutcomeIfAbsent(ctx context.Context, data *taskoutcomepb.TaskOutcome) (*taskoutcomepb.TaskOutcome, error)
 }
+
+// ErrTaskOutcomeNotEditable is the fail-closed sentinel of a review override
+// (plan 20261106-review-editor-override): the acting session may not fill or
+// clear this cell — out of review scope, no resolvable cell owner, or the
+// override capability is off. Nothing was written. Callers map it to the
+// existing `not_editable` ack; it is never retried.
+var ErrTaskOutcomeNotEditable = errors.New("NOT_EDITABLE: task outcome cell is not editable by this session")
+
+// TaskOutcomeConditionalDeleter is the snapshot-conditional soft delete used by
+// a review-override clear. It is a SEPARATE interface from
+// TaskOutcomeConditionalWriter so existing implementers and mocks do not
+// break; the use case type-asserts it and fails closed when absent.
+type TaskOutcomeConditionalDeleter interface {
+	// DeleteTaskOutcomeIfUnchanged soft-deletes (active=false) ONE outcome,
+	// matching id + trusted workspace + active AND the expected snapshot
+	// (same predicates as UpdateTaskOutcomeIfUnchanged). 0 rows →
+	// ErrTaskOutcomeConflict. Requires an ambient transaction and a trusted
+	// workspace on ctx. Returns the soft-deleted row (RETURNING).
+	DeleteTaskOutcomeIfUnchanged(ctx context.Context, id string, expected *taskoutcomepb.TaskOutcome) (*taskoutcomepb.TaskOutcome, error)
+}

@@ -26,9 +26,11 @@ type UseCases struct {
 	ReadTaskOutcome   *ReadTaskOutcomeUseCase
 	UpdateTaskOutcome *UpdateTaskOutcomeUseCase
 	// Q26 conditional grade-sheet writes (conditional_write.go).
-	UpdateTaskOutcomeIfUnchanged    *UpdateTaskOutcomeIfUnchangedUseCase
-	CreateTaskOutcomeIfAbsent       *CreateTaskOutcomeIfAbsentUseCase
-	DeleteTaskOutcome               *DeleteTaskOutcomeUseCase
+	UpdateTaskOutcomeIfUnchanged *UpdateTaskOutcomeIfUnchangedUseCase
+	CreateTaskOutcomeIfAbsent    *CreateTaskOutcomeIfAbsentUseCase
+	DeleteTaskOutcome            *DeleteTaskOutcomeUseCase
+	// Review-override clear (plan 20261106, conditional_write.go).
+	DeleteTaskOutcomeIfUnchanged    *DeleteTaskOutcomeIfUnchangedUseCase
 	ListTaskOutcomes                *ListTaskOutcomesUseCase
 	GetTaskOutcomeListPageData      *GetTaskOutcomeListPageDataUseCase
 	GetTaskOutcomeItemPageData      *GetTaskOutcomeItemPageDataUseCase
@@ -161,6 +163,7 @@ func NewUseCases(
 		UpdateTaskOutcomeIfUnchanged:    NewUpdateTaskOutcomeIfUnchangedUseCase(updateRepos, updateServices),
 		CreateTaskOutcomeIfAbsent:       NewCreateTaskOutcomeIfAbsentUseCase(createRepos, createServices),
 		DeleteTaskOutcome:               NewDeleteTaskOutcomeUseCase(deleteRepos, deleteServices),
+		DeleteTaskOutcomeIfUnchanged:    NewDeleteTaskOutcomeIfUnchangedUseCase(deleteRepos, deleteServices),
 		ListTaskOutcomes:                NewListTaskOutcomesUseCase(listRepos, listServices),
 		GetTaskOutcomeListPageData:      NewGetTaskOutcomeListPageDataUseCase(listPageDataRepos, listPageDataServices),
 		GetTaskOutcomeItemPageData:      NewGetTaskOutcomeItemPageDataUseCase(itemPageDataRepos, itemPageDataServices),

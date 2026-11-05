@@ -77,6 +77,35 @@ func outcomeInReviewScopeSQL(jobTaskIDExpr string, facetArgN, wsArgN int) string
 		)`
 }
 
+// cellOwnerSQL is the cell-owner scalar subquery for one job task (plan
+// 20261106-review-editor-override §2.2, O2 = A): the staff id a review-override
+// fill records the outcome as. jobTaskIDExpr is the SQL expression of the job
+// task id; $wsArgN the trusted workspace. It yields SQL NULL when no owner can
+// be resolved (never the actor, never the empty string), and the caller then refuses the
+// fill (ErrTaskOutcomeNotEditable).
+//
+// C0 contract freeze: returns the neutral placeholder "NULL" (no owner ⇒ every
+// fill refused). Wave-1 A1 replaces the body: assigned_to, else the active
+// class edge ordered primary DESC, column-majority DESC, edge date_created,
+// staff_id, LIMIT 1 — built from the same FROM/JOIN builder as
+// classEdgeOwnedSQL, every join workspace-bound.
+func cellOwnerSQL(jobTaskIDExpr string, wsArgN int) string {
+	_, _ = jobTaskIDExpr, wsArgN
+	return "NULL"
+}
+
+// cellAnyClassEdgeSQL is the "this cell has at least one active class edge"
+// EXISTS fragment, correlated on the outer aliases j (job) and jp (job_phase),
+// with no staff filter; $wsArgN the trusted workspace. The matrix uses it so a
+// blank becomes fillable only when cellOwnerSQL would resolve an owner.
+//
+// C0 contract freeze: returns the neutral placeholder "false". Wave-1 A1
+// replaces the body from the shared classEdgeOwnedSQL FROM/JOIN builder.
+func cellAnyClassEdgeSQL(wsArgN int) string {
+	_ = wsArgN
+	return "false"
+}
+
 // sheetOutsideReviewerScopeSQL probes whether ANY active phase of the sheet lies
 // outside the acting staff's reviewer scope. Args: $1 template, $2 template
 // phase, $3 workspace, $4 staff facet; narrow is the optional group predicate

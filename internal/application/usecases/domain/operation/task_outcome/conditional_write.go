@@ -183,6 +183,9 @@ func (uc *CreateTaskOutcomeIfAbsentUseCase) Execute(ctx context.Context, req *pb
 
 	var out *pb.TaskOutcome
 	err := b.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		// Review-override decision (Fill) on the tx ctx before any repository
+		// call; the adapter decides the recorder (plan 20261106 §2.4).
+		txCtx = withReviewEdit(txCtx, b.services.Authorizer)
 		if err := guard.GuardCellWrite(txCtx, data.GetJobTaskId()); err != nil {
 			return err
 		}
@@ -200,4 +203,44 @@ func (uc *CreateTaskOutcomeIfAbsentUseCase) Execute(ctx context.Context, req *pb
 		return nil, false, err
 	}
 	return &pb.CreateTaskOutcomeResponse{Success: true, Data: []*pb.TaskOutcome{out}}, false, nil
+}
+
+// DeleteTaskOutcomeIfUnchangedUseCase — snapshot-conditional soft delete of
+// one outcome: the review-override clear (plan 20261106-review-editor-override
+// §2.5). A recorder's own clear keeps DeleteTaskOutcomeUseCase.
+//
+// Returns (response, conflict, error) like the other conditional writes:
+// conflict == true, err == nil ⇒ the outcome changed since expected was read,
+// nothing was written (fayna: `cell_changed_retry`).
+type DeleteTaskOutcomeIfUnchangedUseCase struct {
+	base *DeleteTaskOutcomeUseCase
+}
+
+// NewDeleteTaskOutcomeIfUnchangedUseCase shares the plain delete use case's
+// repositories/services (same gatekeeper, transactor, translator, authorizer).
+func NewDeleteTaskOutcomeIfUnchangedUseCase(repositories DeleteTaskOutcomeRepositories, services DeleteTaskOutcomeServices) *DeleteTaskOutcomeIfUnchangedUseCase {
+	return &DeleteTaskOutcomeIfUnchangedUseCase{base: NewDeleteTaskOutcomeUseCase(repositories, services)}
+}
+
+// Execute — C0 skeleton (contract freeze): gatekeeper task_outcome:delete and
+// input validation run, then it fails closed with
+// portsdomain.ErrTaskOutcomeNotEditable. Wave-1 A3 replaces the body: tx
+// required, withReviewEdit on the tx ctx, in-tx scoped read →
+// GuardCellWrite(jobTaskID) → TaskOutcomeConditionalDeleter.
+// DeleteTaskOutcomeIfUnchanged; ErrTaskOutcomeConflict ⇒ (nil, true, nil).
+func (uc *DeleteTaskOutcomeIfUnchangedUseCase) Execute(ctx context.Context, req *pb.DeleteTaskOutcomeRequest, expected *pb.TaskOutcome) (*pb.DeleteTaskOutcomeResponse, bool, error) {
+	b := uc.base
+	if err := b.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
+		Entity: entityid.TaskOutcome,
+		Action: entityid.ActionDelete,
+	}); err != nil {
+		return nil, false, err
+	}
+	if err := b.validateInput(ctx, req); err != nil {
+		return nil, false, err
+	}
+	if expected == nil {
+		return nil, false, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, b.services.Translator, "task_outcome.validation.data_required", "[ERR-DEFAULT] Task outcome data is required"))
+	}
+	return nil, false, portsdomain.ErrTaskOutcomeNotEditable
 }

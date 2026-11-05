@@ -52,6 +52,10 @@ type taskOutcomeAuditWrite struct {
 	// Strict makes an audit failure fail the write: the error is returned and the
 	// caller's transaction rolls back. Set for a review edit (see reviewEditStrict).
 	Strict bool
+	// Reason is audit_entry.reason (plan 20261106 L2): empty for ordinary writes;
+	// review_override_fill / review_override_update / review_override_clear for
+	// review overrides.
+	Reason string
 }
 
 // isolateTaskOutcomeAudit runs fn so that its failure cannot reach the save, and so
@@ -193,6 +197,7 @@ func (r *PostgresTaskOutcomeRepository) auditTaskOutcomeWrite(ctx context.Contex
 			Action:         int32(w.Action),
 			PermissionCode: w.Permission,
 			UseCase:        w.Method,
+			Reason:         w.Reason,
 			MethodName:     "PostgresTaskOutcomeRepository." + w.Method,
 			OldData:        oldData,
 			NewData:        newData,

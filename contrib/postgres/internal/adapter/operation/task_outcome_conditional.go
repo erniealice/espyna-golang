@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
 	portsdomain "github.com/erniealice/espyna-golang/internal/application/ports/domain"
 	"github.com/erniealice/espyna-golang/internal/application/shared/reviewedit"
@@ -131,9 +133,16 @@ func (r *PostgresTaskOutcomeRepository) UpdateTaskOutcomeIfUnchanged(ctx context
 	args = append(args, staffArgs...)
 	// Review edit: a holder of the review-edit decision may also write an outcome
 	// whose offering it reviews. Denied decisions leave the clause untouched.
-	if d, _ := reviewedit.DecisionFromContext(ctx); d.Allowed && len(staffArgs) == 1 {
-		staffClause = " AND (" + strings.TrimPrefix(staffClause, " AND ") + " OR " +
-			outcomeInReviewScopeSQL(entityid.TaskOutcome+".job_task_id", n+9, n+2) + ")"
+	// Main-teacher override: a PRIMARY class edge on the outcome's class widens it too.
+	if d, _ := reviewedit.DecisionFromContext(ctx); len(staffArgs) == 1 && (d.Allowed || d.ClassOverride) {
+		extra := make([]string, 0, 2)
+		if d.Allowed {
+			extra = append(extra, outcomeInReviewScopeSQL(entityid.TaskOutcome+".job_task_id", n+9, n+2))
+		}
+		if d.ClassOverride {
+			extra = append(extra, outcomeInClassPrimaryScopeSQL(entityid.TaskOutcome+".job_task_id", n+9, n+2))
+		}
+		staffClause = " AND (" + strings.TrimPrefix(staffClause, " AND ") + " OR " + strings.Join(extra, " OR ") + ")"
 	}
 
 	query := `UPDATE ` + entityid.TaskOutcome + ` SET ` + strings.Join(sets, ", ") + `
@@ -154,15 +163,18 @@ func (r *PostgresTaskOutcomeRepository) UpdateTaskOutcomeIfUnchanged(ctx context
 	if err != nil {
 		return nil, fmt.Errorf("task_outcome conditional update: %w", err)
 	}
+	strict := reviewEditStrict(ctx, out)
+	perm, reason := overrideUpdateTag(ctx, strict)
 	if err := r.auditTaskOutcomeWrite(ctx, taskOutcomeAuditWrite{
 		WorkspaceID: wsID,
 		Action:      audittrailenums.AuditAction_AUDIT_ACTION_UPDATE,
-		Permission:  "task_outcome:update",
+		Permission:  perm,
 		Method:      "UpdateTaskOutcomeIfUnchanged",
 		ID:          out.GetId(),
 		Before:      expected,
 		After:       out,
-		Strict:      reviewEditStrict(ctx, out),
+		Strict:      strict,
+		Reason:      reason,
 	}); err != nil {
 		return nil, err
 	}
@@ -208,7 +220,34 @@ func (r *PostgresTaskOutcomeRepository) CreateTaskOutcomeIfAbsent(ctx context.Co
 		return nil, portsdomain.ErrTaskOutcomeConflict
 	}
 
-	resp, err := r.CreateTaskOutcome(ctx, &pb.CreateTaskOutcomeRequest{Data: data})
+	// Review-override fill (design-v2 rule 1). Without the Fill decision this
+	// block is skipped and the create below is exactly today's. A holder who does
+	// not own the blank by today's rule may fill it only inside the review scope;
+	// the outcome is recorded as the ACTING staff (no owner resolution), with
+	// reviewed_by/_date cleared and a strict audit.
+	override := false
+	if d, _ := reviewedit.DecisionFromContext(ctx); d.Fill {
+		staffID, _ := principalscope.ActingStaff(ctx)
+		if staffID == "" {
+			return nil, portsdomain.ErrTaskOutcomeNotEditable
+		}
+		probe, err := r.probeCellOwnership(ctx, tx, data.GetJobTaskId(), wsID, staffID, d)
+		if err != nil {
+			return nil, err
+		}
+		if !probe.own {
+			if !probe.found || !probe.inScope {
+				return nil, portsdomain.ErrTaskOutcomeNotEditable
+			}
+			data = proto.Clone(data).(*pb.TaskOutcome)
+			data.RecordedBy = staffID
+			data.ReviewedBy = nil
+			data.ReviewedDate = nil
+			override = true
+		}
+	}
+
+	resp, err := r.insertTaskOutcome(ctx, &pb.CreateTaskOutcomeRequest{Data: data})
 	if err != nil {
 		return nil, err
 	}
@@ -216,6 +255,22 @@ func (r *PostgresTaskOutcomeRepository) CreateTaskOutcomeIfAbsent(ctx context.Co
 		return nil, fmt.Errorf("task_outcome create-if-absent: create returned no row")
 	}
 	created := resp.GetData()[0]
+	if override {
+		if err := r.auditTaskOutcomeWrite(ctx, taskOutcomeAuditWrite{
+			WorkspaceID:     wsID,
+			Action:          audittrailenums.AuditAction_AUDIT_ACTION_INSERT,
+			Permission:      reviewedit.CreateCode,
+			Method:          "CreateTaskOutcomeIfAbsent",
+			ID:              created.GetId(),
+			After:           created,
+			Strict:          true,
+			Reason:          reviewOverrideFillReason,
+			IncludeRecorder: true,
+		}); err != nil {
+			return nil, err
+		}
+		return created, nil
+	}
 	_ = r.auditTaskOutcomeWrite(ctx, taskOutcomeAuditWrite{
 		WorkspaceID: wsID,
 		Action:      audittrailenums.AuditAction_AUDIT_ACTION_INSERT,
@@ -225,6 +280,87 @@ func (r *PostgresTaskOutcomeRepository) CreateTaskOutcomeIfAbsent(ctx context.Co
 		After:       created,
 	})
 	return created, nil
+}
+
+// Audit reason tags and permission helpers for review overrides (plan 20261106 L2).
+const (
+	reviewOverrideFillReason   = "review_override_fill"
+	reviewOverrideUpdateReason = "review_override_update"
+	classOverrideUpdateReason  = "class_override_update"
+)
+
+// overrideUpdateTag names the audit permission and reason of an update. strict ==
+// the write is an override by a non-recorder: a review edit (Allowed wins when
+// both codes are held) or a main-teacher class override. Ordinary updates keep
+// the old permission and an empty reason.
+func overrideUpdateTag(ctx context.Context, strict bool) (permission, reason string) {
+	if !strict {
+		return "task_outcome:update", ""
+	}
+	if d, _ := reviewedit.DecisionFromContext(ctx); !d.Allowed && d.ClassOverride {
+		return reviewedit.ClassOverrideCode, classOverrideUpdateReason
+	}
+	return reviewedit.PermissionCode, reviewOverrideUpdateReason
+}
+
+// cellOwnership is the result of probeCellOwnership for one job task.
+type cellOwnership struct {
+	found   bool           // job task exists, active ancestry, in the workspace
+	own     bool           // acting staff owns the cell by today's rule (assignee / class edge)
+	inScope bool           // the review-override scope admits the cell
+}
+
+// probeCellOwnership evaluates, in one workspace-bound query, whether the acting
+// staff owns the cell (assigned_to, else a class edge), whether the review scope
+// admits it (workspace scope, or the staff's reviewer edge). Fail closed: any error is returned and the caller refuses.
+func (r *PostgresTaskOutcomeRepository) probeCellOwnership(ctx context.Context, exec interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}, jobTaskID, wsID, staffID string, d reviewedit.Decision) (cellOwnership, error) {
+	var res cellOwnership
+	if jobTaskID == "" || wsID == "" || staffID == "" {
+		return res, nil
+	}
+	scope := outcomeInReviewScopeSQL("ot.id", 3, 2)
+	if d.WorkspaceScope {
+		scope = "true"
+	}
+	q := `SELECT
+		  ((COALESCE(ot.assigned_to, '') <> '' AND ot.assigned_to = $3)
+		   OR (COALESCE(ot.assigned_to, '') = '' AND ` + classEdgeOwnedSQL(3, 2) + `)),
+		  (` + scope + `)
+		FROM ` + entityid.JobTask + ` ot
+		JOIN ` + entityid.JobPhase + ` jp ON jp.id = ot.job_phase_id AND jp.active
+		JOIN ` + entityid.Job + ` j ON j.id = jp.job_id AND j.workspace_id = $2
+		WHERE ot.id = $1 AND ot.active`
+	err := exec.QueryRowContext(ctx, q, jobTaskID, wsID, staffID).Scan(&res.own, &res.inScope)
+	if err == sql.ErrNoRows {
+		return cellOwnership{}, nil
+	}
+	if err != nil {
+		return cellOwnership{}, fmt.Errorf("task_outcome review fill: ownership probe: %w", err)
+	}
+	res.found = true
+	return res, nil
+}
+
+// actorOwnsCell reports whether the acting staff owns the cell by today's rule.
+// Fail closed (false) on a missing identity, staff or job task.
+func (r *PostgresTaskOutcomeRepository) actorOwnsCell(ctx context.Context, jobTaskID string) (bool, error) {
+	idn, ok := identity.FromContext(ctx)
+	if !ok || idn == nil || idn.WorkspaceID == "" {
+		return false, nil
+	}
+	staffID, _ := principalscope.ActingStaff(ctx)
+	exec := r.executor(ctx)
+	if exec == nil || staffID == "" {
+		return false, nil
+	}
+	d, _ := reviewedit.DecisionFromContext(ctx)
+	probe, err := r.probeCellOwnership(ctx, exec, jobTaskID, idn.WorkspaceID, staffID, d)
+	if err != nil {
+		return false, err
+	}
+	return probe.found && probe.own, nil
 }
 
 func condNullFloat(v *float64) sql.NullFloat64 {

@@ -56,6 +56,9 @@ type taskOutcomeAuditWrite struct {
 	// review_override_fill / review_override_update / review_override_clear for
 	// review overrides.
 	Reason string
+	// IncludeRecorder adds recorded_by to the logged fields; set by a review-override
+	// fill so the audit names the staff the cell was recorded as.
+	IncludeRecorder bool
 }
 
 // isolateTaskOutcomeAudit runs fn so that its failure cannot reach the save, and so
@@ -130,6 +133,11 @@ func (r *PostgresTaskOutcomeRepository) isolateTaskOutcomeAudit(ctx context.Cont
 func reviewEditStrict(ctx context.Context, before *pb.TaskOutcome) bool {
 	d, _ := reviewedit.DecisionFromContext(ctx)
 	if !d.Allowed {
+		if d.ClassOverride {
+			// Main-teacher override: strict only for a recorded row by another staff.
+			staffID, _ := principalscope.ActingStaff(ctx)
+			return before != nil && staffID != "" && before.GetRecordedBy() != staffID
+		}
 		return false
 	}
 	staffID, _ := principalscope.ActingStaff(ctx)
@@ -179,6 +187,9 @@ func (r *PostgresTaskOutcomeRepository) auditTaskOutcomeWrite(ctx context.Contex
 		return nil
 	}
 	oldData, newData := taskOutcomeAuditFields(w.Before), taskOutcomeAuditFields(w.After)
+	if w.IncludeRecorder && w.After != nil {
+		newData["recorded_by"] = w.After.GetRecordedBy()
+	}
 	if !taskOutcomeAuditChanged(oldData, newData) {
 		return nil
 	}

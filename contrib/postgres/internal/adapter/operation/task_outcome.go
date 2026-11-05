@@ -8,6 +8,7 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
+	portsdomain "github.com/erniealice/espyna-golang/internal/application/ports/domain"
 	"log"
 	"strings"
 	"time"
@@ -117,6 +118,25 @@ func (r *PostgresTaskOutcomeRepository) CreateTaskOutcome(ctx context.Context, r
 	if req.Data == nil {
 		return nil, fmt.Errorf("task outcome data is required")
 	}
+	// Review-override fill (plan 20261106 §2.4): this unconditional path never
+	// performs an override. A holder of the fill decision may only create here
+	// when the acting staff owns the cell by today's rule (assignee / class
+	// edge); anything else is refused (fail closed). Without the decision the
+	// create is unchanged.
+	if d, _ := reviewedit.DecisionFromContext(ctx); d.Fill {
+		own, err := r.actorOwnsCell(ctx, req.Data.GetJobTaskId())
+		if err != nil {
+			return nil, err
+		}
+		if !own {
+			return nil, portsdomain.ErrTaskOutcomeNotEditable
+		}
+	}
+	return r.insertTaskOutcome(ctx, req)
+}
+
+// insertTaskOutcome is the generic create (the historical CreateTaskOutcome body).
+func (r *PostgresTaskOutcomeRepository) insertTaskOutcome(ctx context.Context, req *pb.CreateTaskOutcomeRequest) (*pb.CreateTaskOutcomeResponse, error) {
 
 	jsonData, err := protojson.Marshal(req.Data)
 	if err != nil {
@@ -182,7 +202,8 @@ func (r *PostgresTaskOutcomeRepository) ReadTaskOutcome(ctx context.Context, req
 	if staffID, ok := principalscope.StaffRowScope(ctx); ok {
 		owns := staffID != "" && (outcome.RecordedBy == staffID ||
 			(outcome.ReviewedBy != nil && *outcome.ReviewedBy == staffID))
-		if !owns && !r.inReviewEditScope(ctx, outcome.JobTaskId, staffID) {
+		if !owns && !r.inReviewEditScope(ctx, outcome.JobTaskId, staffID) &&
+			!r.inClassOverrideScope(ctx, outcome.JobTaskId, staffID) {
 			return nil, fmt.Errorf("task outcome with ID '%s' not found", req.Data.Id)
 		}
 	}
@@ -280,14 +301,16 @@ func (r *PostgresTaskOutcomeRepository) UpdateTaskOutcome(ctx context.Context, r
 	}
 
 	if before != nil {
+		updPerm, updReason := overrideUpdateTag(ctx, strict)
 		if err := r.auditTaskOutcomeWrite(ctx, taskOutcomeAuditWrite{
 			Action:     audittrailenums.AuditAction_AUDIT_ACTION_UPDATE,
-			Permission: "task_outcome:update",
+			Permission: updPerm,
 			Method:     "UpdateTaskOutcome",
 			ID:         req.Data.Id,
 			Before:     before,
 			After:      outcome,
 			Strict:     strict,
+			Reason:     updReason,
 		}); err != nil {
 			return nil, err
 		}

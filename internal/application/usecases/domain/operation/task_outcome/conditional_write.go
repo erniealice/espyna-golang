@@ -3,10 +3,12 @@ package task_outcome
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	portsdomain "github.com/erniealice/espyna-golang/internal/application/ports/domain"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/shared/reviewedit"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 )
@@ -255,10 +257,15 @@ func (uc *DeleteTaskOutcomeIfUnchangedUseCase) Execute(ctx context.Context, req 
 	}
 
 	err := b.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
-		txCtx = withReviewEdit(txCtx, b.services.Authorizer)
+		// The Clear widening applies only under the clear-read mark (review R2).
+		txCtx = reviewedit.WithClearRead(withReviewEdit(txCtx, b.services.Authorizer))
 		existing, rerr := repo.ReadTaskOutcome(txCtx, &pb.ReadTaskOutcomeRequest{Data: &pb.TaskOutcome{Id: req.Data.Id}})
-		if rerr != nil || existing == nil || len(existing.GetData()) == 0 {
-			// Gone (deleted/foreign/out of scope) since the caller's snapshot.
+		if rerr != nil {
+			// Not readable by this session (out of scope, foreign, no Clear code,
+			// gone, or a read failure): refuse visibly, never a silent conflict.
+			return fmt.Errorf("%w: %v", portsdomain.ErrTaskOutcomeNotEditable, rerr)
+		}
+		if existing == nil || len(existing.GetData()) == 0 {
 			return portsdomain.ErrTaskOutcomeConflict
 		}
 		if err := guard.GuardCellWrite(txCtx, existing.GetData()[0].GetJobTaskId()); err != nil {

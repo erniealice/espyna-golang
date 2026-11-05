@@ -338,12 +338,14 @@ func TestDeleteTaskOutcomeIfUnchanged_ConflictMapsToFlag(t *testing.T) {
 	}
 }
 
-func TestDeleteTaskOutcomeIfUnchanged_GoneRowIsConflict(t *testing.T) {
+// Review R2 minor: a row the session cannot read (out of scope, no Clear code,
+// gone, or a read error) is a visible not-editable refusal, never a silent conflict.
+func TestDeleteTaskOutcomeIfUnchanged_UnreadableRowIsNotEditable(t *testing.T) {
 	repo := &delRepo{condRepo: condRepo{plainRepo: plainRepo{stored: nil}}}
 	uc := NewDeleteTaskOutcomeIfUnchangedUseCase(DeleteTaskOutcomeRepositories{TaskOutcome: repo}, delSvcs(true))
 	_, conflict, err := uc.Execute(context.Background(), delReq(), storedOutcome())
-	if err != nil || !conflict || repo.condDeletes != 0 {
-		t.Fatalf("unreadable row must be a conflict without a write: conflict=%v err=%v", conflict, err)
+	if !errors.Is(err, portsdomain.ErrTaskOutcomeNotEditable) || conflict || repo.condDeletes != 0 {
+		t.Fatalf("unreadable row must be not editable without a write: conflict=%v err=%v", conflict, err)
 	}
 }
 

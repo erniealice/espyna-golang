@@ -308,9 +308,9 @@ func overrideUpdateTag(ctx context.Context, strict bool) (permission, reason str
 
 // cellOwnership is the result of probeCellOwnership for one job task.
 type cellOwnership struct {
-	found   bool           // job task exists, active ancestry, in the workspace
-	own     bool           // acting staff owns the cell by today's rule (assignee / class edge)
-	inScope bool           // the review-override scope admits the cell
+	found   bool // job task exists, active ancestry, in the workspace
+	own     bool // acting staff owns the cell by today's rule (assignee / class edge)
+	inScope bool // the review-override scope admits the cell
 }
 
 // probeCellOwnership evaluates, in one workspace-bound query, whether the acting
@@ -428,7 +428,9 @@ func (r *PostgresTaskOutcomeRepository) DeleteTaskOutcomeIfUnchanged(ctx context
 		time.Now().UTC(),                          // $9
 	}
 	const n = 9
-	staffClause, staffArgs := principalscope.StaffScopeClauseAny(ctx, []string{"recorded_by", "reviewed_by"}, n+1)
+	// Base staff scope is the recorder only: reviewed_by never admits a clear on
+	// this path (review R2 minor); the review-scope widening needs Clear.
+	staffClause, staffArgs := principalscope.StaffScopeClauseAny(ctx, []string{"recorded_by"}, n+1)
 	args = append(args, staffArgs...)
 	d, _ := reviewedit.DecisionFromContext(ctx)
 	if d.Clear && len(staffArgs) == 1 {
@@ -450,14 +452,17 @@ func (r *PostgresTaskOutcomeRepository) DeleteTaskOutcomeIfUnchanged(ctx context
 	out, err := scanTaskOutcomeSingleRow(tx.QueryRowContext(ctx, query, args...))
 	if err == sql.ErrNoRows {
 		// 0 rows: either the snapshot changed / the row is gone (conflict) or the
-		// outcome is outside the holder's review scope (not editable).
-		if d.Clear && len(staffArgs) == 1 {
-			scopeClause, scopeArgs := principalscope.StaffScopeClauseAny(ctx, []string{"recorded_by", "reviewed_by"}, 3)
+		// outcome is outside what this staff session may clear (not editable):
+		// the recorder, plus the review scope for a Clear holder (review R2).
+		if len(staffArgs) == 1 {
+			scopeClause, scopeArgs := principalscope.StaffScopeClauseAny(ctx, []string{"recorded_by"}, 3)
+			scopeSQL := "(" + strings.TrimPrefix(scopeClause, " AND ") + ")"
+			if d.Clear {
+				scopeSQL = "(" + scopeSQL + " OR " + outcomeInReviewScopeSQL(entityid.TaskOutcome+".job_task_id", 3, 2) + ")"
+			}
 			var inScope bool
 			qerr := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM `+entityid.TaskOutcome+`
-				WHERE id = $1 AND workspace_id = $2 AND active = true`+
-				" AND (("+strings.TrimPrefix(scopeClause, " AND ")+") OR "+
-				outcomeInReviewScopeSQL(entityid.TaskOutcome+".job_task_id", 3, 2)+"))",
+				WHERE id = $1 AND workspace_id = $2 AND active = true AND `+scopeSQL+")",
 				append([]any{id, wsID}, scopeArgs...)...).Scan(&inScope)
 			if qerr == nil {
 				var exists bool

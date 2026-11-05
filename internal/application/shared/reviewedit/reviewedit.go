@@ -68,6 +68,23 @@ func DecisionFromContext(ctx context.Context) (Decision, bool) {
 	return d, ok
 }
 
+type clearReadKey struct{}
+
+// WithClearRead marks ctx as the override-clear path's own read and write
+// (DeleteTaskOutcomeIfUnchanged). Only under this mark may Decision.Clear widen
+// the staff row scope of a single read; every other path (plain read, update,
+// delete) ignores Clear, so a Clear-only holder cannot edit or plain-delete
+// another recorder's grade (review R2 blocker).
+func WithClearRead(ctx context.Context) context.Context {
+	return context.WithValue(ctx, clearReadKey{}, true)
+}
+
+// IsClearRead reports whether ctx carries the WithClearRead mark.
+func IsClearRead(ctx context.Context) bool {
+	v, _ := ctx.Value(clearReadKey{}).(bool)
+	return v
+}
+
 // FreshChecker is the authoritative deny-capable permission verdict (bypasses
 // the TTL cache, reads on the ambient transaction executor).
 type FreshChecker interface {

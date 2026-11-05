@@ -21,8 +21,10 @@ import (
 
 var clearDecision = reviewedit.Decision{Clear: true}
 
+// readSnapshot is the override clear's own in-tx read, so it carries the
+// clear-read mark like DeleteTaskOutcomeIfUnchangedUseCase (review R2).
 func readSnapshot(ctx context.Context, repo *PostgresTaskOutcomeRepository, id string) (*pb.TaskOutcome, error) {
-	read, err := repo.ReadTaskOutcome(ctx, &pb.ReadTaskOutcomeRequest{Data: &pb.TaskOutcome{Id: id}})
+	read, err := repo.ReadTaskOutcome(reviewedit.WithClearRead(ctx), &pb.ReadTaskOutcomeRequest{Data: &pb.TaskOutcome{Id: id}})
 	if err != nil {
 		return nil, fmt.Errorf("snapshot read: %w", err)
 	}
@@ -174,11 +176,9 @@ func TestReviewOverrideLive_ClearOutOfScopeRefused(t *testing.T) {
 				}
 				snap = s
 				ctx := reviewEditCtx(txCtx, fx.ws, fx.reviewer, c.d, false)
-				// Out of scope for a Clear holder is a scope refusal, not a stale snapshot.
-				want := portsdomain.ErrTaskOutcomeConflict
-				if c.name == "out_of_scope_clear" {
-					want = portsdomain.ErrTaskOutcomeNotEditable
-				}
+				// Out of scope for a Clear holder, or another recorder's grade without
+				// the Clear flag, is a scope refusal, not a stale snapshot (review R2).
+				want := portsdomain.ErrTaskOutcomeNotEditable
 				if _, err := repo.DeleteTaskOutcomeIfUnchanged(ctx, c.outcome, snap); !errors.Is(err, want) {
 					return fmt.Errorf("must be refused with %v, got %v", want, err)
 				}

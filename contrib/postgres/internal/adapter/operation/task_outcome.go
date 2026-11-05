@@ -202,8 +202,12 @@ func (r *PostgresTaskOutcomeRepository) ReadTaskOutcome(ctx context.Context, req
 	if staffID, ok := principalscope.StaffRowScope(ctx); ok {
 		owns := staffID != "" && (outcome.RecordedBy == staffID ||
 			(outcome.ReviewedBy != nil && *outcome.ReviewedBy == staffID))
+		// Widening (plan 20261106 review R2): review scope admits Allowed (any
+		// path) or Clear (only on the override-clear read, reviewedit.IsClearRead);
+		// the main-teacher class override admits reads for change only, never on
+		// the clear path (design-v2 rule 4: class override never clears).
 		if !owns && !r.inReviewEditScope(ctx, outcome.JobTaskId, staffID) &&
-			!r.inClassOverrideScope(ctx, outcome.JobTaskId, staffID) {
+			(reviewedit.IsClearRead(ctx) || !r.inClassOverrideScope(ctx, outcome.JobTaskId, staffID)) {
 			return nil, fmt.Errorf("task outcome with ID '%s' not found", req.Data.Id)
 		}
 	}
@@ -219,7 +223,7 @@ func (r *PostgresTaskOutcomeRepository) ReadTaskOutcome(ctx context.Context, req
 // staff's review scope. Fails closed on a denied decision, missing ids or any error.
 func (r *PostgresTaskOutcomeRepository) inReviewEditScope(ctx context.Context, jobTaskID, staffID string) bool {
 	d, _ := reviewedit.DecisionFromContext(ctx)
-	if !(d.Allowed || d.Clear) || staffID == "" || jobTaskID == "" {
+	if !(d.Allowed || (d.Clear && reviewedit.IsClearRead(ctx))) || staffID == "" || jobTaskID == "" {
 		return false
 	}
 	idn, ok := identity.FromContext(ctx)

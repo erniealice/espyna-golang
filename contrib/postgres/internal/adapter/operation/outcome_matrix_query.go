@@ -908,11 +908,13 @@ func (a *PostgresOutcomeMatrixQuery) loadRowsFrom(ctx context.Context, queryer o
 	// workspace placeholder here is always $2, so classEdgeOwnedSQL(nextParam,
 	// 2) is byte-identical to what used to be hand-duplicated here.
 	classEdgeExpr := "false"
+	classEdgeBind := 0
 	// ActingStaff, not StaffRowScope: editability is about WHO is acting, so a
 	// workspace-wide staff principal still edits only the cells it owns.
 	if fallbackStaff, isStaff := principalscope.ActingStaff(ctx); isStaff && fallbackStaff != "" {
 		classEdgeExpr = classEdgeOwnedSQL(nextParam, 2)
 		args = append(args, fallbackStaff)
+		classEdgeBind = nextParam
 		nextParam++
 	}
 
@@ -923,14 +925,43 @@ func (a *PostgresOutcomeMatrixQuery) loadRowsFrom(ctx context.Context, queryer o
 	// reviewer edge on the cell's offering. Denied emits the literal false so
 	// the query differs from the pre-feature text only by this last column.
 	reviewEditExpr := "false"
-	if decision, _ := reviewedit.DecisionFromContext(ctx); decision.Allowed {
-		if decision.WorkspaceScope {
-			reviewEditExpr = "true"
-		} else if reviewStaff, isStaff := principalscope.ActingStaff(ctx); isStaff && reviewStaff != "" {
-			reviewEditExpr = reviewerEdgeOwnedSQL(nextParam, 2)
+	// review_fill_ok / class_override_ok (design-v2): literal false unless the
+	// matching decision flag is on. Fill = scope only (no owner term): true for
+	// WorkspaceScope, else the same reviewer walk as review_edit_ok (its staff
+	// bind is shared, allocated once). class_override_ok = ClassOverride AND the
+	// acting staff's PRIMARY class edge (reuses the class-edge bind).
+	reviewFillExpr := "false"
+	classOverrideExpr := "false"
+	decision, _ := reviewedit.DecisionFromContext(ctx)
+	reviewBind := 0
+	reviewWalk := func() string {
+		if reviewBind == 0 {
+			reviewStaff, isStaff := principalscope.ActingStaff(ctx)
+			if !isStaff || reviewStaff == "" {
+				return "false"
+			}
 			args = append(args, reviewStaff)
+			reviewBind = nextParam
 			nextParam++
 		}
+		return reviewerEdgeOwnedSQL(reviewBind, 2)
+	}
+	if decision.Allowed {
+		if decision.WorkspaceScope {
+			reviewEditExpr = "true"
+		} else {
+			reviewEditExpr = reviewWalk()
+		}
+	}
+	if decision.Fill {
+		if decision.WorkspaceScope {
+			reviewFillExpr = "true"
+		} else {
+			reviewFillExpr = reviewWalk()
+		}
+	}
+	if decision.ClassOverride && classEdgeBind != 0 {
+		classOverrideExpr = classPrimaryEdgeOwnedSQL(classEdgeBind, 2)
 	}
 
 	q := `
@@ -950,7 +981,9 @@ SELECT DISTINCT ON (j.client_id, jt.id, ttc.id)
        COALESCE(t.recorded_by, '')    AS recorded_by,
        COALESCE(jt.assigned_to, '')   AS assigned_to,
        ` + classEdgeExpr + `          AS class_edge_editable,
-       ` + reviewEditExpr + `         AS review_edit_ok
+       ` + reviewEditExpr + `         AS review_edit_ok,
+       ` + reviewFillExpr + `         AS review_fill_ok,
+       ` + classOverrideExpr + `      AS class_override_ok
 FROM ` + entityid.Job + ` j
 JOIN ` + entityid.JobPhase + ` jp
        ON jp.job_id = j.id AND jp.active
@@ -998,10 +1031,12 @@ ORDER BY j.client_id, jt.id, ttc.id, t.recorded_date DESC NULLS LAST, t.id DESC`
 			assignedTo     string
 			classEdgeOK    bool
 			reviewEditOK   bool
+			reviewFillOK   bool
+			classOverrideOK bool
 		)
 		if err := rows.Scan(
 			&clientID, &jobTaskID, &jobPhaseID, &jobIDVal, &jobTemplateTID, &criteriaID,
-			&outcomeID, &numericValue, &textValue, &categorical, &passFail, &determination, &recordedBy, &assignedTo, &classEdgeOK, &reviewEditOK,
+			&outcomeID, &numericValue, &textValue, &categorical, &passFail, &determination, &recordedBy, &assignedTo, &classEdgeOK, &reviewEditOK, &reviewFillOK, &classOverrideOK,
 		); err != nil {
 			return nil, fmt.Errorf("outcome_matrix: scan cells: %w", err)
 		}
@@ -1018,7 +1053,7 @@ ORDER BY j.client_id, jt.id, ttc.id, t.recorded_date DESC NULLS LAST, t.id DESC`
 		}
 
 		hasOutcome := outcomeID.Valid && outcomeID.String != ""
-		editable := computeCellEditable(hasOutcome, staffOK, recordedBy, assignedTo, actingStaff, jobTaskID, classEdgeOK, reviewEditOK)
+		editable := computeCellEditable(hasOutcome, staffOK, recordedBy, assignedTo, actingStaff, jobTaskID, classEdgeOK, reviewEditOK, reviewFillOK, classOverrideOK)
 
 		cell := &matrixpb.OutcomeCell{
 			OutcomeId: nullStringVal(outcomeID),
@@ -1117,20 +1152,23 @@ func newPhaseColumn(phaseID, phaseName string, phaseCode, variantName sql.NullSt
 // cells query, phase-order matched for f14-scoped edges). An unassigned cell
 // with no matching edge stays uneditable (fail-closed). reviewEditOK widens
 // RECORDED cells only (review-edit decision); blank cells ignore it.
-func computeCellEditable(hasOutcome, staffOK bool, recordedBy, assignedTo, actingStaff, jobTaskID string, classEdgeOK, reviewEditOK bool) bool {
+// classOverrideOK (design-v2 rule 4: primary class edge + ClassOverride) also
+// widens RECORDED cells; reviewFillOK (review editor with Fill, in scope) opens a
+// BLANK cell regardless of assignee/edge (blank branch = own || reviewFillOK).
+func computeCellEditable(hasOutcome, staffOK bool, recordedBy, assignedTo, actingStaff, jobTaskID string, classEdgeOK, reviewEditOK, reviewFillOK, classOverrideOK bool) bool {
 	if !staffOK {
 		return false
 	}
 	if hasOutcome {
-		return recordedBy == actingStaff || reviewEditOK
+		return recordedBy == actingStaff || reviewEditOK || classOverrideOK
 	}
 	if jobTaskID == "" {
 		return false
 	}
 	if assignedTo != "" {
-		return assignedTo == actingStaff
+		return assignedTo == actingStaff || reviewFillOK
 	}
-	return classEdgeOK
+	return classEdgeOK || reviewFillOK
 }
 
 // parseCriteriaType maps the stored enum-name string (e.g.

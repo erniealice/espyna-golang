@@ -24,6 +24,13 @@ const (
 	reviewEditTrueCol  = ", true AS review_edit_ok"
 )
 
+// newColsFalse are the literal columns appended after review_edit_ok by the
+// review-override slice (design-v2) when neither Fill nor ClassOverride is on.
+const newColsFalse = ", false AS review_fill_ok, false AS class_override_ok"
+
+// stripNewCols removes the trailing literal override columns before a base compare.
+func stripNewCols(s string) string { return strings.Replace(s, newColsFalse, "", 1) }
+
 func reviewEditNorm(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 var (
@@ -49,7 +56,7 @@ func TestReviewEdit_DeniedSQLUnchanged_Matrix(t *testing.T) {
 			if !strings.Contains(got, reviewEditFalseCol) {
 				t.Fatalf("denied matrix SQL must project the literal `false AS review_edit_ok`:\n%s", got)
 			}
-			if stripped := strings.Replace(got, reviewEditFalseCol, "", 1); stripped != c.baseSQL {
+			if stripped := strings.Replace(stripNewCols(got), reviewEditFalseCol, "", 1); stripped != c.baseSQL {
 				t.Errorf("denied matrix SQL drifted from base 2cfe57b5 beyond the added column:\n got: %s\nwant: %s", stripped, c.baseSQL)
 			}
 			if args != c.baseArgs {
@@ -72,7 +79,7 @@ func TestReviewEdit_DeniedSQLUnchanged_MatrixExplicitDenied(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx := reviewedit.WithDecision(shapeStaffCtx(false), d)
 			got, args := captureMatrixSQL(t, ctx, scopeMine)
-			if strings.Replace(got, reviewEditFalseCol, "", 1) != baseMatrixStaffSQL || args != baseMatrixStaffArgs {
+			if strings.Replace(stripNewCols(got), reviewEditFalseCol, "", 1) != baseMatrixStaffSQL || args != baseMatrixStaffArgs {
 				t.Errorf("explicit denied decision changed the matrix SQL or binds:\n%s\nargs=%s", got, args)
 			}
 		})
@@ -123,7 +130,7 @@ func TestOutcomeMatrixReviewEditColumnShape_WorkspaceScope(t *testing.T) {
 	if !strings.Contains(got, reviewEditTrueCol) {
 		t.Errorf("workspace-scope decision must project `true AS review_edit_ok`:\n%s", got)
 	}
-	if strings.Replace(got, reviewEditTrueCol, "", 1) != baseMatrixWideSQL || args != baseMatrixWideArgs {
+	if strings.Replace(stripNewCols(got), reviewEditTrueCol, "", 1) != baseMatrixWideSQL || args != baseMatrixWideArgs {
 		t.Errorf("workspace-scope decision must change nothing but the literal column (no extra bind)")
 	}
 }

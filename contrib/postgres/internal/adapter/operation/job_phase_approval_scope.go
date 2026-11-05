@@ -77,33 +77,13 @@ func outcomeInReviewScopeSQL(jobTaskIDExpr string, facetArgN, wsArgN int) string
 		)`
 }
 
-// cellOwnerSQL is the cell-owner scalar subquery for one job task (plan
-// 20261106-review-editor-override §2.2, O2 = A): the staff id a review-override
-// fill records the outcome as. jobTaskIDExpr is the SQL expression of the job
-// task id; $wsArgN the trusted workspace. It yields SQL NULL when no owner can
-// be resolved (never the actor, never the empty string), and the caller then refuses the
-// fill (ErrTaskOutcomeNotEditable).
-//
-// C0 contract freeze: returns the neutral placeholder "NULL" (no owner ⇒ every
-// fill refused). Wave-1 A1 replaces the body: assigned_to, else the active
-// class edge ordered primary DESC, column-majority DESC, edge date_created,
-// staff_id, LIMIT 1 — built from the same FROM/JOIN builder as
-// classEdgeOwnedSQL, every join workspace-bound.
-func cellOwnerSQL(jobTaskIDExpr string, wsArgN int) string {
-	_, _ = jobTaskIDExpr, wsArgN
-	return "NULL"
-}
-
-// cellAnyClassEdgeSQL is the "this cell has at least one active class edge"
-// EXISTS fragment, correlated on the outer aliases j (job) and jp (job_phase),
-// with no staff filter; $wsArgN the trusted workspace. The matrix uses it so a
-// blank becomes fillable only when cellOwnerSQL would resolve an owner.
-//
-// C0 contract freeze: returns the neutral placeholder "false". Wave-1 A1
-// replaces the body from the shared classEdgeOwnedSQL FROM/JOIN builder.
-func cellAnyClassEdgeSQL(wsArgN int) string {
-	_ = wsArgN
-	return "false"
+// classPrimaryEdgeOwnedSQL is the main-teacher (primary class edge) EXISTS
+// fragment (design-v2 rule 4): classEdgeOwnedSQL's walk, narrowed to an ACTIVE
+// edge with role = 'primary' held by the staff bound at $facetArgN, workspace
+// $wsArgN, correlated on the outer j (job) and jp (job_phase). Built from the
+// same classEdgeFromSQL as classEdgeOwnedSQL so the two cannot drift.
+func classPrimaryEdgeOwnedSQL(facetArgN, wsArgN int) string {
+	return "EXISTS (\n\t\t\tSELECT 1\n\t\t\t" + classEdgeFromSQL(fmt.Sprintf("\n\t\t\t      AND e.staff_id = $%d AND e.role = 'primary'", facetArgN), wsArgN) + "\n\t\t)"
 }
 
 // sheetOutsideReviewerScopeSQL probes whether ANY active phase of the sheet lies

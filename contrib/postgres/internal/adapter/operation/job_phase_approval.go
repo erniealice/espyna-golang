@@ -646,18 +646,25 @@ func operatorFacetRefusal(ctx context.Context, err error) error {
 // the plan) can never match: pp.product_id = j.output_product_id is never true
 // against NULL, so legacy tasks stay ownable ONLY via explicit assigned_to.
 func classEdgeOwnedSQL(facetArgN, wsArgN int) string {
-	return fmt.Sprintf(`EXISTS (
-			SELECT 1
-			FROM `+entityid.SubscriptionGroupMember+` m
+	return "EXISTS (\n\t\t\tSELECT 1\n\t\t\t" + classEdgeFromSQL(fmt.Sprintf("\n\t\t\t      AND e.staff_id = $%d", facetArgN), wsArgN) + "\n\t\t)"
+}
+
+// classEdgeFromSQL is the ONE FROM/JOIN/WHERE walk shared by classEdgeOwnedSQL
+// (staffPred pins the edge to the acting facet), cellAnyClassEdgeSQL and
+// cellOwnerSQL (staffPred empty: any staff). Aliases m, sg, c, pp, e; correlated
+// on the outer j (job) and jp (job_phase). staffPred is either "" or an
+// "\n AND e.staff_id = $N" continuation of the edge join; nothing else varies,
+// so the three fragments cannot drift.
+func classEdgeFromSQL(staffPred string, wsArgN int) string {
+	return fmt.Sprintf(`FROM `+entityid.SubscriptionGroupMember+` m
 			JOIN `+entityid.SubscriptionGroup+` sg
 			       ON sg.id = m.subscription_group_id AND sg.status = 'current'
 			JOIN `+entityid.SubscriptionGroupProductPlan+` c
-			       ON c.subscription_group_id = m.subscription_group_id AND c.active AND c.workspace_id = $%[2]d
+			       ON c.subscription_group_id = m.subscription_group_id AND c.active AND c.workspace_id = $%[1]d
 			JOIN `+entityid.ProductPlan+` pp
 			       ON pp.id = c.product_plan_id AND pp.product_id = j.output_product_id
 			JOIN `+entityid.SubscriptionGroupProductPlanStaff+` e
-			       ON e.subscription_group_product_plan_id = c.id AND e.active
-			      AND e.staff_id = $%[1]d AND e.workspace_id = $%[2]d
+			       ON e.subscription_group_product_plan_id = c.id AND e.active%[2]s AND e.workspace_id = $%[1]d
 			      AND (e.job_template_phase_id IS NULL OR EXISTS (
 			             SELECT 1
 			             FROM `+entityid.JobTemplatePhase+` ep, `+entityid.JobTemplatePhase+` jpp
@@ -665,8 +672,7 @@ func classEdgeOwnedSQL(facetArgN, wsArgN int) string {
 			               AND jpp.id = jp.template_phase_id
 			               AND ep.phase_order = jpp.phase_order
 			           ))
-			WHERE m.client_id = j.client_id AND m.active AND m.workspace_id = $%[2]d
-		)`, facetArgN, wsArgN)
+			WHERE m.client_id = j.client_id AND m.active AND m.workspace_id = $%[1]d`, wsArgN, staffPred)
 }
 
 // taskUnownedProbeSQL builds the D7 ownership probe: does ANY active task in the

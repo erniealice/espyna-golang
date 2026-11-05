@@ -6,10 +6,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strconv"
 
+	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
+	"github.com/erniealice/espyna-golang/internal/application/shared/reviewedit"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	audittrailenums "github.com/erniealice/esqyma/pkg/schema/v1/domain/audit_trail/enums"
@@ -46,6 +49,9 @@ type taskOutcomeAuditWrite struct {
 	ID          string
 	Before      *pb.TaskOutcome
 	After       *pb.TaskOutcome
+	// Strict makes an audit failure fail the write: the error is returned and the
+	// caller's transaction rolls back. Set for a review edit (see reviewEditStrict).
+	Strict bool
 }
 
 // isolateTaskOutcomeAudit runs fn so that its failure cannot reach the save, and so
@@ -53,17 +59,27 @@ type taskOutcomeAuditWrite struct {
 // savepoint. Without one the save has already committed by the time fn runs, so a
 // failure cannot reach it, and fn runs on the pool with no lock timeout because
 // SET LOCAL needs a transaction.
-func (r *PostgresTaskOutcomeRepository) isolateTaskOutcomeAudit(ctx context.Context, id string, fn func() error) {
+//
+// strict=false keeps the best-effort behaviour above and always returns nil.
+// strict=true returns the audit error so the caller fails the write and its
+// transaction rolls back.
+func (r *PostgresTaskOutcomeRepository) isolateTaskOutcomeAudit(ctx context.Context, id string, strict bool, fn func() error) error {
 	tx, inTx := r.executor(ctx).(*sql.Tx)
 	if !inTx || tx == nil {
 		if err := fn(); err != nil {
 			slog.Error("task_outcome audit failed; the save stands", "outcome_id", id, "err", err)
+			if strict {
+				return err
+			}
 		}
-		return
+		return nil
 	}
 	if _, err := tx.ExecContext(ctx, `SAVEPOINT `+taskOutcomeAuditSavepoint); err != nil {
 		slog.Error("task_outcome audit skipped: savepoint failed; the save stands", "outcome_id", id, "err", err)
-		return
+		if strict {
+			return fmt.Errorf("task_outcome audit: savepoint: %w", err)
+		}
+		return nil
 	}
 
 	err := func() error {
@@ -86,12 +102,34 @@ func (r *PostgresTaskOutcomeRepository) isolateTaskOutcomeAudit(ctx context.Cont
 		slog.Error("task_outcome audit failed; the save stands", "outcome_id", id, "err", err)
 		if _, rbErr := tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT `+taskOutcomeAuditSavepoint); rbErr != nil {
 			slog.Error("task_outcome audit: rollback to savepoint failed", "outcome_id", id, "err", rbErr)
-			return
+			if strict {
+				return fmt.Errorf("task_outcome audit: %w (rollback to savepoint: %v)", err, rbErr)
+			}
+			return nil
 		}
 	}
-	if _, err := tx.ExecContext(ctx, `RELEASE SAVEPOINT `+taskOutcomeAuditSavepoint); err != nil {
-		slog.Error("task_outcome audit: release savepoint failed", "outcome_id", id, "err", err)
+	if _, relErr := tx.ExecContext(ctx, `RELEASE SAVEPOINT `+taskOutcomeAuditSavepoint); relErr != nil {
+		slog.Error("task_outcome audit: release savepoint failed", "outcome_id", id, "err", relErr)
+		if strict && err == nil {
+			return fmt.Errorf("task_outcome audit: release savepoint: %w", relErr)
+		}
 	}
+	if strict && err != nil {
+		return fmt.Errorf("task_outcome audit: %w", err)
+	}
+	return nil
+}
+
+// reviewEditStrict reports whether a write is a review edit whose audit must not
+// fail silently: the review-edit decision allows it and the acting staff is not the
+// outcome's recorder. Fail closed: an empty acting staff counts as a review edit.
+func reviewEditStrict(ctx context.Context, before *pb.TaskOutcome) bool {
+	d, _ := reviewedit.DecisionFromContext(ctx)
+	if !d.Allowed {
+		return false
+	}
+	staffID, _ := principalscope.ActingStaff(ctx)
+	return before == nil || staffID == "" || before.GetRecordedBy() != staffID
 }
 
 // readTaskOutcomeForAudit reads the row before a write that does not return its old
@@ -105,7 +143,7 @@ func (r *PostgresTaskOutcomeRepository) readTaskOutcomeForAudit(ctx context.Cont
 		wsID = idn.WorkspaceID
 	}
 	var before *pb.TaskOutcome
-	r.isolateTaskOutcomeAudit(ctx, id, func() error {
+	_ = r.isolateTaskOutcomeAudit(ctx, id, false, func() error {
 		row, err := scanTaskOutcomeSingleRow(r.executor(ctx).QueryRowContext(ctx,
 			`SELECT `+taskOutcomeReturningCols+` FROM `+entityid.TaskOutcome+`
 			 WHERE id = $1 AND (NULLIF($2, '') IS NULL OR workspace_id = $2)`, id, wsID))
@@ -126,13 +164,19 @@ func (r *PostgresTaskOutcomeRepository) readTaskOutcomeForAudit(ctx context.Cont
 
 // auditTaskOutcomeWrite records one grade write. A write that changed nothing the
 // audit tracks records nothing.
-func (r *PostgresTaskOutcomeRepository) auditTaskOutcomeWrite(ctx context.Context, w taskOutcomeAuditWrite) {
+//
+// With w.Strict an audit failure (or a missing audit service) is returned and the
+// caller must fail the write; otherwise the result is always nil.
+func (r *PostgresTaskOutcomeRepository) auditTaskOutcomeWrite(ctx context.Context, w taskOutcomeAuditWrite) error {
 	if r.audit == nil {
-		return
+		if w.Strict {
+			return fmt.Errorf("task_outcome audit: audit service unavailable for a review edit (fail closed)")
+		}
+		return nil
 	}
 	oldData, newData := taskOutcomeAuditFields(w.Before), taskOutcomeAuditFields(w.After)
 	if !taskOutcomeAuditChanged(oldData, newData) {
-		return
+		return nil
 	}
 	ac, _ := infraports.GetAuditContext(ctx)
 	if idn, ok := identity.FromContext(ctx); ok && idn != nil && idn.UserID != "" {
@@ -140,7 +184,7 @@ func (r *PostgresTaskOutcomeRepository) auditTaskOutcomeWrite(ctx context.Contex
 		ac.ActorType = "user"
 	}
 	auditCtx := infraports.WithAuditContext(ctx, ac)
-	r.isolateTaskOutcomeAudit(ctx, w.ID, func() error {
+	return r.isolateTaskOutcomeAudit(ctx, w.ID, w.Strict, func() error {
 		return infraports.DiffAndLog(auditCtx, r.audit, infraports.DiffAndLogRequest{
 			WorkspaceID:    w.WorkspaceID,
 			EntityType:     entityid.TaskOutcome,

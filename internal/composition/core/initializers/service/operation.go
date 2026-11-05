@@ -22,11 +22,11 @@ import (
 // (service/operation/outcome_matrix). Unlike initServiceSecurity it threads the
 // ActionGatekeeper through, because the outcome-matrix read gates on
 // task_outcome:list + a fail-closed workspace:list scope=ALL widen check.
-func initServiceOperation(db *sql.DB, i18nSvc ports.Translator, actionGate *actiongate.ActionGatekeeper) *outcomematrixusecases.UseCases {
+func initServiceOperation(db *sql.DB, authSvc ports.Authorizer, i18nSvc ports.Translator, actionGate *actiongate.ActionGatekeeper) *outcomematrixusecases.UseCases {
 	query := outcomeMatrixQueryFromDB(db)
 	return outcomematrixusecases.NewUseCases(
 		outcomematrixusecases.Repositories{Query: query},
-		outcomematrixusecases.Services{Translator: i18nSvc, ActionGatekeeper: actionGate},
+		outcomematrixusecases.Services{Translator: i18nSvc, ActionGatekeeper: actionGate, Authorizer: authSvc},
 	)
 }
 

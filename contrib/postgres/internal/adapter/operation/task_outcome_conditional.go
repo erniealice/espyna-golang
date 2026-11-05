@@ -12,6 +12,7 @@ import (
 
 	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
 	portsdomain "github.com/erniealice/espyna-golang/internal/application/ports/domain"
+	"github.com/erniealice/espyna-golang/internal/application/shared/reviewedit"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/shared/identity"
 	audittrailenums "github.com/erniealice/esqyma/pkg/schema/v1/domain/audit_trail/enums"
@@ -128,6 +129,12 @@ func (r *PostgresTaskOutcomeRepository) UpdateTaskOutcomeIfUnchanged(ctx context
 	p := func(i int) string { return "$" + strconv.Itoa(n+i) }
 	staffClause, staffArgs := principalscope.StaffScopeClauseAny(ctx, []string{"recorded_by", "reviewed_by"}, n+9)
 	args = append(args, staffArgs...)
+	// Review edit: a holder of the review-edit decision may also write an outcome
+	// whose offering it reviews. Denied decisions leave the clause untouched.
+	if d, _ := reviewedit.DecisionFromContext(ctx); d.Allowed && len(staffArgs) == 1 {
+		staffClause = " AND (" + strings.TrimPrefix(staffClause, " AND ") + " OR " +
+			outcomeInReviewScopeSQL(entityid.TaskOutcome+".job_task_id", n+9, n+2) + ")"
+	}
 
 	query := `UPDATE ` + entityid.TaskOutcome + ` SET ` + strings.Join(sets, ", ") + `
 		WHERE id = ` + p(1) + ` AND workspace_id = ` + p(2) + ` AND active = true
@@ -147,7 +154,7 @@ func (r *PostgresTaskOutcomeRepository) UpdateTaskOutcomeIfUnchanged(ctx context
 	if err != nil {
 		return nil, fmt.Errorf("task_outcome conditional update: %w", err)
 	}
-	r.auditTaskOutcomeWrite(ctx, taskOutcomeAuditWrite{
+	if err := r.auditTaskOutcomeWrite(ctx, taskOutcomeAuditWrite{
 		WorkspaceID: wsID,
 		Action:      audittrailenums.AuditAction_AUDIT_ACTION_UPDATE,
 		Permission:  "task_outcome:update",
@@ -155,7 +162,10 @@ func (r *PostgresTaskOutcomeRepository) UpdateTaskOutcomeIfUnchanged(ctx context
 		ID:          out.GetId(),
 		Before:      expected,
 		After:       out,
-	})
+		Strict:      reviewEditStrict(ctx, out),
+	}); err != nil {
+		return nil, err
+	}
 	return out, nil
 }
 
@@ -206,7 +216,7 @@ func (r *PostgresTaskOutcomeRepository) CreateTaskOutcomeIfAbsent(ctx context.Co
 		return nil, fmt.Errorf("task_outcome create-if-absent: create returned no row")
 	}
 	created := resp.GetData()[0]
-	r.auditTaskOutcomeWrite(ctx, taskOutcomeAuditWrite{
+	_ = r.auditTaskOutcomeWrite(ctx, taskOutcomeAuditWrite{
 		WorkspaceID: wsID,
 		Action:      audittrailenums.AuditAction_AUDIT_ACTION_INSERT,
 		Permission:  "task_outcome:create",

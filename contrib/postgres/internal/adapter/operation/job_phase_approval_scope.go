@@ -61,6 +61,22 @@ func reviewerEdgeOwnedSQL(facetArgN, wsArgN int) string {
 		)`, facetArgN, wsArgN)
 }
 
+// outcomeInReviewScopeSQL is the review-scope EXISTS fragment for one outcome:
+// the outcome's job task sits in an active phase of a job in the workspace
+// ($wsArgN) whose offering the acting staff ($facetArgN) reviews. jobTaskIDExpr
+// is the SQL expression of the outcome's job task id (e.g. "t.job_task_id").
+// The reviewer walk itself is reviewerEdgeOwnedSQL — never copied.
+func outcomeInReviewScopeSQL(jobTaskIDExpr string, facetArgN, wsArgN int) string {
+	return fmt.Sprintf(`EXISTS (
+			SELECT 1
+			FROM `+entityid.JobTask+` jt
+			JOIN `+entityid.JobPhase+` jp ON jp.id = jt.job_phase_id AND jp.active
+			JOIN `+entityid.Job+` j ON j.id = jp.job_id AND j.workspace_id = $%[1]d
+			WHERE jt.id = %[2]s
+			  AND `, wsArgN, jobTaskIDExpr) + reviewerEdgeOwnedSQL(facetArgN, wsArgN) + `
+		)`
+}
+
 // sheetOutsideReviewerScopeSQL probes whether ANY active phase of the sheet lies
 // outside the acting staff's reviewer scope. Args: $1 template, $2 template
 // phase, $3 workspace, $4 staff facet; narrow is the optional group predicate

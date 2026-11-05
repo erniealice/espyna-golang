@@ -9,6 +9,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/shared/reviewedit"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 )
 
@@ -29,6 +30,10 @@ type GetOutcomeMatrixRepositories struct {
 type GetOutcomeMatrixServices struct {
 	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
+	// Authorizer is OPTIONAL: when it exposes the fresh strict verdict
+	// (reviewedit.FreshChecker) the review-edit decision is resolved for the
+	// matrix editable rule. nil / other authorizer = denied (today's behaviour).
+	Authorizer ports.Authorizer
 }
 
 // GetOutcomeMatrixUseCase serves the principal-scoped outcome-score matrix for
@@ -110,6 +115,12 @@ func (uc *GetOutcomeMatrixUseCase) Execute(
 			req.Scope = matrixpb.OutcomeMatrixScope_OUTCOME_MATRIX_SCOPE_MINE
 		}
 	}
+
+	var dec reviewedit.Decision
+	if fc, ok := uc.services.Authorizer.(reviewedit.FreshChecker); ok {
+		dec = reviewedit.Resolve(ctx, fc)
+	}
+	ctx = reviewedit.WithDecision(ctx, dec)
 
 	return uc.repositories.Query.GetOutcomeMatrix(ctx, req)
 }

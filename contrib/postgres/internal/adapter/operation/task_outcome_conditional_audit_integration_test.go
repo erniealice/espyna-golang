@@ -572,7 +572,7 @@ func TestIntegrationGradeWriteAudit_NoTransactionNeedsNoSavepoint(t *testing.T) 
 	f := newCondAuditFixture(t, openQ26DB(t))
 	buf := captureSlog(t)
 	called := 0
-	f.repo.isolateTaskOutcomeAudit(context.Background(), f.tg.id, func() error {
+	f.repo.isolateTaskOutcomeAudit(context.Background(), f.tg.id, false, func() error {
 		called++
 		return fmt.Errorf("refused")
 	})

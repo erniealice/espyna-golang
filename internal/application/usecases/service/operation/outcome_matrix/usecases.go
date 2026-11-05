@@ -48,6 +48,9 @@ type Repositories struct {
 type Services struct {
 	Translator       ports.Translator
 	ActionGatekeeper *actiongate.ActionGatekeeper
+	// Authorizer is OPTIONAL: it supplies the fresh strict verdict for the
+	// review-edit decision (task_outcome:update_in_review_scope). Nil denies.
+	Authorizer ports.Authorizer
 }
 
 // NewUseCases wires every outcome-matrix use case from shared dependencies.
@@ -58,6 +61,7 @@ func NewUseCases(repositories Repositories, services Services) *UseCases {
 			GetOutcomeMatrixServices{
 				Translator:       services.Translator,
 				ActionGatekeeper: services.ActionGatekeeper,
+				Authorizer:       services.Authorizer,
 			},
 		),
 		GetOutcomeSummaryRoster: NewGetOutcomeSummaryRosterUseCase(

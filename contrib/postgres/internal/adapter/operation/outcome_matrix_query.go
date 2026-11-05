@@ -15,6 +15,7 @@ import (
 	matrixpb "github.com/erniealice/esqyma/pkg/schema/v1/service/operation/outcome_matrix"
 
 	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
+	"github.com/erniealice/espyna-golang/internal/application/shared/reviewedit"
 	internalregistry "github.com/erniealice/espyna-golang/internal/infrastructure/registry"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	"github.com/erniealice/espyna-golang/shared/identity"
@@ -912,6 +913,24 @@ func (a *PostgresOutcomeMatrixQuery) loadRowsFrom(ctx context.Context, queryer o
 	if fallbackStaff, isStaff := principalscope.ActingStaff(ctx); isStaff && fallbackStaff != "" {
 		classEdgeExpr = classEdgeOwnedSQL(nextParam, 2)
 		args = append(args, fallbackStaff)
+		nextParam++
+	}
+
+	// Review-edit column: a recorded cell becomes editable by a non-recorder
+	// when the acting staff holds the review-edit decision (resolved upstream
+	// and carried in ctx; missing decision = denied). Workspace-scope holders
+	// edit any cell (literal true); otherwise the acting staff must own the
+	// reviewer edge on the cell's offering. Denied emits the literal false so
+	// the query differs from the pre-feature text only by this last column.
+	reviewEditExpr := "false"
+	if decision, _ := reviewedit.DecisionFromContext(ctx); decision.Allowed {
+		if decision.WorkspaceScope {
+			reviewEditExpr = "true"
+		} else if reviewStaff, isStaff := principalscope.ActingStaff(ctx); isStaff && reviewStaff != "" {
+			reviewEditExpr = reviewerEdgeOwnedSQL(nextParam, 2)
+			args = append(args, reviewStaff)
+			nextParam++
+		}
 	}
 
 	q := `
@@ -930,7 +949,8 @@ SELECT DISTINCT ON (j.client_id, jt.id, ttc.id)
        t.determination_note,
        COALESCE(t.recorded_by, '')    AS recorded_by,
        COALESCE(jt.assigned_to, '')   AS assigned_to,
-       ` + classEdgeExpr + `          AS class_edge_editable
+       ` + classEdgeExpr + `          AS class_edge_editable,
+       ` + reviewEditExpr + `         AS review_edit_ok
 FROM ` + entityid.Job + ` j
 JOIN ` + entityid.JobPhase + ` jp
        ON jp.job_id = j.id AND jp.active
@@ -977,10 +997,11 @@ ORDER BY j.client_id, jt.id, ttc.id, t.recorded_date DESC NULLS LAST, t.id DESC`
 			recordedBy     string
 			assignedTo     string
 			classEdgeOK    bool
+			reviewEditOK   bool
 		)
 		if err := rows.Scan(
 			&clientID, &jobTaskID, &jobPhaseID, &jobIDVal, &jobTemplateTID, &criteriaID,
-			&outcomeID, &numericValue, &textValue, &categorical, &passFail, &determination, &recordedBy, &assignedTo, &classEdgeOK,
+			&outcomeID, &numericValue, &textValue, &categorical, &passFail, &determination, &recordedBy, &assignedTo, &classEdgeOK, &reviewEditOK,
 		); err != nil {
 			return nil, fmt.Errorf("outcome_matrix: scan cells: %w", err)
 		}
@@ -997,7 +1018,7 @@ ORDER BY j.client_id, jt.id, ttc.id, t.recorded_date DESC NULLS LAST, t.id DESC`
 		}
 
 		hasOutcome := outcomeID.Valid && outcomeID.String != ""
-		editable := computeCellEditable(hasOutcome, staffOK, recordedBy, assignedTo, actingStaff, jobTaskID, classEdgeOK)
+		editable := computeCellEditable(hasOutcome, staffOK, recordedBy, assignedTo, actingStaff, jobTaskID, classEdgeOK, reviewEditOK)
 
 		cell := &matrixpb.OutcomeCell{
 			OutcomeId: nullStringVal(outcomeID),
@@ -1094,13 +1115,14 @@ func newPhaseColumn(phaseID, phaseName string, phaseCode, variantName sql.NullSt
 // editable iff the acting staff holds an ACTIVE class edge of ANY role
 // ('primary' or 'secondary' — classEdgeOK, computed per row in loadRows'
 // cells query, phase-order matched for f14-scoped edges). An unassigned cell
-// with no matching edge stays uneditable (fail-closed).
-func computeCellEditable(hasOutcome, staffOK bool, recordedBy, assignedTo, actingStaff, jobTaskID string, classEdgeOK bool) bool {
+// with no matching edge stays uneditable (fail-closed). reviewEditOK widens
+// RECORDED cells only (review-edit decision); blank cells ignore it.
+func computeCellEditable(hasOutcome, staffOK bool, recordedBy, assignedTo, actingStaff, jobTaskID string, classEdgeOK, reviewEditOK bool) bool {
 	if !staffOK {
 		return false
 	}
 	if hasOutcome {
-		return recordedBy == actingStaff
+		return recordedBy == actingStaff || reviewEditOK
 	}
 	if jobTaskID == "" {
 		return false

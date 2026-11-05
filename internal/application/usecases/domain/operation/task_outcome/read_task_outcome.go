@@ -60,7 +60,7 @@ func (uc *ReadTaskOutcomeUseCase) Execute(ctx context.Context, req *pb.ReadTaskO
 	}
 
 	// Fallback to non-transactional execution
-	return uc.executeCore(ctx, req)
+	return uc.executeCore(withReviewEdit(ctx, uc.services.Authorizer), req)
 }
 
 // executeWithTransaction executes reading within a transaction
@@ -68,6 +68,7 @@ func (uc *ReadTaskOutcomeUseCase) executeWithTransaction(ctx context.Context, re
 	var result *pb.ReadTaskOutcomeResponse
 
 	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		txCtx = withReviewEdit(txCtx, uc.services.Authorizer)
 		res, err := uc.executeCore(txCtx, req)
 		if err != nil {
 			return err

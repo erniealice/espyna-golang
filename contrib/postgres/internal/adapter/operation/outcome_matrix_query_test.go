@@ -285,39 +285,52 @@ func TestComputeCellEditable(t *testing.T) {
 	const me, other = "staff-me", "staff-other"
 
 	cases := []struct {
-		name        string
-		hasOutcome  bool
-		staffOK     bool
-		recordedBy  string
-		assignedTo  string
-		actingStaff string
-		jobTaskID   string
-		classEdgeOK bool
-		want        bool
+		name         string
+		hasOutcome   bool
+		staffOK      bool
+		recordedBy   string
+		assignedTo   string
+		actingStaff  string
+		jobTaskID    string
+		classEdgeOK  bool
+		reviewEditOK bool
+		want         bool
 	}{
 		// --- empty cells (S8 §E guard: explicit assignee overrides) ---
-		{"empty_assigned_to_me_editable", false, true, "", me, me, "jt-1", false, true},
-		{"empty_assigned_to_other_NOT_editable", false, true, "", other, me, "jt-1", false, false},
-		{"empty_assigned_to_other_edge_does_NOT_override", false, true, "", other, me, "jt-1", true, false},
-		{"empty_no_instance_NOT_editable", false, true, "", me, me, "", false, false},
-		{"empty_non_staff_NOT_editable", false, false, "", me, me, "jt-1", false, false},
+		{"empty_assigned_to_me_editable", false, true, "", me, me, "jt-1", false, false, true},
+		{"empty_assigned_to_other_NOT_editable", false, true, "", other, me, "jt-1", false, false, false},
+		{"empty_assigned_to_other_edge_does_NOT_override", false, true, "", other, me, "jt-1", true, false, false},
+		{"empty_no_instance_NOT_editable", false, true, "", me, me, "", false, false, false},
+		{"empty_non_staff_NOT_editable", false, false, "", me, me, "jt-1", false, false, false},
 		// --- unassigned empty cells (class-edge COALESCE fallback) ---
-		{"unassigned_with_class_edge_editable", false, true, "", "", me, "jt-1", true, true},
-		{"unassigned_no_class_edge_NOT_editable", false, true, "", "", me, "jt-1", false, false},
-		{"unassigned_no_instance_NOT_editable", false, true, "", "", me, "", true, false},
-		{"unassigned_non_staff_edge_NOT_editable", false, false, "", "", me, "jt-1", true, false},
+		{"unassigned_with_class_edge_editable", false, true, "", "", me, "jt-1", true, false, true},
+		{"unassigned_no_class_edge_NOT_editable", false, true, "", "", me, "jt-1", false, false, false},
+		{"unassigned_no_instance_NOT_editable", false, true, "", "", me, "", true, false, false},
+		{"unassigned_non_staff_edge_NOT_editable", false, false, "", "", me, "jt-1", true, false, false},
 		// --- recorded cells (semantics unchanged: recorder-only) ---
-		{"recorded_by_me_editable", true, true, me, other, me, "jt-1", false, true},
-		{"recorded_by_other_NOT_editable", true, true, other, me, me, "jt-1", false, false},
-		{"recorded_by_other_edge_does_NOT_override", true, true, other, "", me, "jt-1", true, false},
-		{"recorded_non_staff_NOT_editable", true, false, me, me, me, "jt-1", false, false},
+		{"recorded_by_me_editable", true, true, me, other, me, "jt-1", false, false, true},
+		{"recorded_by_other_NOT_editable", true, true, other, me, me, "jt-1", false, false, false},
+		{"recorded_by_other_edge_does_NOT_override", true, true, other, "", me, "jt-1", true, false, false},
+		{"recorded_non_staff_NOT_editable", true, false, me, me, me, "jt-1", false, false, false},
+		// --- review-edit widening (plan 20261105-reviewer-edit-grades, AC-1/AC-16) ---
+		// reviewEditOK widens RECORDED cells only, and only for a staff principal.
+		{"review_edit_recorded_by_other_editable", true, true, other, me, me, "jt-1", false, true, true},
+		{"review_edit_recorded_by_other_no_edge_editable", true, true, other, "", me, "jt-1", false, true, true},
+		{"review_edit_recorded_by_me_still_editable", true, true, me, other, me, "jt-1", false, true, true},
+		{"review_edit_false_recorded_by_other_NOT_editable", true, true, other, me, me, "jt-1", true, false, false},
+		{"review_edit_non_staff_NOT_editable", true, false, other, me, me, "jt-1", false, true, false},
+		{"review_edit_does_not_open_blank_assigned_other", false, true, "", other, me, "jt-1", false, true, false},
+		{"review_edit_does_not_open_blank_unassigned_no_edge", false, true, "", "", me, "jt-1", false, true, false},
+		{"review_edit_does_not_open_blank_no_instance", false, true, "", me, me, "", false, true, false},
+		{"review_edit_blank_assigned_to_me_unchanged", false, true, "", me, me, "jt-1", false, true, true},
+		{"review_edit_blank_unassigned_with_edge_unchanged", false, true, "", "", me, "jt-1", true, true, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := computeCellEditable(c.hasOutcome, c.staffOK, c.recordedBy, c.assignedTo, c.actingStaff, c.jobTaskID, c.classEdgeOK)
+			got := computeCellEditable(c.hasOutcome, c.staffOK, c.recordedBy, c.assignedTo, c.actingStaff, c.jobTaskID, c.classEdgeOK, c.reviewEditOK)
 			if got != c.want {
-				t.Errorf("computeCellEditable(hasOutcome=%v,staffOK=%v,recordedBy=%q,assignedTo=%q,actingStaff=%q,jobTaskID=%q,classEdgeOK=%v) = %v, want %v",
-					c.hasOutcome, c.staffOK, c.recordedBy, c.assignedTo, c.actingStaff, c.jobTaskID, c.classEdgeOK, got, c.want)
+				t.Errorf("computeCellEditable(hasOutcome=%v,staffOK=%v,recordedBy=%q,assignedTo=%q,actingStaff=%q,jobTaskID=%q,classEdgeOK=%v,reviewEditOK=%v) = %v, want %v",
+					c.hasOutcome, c.staffOK, c.recordedBy, c.assignedTo, c.actingStaff, c.jobTaskID, c.classEdgeOK, c.reviewEditOK, got, c.want)
 			}
 		})
 	}

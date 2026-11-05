@@ -17,14 +17,15 @@ import (
 	auditadapter "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/audit"
 	postgresCore "github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/core"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
+	"github.com/erniealice/espyna-golang/internal/application/shared/reviewedit"
 	"github.com/erniealice/espyna-golang/registry"
 	entityid "github.com/erniealice/espyna-golang/registry/entityid"
 	interfaces "github.com/erniealice/espyna-golang/shared/database/interfaces"
 	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
 	"github.com/erniealice/espyna-golang/shared/identity"
+	audittrailenums "github.com/erniealice/esqyma/pkg/schema/v1/domain/audit_trail/enums"
 	commonpb "github.com/erniealice/esqyma/pkg/schema/v1/domain/common"
 	enumspb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/enums"
-	audittrailenums "github.com/erniealice/esqyma/pkg/schema/v1/domain/audit_trail/enums"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 )
 
@@ -181,7 +182,7 @@ func (r *PostgresTaskOutcomeRepository) ReadTaskOutcome(ctx context.Context, req
 	if staffID, ok := principalscope.StaffRowScope(ctx); ok {
 		owns := staffID != "" && (outcome.RecordedBy == staffID ||
 			(outcome.ReviewedBy != nil && *outcome.ReviewedBy == staffID))
-		if !owns {
+		if !owns && !r.inReviewEditScope(ctx, outcome.JobTaskId, staffID) {
 			return nil, fmt.Errorf("task outcome with ID '%s' not found", req.Data.Id)
 		}
 	}
@@ -190,6 +191,31 @@ func (r *PostgresTaskOutcomeRepository) ReadTaskOutcome(ctx context.Context, req
 		Success: true,
 		Data:    []*pb.TaskOutcome{outcome},
 	}, nil
+}
+
+// inReviewEditScope reports whether the review-edit decision allows the acting staff
+// to reach an outcome it does not own, because the outcome's job_task sits in the
+// staff's review scope. Fails closed on a denied decision, missing ids or any error.
+func (r *PostgresTaskOutcomeRepository) inReviewEditScope(ctx context.Context, jobTaskID, staffID string) bool {
+	d, _ := reviewedit.DecisionFromContext(ctx)
+	if !d.Allowed || staffID == "" || jobTaskID == "" {
+		return false
+	}
+	idn, ok := identity.FromContext(ctx)
+	if !ok || idn == nil || idn.WorkspaceID == "" {
+		return false
+	}
+	exec := r.executor(ctx)
+	if exec == nil {
+		return false
+	}
+	var in bool
+	if err := exec.QueryRowContext(ctx,
+		`SELECT `+outcomeInReviewScopeSQL("$1", 2, 3), jobTaskID, staffID, idn.WorkspaceID).Scan(&in); err != nil {
+		log.Printf("WARN: task_outcome review scope check failed (denied): %v", err)
+		return false
+	}
+	return in
 }
 
 // UpdateTaskOutcome updates a task_outcome record
@@ -225,6 +251,19 @@ func (r *PostgresTaskOutcomeRepository) UpdateTaskOutcome(ctx context.Context, r
 
 	before := r.readTaskOutcomeForAudit(ctx, req.Data.Id)
 
+	// Review edit: the decision allows it and the acting staff is not the recorder.
+	// A review edit never rewrites who recorded or reviewed the outcome. Fail closed
+	// when the old row could not be read, since the audit needs it.
+	strict := reviewEditStrict(ctx, before)
+	if strict {
+		if before == nil {
+			return nil, fmt.Errorf("task outcome review edit: previous row unavailable for audit (fail closed)")
+		}
+		delete(data, "recordedBy")
+		delete(data, "reviewedBy")
+		delete(data, "reviewedDate")
+	}
+
 	result, err := r.dbOps.Update(ctx, r.tableName, req.Data.Id, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update task outcome: %w", err)
@@ -241,14 +280,17 @@ func (r *PostgresTaskOutcomeRepository) UpdateTaskOutcome(ctx context.Context, r
 	}
 
 	if before != nil {
-		r.auditTaskOutcomeWrite(ctx, taskOutcomeAuditWrite{
+		if err := r.auditTaskOutcomeWrite(ctx, taskOutcomeAuditWrite{
 			Action:     audittrailenums.AuditAction_AUDIT_ACTION_UPDATE,
 			Permission: "task_outcome:update",
 			Method:     "UpdateTaskOutcome",
 			ID:         req.Data.Id,
 			Before:     before,
 			After:      outcome,
-		})
+			Strict:     strict,
+		}); err != nil {
+			return nil, err
+		}
 	}
 
 	return &pb.UpdateTaskOutcomeResponse{
@@ -271,7 +313,7 @@ func (r *PostgresTaskOutcomeRepository) DeleteTaskOutcome(ctx context.Context, r
 	}
 
 	if before != nil {
-		r.auditTaskOutcomeWrite(ctx, taskOutcomeAuditWrite{
+		_ = r.auditTaskOutcomeWrite(ctx, taskOutcomeAuditWrite{
 			Action:     audittrailenums.AuditAction_AUDIT_ACTION_DELETE,
 			Permission: "task_outcome:delete",
 			Method:     "DeleteTaskOutcome",

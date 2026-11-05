@@ -74,7 +74,7 @@ func InitializeAll(
 	amortUC := initServiceAmortization()
 	// Outcome Matrix (20260702) — service/operation/outcome_matrix generic
 	// principal-scoped grading grid (replaces app-local grade_sheet).
-	operationUC := initServiceOperation(db, i18nSvc, actionGate)
+	operationUC := initServiceOperation(db, authSvc, i18nSvc, actionGate)
 	// Subscription group outcome export wiring.
 	subscriptionGroupOutcomeExportUC := initServiceOperationSubscriptionGroupOutcomeExport(db, landingInput, i18nSvc, actionGate, operationRepos)
 	// Job-Template Summary (20260711) — service/operation/job_template_summary

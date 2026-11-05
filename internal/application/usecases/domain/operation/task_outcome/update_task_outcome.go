@@ -8,6 +8,7 @@ import (
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
 	contextutil "github.com/erniealice/espyna-golang/internal/application/shared/context"
+	"github.com/erniealice/espyna-golang/internal/application/shared/reviewedit"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	pb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/task_outcome"
 )
@@ -82,7 +83,24 @@ func (uc *UpdateTaskOutcomeUseCase) Execute(ctx context.Context, req *pb.UpdateT
 	if txCapable {
 		return uc.executeWithTransaction(ctx, req, enrichedData)
 	}
-	return uc.executeCore(ctx, req, enrichedData)
+	return uc.executeCore(withReviewEdit(ctx, uc.services.Authorizer), req, enrichedData)
+}
+
+// withReviewEdit resolves the review-edit decision (fresh strict verdict on the
+// ctx's executor, so call it with the tx ctx where a tx is used) and stores it
+// on the returned ctx before any repository call. Zero decision = denied.
+func withReviewEdit(ctx context.Context, authz ports.Authorizer) context.Context {
+	return reviewedit.WithDecision(ctx, resolveReviewEdit(ctx, authz))
+}
+
+// resolveReviewEdit adapts the authorizer to reviewedit.Resolve; an authorizer
+// without the fresh strict capability fails closed.
+func resolveReviewEdit(ctx context.Context, authz ports.Authorizer) reviewedit.Decision {
+	fc, ok := authz.(reviewedit.FreshChecker)
+	if !ok {
+		return reviewedit.Decision{}
+	}
+	return reviewedit.Resolve(ctx, fc)
 }
 
 // executeGuarded resolves the job_task that owns the target outcome under the
@@ -90,6 +108,7 @@ func (uc *UpdateTaskOutcomeUseCase) Execute(ctx context.Context, req *pb.UpdateT
 func (uc *UpdateTaskOutcomeUseCase) executeGuarded(ctx context.Context, req *pb.UpdateTaskOutcomeRequest, enrichedData *pb.TaskOutcome, guard cellWriteGuard) (*pb.UpdateTaskOutcomeResponse, error) {
 	var result *pb.UpdateTaskOutcomeResponse
 	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		txCtx = withReviewEdit(txCtx, uc.services.Authorizer)
 		existing, rerr := uc.repositories.TaskOutcome.ReadTaskOutcome(txCtx, &pb.ReadTaskOutcomeRequest{Data: &pb.TaskOutcome{Id: req.Data.Id}})
 		if rerr != nil || existing == nil || len(existing.GetData()) == 0 {
 			return errors.New(contextutil.GetTranslatedMessageWithContext(ctx, uc.services.Translator, "task_outcome.errors.not_found", "[ERR-DEFAULT] Task outcome not found"))
@@ -125,6 +144,7 @@ func (uc *UpdateTaskOutcomeUseCase) executeWithTransaction(ctx context.Context, 
 	var result *pb.UpdateTaskOutcomeResponse
 
 	err := uc.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		txCtx = withReviewEdit(txCtx, uc.services.Authorizer)
 		res, err := uc.executeCore(txCtx, req, enrichedData)
 		if err != nil {
 			return err

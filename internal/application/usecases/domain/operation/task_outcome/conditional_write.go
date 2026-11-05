@@ -71,6 +71,7 @@ func (uc *UpdateTaskOutcomeIfUnchangedUseCase) Execute(ctx context.Context, req 
 
 	var out *pb.TaskOutcome
 	err := b.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		txCtx = withReviewEdit(txCtx, b.services.Authorizer)
 		existing, rerr := repo.ReadTaskOutcome(txCtx, &pb.ReadTaskOutcomeRequest{Data: &pb.TaskOutcome{Id: data.Id}})
 		if rerr != nil || existing == nil || len(existing.GetData()) == 0 {
 			// Gone (deleted/foreign) since the caller's snapshot → conflict,
@@ -98,6 +99,7 @@ func (uc *UpdateTaskOutcomeIfUnchangedUseCase) Execute(ctx context.Context, req 
 
 func (uc *UpdateTaskOutcomeIfUnchangedUseCase) executeBestEffort(ctx context.Context, data, expected *pb.TaskOutcome) (*pb.UpdateTaskOutcomeResponse, bool, error) {
 	b := uc.base
+	ctx = withReviewEdit(ctx, b.services.Authorizer)
 	existing, err := b.repositories.TaskOutcome.ReadTaskOutcome(ctx, &pb.ReadTaskOutcomeRequest{Data: &pb.TaskOutcome{Id: data.Id}})
 	if err != nil || existing == nil || len(existing.GetData()) == 0 {
 		return nil, true, nil

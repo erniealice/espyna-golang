@@ -9,6 +9,7 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
+	portsdomain "github.com/erniealice/espyna-golang/internal/application/ports/domain"
 	"github.com/erniealice/espyna-golang/internal/application/shared/approvalctx"
 	"github.com/erniealice/espyna-golang/registry/entityid"
 	sqlexec "github.com/erniealice/espyna-golang/shared/database/sqlexec"
@@ -88,7 +89,7 @@ func assertApprovalScope(ctx context.Context, exec sqlexec.DBExecutor, verb, tem
 		if d.WorkspaceScope {
 			return nil
 		}
-		return fmt.Errorf("job_phase %s: operator login without approval_scope:workspace — approve on the staff login (reviewer scope) — fail closed", verb)
+		return fmt.Errorf("job_phase %s: operator login without approval_scope:workspace — approve on the staff login (reviewer scope) — fail closed: %w", verb, portsdomain.ErrJobPhaseApprovalOperatorLogin)
 	}
 	staffID, isStaff := principalscope.ActingStaff(ctx)
 	if !isStaff {
@@ -113,7 +114,7 @@ func assertApprovalScope(ctx context.Context, exec sqlexec.DBExecutor, verb, tem
 		return fmt.Errorf("job_phase %s: reviewer-scope probe: %w", verb, err)
 	}
 	if outside {
-		return fmt.Errorf("job_phase %s: sheet is outside the acting staff's approval scope (needs approval_scope:workspace or a reviewer edge on every job's offering) — fail closed", verb)
+		return fmt.Errorf("job_phase %s: sheet is outside the acting staff's approval scope (needs approval_scope:workspace or a reviewer edge on every job's offering) — fail closed: %w", verb, portsdomain.ErrJobPhaseApprovalNotAllowed)
 	}
 	return nil
 }
@@ -141,7 +142,7 @@ func assertNotSelfVerify(ctx context.Context, exec sqlexec.DBExecutor, locked []
 		return fmt.Errorf("job_phase verify: separation-of-duties probe: %w", err)
 	}
 	if own {
-		return fmt.Errorf("job_phase verify: the acting user submitted this sheet and lacks job_phase:verify_own (separation of duties) — denied")
+		return fmt.Errorf("job_phase verify: the acting user submitted this sheet and lacks job_phase:verify_own (separation of duties) — denied: %w", portsdomain.ErrJobPhaseApprovalSelfVerify)
 	}
 	return nil
 }

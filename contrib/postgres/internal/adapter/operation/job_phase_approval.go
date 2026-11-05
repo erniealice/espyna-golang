@@ -14,6 +14,7 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/erniealice/espyna-golang/contrib/postgres/internal/adapter/principalscope"
+	portsdomain "github.com/erniealice/espyna-golang/internal/application/ports/domain"
 	infraports "github.com/erniealice/espyna-golang/internal/application/ports/infrastructure"
 	"github.com/erniealice/espyna-golang/internal/application/shared/approvalctx"
 	"github.com/erniealice/espyna-golang/registry/entityid"
@@ -576,7 +577,7 @@ func resolveStaffFacet(ctx context.Context, exec sqlexec.DBExecutor, wsID string
 	for rows.Next() {
 		n++
 		if n > 1 {
-			return "", fmt.Errorf("job_phase submit: ambiguous staff facet (multiple active staff rows for the acting user) — fail closed")
+			return "", operatorFacetRefusal(ctx, fmt.Errorf("job_phase submit: ambiguous staff facet (multiple active staff rows for the acting user) — fail closed"))
 		}
 		if err := rows.Scan(&facet); err != nil {
 			return "", fmt.Errorf("job_phase submit: scan staff facet: %w", err)
@@ -586,9 +587,23 @@ func resolveStaffFacet(ctx context.Context, exec sqlexec.DBExecutor, wsID string
 		return "", fmt.Errorf("job_phase submit: iterate staff facet: %w", err)
 	}
 	if n == 0 || facet == "" {
-		return "", fmt.Errorf("job_phase submit: no active staff facet matching the acting user + trusted workspace (disabled/re-homed since login?) — fail closed")
+		return "", operatorFacetRefusal(ctx, fmt.Errorf("job_phase submit: no active staff facet matching the acting user + trusted workspace (disabled/re-homed since login?) — fail closed"))
 	}
 	return facet, nil
+}
+
+// operatorFacetRefusal classifies a missing/ambiguous staff facet on an operator
+// login (kinds 1/2) as ErrJobPhaseApprovalOperatorLogin. An operator reaches the
+// facet lookup only when it holds no approval_scope:workspace (the Submit admin
+// override comes only from that scope), so the refusal is exactly "this operator
+// login lacks the workspace approval scope; act from the staff login". It only
+// tags the error; the refusal itself is unchanged. Staff and unresolved/portal
+// kinds (0, 3-6) keep the untyped error.
+func operatorFacetRefusal(ctx context.Context, err error) error {
+	if !principalscope.IsOperatorSession(ctx) {
+		return err
+	}
+	return fmt.Errorf("%w: %w", err, portsdomain.ErrJobPhaseApprovalOperatorLogin)
 }
 
 // classEdgeOwnedSQL returns the class-edge ownership EXISTS fragment of the
@@ -710,7 +725,7 @@ func assertAllTasksOwned(ctx context.Context, exec sqlexec.DBExecutor, templateI
 		return fmt.Errorf("job_phase submit: ownership probe: %w", err)
 	}
 	if unowned {
-		return fmt.Errorf("job_phase submit: not every active task is owned by the acting staff (D7 ownership: explicit assignment or an active class edge, any role) — fail closed")
+		return fmt.Errorf("job_phase submit: not every active task is owned by the acting staff (D7 ownership: explicit assignment or an active class edge, any role) — fail closed: %w", portsdomain.ErrJobPhaseApprovalNotAllowed)
 	}
 	// (B) any phase member with zero active tasks (cannot prove ownership)?
 	emptyNarrow, emptyNarrowArgs := groupNarrowPredicate(groupID, 4, 3)
@@ -895,10 +910,24 @@ func deriveOldState(locked []lockedPhase) string {
 func requireUniformSource(locked []lockedPhase, want string) error {
 	for _, lp := range locked {
 		if lp.approvalStatus != want {
-			return fmt.Errorf("job_phase approval: sheet is not uniformly %s (found %s) — mixed or wrong source state", want, lp.approvalStatus)
+			mixed := deriveOldState(locked) == "MIXED"
+			stateErr := &portsdomain.JobPhaseApprovalStateError{
+				Want:  approvalStatusEnum(want),
+				Found: approvalStatusEnum(lp.approvalStatus),
+				Mixed: mixed,
+			}
+			if mixed {
+				stateErr.Found = pb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_UNSPECIFIED
+			}
+			return fmt.Errorf("job_phase approval: sheet is not uniformly %s (found %s) — mixed or wrong source state: %w", want, lp.approvalStatus, stateErr)
 		}
 	}
 	return nil
+}
+
+// approvalStatusEnum maps the DB text token to the proto enum (UNSPECIFIED when unknown).
+func approvalStatusEnum(token string) pb.PhaseApprovalStatus {
+	return pb.PhaseApprovalStatus(pb.PhaseApprovalStatus_value[token])
 }
 
 func nowMillis() int64 { return time.Now().UnixMilli() }
@@ -984,7 +1013,7 @@ func (r *PostgresJobPhaseRepository) SubmitJobPhaseApproval(ctx context.Context,
 		return nil, err
 	}
 	if frozen {
-		return nil, fmt.Errorf("job_phase submit: sheet is hard-frozen (closed schedule or authoritative final) — cannot submit")
+		return nil, fmt.Errorf("job_phase submit: sheet is hard-frozen (closed schedule or authoritative final) — cannot submit: %w", portsdomain.ErrJobPhaseApprovalFrozen)
 	}
 
 	blankCount, err := countBlankRequiredCells(ctx, exec, templateID, phaseID, wsID, groupID)
@@ -1074,7 +1103,7 @@ func (r *PostgresJobPhaseRepository) VerifyJobPhaseApproval(ctx context.Context,
 		return nil, err
 	}
 	if frozen {
-		return nil, fmt.Errorf("job_phase verify: sheet is hard-frozen — cannot verify")
+		return nil, fmt.Errorf("job_phase verify: sheet is hard-frozen — cannot verify: %w", portsdomain.ErrJobPhaseApprovalFrozen)
 	}
 
 	// Verify-time freshness barrier: re-finalize the phase then job outcome
@@ -1144,7 +1173,7 @@ func (r *PostgresJobPhaseRepository) PublishJobPhaseApproval(ctx context.Context
 		return nil, err
 	}
 	if frozen {
-		return nil, fmt.Errorf("job_phase publish: sheet is hard-frozen — cannot publish")
+		return nil, fmt.Errorf("job_phase publish: sheet is hard-frozen — cannot publish: %w", portsdomain.ErrJobPhaseApprovalFrozen)
 	}
 
 	actor := identity.Must(ctx).UserID
@@ -1200,7 +1229,8 @@ func (r *PostgresJobPhaseRepository) ReturnJobPhaseApproval(ctx context.Context,
 		}
 	}
 	if !anyAdvanced {
-		return nil, fmt.Errorf("job_phase return: sheet is already fully IN_PROGRESS — nothing to return")
+		return nil, fmt.Errorf("job_phase return: sheet is already fully IN_PROGRESS — nothing to return: %w",
+			&portsdomain.JobPhaseApprovalStateError{Found: pb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_IN_PROGRESS})
 	}
 
 	reason := normalizeReturnReason(req.GetReason())
@@ -1212,7 +1242,7 @@ func (r *PostgresJobPhaseRepository) ReturnJobPhaseApproval(ctx context.Context,
 		return nil, err
 	}
 	if frozen {
-		return nil, fmt.Errorf("job_phase return: sheet is hard-frozen — return is blocked, use a correction workflow")
+		return nil, fmt.Errorf("job_phase return: sheet is hard-frozen — return is blocked, use a correction workflow: %w", portsdomain.ErrJobPhaseApprovalFrozen)
 	}
 
 	actor := identity.Must(ctx).UserID

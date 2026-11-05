@@ -2,6 +2,7 @@ package job_phase
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
@@ -397,5 +398,33 @@ func TestVerify_NilTransactorFailsClosed(t *testing.T) {
 	if _, err := uc.VerifyJobPhaseApproval.Execute(ctxWithUser("u1", "ws1"),
 		&pb.VerifyJobPhaseApprovalRequest{JobTemplateId: "t1", JobTemplatePhaseId: "p1"}); err == nil {
 		t.Fatal("expected fail-closed with nil transactor")
+	}
+}
+
+// TestStrictVerbDenied_IsNotAllowed proves both strict-verb denials (the pre-tx
+// check and the authoritative in-tx fresh check) are typed so the presentation
+// layer can answer "not allowed" without echoing the raw error.
+func TestStrictVerbDenied_IsNotAllowed(t *testing.T) {
+	authz := &fakeAuthorizer{enabled: true, strict: true, perms: map[string]bool{"job_phase:publish": true}}
+	ctx := ctxWithUser("u1", "ws1")
+	if err := requireStrictVerb(ctx, authz, actionSubmit); !errors.Is(err, ports.ErrJobPhaseApprovalNotAllowed) {
+		t.Fatalf("requireStrictVerb denial must be ErrJobPhaseApprovalNotAllowed, got %v", err)
+	}
+	if err := requireStrictVerbFresh(ctx, authz, actionSubmit); !errors.Is(err, ports.ErrJobPhaseApprovalNotAllowed) {
+		t.Fatalf("requireStrictVerbFresh denial must be ErrJobPhaseApprovalNotAllowed, got %v", err)
+	}
+	if err := requireStrictVerb(ctx, authz, actionPublish); err != nil {
+		t.Fatalf("allowed verb must pass untouched, got %v", err)
+	}
+
+	// End to end: a revocation committed after the cached verdict surfaces typed.
+	revoked := &fakeAuthorizer{enabled: true, strict: true,
+		perms:      map[string]bool{"job_phase:submit": true},
+		freshPerms: map[string]bool{"job_phase:submit": false}}
+	uc := newUC(t, revoked, &fakeTransactor{supports: true}, &capturingRepo{})
+	_, err := uc.SubmitJobPhaseApproval.Execute(ctx,
+		&pb.SubmitJobPhaseApprovalRequest{JobTemplateId: "t1", JobTemplatePhaseId: "p1"})
+	if !errors.Is(err, ports.ErrJobPhaseApprovalNotAllowed) {
+		t.Fatalf("in-tx revocation must be ErrJobPhaseApprovalNotAllowed, got %v", err)
 	}
 }

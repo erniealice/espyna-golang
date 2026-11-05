@@ -238,6 +238,17 @@ type SubscriptionGroupOutcomeLandingQueryService = domain.SubscriptionGroupOutco
 
 var ErrClientReportNotFound = domain.ErrClientReportNotFound
 
+// job_phase approval refusal classification.
+var (
+	ErrJobPhaseApprovalStateConflict = domain.ErrJobPhaseApprovalStateConflict
+	ErrJobPhaseApprovalOperatorLogin = domain.ErrJobPhaseApprovalOperatorLogin
+	ErrJobPhaseApprovalNotAllowed    = domain.ErrJobPhaseApprovalNotAllowed
+	ErrJobPhaseApprovalSelfVerify    = domain.ErrJobPhaseApprovalSelfVerify
+	ErrJobPhaseApprovalFrozen        = domain.ErrJobPhaseApprovalFrozen
+)
+
+type JobPhaseApprovalStateError = domain.JobPhaseApprovalStateError
+
 type (
 	JobListTabSupportRequest  = domain.JobListTabSupportRequest
 	JobListTabSupportResponse = domain.JobListTabSupportResponse

@@ -3,8 +3,12 @@
 package operation
 
 import (
+	"errors"
 	"strings"
 	"testing"
+
+	portsdomain "github.com/erniealice/espyna-golang/internal/application/ports/domain"
+	jobphasepb "github.com/erniealice/esqyma/pkg/schema/v1/domain/operation/job_phase"
 )
 
 // TestStripJobPhaseApprovalKeys proves the generic-CRUD adapter strip removes
@@ -48,15 +52,29 @@ func TestRequireUniformSource(t *testing.T) {
 	if err := requireUniformSource(inProgress, apInProgress); err != nil {
 		t.Fatalf("uniform IN_PROGRESS should pass: %v", err)
 	}
-	if err := requireUniformSource(inProgress, apForReview); err == nil {
+	err := requireUniformSource(inProgress, apForReview)
+	if err == nil {
 		t.Fatal("wrong source state should fail")
+	}
+	var se *portsdomain.JobPhaseApprovalStateError
+	if !errors.As(err, &se) || !errors.Is(err, portsdomain.ErrJobPhaseApprovalStateConflict) {
+		t.Fatalf("wrong source state must be a typed state conflict, got %v", err)
+	}
+	if se.Mixed || se.Want != jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_FOR_REVIEW ||
+		se.Found != jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_IN_PROGRESS {
+		t.Fatalf("unexpected state error fields: %+v", se)
 	}
 	mixed := []lockedPhase{
 		{id: "a", approvalStatus: apInProgress},
 		{id: "b", approvalStatus: apForReview},
 	}
-	if err := requireUniformSource(mixed, apInProgress); err == nil {
+	err = requireUniformSource(mixed, apInProgress)
+	if err == nil {
 		t.Fatal("mixed source state should fail")
+	}
+	if !errors.As(err, &se) || !se.Mixed || se.Found != jobphasepb.PhaseApprovalStatus_PHASE_APPROVAL_STATUS_UNSPECIFIED ||
+		!errors.Is(err, portsdomain.ErrJobPhaseApprovalStateConflict) {
+		t.Fatalf("mixed sheet must be Mixed state conflict with unspecified Found, got %v / %+v", err, se)
 	}
 }
 

@@ -212,6 +212,17 @@ type (
 
 var ErrClientReportNotFound = internal.ErrClientReportNotFound
 
+// job_phase approval refusal classification.
+var (
+	ErrJobPhaseApprovalStateConflict = internal.ErrJobPhaseApprovalStateConflict
+	ErrJobPhaseApprovalOperatorLogin = internal.ErrJobPhaseApprovalOperatorLogin
+	ErrJobPhaseApprovalNotAllowed    = internal.ErrJobPhaseApprovalNotAllowed
+	ErrJobPhaseApprovalSelfVerify    = internal.ErrJobPhaseApprovalSelfVerify
+	ErrJobPhaseApprovalFrozen        = internal.ErrJobPhaseApprovalFrozen
+)
+
+type JobPhaseApprovalStateError = internal.JobPhaseApprovalStateError
+
 // Translation types
 type Translator = internal.Translator
 

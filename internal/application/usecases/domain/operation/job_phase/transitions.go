@@ -3,6 +3,7 @@ package job_phase
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/erniealice/espyna-golang/internal/application/ports"
 	"github.com/erniealice/espyna-golang/internal/application/shared/actiongate"
@@ -111,7 +112,7 @@ func requireStrictVerb(ctx context.Context, sa strictAuthorizer, verb string) er
 		return err
 	}
 	if !ok {
-		return errors.New("job_phase approval: caller lacks job_phase:" + verb + " (strict verdict) — denied")
+		return fmt.Errorf("job_phase approval: caller lacks job_phase:%s (strict verdict) — denied: %w", verb, ports.ErrJobPhaseApprovalNotAllowed)
 	}
 	return nil
 }
@@ -132,7 +133,7 @@ func requireStrictVerbFresh(ctx context.Context, sa strictAuthorizer, verb strin
 		return err
 	}
 	if !ok {
-		return errors.New("job_phase approval: caller lacks job_phase:" + verb + " (fresh in-tx verdict) — denied")
+		return fmt.Errorf("job_phase approval: caller lacks job_phase:%s (fresh in-tx verdict) — denied: %w", verb, ports.ErrJobPhaseApprovalNotAllowed)
 	}
 	return nil
 }

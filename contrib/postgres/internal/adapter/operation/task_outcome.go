@@ -198,7 +198,7 @@ func (r *PostgresTaskOutcomeRepository) ReadTaskOutcome(ctx context.Context, req
 // staff's review scope. Fails closed on a denied decision, missing ids or any error.
 func (r *PostgresTaskOutcomeRepository) inReviewEditScope(ctx context.Context, jobTaskID, staffID string) bool {
 	d, _ := reviewedit.DecisionFromContext(ctx)
-	if !d.Allowed || staffID == "" || jobTaskID == "" {
+	if !(d.Allowed || d.Clear) || staffID == "" || jobTaskID == "" {
 		return false
 	}
 	idn, ok := identity.FromContext(ctx)

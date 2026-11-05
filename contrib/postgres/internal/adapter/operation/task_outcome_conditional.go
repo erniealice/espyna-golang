@@ -26,6 +26,9 @@ import (
 // (schema-proposal.md §9.1, interfaces.md §2b).
 var _ portsdomain.TaskOutcomeConditionalWriter = (*PostgresTaskOutcomeRepository)(nil)
 
+// Compile-time proof for the review-override clear port (plan 20261106 §2.5).
+var _ portsdomain.TaskOutcomeConditionalDeleter = (*PostgresTaskOutcomeRepository)(nil)
+
 // taskOutcomeReturningCols is the RETURNING/SELECT projection scanTOFields
 // expects (same order and COALESCEs as GetTaskOutcomeItemPageData).
 const taskOutcomeReturningCols = `
@@ -389,4 +392,106 @@ func condNullInt64(v *int64) sql.NullInt64 {
 		return sql.NullInt64{}
 	}
 	return sql.NullInt64{Int64: *v, Valid: true}
+}
+
+// DeleteTaskOutcomeIfUnchanged is the review-override clear (plan 20261106
+// §2.5): ONE soft-delete UPDATE (active=false) that only lands when the row is
+// active, in the trusted workspace and still carries the caller's snapshot
+// (same predicates as UpdateTaskOutcomeIfUnchanged). The staff row clause is
+// widened by outcomeInReviewScopeSQL only when the decision's Clear flag is
+// set (a workspace-wide principal gets no staff clause at all). 0 rows →
+// ErrTaskOutcomeConflict. A clear by someone other than the recorder writes a
+// strict audit row (permission task_outcome:delete_in_review_scope, reason
+// review_override_clear): an audit failure fails the clear and the caller's
+// transaction rolls back.
+func (r *PostgresTaskOutcomeRepository) DeleteTaskOutcomeIfUnchanged(ctx context.Context, id string, expected *pb.TaskOutcome) (*pb.TaskOutcome, error) {
+	if id == "" {
+		return nil, fmt.Errorf("task outcome ID is required")
+	}
+	if expected == nil {
+		return nil, fmt.Errorf("task_outcome conditional delete: expected snapshot is required")
+	}
+	wsID, tx, err := r.conditionalTx(ctx, "conditional delete")
+	if err != nil {
+		return nil, err
+	}
+
+	args := []any{
+		id,   // $1
+		wsID, // $2
+		condNullFloat(expected.NumericValue),
+		condNullString(expected.DeterminationNote),
+		condNullInt64(expected.DateModified),
+		condNullString(expected.TextValue),        // $6
+		condNullString(expected.CategoricalValue), // $7
+		condNullBool(expected.PassFailValue),      // $8
+		time.Now().UTC(),                          // $9
+	}
+	const n = 9
+	staffClause, staffArgs := principalscope.StaffScopeClauseAny(ctx, []string{"recorded_by", "reviewed_by"}, n+1)
+	args = append(args, staffArgs...)
+	d, _ := reviewedit.DecisionFromContext(ctx)
+	if d.Clear && len(staffArgs) == 1 {
+		staffClause = " AND (" + strings.TrimPrefix(staffClause, " AND ") + " OR " +
+			outcomeInReviewScopeSQL(entityid.TaskOutcome+".job_task_id", n+1, 2) + ")"
+	}
+
+	query := `UPDATE ` + entityid.TaskOutcome + ` SET active = false, date_modified = $9
+		WHERE id = $1 AND workspace_id = $2 AND active = true
+		  AND numeric_value IS NOT DISTINCT FROM $3::double precision
+		  AND determination_note IS NOT DISTINCT FROM $4::text
+		  AND text_value IS NOT DISTINCT FROM $6::text
+		  AND categorical_value IS NOT DISTINCT FROM $7::text
+		  AND pass_fail_value IS NOT DISTINCT FROM $8::boolean
+		  AND floor(extract(epoch FROM date_modified) * 1000)::bigint IS NOT DISTINCT FROM $5::bigint` +
+		staffClause + `
+		RETURNING ` + taskOutcomeReturningCols
+
+	out, err := scanTaskOutcomeSingleRow(tx.QueryRowContext(ctx, query, args...))
+	if err == sql.ErrNoRows {
+		// 0 rows: either the snapshot changed / the row is gone (conflict) or the
+		// outcome is outside the holder's review scope (not editable).
+		if d.Clear && len(staffArgs) == 1 {
+			scopeClause, scopeArgs := principalscope.StaffScopeClauseAny(ctx, []string{"recorded_by", "reviewed_by"}, 3)
+			var inScope bool
+			qerr := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM `+entityid.TaskOutcome+`
+				WHERE id = $1 AND workspace_id = $2 AND active = true`+
+				" AND (("+strings.TrimPrefix(scopeClause, " AND ")+") OR "+
+				outcomeInReviewScopeSQL(entityid.TaskOutcome+".job_task_id", 3, 2)+"))",
+				append([]any{id, wsID}, scopeArgs...)...).Scan(&inScope)
+			if qerr == nil {
+				var exists bool
+				if qerr = tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM `+entityid.TaskOutcome+`
+					WHERE id = $1 AND workspace_id = $2 AND active = true)`, id, wsID).Scan(&exists); qerr == nil && exists && !inScope {
+					return nil, portsdomain.ErrTaskOutcomeNotEditable
+				}
+			}
+		}
+		return nil, portsdomain.ErrTaskOutcomeConflict
+	}
+	if err != nil {
+		return nil, fmt.Errorf("task_outcome conditional delete: %w", err)
+	}
+
+	// The returned row carries the same grade columns as the row before the
+	// clear (only active/date_modified changed), so it is the audit "before".
+	w := taskOutcomeAuditWrite{
+		WorkspaceID: wsID,
+		Action:      audittrailenums.AuditAction_AUDIT_ACTION_DELETE,
+		Permission:  "task_outcome:delete",
+		Method:      "DeleteTaskOutcomeIfUnchanged",
+		ID:          out.GetId(),
+		Before:      out,
+	}
+	if d.Clear {
+		if staffID, _ := principalscope.ActingStaff(ctx); staffID == "" || out.GetRecordedBy() != staffID {
+			w.Permission = reviewedit.DeleteCode
+			w.Reason = "review_override_clear"
+			w.Strict = true
+		}
+	}
+	if err := r.auditTaskOutcomeWrite(ctx, w); err != nil {
+		return nil, err
+	}
+	return out, nil
 }

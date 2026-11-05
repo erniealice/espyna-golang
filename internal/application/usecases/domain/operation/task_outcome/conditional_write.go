@@ -222,12 +222,12 @@ func NewDeleteTaskOutcomeIfUnchangedUseCase(repositories DeleteTaskOutcomeReposi
 	return &DeleteTaskOutcomeIfUnchangedUseCase{base: NewDeleteTaskOutcomeUseCase(repositories, services)}
 }
 
-// Execute — C0 skeleton (contract freeze): gatekeeper task_outcome:delete and
-// input validation run, then it fails closed with
-// portsdomain.ErrTaskOutcomeNotEditable. Wave-1 A3 replaces the body: tx
-// required, withReviewEdit on the tx ctx, in-tx scoped read →
-// GuardCellWrite(jobTaskID) → TaskOutcomeConditionalDeleter.
-// DeleteTaskOutcomeIfUnchanged; ErrTaskOutcomeConflict ⇒ (nil, true, nil).
+// Execute applies the conditional soft delete. On a transactional provider the
+// repository MUST implement both the cell-write guard and
+// portsdomain.TaskOutcomeConditionalDeleter, otherwise the call fails closed
+// (there is no non-transactional or unconditional fallback for an override
+// clear). Inside the tx: review-edit decision on ctx → scoped read of the
+// outcome → GuardCellWrite(its job task) → conditional delete.
 func (uc *DeleteTaskOutcomeIfUnchangedUseCase) Execute(ctx context.Context, req *pb.DeleteTaskOutcomeRequest, expected *pb.TaskOutcome) (*pb.DeleteTaskOutcomeResponse, bool, error) {
 	b := uc.base
 	if err := b.services.ActionGatekeeper.Check(ctx, &actiongate.CheckActionRequest{
@@ -242,5 +242,36 @@ func (uc *DeleteTaskOutcomeIfUnchangedUseCase) Execute(ctx context.Context, req 
 	if expected == nil {
 		return nil, false, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, b.services.Translator, "task_outcome.validation.data_required", "[ERR-DEFAULT] Task outcome data is required"))
 	}
-	return nil, false, portsdomain.ErrTaskOutcomeNotEditable
+
+	repo := b.repositories.TaskOutcome
+	txCapable := b.services.Transactor != nil && b.services.Transactor.SupportsTransactions()
+	if !txCapable {
+		return nil, false, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, b.services.Translator, "task_outcome.errors.transaction_required", "[ERR-DEFAULT] task_outcome delete requires a transaction (cell-write lock protocol)"))
+	}
+	guard, guarded := isGuardedRepo(repo)
+	deleter, conditional := repo.(portsdomain.TaskOutcomeConditionalDeleter)
+	if !guarded || !conditional {
+		return nil, false, errors.New(contextutil.GetTranslatedMessageWithContext(ctx, b.services.Translator, "task_outcome.errors.guard_required", "[ERR-DEFAULT] task_outcome conditional delete requires the cell-write guard and conditional deleter on a transactional provider"))
+	}
+
+	err := b.services.Transactor.ExecuteInTransaction(ctx, func(txCtx context.Context) error {
+		txCtx = withReviewEdit(txCtx, b.services.Authorizer)
+		existing, rerr := repo.ReadTaskOutcome(txCtx, &pb.ReadTaskOutcomeRequest{Data: &pb.TaskOutcome{Id: req.Data.Id}})
+		if rerr != nil || existing == nil || len(existing.GetData()) == 0 {
+			// Gone (deleted/foreign/out of scope) since the caller's snapshot.
+			return portsdomain.ErrTaskOutcomeConflict
+		}
+		if err := guard.GuardCellWrite(txCtx, existing.GetData()[0].GetJobTaskId()); err != nil {
+			return err
+		}
+		_, werr := deleter.DeleteTaskOutcomeIfUnchanged(txCtx, req.Data.Id, expected)
+		return werr
+	})
+	if errors.Is(err, portsdomain.ErrTaskOutcomeConflict) {
+		return nil, true, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &pb.DeleteTaskOutcomeResponse{Success: true}, false, nil
 }

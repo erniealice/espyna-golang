@@ -431,8 +431,18 @@ func (r *PostgresTaskOutcomeRepository) DeleteTaskOutcomeIfUnchanged(ctx context
 	// Base staff scope is the recorder only: reviewed_by never admits a clear on
 	// this path (review R2 minor); the review-scope widening needs Clear.
 	staffClause, staffArgs := principalscope.StaffScopeClauseAny(ctx, []string{"recorded_by"}, n+1)
-	args = append(args, staffArgs...)
 	d, _ := reviewedit.DecisionFromContext(ctx)
+	// A workspace-wide staff session (approval_scope:workspace) has no row-scope
+	// clause; on this override path it still needs Clear to reach another
+	// recorder's outcome, else it is the recorder only (integration undo drill:
+	// revoking delete_in_review_scope must stop her clears on the next request).
+	if staffID, isStaff := principalscope.ActingStaff(ctx); isStaff && len(staffArgs) == 0 && !d.Clear {
+		if staffID == "" {
+			return nil, portsdomain.ErrTaskOutcomeNotEditable
+		}
+		staffClause, staffArgs = fmt.Sprintf(" AND recorded_by = $%d", n+1), []any{staffID}
+	}
+	args = append(args, staffArgs...)
 	if d.Clear && len(staffArgs) == 1 {
 		staffClause = " AND (" + strings.TrimPrefix(staffClause, " AND ") + " OR " +
 			outcomeInReviewScopeSQL(entityid.TaskOutcome+".job_task_id", n+1, 2) + ")"
@@ -455,15 +465,14 @@ func (r *PostgresTaskOutcomeRepository) DeleteTaskOutcomeIfUnchanged(ctx context
 		// outcome is outside what this staff session may clear (not editable):
 		// the recorder, plus the review scope for a Clear holder (review R2).
 		if len(staffArgs) == 1 {
-			scopeClause, scopeArgs := principalscope.StaffScopeClauseAny(ctx, []string{"recorded_by"}, 3)
-			scopeSQL := "(" + strings.TrimPrefix(scopeClause, " AND ") + ")"
+			scopeSQL := "(recorded_by = $3)"
 			if d.Clear {
-				scopeSQL = "(" + scopeSQL + " OR " + outcomeInReviewScopeSQL(entityid.TaskOutcome+".job_task_id", 3, 2) + ")"
+				scopeSQL = "(recorded_by = $3 OR " + outcomeInReviewScopeSQL(entityid.TaskOutcome+".job_task_id", 3, 2) + ")"
 			}
 			var inScope bool
 			qerr := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM `+entityid.TaskOutcome+`
 				WHERE id = $1 AND workspace_id = $2 AND active = true AND `+scopeSQL+")",
-				append([]any{id, wsID}, scopeArgs...)...).Scan(&inScope)
+				id, wsID, staffArgs[0]).Scan(&inScope)
 			if qerr == nil {
 				var exists bool
 				if qerr = tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM `+entityid.TaskOutcome+`

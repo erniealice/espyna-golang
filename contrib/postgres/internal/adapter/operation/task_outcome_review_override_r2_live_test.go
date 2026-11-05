@@ -303,3 +303,50 @@ func TestReviewOverrideR2Live_MainTeacherNeverClears(t *testing.T) {
 		t.Fatalf("rollback residue on %s", cfx.otherID)
 	}
 }
+
+// Integration undo drill: a workspace-wide staff session (approval_scope:workspace
+// lifts the staff row scope) without Clear is the recorder only on the override
+// clear, so revoking delete_in_review_scope stops her clears at espyna on the next
+// request; with Clear (+ workspace scope) the clear lands.
+func TestReviewOverrideR2Live_WorkspaceWideNeedsClear(t *testing.T) {
+	db := openReviewEditDB(t)
+	fx := pickReviewEditFixture(t, db)
+	repo, tm := reviewEditRepo(db)
+	before := outcomeImage(t, db, fx.outID)
+	for _, c := range []struct {
+		name string
+		d    reviewedit.Decision
+		ok   bool
+	}{
+		{"no_decision", reviewedit.Decision{}, false},
+		{"update_only_ws", reviewedit.Decision{Allowed: true, WorkspaceScope: true}, false},
+		{"class_only", reviewedit.Decision{ClassOverride: true}, false},
+		{"clear_ws", reviewedit.Decision{Clear: true, WorkspaceScope: true}, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			inReviewEditTx(t, tm, func(txCtx context.Context) error {
+				ctx := reviewEditCtx(txCtx, fx.ws, fx.reviewer, c.d, true)
+				snap, err := readSnapshot(ctx, repo, fx.outID)
+				if err != nil {
+					return err
+				}
+				_, err = repo.DeleteTaskOutcomeIfUnchanged(ctx, fx.outID, snap)
+				active, aerr := outcomeActive(txCtx, repo, fx.outID)
+				if aerr != nil {
+					return aerr
+				}
+				if c.ok {
+					if err != nil || active {
+						return fmt.Errorf("%s: clear must land (err=%v active=%v)", c.name, err, active)
+					}
+				} else if !errors.Is(err, portsdomain.ErrTaskOutcomeNotEditable) || !active {
+					return fmt.Errorf("%s: want not editable and row intact, got err=%v active=%v", c.name, err, active)
+				}
+				return errReviewEditRollback
+			})
+		})
+	}
+	if after := outcomeImage(t, db, fx.outID); after != before {
+		t.Fatalf("rollback residue on %s", fx.outID)
+	}
+}

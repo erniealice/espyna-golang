@@ -317,7 +317,8 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 				r.date_created,
 				r.date_modified,
 				COALESCE(rpa.permissions, '[]'::jsonb) as role_permissions,
-				COALESCE(r.applicable_principal_types, ARRAY[]::integer[]) as applicable_principal_types
+				COALESCE(r.applicable_principal_types, ARRAY[]::integer[]) as applicable_principal_types,
+				COALESCE(r.login_principal_types, ARRAY[]::integer[]) as login_principal_types
 			FROM ` + entityid.Role + ` r
 			LEFT JOIN role_permissions_agg rpa ON r.id = rpa.role_id
 			WHERE r.workspace_id = $1
@@ -355,6 +356,7 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 			dateModified            time.Time
 			rolePermissionsJSON     []byte
 			applicablePrincipalInts []int64
+			loginPrincipalInts      []int64
 			total                   int64
 		)
 
@@ -369,6 +371,7 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 			&dateModified,
 			&rolePermissionsJSON,
 			pq.Array(&applicablePrincipalInts),
+			pq.Array(&loginPrincipalInts),
 			&total,
 		)
 		if err != nil {
@@ -425,6 +428,12 @@ func (r *PostgresRoleRepository) GetRoleListPageData(
 
 		for _, v := range applicablePrincipalInts {
 			role.ApplicablePrincipalTypes = append(role.ApplicablePrincipalTypes, principaltypepb.PrincipalType(v))
+		}
+		// login_principal_types: the logins this role loads on (empty = every
+		// login), read by the RBAC loader. applicable_principal_types above is
+		// deprecated and kept only so an older revision can still read it.
+		for _, v := range loginPrincipalInts {
+			role.LoginPrincipalTypes = append(role.LoginPrincipalTypes, principaltypepb.PrincipalType(v))
 		}
 
 		roles = append(roles, role)

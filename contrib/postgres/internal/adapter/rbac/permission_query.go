@@ -96,7 +96,7 @@ const (
 // callers post-A2 always set the hint and take the binding-scoped CTEs
 // below instead.
 const userRolesUnionCTE = `
-	WITH user_roles AS (
+	WITH user_roles_held AS (
 		-- 1. WorkspaceUser → workspace_user_role (operator owner / staff)
 		SELECT wur.role_id
 		FROM ` + entityid.WorkspaceUser + ` wu
@@ -152,6 +152,17 @@ const userRolesUnionCTE = `
 		  AND ds.active = true
 		  AND COALESCE(ds.workspace_id, s.workspace_id) = $2
 		  AND ds.role_id IS NOT NULL
+	),
+	-- No binding kind on this path, so a role scoped to any login
+	-- (non-empty role.login_principal_types) is left out (fails closed).
+	user_roles AS (
+		SELECT h.role_id
+		FROM user_roles_held h
+		WHERE NOT EXISTS (
+		    SELECT 1 FROM ` + entityid.Role + ` r_login
+		    WHERE r_login.id = h.role_id
+		      AND COALESCE(cardinality(r_login.login_principal_types), 0) > 0
+		)
 	)
 `
 
@@ -171,7 +182,7 @@ const permissionSelect = `
 	      SELECT p2.permission_code
 	      FROM ` + entityid.Permission + ` p2
 	      JOIN ` + entityid.RolePermission + ` rp2 ON rp2.permission_id = p2.id
-	      JOIN user_roles ur2 ON ur2.role_id = rp2.role_id
+	      JOIN user_roles_held ur2 ON ur2.role_id = rp2.role_id
 	      WHERE rp2.permission_type = 'PERMISSION_TYPE_DENY'
 	        AND p2.active = true
 	        AND rp2.active = true
@@ -206,7 +217,7 @@ func permissionSelectForKind(kind int32) string {
 	      SELECT p2.permission_code
 	      FROM `+entityid.Permission+` p2
 	      JOIN `+entityid.RolePermission+` rp2 ON rp2.permission_id = p2.id
-	      JOIN user_roles ur2 ON ur2.role_id = rp2.role_id
+	      JOIN user_roles_held ur2 ON ur2.role_id = rp2.role_id
 	      WHERE rp2.permission_type = 'PERMISSION_TYPE_DENY'
 	        AND p2.active = true
 	        AND rp2.active = true
@@ -215,14 +226,54 @@ func permissionSelectForKind(kind int32) string {
 `, kind, kind)
 }
 
+// Two role sets per query (login-scoped roles, 2026-11-05):
+//
+//   - user_roles_held: every role the binding's grant chain holds.
+//   - user_roles: the held roles that may load on this login.
+//
+// ALLOW codes come from user_roles; DENY rows come from user_roles_held, so a
+// role's DENY applies on every login even when its ALLOWs are scoped away
+// (fails closed). The legacy union path has no binding kind and keeps only
+// roles whose login set is empty.
+//
+// loginScopedRolesCTE drops a held role when role.login_principal_types is
+// non-empty and does not name the session's binding kind. Exclusion form on
+// purpose: a NULL or empty set (every role today), or a role row that cannot be
+// found, keeps the role. COALESCE makes an unknown membership test (a NULL
+// element in the set; the column CHECK forbids it) count as "not named", so it
+// excludes (fails closed) instead of leaking.
+//
+// kind is a trusted int32 from the binding switch (never user input), so the
+// Sprintf is injection-safe, as in permissionSelectForKind.
+//
+// This narrows WHICH ROLES load on a login. The permission tag
+// (p.applicable_principal_types, permissionSelectForKind) still narrows WHICH
+// CODES the staff (7) login may use. role.applicable_principal_types is a
+// different, deprecated column and is not read here.
+func loginScopedRolesCTE(kind int32) string {
+	return fmt.Sprintf(`,
+	user_roles AS (
+		SELECT h.role_id
+		FROM user_roles_held h
+		WHERE NOT EXISTS (
+		    SELECT 1 FROM `+entityid.Role+` r_login
+		    WHERE r_login.id = h.role_id
+		      AND cardinality(r_login.login_principal_types) > 0
+		      AND NOT COALESCE(%d = ANY(r_login.login_principal_types), false)
+		)
+	)
+`, kind)
+}
+
 // Per-binding user_roles CTEs — each is a SINGLE grant-chain SELECT with
 // no UNIONs, so the user only sees the permissions of the binding the
 // session row currently identifies. Parameter convention: $1 = userID,
 // $2 = workspaceID, $3 = bindingID, $4 = actingAsClientID /
 // actingAsSupplierID (delegate kinds only).
 
-const userRolesOperatorCTE = `
-	WITH user_roles AS (
+func userRolesOperatorCTE(kind int32) string {
+	return `
+	WITH user_roles_held AS (
 		SELECT wur.role_id
 		FROM ` + entityid.WorkspaceUser + ` wu
 		JOIN ` + entityid.WorkspaceUserRole + ` wur ON wur.workspace_user_id = wu.id
@@ -232,11 +283,13 @@ const userRolesOperatorCTE = `
 		  AND wu.active = true
 		  AND wur.active = true
 		  AND wur.role_id IS NOT NULL
-	)
-`
 
-const userRolesClientCTE = `
-	WITH user_roles AS (
+	)` + loginScopedRolesCTE(kind)
+}
+
+func userRolesClientCTE(kind int32) string {
+	return `
+	WITH user_roles_held AS (
 		SELECT cpg.role_id
 		FROM ` + entityid.ClientPortalGrant + ` cpg
 		WHERE cpg.id = $3
@@ -244,11 +297,13 @@ const userRolesClientCTE = `
 		  AND cpg.workspace_id = $2
 		  AND cpg.active = true
 		  AND cpg.role_id IS NOT NULL
-	)
-`
 
-const userRolesSupplierCTE = `
-	WITH user_roles AS (
+	)` + loginScopedRolesCTE(kind)
+}
+
+func userRolesSupplierCTE(kind int32) string {
+	return `
+	WITH user_roles_held AS (
 		SELECT spg.role_id
 		FROM ` + entityid.SupplierPortalGrant + ` spg
 		WHERE spg.id = $3
@@ -256,15 +311,17 @@ const userRolesSupplierCTE = `
 		  AND spg.workspace_id = $2
 		  AND spg.active = true
 		  AND spg.role_id IS NOT NULL
-	)
-`
+
+	)` + loginScopedRolesCTE(kind)
+}
 
 // userRolesClientDelegateCTE — the role grant is on delegate_client, NOT
 // on delegate. The parent delegate row only anchors user_id/active; the
 // per-target dc.client_id = $4 filter is what restricts the lookup to
 // the row the delegate is currently acting through (codex A2-P0-1).
-const userRolesClientDelegateCTE = `
-	WITH user_roles AS (
+func userRolesClientDelegateCTE(kind int32) string {
+	return `
+	WITH user_roles_held AS (
 		SELECT dc.role_id
 		FROM ` + entityid.Delegate + ` d
 		JOIN ` + entityid.DelegateClient + ` dc ON dc.delegate_id = d.id
@@ -276,14 +333,16 @@ const userRolesClientDelegateCTE = `
 		  AND dc.active = true
 		  AND COALESCE(dc.workspace_id, c.workspace_id) = $2
 		  AND dc.role_id IS NOT NULL
-	)
-`
+
+	)` + loginScopedRolesCTE(kind)
+}
 
 // userRolesSupplierDelegateCTE — symmetric to the client_delegate CTE.
 // ds.supplier_id = $4 filter restricts to the per-target row the
 // delegate is currently acting through.
-const userRolesSupplierDelegateCTE = `
-	WITH user_roles AS (
+func userRolesSupplierDelegateCTE(kind int32) string {
+	return `
+	WITH user_roles_held AS (
 		SELECT ds.role_id
 		FROM ` + entityid.Delegate + ` d
 		JOIN ` + entityid.DelegateSupplier + ` ds ON ds.delegate_id = d.id
@@ -295,8 +354,9 @@ const userRolesSupplierDelegateCTE = `
 		  AND ds.active = true
 		  AND COALESCE(ds.workspace_id, s.workspace_id) = $2
 		  AND ds.role_id IS NOT NULL
-	)
-`
+
+	)` + loginScopedRolesCTE(kind)
+}
 
 // userRolesStaffCTE — PRINCIPAL_TYPE_STAFF (7). Roles are sourced from
 // workspace_user_role via the staff user's workspace_user record (Option E,
@@ -304,15 +364,17 @@ const userRolesSupplierDelegateCTE = `
 // come from the same M:N table as admin (multi-role), NOT from a single
 // staff.role_id column.
 //
-// Security boundary: this CTE carries NO applicable_principal_types filter
-// (no role-level narrowing). The fail-closed narrowing is entirely in
-// permissionSelectForKind: `7 = ANY(p.applicable_principal_types)`. A staff
-// principal can never see a permission unless that specific permission row is
-// tagged {7} in the catalog — independent of role assignment.
+// Security boundary, two halves: loginScopedRolesCTE (role.login_principal_types)
+// decides WHICH ROLES load on this login; permissionSelectForKind
+// (`7 = ANY(p.applicable_principal_types)`) decides WHICH CODES of those roles
+// a staff principal may use. A staff principal can never see a permission
+// unless that permission row is tagged {7} in the catalog, and a role scoped to
+// other logins supplies nothing here.
 //
 // wu.active + wur.active guards match the userRolesOperatorCTE pattern.
-const userRolesStaffCTE = `
-	WITH user_roles AS (
+func userRolesStaffCTE(kind int32) string {
+	return `
+	WITH user_roles_held AS (
 		SELECT wur.role_id
 		FROM ` + entityid.Staff + ` s
 		JOIN ` + entityid.WorkspaceUser + ` wu ON wu.user_id = s.user_id AND wu.workspace_id = s.workspace_id
@@ -324,8 +386,9 @@ const userRolesStaffCTE = `
 		  AND wu.active = true
 		  AND wur.active = true
 		  AND wur.role_id IS NOT NULL
-	)
-`
+
+	)` + loginScopedRolesCTE(kind)
+}
 
 // GetUserPermissionCodes returns all effective ALLOW codes for a user in a
 // workspace, with DENY-wins applied. Empty slice when no permissions.
@@ -436,15 +499,15 @@ func buildPermissionQuerySQL(
 
 	switch bindingKind {
 	case principalTypeOperatorOwner, principalTypeOperatorStaff:
-		return userRolesOperatorCTE + permissionSelect,
+		return userRolesOperatorCTE(bindingKind) + permissionSelect,
 			[]any{userID, workspaceID, bindingID},
 			true
 	case principalTypeClient:
-		return userRolesClientCTE + permissionSelect,
+		return userRolesClientCTE(bindingKind) + permissionSelect,
 			[]any{userID, workspaceID, bindingID},
 			true
 	case principalTypeSupplier:
-		return userRolesSupplierCTE + permissionSelect,
+		return userRolesSupplierCTE(bindingKind) + permissionSelect,
 			[]any{userID, workspaceID, bindingID},
 			true
 	case principalTypeStaff:
@@ -454,7 +517,7 @@ func buildPermissionQuerySQL(
 		// the unfiltered permissionSelect: every permission is tagged {1,2} today,
 		// so filtering client(3)/supplier(5)/delegate(4,6) would zero them out.
 		// They opt in to the kind-filter once their own tags exist.
-		return userRolesStaffCTE + permissionSelectForKind(bindingKind),
+		return userRolesStaffCTE(bindingKind) + permissionSelectForKind(bindingKind),
 			[]any{userID, workspaceID, bindingID},
 			true
 	case principalTypeClientDelegate:
@@ -463,14 +526,14 @@ func buildPermissionQuerySQL(
 			// (codex A2-P0-1: never union per-target grants).
 			return "", nil, false
 		}
-		return userRolesClientDelegateCTE + permissionSelect,
+		return userRolesClientDelegateCTE(bindingKind) + permissionSelect,
 			[]any{userID, workspaceID, bindingID, actingAsClientID},
 			true
 	case principalTypeSupplierDelegate:
 		if actingAsSupplierID == "" {
 			return "", nil, false
 		}
-		return userRolesSupplierDelegateCTE + permissionSelect,
+		return userRolesSupplierDelegateCTE(bindingKind) + permissionSelect,
 			[]any{userID, workspaceID, bindingID, actingAsSupplierID},
 			true
 	default:
@@ -511,17 +574,17 @@ func isKnownBindingKind(kind int32) bool {
 func bindingCTEForKind(kind int32) (string, bool) {
 	switch kind {
 	case principalTypeOperatorOwner, principalTypeOperatorStaff:
-		return userRolesOperatorCTE, true
+		return userRolesOperatorCTE(kind), true
 	case principalTypeClient:
-		return userRolesClientCTE, true
+		return userRolesClientCTE(kind), true
 	case principalTypeSupplier:
-		return userRolesSupplierCTE, true
+		return userRolesSupplierCTE(kind), true
 	case principalTypeStaff:
-		return userRolesStaffCTE, true
+		return userRolesStaffCTE(kind), true
 	case principalTypeClientDelegate:
-		return userRolesClientDelegateCTE, true
+		return userRolesClientDelegateCTE(kind), true
 	case principalTypeSupplierDelegate:
-		return userRolesSupplierDelegateCTE, true
+		return userRolesSupplierDelegateCTE(kind), true
 	default:
 		return "", false
 	}

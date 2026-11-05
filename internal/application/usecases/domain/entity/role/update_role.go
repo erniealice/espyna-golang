@@ -108,6 +108,13 @@ func (uc *UpdateRoleUseCase) executeCore(ctx context.Context, req *rolepb.Update
 		return nil, err
 	}
 
+	// login_principal_types decides which logins load this role (RBAC). It is
+	// set only by logged release SQL, never through this use case: strip it so
+	// a role:create/update caller cannot scope a role (and with it move its
+	// codes between logins). On update a nil field is omitted, so the stored
+	// value is kept.
+	req.Data.LoginPrincipalTypes = nil
+
 	// Business logic and enrichment
 	if err := uc.enrichRoleData(req.Data); err != nil {
 		return nil, err

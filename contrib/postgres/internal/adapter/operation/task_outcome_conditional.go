@@ -313,6 +313,24 @@ func (r *PostgresTaskOutcomeRepository) DeleteTaskOutcomeIfUnchanged(ctx context
 
 	out, err := scanTaskOutcomeSingleRow(tx.QueryRowContext(ctx, query, args...))
 	if err == sql.ErrNoRows {
+		// 0 rows: either the snapshot changed / the row is gone (conflict) or the
+		// outcome is outside the holder's review scope (not editable).
+		if d.Clear && len(staffArgs) == 1 {
+			scopeClause, scopeArgs := principalscope.StaffScopeClauseAny(ctx, []string{"recorded_by", "reviewed_by"}, 3)
+			var inScope bool
+			qerr := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM `+entityid.TaskOutcome+`
+				WHERE id = $1 AND workspace_id = $2 AND active = true`+
+				" AND (("+strings.TrimPrefix(scopeClause, " AND ")+") OR "+
+				outcomeInReviewScopeSQL(entityid.TaskOutcome+".job_task_id", 3, 2)+"))",
+				append([]any{id, wsID}, scopeArgs...)...).Scan(&inScope)
+			if qerr == nil {
+				var exists bool
+				if qerr = tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM `+entityid.TaskOutcome+`
+					WHERE id = $1 AND workspace_id = $2 AND active = true)`, id, wsID).Scan(&exists); qerr == nil && exists && !inScope {
+					return nil, portsdomain.ErrTaskOutcomeNotEditable
+				}
+			}
+		}
 		return nil, portsdomain.ErrTaskOutcomeConflict
 	}
 	if err != nil {

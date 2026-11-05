@@ -174,8 +174,13 @@ func TestReviewOverrideLive_ClearOutOfScopeRefused(t *testing.T) {
 				}
 				snap = s
 				ctx := reviewEditCtx(txCtx, fx.ws, fx.reviewer, c.d, false)
-				if _, err := repo.DeleteTaskOutcomeIfUnchanged(ctx, c.outcome, snap); !errors.Is(err, portsdomain.ErrTaskOutcomeConflict) {
-					return fmt.Errorf("must be refused as a conflict, got %v", err)
+				// Out of scope for a Clear holder is a scope refusal, not a stale snapshot.
+				want := portsdomain.ErrTaskOutcomeConflict
+				if c.name == "out_of_scope_clear" {
+					want = portsdomain.ErrTaskOutcomeNotEditable
+				}
+				if _, err := repo.DeleteTaskOutcomeIfUnchanged(ctx, c.outcome, snap); !errors.Is(err, want) {
+					return fmt.Errorf("must be refused with %v, got %v", want, err)
 				}
 				return errReviewEditRollback
 			})

@@ -223,6 +223,14 @@ var (
 
 type JobPhaseApprovalStateError = internal.JobPhaseApprovalStateError
 
+// task_outcome conditional-write refusals (grade sheet). ErrTaskOutcomeNotEditable
+// is the review-override fail-closed refusal (plan 20261106-review-editor-override);
+// view packages map it to the `not_editable` ack via errors.Is.
+var (
+	ErrTaskOutcomeConflict    = domain.ErrTaskOutcomeConflict
+	ErrTaskOutcomeNotEditable = domain.ErrTaskOutcomeNotEditable
+)
+
 // Translation types
 type Translator = internal.Translator
 
